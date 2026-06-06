@@ -3,16 +3,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import {
-  IconX,
-  IconCreditCard,
-  IconMicrophone,
-} from '@tabler/icons-react'
+import { IconX, IconCreditCard, IconMicrophone } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase-client'
 import LoadingMatrix from '@/components/ui/LoadingMatrix'
+import BottomNav from '@/components/ui/BottomNav'
 import type { ABCProfile } from '@/lib/types'
 
 const EVENTS = ['Medica', 'Heim Textile', 'Web Summit', 'Osobní']
+
+const chipStyle = (active: boolean): React.CSSProperties =>
+  active
+    ? { border: '0.5px solid #7C3AED', color: '#A78BFA', background: '#1A0A2E' }
+    : { border: '0.5px solid #1A0E30', color: '#3A2060', background: 'transparent' }
 
 export default function ScanPage() {
   const router = useRouter()
@@ -137,111 +139,91 @@ export default function ScanPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg pb-28">
+    <div className="min-h-screen pb-32" style={{ background: '#07050E' }}>
       <LoadingMatrix isVisible={isLoading} />
 
-      {/* HERO HEADER */}
-      <div className="hero-radial px-4 pt-6 pb-2">
-        <div className="relative flex items-center justify-between">
-          <div>
-            <span className="gradient-text text-3xl font-black tracking-tight">ABC</span>
-            <p className="text-xs text-text-secondary mt-0.5">Scan. Know. Connect.</p>
-          </div>
-          <button
-            onClick={() => router.push('/contacts')}
-            className="icon-btn"
-            aria-label="Zavřít"
-          >
-            <IconX size={18} />
-          </button>
-        </div>
+      {/* 1. TOP BAR */}
+      <div
+        className="flex items-center justify-between px-4 py-4"
+        style={{ background: '#06040C', borderBottom: '0.5px solid #1A0E30' }}
+      >
+        <span className="gradient-text text-xl font-black tracking-widest">ABC</span>
+        <button onClick={() => router.push('/contacts')} aria-label="Zavřít">
+          <IconX size={20} style={{ color: '#2A1A4A' }} />
+        </button>
       </div>
 
-      {/* SCAN CARD */}
-      <div className="abc-card mx-4 p-5 mt-2">
-        <p className="abc-label mb-4">Naskenuj vizitku</p>
-
+      {/* 2. CAMERA CARD */}
+      <div
+        className="mx-4 mt-4 rounded-xl p-5 relative overflow-hidden"
+        style={{ background: '#06040C', border: '0.5px solid #1A0E30' }}
+      >
         <div
-          className="scan-frame mx-auto flex items-center justify-center"
-          style={{ width: '100%', maxWidth: 280, height: 168 }}
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse, #7C3AED1A, transparent)' }}
+        />
+
+        {/* Scan frame 240x152 */}
+        <div
+          className="relative mx-auto flex items-center justify-center"
+          style={{ width: 240, height: 152 }}
         >
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: 'radial-gradient(ellipse at center, rgba(124,58,237,0.15), transparent 70%)',
-            }}
-          />
           {imagePreview ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={imagePreview}
               alt="Náhled vizitky"
-              className="relative z-10 w-[calc(100%-24px)] h-[calc(100%-24px)] object-cover rounded-lg"
+              className="absolute inset-0 w-full h-full object-cover rounded-lg z-10"
             />
           ) : (
-            <div className="relative z-10 flex flex-col items-center gap-2">
-              <IconCreditCard size={48} className="text-muted" stroke={1.2} />
-              <span className="text-xs text-muted">Umísti vizitku do rámečku</span>
-            </div>
+            <IconCreditCard size={44} className="relative z-10" style={{ color: '#2A1A4A' }} />
           )}
-          <span className="scan-corner scan-corner-tl" />
-          <span className="scan-corner scan-corner-tr" />
-          <span className="scan-corner scan-corner-bl" />
-          <span className="scan-corner scan-corner-br" />
+          {/* Corner brackets */}
+          <span className="absolute left-0 top-0 w-5 h-5 z-20" style={{ borderLeft: '2px solid #A78BFA', borderTop: '2px solid #A78BFA' }} />
+          <span className="absolute right-0 top-0 w-5 h-5 z-20" style={{ borderRight: '2px solid #A78BFA', borderTop: '2px solid #A78BFA' }} />
+          <span className="absolute left-0 bottom-0 w-5 h-5 z-20" style={{ borderLeft: '2px solid #A78BFA', borderBottom: '2px solid #A78BFA' }} />
+          <span className="absolute right-0 bottom-0 w-5 h-5 z-20" style={{ borderRight: '2px solid #A78BFA', borderBottom: '2px solid #A78BFA' }} />
         </div>
+
+        <p className="text-center text-xs mt-3 relative" style={{ color: '#2A1A4A' }}>
+          Namiřte na vizitku
+        </p>
 
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={() => cameraInputRef.current?.click()}
-          className="glow-btn w-full rounded-xl text-white font-semibold py-3.5 mt-5"
+          className="glow-btn relative w-full rounded-xl text-white font-bold py-3 mt-4"
         >
           📷 Vyfotit vizitku
         </motion.button>
 
-        <div className="flex items-center gap-3 my-3 text-xs text-muted">
-          <span className="h-px flex-1 bg-abc-border" />
+        <div className="flex items-center gap-3 my-3 text-xs relative" style={{ color: '#3A2060' }}>
+          <span className="h-px flex-1" style={{ background: '#1A0E30' }} />
           nebo
-          <span className="h-px flex-1 bg-abc-border" />
+          <span className="h-px flex-1" style={{ background: '#1A0E30' }} />
         </div>
 
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={() => galleryInputRef.current?.click()}
-          className="ghost-btn w-full font-medium py-3"
+          className="relative w-full rounded-xl font-medium py-3"
+          style={{ background: 'transparent', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
         >
           ↑ Nahrát z galerie
         </motion.button>
 
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          hidden
-          onChange={(e) => handleFile(e.target.files?.[0])}
-        />
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={(e) => handleFile(e.target.files?.[0])}
-        />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => handleFile(e.target.files?.[0])} />
+        <input ref={galleryInputRef} type="file" accept="image/*" hidden onChange={(e) => handleFile(e.target.files?.[0])} />
       </div>
 
-      {/* NOTE */}
-      <div className="mx-4 mt-5 flex flex-col gap-2">
-        <span className="abc-label">Poznámka</span>
+      {/* 3. POZNÁMKA */}
+      <div className="mx-4 mt-4 flex flex-col gap-2">
+        <span className="tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>POZNÁMKA</span>
         <div className="flex items-center gap-2">
           <button
             onClick={isRecording ? stopRecording : startRecording}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg shrink-0"
-            style={{
-              background: 'rgba(26, 10, 46, 0.8)',
-              border: '0.5px solid rgba(124, 58, 237, 0.35)',
-              color: '#A78BFA',
-              boxShadow: isRecording ? '0 0 12px rgba(239,68,68,0.3)' : undefined,
-            }}
+            style={{ background: '#1A0A2E', border: '0.5px solid #7C3AED44', color: '#A78BFA' }}
           >
             {isRecording ? (
               <>
@@ -259,27 +241,26 @@ export default function ScanPage() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Kde jsme se potkali..."
-            className="abc-input flex-1 px-3 py-2 text-sm"
+            className="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+            style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
           />
         </div>
       </div>
 
-      {/* EVENT */}
-      <div className="mx-4 mt-5 flex flex-col gap-2">
-        <span className="abc-label">Událost</span>
+      {/* 4. UDÁLOST */}
+      <div className="mx-4 mt-3 flex flex-col gap-2">
+        <span className="tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>UDÁLOST</span>
         <div className="flex flex-wrap gap-2">
-          {events.map((ev) => {
-            const active = selectedEvent === ev
-            return (
-              <button
-                key={ev}
-                onClick={() => setSelectedEvent(active ? null : ev)}
-                className={`abc-chip ${active ? 'abc-chip-active' : ''}`}
-              >
-                {ev}
-              </button>
-            )
-          })}
+          {events.map((ev) => (
+            <button
+              key={ev}
+              onClick={() => setSelectedEvent(selectedEvent === ev ? null : ev)}
+              className="px-3 py-1.5 rounded-full text-xs"
+              style={chipStyle(selectedEvent === ev)}
+            >
+              {ev}
+            </button>
+          ))}
           {addingTag ? (
             <input
               autoFocus
@@ -288,10 +269,15 @@ export default function ScanPage() {
               onBlur={addCustomTag}
               onKeyDown={(e) => e.key === 'Enter' && addCustomTag()}
               placeholder="Název..."
-              className="abc-input w-24 px-3 py-1.5 text-xs"
+              className="w-24 px-3 py-1.5 rounded-full text-xs outline-none"
+              style={{ background: '#0D0A18', border: '0.5px solid #7C3AED', color: '#F0EAFF' }}
             />
           ) : (
-            <button onClick={() => setAddingTag(true)} className="abc-chip">
+            <button
+              onClick={() => setAddingTag(true)}
+              className="px-3 py-1.5 rounded-full text-xs"
+              style={chipStyle(false)}
+            >
               + Nová
             </button>
           )}
@@ -304,10 +290,10 @@ export default function ScanPage() {
         </p>
       )}
 
-      {/* STICKY CTA */}
+      {/* 5. ANALYZE BUTTON — fixed above bottom nav */}
       <div
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] p-4 pb-[calc(env(safe-area-inset-bottom)+16px)]"
-        style={{ background: 'linear-gradient(to top, #07050E 70%, transparent)' }}
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+64px)] left-1/2 -translate-x-1/2 w-full max-w-[430px] p-4 z-20"
+        style={{ background: '#07050E', borderTop: '0.5px solid #1A0E30' }}
       >
         <motion.button
           whileTap={{ scale: 0.97 }}
@@ -320,6 +306,8 @@ export default function ScanPage() {
           ✦ Analyzovat AI
         </motion.button>
       </div>
+
+      <BottomNav />
     </div>
   )
 }
