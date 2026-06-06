@@ -3,10 +3,9 @@ import { createAdminClient } from '@/lib/supabase-admin'
 
 export async function POST(req: NextRequest) {
   try {
-    const { contactId, userId, messages } = await req.json() as {
+    const { contactId, userId } = await req.json() as {
       contactId?: string
       userId?: string
-      messages?: { linkedin?: string; email?: string; whatsapp?: string }
     }
 
     if (!contactId || !userId) {
@@ -17,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contact, error: fetchError } = await supabase
       .from('scanned_contacts')
-      .select('id')
+      .select('id, message_linkedin, message_email, message_whatsapp')
       .eq('id', contactId)
       .eq('user_id', userId)
       .single()
@@ -40,7 +39,7 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         step: 1,
         message_type: 'linkedin' as const,
-        message_body: messages?.linkedin || 'Follow-up LinkedIn',
+        message_body: contact.message_linkedin || 'Follow-up LinkedIn',
         scheduled_at: new Date(now.getTime() + 1 * 86400000).toISOString(),
         status: 'scheduled' as const,
       },
@@ -49,7 +48,7 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         step: 2,
         message_type: 'email' as const,
-        message_body: messages?.email || 'Follow-up Email',
+        message_body: contact.message_email || 'Follow-up Email',
         scheduled_at: new Date(now.getTime() + 3 * 86400000).toISOString(),
         status: 'scheduled' as const,
       },
@@ -58,7 +57,7 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         step: 3,
         message_type: 'whatsapp' as const,
-        message_body: messages?.whatsapp || 'Follow-up WhatsApp',
+        message_body: contact.message_whatsapp || 'Follow-up WhatsApp',
         scheduled_at: new Date(now.getTime() + 7 * 86400000).toISOString(),
         status: 'scheduled' as const,
       },
