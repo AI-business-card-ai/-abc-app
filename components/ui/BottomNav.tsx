@@ -1,4 +1,5 @@
 'use client'
+
 import { usePathname, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { IconCamera, IconCards, IconMessage, IconUser } from '@tabler/icons-react'
@@ -15,8 +16,13 @@ export default function BottomNav() {
   const router = useRouter()
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-[#06040C] border-t border-[#1A0E30] pb-[env(safe-area-inset-bottom)]"
-      style={{ backdropFilter: 'blur(20px)' }}>
+    <nav
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] border-t border-abc-border pb-[env(safe-area-inset-bottom)] z-30"
+      style={{
+        background: 'rgba(6, 4, 12, 0.92)',
+        backdropFilter: 'blur(20px)',
+      }}
+    >
       <div className="flex">
         {tabs.map((tab) => {
           const active = pathname.startsWith(tab.path)
@@ -25,22 +31,23 @@ export default function BottomNav() {
               key={tab.path}
               whileTap={{ scale: 0.9 }}
               onClick={() => router.push(tab.path)}
-              className="flex-1 flex flex-col items-center gap-1 py-3"
+              className="flex-1 flex flex-col items-center gap-0.5 py-3 relative"
             >
-              <tab.icon
-                size={22}
-                className={active ? 'text-[#A78BFA]' : 'text-[#2A1A4A]'}
-              />
-              <span className={`text-[10px] font-medium ${active ? 'gradient-text' : 'text-[#2A1A4A]'}`}>
-                {tab.label}
-              </span>
               {active && (
                 <motion.div
-                  layoutId="nav-dot"
-                  className="w-1 h-1 rounded-full bg-[#A78BFA]"
-                  style={{ boxShadow: '0 0 5px #A78BFA' }}
+                  layoutId="nav-glow"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-gradient-primary"
+                  style={{ boxShadow: '0 0 8px rgba(124,58,237,0.6)' }}
                 />
               )}
+              <tab.icon
+                size={22}
+                className={active ? 'text-[#A78BFA]' : 'text-muted'}
+                style={active ? { filter: 'drop-shadow(0 0 4px rgba(167,139,250,0.5))' } : undefined}
+              />
+              <span className={`text-[10px] font-medium ${active ? 'gradient-text' : 'text-muted'}`}>
+                {tab.label}
+              </span>
             </motion.button>
           )
         })}

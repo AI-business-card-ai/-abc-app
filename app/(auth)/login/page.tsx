@@ -32,26 +32,62 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-center px-6">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="flex flex-col gap-8">
+    <div className="auth-bg min-h-screen flex flex-col justify-center px-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative flex flex-col gap-8"
+      >
         <div className="text-center">
-          <h1 className="gradient-text text-5xl font-black">ABC</h1>
-          <p className="mt-2 text-sm text-[#6B7280]">Scan. Know. Connect.</p>
+          <motion.h1
+            className="gradient-text text-6xl font-black tracking-tight"
+            style={{ filter: 'drop-shadow(0 0 24px rgba(124,58,237,0.4))' }}
+          >
+            ABC
+          </motion.h1>
+          <p className="mt-3 text-sm text-text-secondary">Scan. Know. Connect.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="bg-[#0D0A18] border-[0.5px] border-[#1A0E30] focus:border-[#7C3AED] text-[#F0EAFF] rounded-lg px-4 py-3 text-sm outline-none placeholder:text-[#6B7280]" />
-          <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Heslo" className="bg-[#0D0A18] border-[0.5px] border-[#1A0E30] focus:border-[#7C3AED] text-[#F0EAFF] rounded-lg px-4 py-3 text-sm outline-none placeholder:text-[#6B7280]" />
+        <form onSubmit={handleSubmit} className="abc-card p-5 flex flex-col gap-4">
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            className="abc-input px-4 py-3 text-sm"
+          />
+          <input
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Heslo"
+            className="abc-input px-4 py-3 text-sm"
+          />
 
-          {error && <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>}
+          {error && (
+            <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
+              {error}
+            </p>
+          )}
 
-          <button type="submit" disabled={loading} className={`glow-btn w-full rounded-xl text-white font-semibold py-3.5 ${loading ? 'opacity-40' : ''}`}>
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            type="submit"
+            disabled={loading}
+            className={`glow-btn w-full rounded-xl text-white font-semibold py-3.5 ${loading ? 'opacity-40' : ''}`}
+          >
             {loading ? 'Přihlašuji...' : 'Přihlásit se'}
-          </button>
+          </motion.button>
         </form>
 
-        <p className="text-center text-sm text-[#6B7280]">
-          Nemáš účet? <Link href="/register" className="gradient-text font-semibold">Registruj se</Link>
+        <p className="text-center text-sm text-text-secondary relative">
+          Nemáš účet?{' '}
+          <Link href="/register" className="gradient-text font-semibold hover:opacity-80 transition-opacity">
+            Registruj se
+          </Link>
         </p>
       </motion.div>
     </div>

@@ -58,29 +58,34 @@ export default function ContactsPage() {
   const active = filtered[cur] ?? null
 
   return (
-    <div className="min-h-screen bg-[#07050E] pb-28">
-      {/* TOP BAR */}
-      <div className="flex items-center justify-between px-4 pt-6 pb-4">
-        <h1 className="gradient-text text-xl font-black tracking-wide">KARTOTÉKA</h1>
-        <button className="w-9 h-9 rounded-full border border-[#1A0E30] flex items-center justify-center text-[#6B7280]">
-          <IconSearch size={18} />
-        </button>
+    <div className="min-h-screen bg-bg pb-28">
+      {/* HERO HEADER */}
+      <div className="hero-radial px-4 pt-6 pb-4">
+        <div className="relative flex items-center justify-between">
+          <div>
+            <h1 className="gradient-text text-2xl font-black tracking-wide">KARTOTÉKA</h1>
+            <p className="text-xs text-text-secondary mt-0.5">Apple Wallet stack vizitek</p>
+          </div>
+          <button className="icon-btn" aria-label="Hledat">
+            <IconSearch size={18} />
+          </button>
+        </div>
       </div>
 
       {/* STATS */}
       <div className="grid grid-cols-3 gap-2 px-4">
-        <div className="abc-card flex flex-col items-center py-3">
-          <span className="text-xl font-bold text-[#F0EAFF]">{stats.scans}</span>
-          <span className="text-[11px] text-[#6B7280]">Skenů</span>
-        </div>
-        <div className="abc-card flex flex-col items-center py-3">
-          <span className="text-xl font-bold text-[#F0EAFF]">{stats.sent}</span>
-          <span className="text-[11px] text-[#6B7280]">Odesláno</span>
-        </div>
-        <div className="abc-card flex flex-col items-center py-3">
-          <span className="text-xl font-bold gradient-text">{stats.replied}</span>
-          <span className="text-[11px] text-[#6B7280]">Odpovědělo</span>
-        </div>
+        {[
+          { value: stats.scans, label: 'Skenů', gradient: false },
+          { value: stats.sent, label: 'Odesláno', gradient: false },
+          { value: stats.replied, label: 'Odpovědělo', gradient: true },
+        ].map((s) => (
+          <div key={s.label} className="abc-card flex flex-col items-center py-3.5">
+            <span className={`text-xl font-bold ${s.gradient ? 'gradient-text' : 'text-text-primary'}`}>
+              {s.value}
+            </span>
+            <span className="text-[11px] text-muted mt-0.5">{s.label}</span>
+          </div>
+        ))}
       </div>
 
       {/* FILTER CHIPS */}
@@ -91,8 +96,7 @@ export default function ContactsPage() {
             <button
               key={ev}
               onClick={() => setFilter(ev)}
-              className="px-3 py-1.5 rounded-full text-xs border transition-colors"
-              style={isActive ? { borderColor: '#7C3AED', color: '#A78BFA', background: '#1A0A2E' } : { borderColor: '#1A0E30', color: '#6B7280' }}
+              className={`abc-chip ${isActive ? 'abc-chip-active' : ''}`}
             >
               {ev}
             </button>
@@ -101,31 +105,49 @@ export default function ContactsPage() {
       </div>
 
       {loading ? (
-        <p className="py-10 text-center text-sm text-[#6B7280]">Načítám...</p>
+        <div className="py-16 flex flex-col items-center gap-3">
+          <div className="w-7 h-7 rounded-full border-2 border-transparent border-t-primary border-r-secondary animate-spin" />
+          <p className="text-sm text-text-secondary">Načítám...</p>
+        </div>
       ) : error ? (
-        <p className="mx-4 mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>
+        <p className="mx-4 mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {error}
+        </p>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 py-12 px-6 text-center">
-          <p className="text-sm text-[#6B7280]">Zatím nemáš žádné naskenované vizitky.</p>
-          <button onClick={() => router.push('/scan')} className="glow-btn rounded-xl text-white px-5 py-2.5 flex items-center gap-2">
+        <div className="flex flex-col items-center gap-4 py-14 px-6 text-center hero-radial">
+          <p className="text-sm text-text-secondary">Zatím nemáš žádné naskenované vizitky.</p>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={() => router.push('/scan')}
+            className="glow-btn rounded-xl text-white px-5 py-2.5 flex items-center gap-2"
+          >
             <IconCamera size={18} /> Naskenovat první
-          </button>
+          </motion.button>
         </div>
       ) : (
         <>
-          <div className="mt-5">
-            <CardStack contacts={filtered} cur={cur} onCurChange={setCur} onSelect={(id) => router.push('/contact/' + id)} />
+          <div className="mt-6">
+            <CardStack
+              contacts={filtered}
+              cur={cur}
+              onCurChange={setCur}
+              onSelect={(id) => router.push('/contact/' + id)}
+            />
           </div>
 
           {/* PAGINATION DOTS */}
-          <div className="flex justify-center gap-1 py-2">
+          <div className="flex justify-center gap-1.5 py-3">
             {filtered.map((c, i) => (
               <button
                 key={c.id}
                 onClick={() => setCur(i)}
                 aria-label={`Karta ${i + 1}`}
-                className="rounded-full transition-all"
-                style={i === cur ? { width: 14, height: 4, background: '#A78BFA' } : { width: 4, height: 4, background: '#1A0E30' }}
+                className="rounded-full transition-all duration-300"
+                style={
+                  i === cur
+                    ? { width: 16, height: 4, background: 'linear-gradient(90deg, #A78BFA, #38BDF8)', boxShadow: '0 0 6px rgba(167,139,250,0.5)' }
+                    : { width: 4, height: 4, background: '#1A0E30' }
+                }
               />
             ))}
           </div>
@@ -135,24 +157,48 @@ export default function ContactsPage() {
             {active && (
               <motion.div
                 key={active.id}
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.25 }}
-                className="abc-card mx-4 p-3 flex flex-col gap-2"
+                className="abc-card mx-4 p-3.5 flex flex-col gap-2.5"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#A78BFA', boxShadow: '0 0 6px #A78BFA' }} />
-                    <span className="text-xs text-[#A78BFA]">{active.event_name ?? 'Bez události'}</span>
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: '#A78BFA', boxShadow: '0 0 8px #A78BFA' }}
+                    />
+                    <span className="text-xs text-[#A78BFA] font-medium">
+                      {active.event_name ?? 'Bez události'}
+                    </span>
                   </div>
-                  <span className="text-xs text-[#6B7280]">{new Date(active.scanned_at).toLocaleDateString('cs-CZ')}</span>
+                  <span className="text-xs text-muted">
+                    {new Date(active.scanned_at).toLocaleDateString('cs-CZ')}
+                  </span>
                 </div>
-                {active.notes && <p className="text-sm text-[#6B7280]">{active.notes}</p>}
+                {active.notes && (
+                  <p className="text-sm text-text-secondary leading-relaxed">{active.notes}</p>
+                )}
                 <div className="flex gap-2">
-                  <button onClick={() => router.push('/chat/' + active.id)} className="flex-1 rounded-lg border border-[#1A0E30] py-2 text-xs text-[#F0EAFF]">💬 Chat</button>
-                  <button onClick={() => router.push('/contact/' + active.id)} className="flex-1 rounded-lg border border-[#1A0E30] py-2 text-xs text-[#F0EAFF]">✉ Zpráva</button>
-                  <button onClick={() => router.push('/contact/' + active.id)} className="flex-1 rounded-lg border border-[#1A0E30] py-2 text-xs text-[#F0EAFF]">✦ Detail</button>
+                  <button
+                    onClick={() => router.push('/chat/' + active.id)}
+                    className="ghost-btn flex-1 py-2 text-xs"
+                  >
+                    💬 Chat
+                  </button>
+                  <button
+                    onClick={() => router.push('/contact/' + active.id)}
+                    className="ghost-btn flex-1 py-2 text-xs"
+                  >
+                    ✉ Zpráva
+                  </button>
+                  <button
+                    onClick={() => router.push('/contact/' + active.id)}
+                    className="glow-btn flex-1 py-2 text-xs text-white font-medium"
+                  >
+                    ✦ Detail
+                  </button>
                 </div>
               </motion.div>
             )}

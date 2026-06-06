@@ -13,6 +13,7 @@ import {
 } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase-client'
 import MatchScore from '@/components/ui/MatchScore'
+import GradientAvatar from '@/components/ui/GradientAvatar'
 import type { ScannedContact } from '@/lib/types'
 
 type Tab = 'linkedin' | 'email' | 'whatsapp'
@@ -25,10 +26,10 @@ const TABS: { key: Tab; label: string }[] = [
 
 const container = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.1 } },
+  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
 }
 const item = {
-  hidden: { opacity: 0, y: 12 },
+  hidden: { opacity: 0, y: 14 },
   show: { opacity: 1, y: 0 },
 }
 
@@ -132,14 +133,23 @@ export default function ContactResultPage() {
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-[#6B7280]">Načítám...</div>
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-transparent border-t-primary border-r-secondary animate-spin" />
+          <span className="text-sm text-text-secondary">Načítám...</span>
+        </div>
+      </div>
+    )
   }
 
   if (error && !contact) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-[#6B7280]">{error}</p>
-        <button onClick={() => router.push('/contacts')} className="glow-btn rounded-xl text-white px-5 py-2.5">Zpět do kartotéky</button>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center hero-radial">
+        <p className="text-text-secondary">{error}</p>
+        <button onClick={() => router.push('/contacts')} className="glow-btn rounded-xl text-white px-5 py-2.5">
+          Zpět do kartotéky
+        </button>
       </div>
     )
   }
@@ -150,80 +160,117 @@ export default function ContactResultPage() {
   const over = limit !== null && messages[tab].length > limit
 
   return (
-    <div className="min-h-screen bg-[#07050E] pb-44">
+    <div className="min-h-screen bg-bg pb-44">
       {/* TOP BAR */}
-      <div className="flex items-center justify-between px-4 pt-6 pb-4 relative">
-        <button onClick={() => router.push('/contacts')} className="w-9 h-9 rounded-full border border-[#1A0E30] flex items-center justify-center text-[#6B7280]">
+      <div className="hero-radial flex items-center justify-between px-4 pt-6 pb-4 relative">
+        <button onClick={() => router.push('/contacts')} className="icon-btn">
           <IconArrowLeft size={18} />
         </button>
-        <span className="text-sm font-semibold">Výsledek</span>
-        <button onClick={() => setMenuOpen((o) => !o)} className="w-9 h-9 rounded-full border border-[#1A0E30] flex items-center justify-center text-[#6B7280]">
+        <span className="text-sm font-semibold gradient-text">Výsledek</span>
+        <button onClick={() => setMenuOpen((o) => !o)} className="icon-btn">
           <IconDots size={18} />
         </button>
         <AnimatePresence>
           {menuOpen && (
             <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="absolute right-4 top-16 z-20 abc-card overflow-hidden w-40"
+              initial={{ opacity: 0, y: -6, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.95 }}
+              className="absolute right-4 top-16 z-20 abc-card overflow-hidden w-44"
+              style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
             >
-              <button onClick={() => { setMenuOpen(false); setTab(tab) }} className="block w-full text-left px-4 py-2.5 text-sm text-[#F0EAFF] hover:bg-[#1A0A2E]">Upravit</button>
-              <button onClick={archive} className="block w-full text-left px-4 py-2.5 text-sm text-[#F0EAFF] hover:bg-[#1A0A2E]">Archivovat</button>
-              <button onClick={remove} className="block w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-[#1A0A2E]">Smazat</button>
+              <button onClick={() => { setMenuOpen(false); setTab(tab) }} className="block w-full text-left px-4 py-2.5 text-sm text-text-primary hover:bg-[#1A0A2E] transition-colors">Upravit</button>
+              <button onClick={archive} className="block w-full text-left px-4 py-2.5 text-sm text-text-primary hover:bg-[#1A0A2E] transition-colors">Archivovat</button>
+              <button onClick={remove} className="block w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-[#1A0A2E] transition-colors">Smazat</button>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
       <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-4 px-4">
-        {/* HERO */}
+        {/* HERO CONTACT */}
         <motion.div variants={item} className="abc-card p-4 flex items-center gap-3">
-          <div className="rounded-full p-[2px]" style={{ background: 'linear-gradient(135deg,#7C3AED,#0EA5E9)' }}>
-            <div className="w-[52px] h-[52px] rounded-full flex items-center justify-center text-lg font-bold text-[#F0EAFF]" style={{ background: '#1A0A2E' }}>
-              {initials}
-            </div>
+          <GradientAvatar initials={initials} size="lg" />
+          <div className="flex-1 min-w-0">
+            <h2 className="font-bold text-text-primary truncate">{contact.name ?? 'Neznámý kontakt'}</h2>
+            <p className="text-xs text-text-secondary truncate">
+              {[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}
+            </p>
           </div>
-          <div className="flex-1">
-            <h2 className="font-bold text-[#F0EAFF]">{contact.name ?? 'Neznámý kontakt'}</h2>
-            <p className="text-xs text-[#6B7280]">{[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}</p>
-          </div>
-          <div className="flex gap-2">
-            {contact.email && <a href={`mailto:${contact.email}`} className="w-8 h-8 rounded-full border border-[#1A0E30] flex items-center justify-center text-[#6B7280]"><IconMail size={16} /></a>}
-            {contact.phone && <a href={`tel:${contact.phone}`} className="w-8 h-8 rounded-full border border-[#1A0E30] flex items-center justify-center text-[#6B7280]"><IconPhone size={16} /></a>}
-            {contact.linkedin_url && <a href={contact.linkedin_url} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-full border border-[#1A0E30] flex items-center justify-center text-[#6B7280]"><IconBrandLinkedin size={16} /></a>}
+          <div className="flex gap-1.5 shrink-0">
+            {contact.email && (
+              <a href={`mailto:${contact.email}`} className="icon-btn w-8 h-8">
+                <IconMail size={15} />
+              </a>
+            )}
+            {contact.phone && (
+              <a href={`tel:${contact.phone}`} className="icon-btn w-8 h-8">
+                <IconPhone size={15} />
+              </a>
+            )}
+            {contact.linkedin_url && (
+              <a href={contact.linkedin_url} target="_blank" rel="noreferrer" className="icon-btn w-8 h-8">
+                <IconBrandLinkedin size={15} />
+              </a>
+            )}
           </div>
         </motion.div>
 
         {/* MATCH SCORE */}
-        <motion.div variants={item} className="abc-card p-4 flex items-center gap-4">
+        <motion.div
+          variants={item}
+          className="abc-card p-4 flex items-center gap-4 relative overflow-hidden"
+        >
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: 'radial-gradient(ellipse at left, rgba(124,58,237,0.12), transparent 60%)' }}
+          />
           <MatchScore score={contact.match_score ?? 0} />
-          <div className="flex-1">
-            <p className="text-[10px] tracking-widest text-[#3A2060]">MATCH SCORE</p>
-            <p className="text-sm text-[#6B7280] mt-1">{contact.match_reason ?? 'Bez vyhodnocení relevance.'}</p>
+          <div className="flex-1 relative">
+            <p className="abc-label">Match Score</p>
+            <p className="text-sm text-text-secondary mt-1.5 leading-relaxed">
+              {contact.match_reason ?? 'Bez vyhodnocení relevance.'}
+            </p>
           </div>
         </motion.div>
 
         {/* COMPANY */}
         <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">
-          <div className="flex items-start gap-2">
-            <IconBuilding size={20} className="text-[#0EA5E9] mt-0.5" />
-            <p className="text-sm text-[#6B7280] flex-1">{contact.company_summary ?? 'Bez popisu firmy.'}</p>
+          <div className="flex items-start gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(14,165,233,0.12)' }}>
+              <IconBuilding size={18} className="text-secondary" />
+            </div>
+            <p className="text-sm text-text-secondary flex-1 leading-relaxed">
+              {contact.company_summary ?? 'Bez popisu firmy.'}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {contact.industry && <span className="rounded-full border border-[#1A0E30] px-3 py-1 text-xs text-[#6B7280]">{contact.industry}</span>}
-            {contact.company_size && <span className="rounded-full border border-[#1A0E30] px-3 py-1 text-xs text-[#6B7280]">{contact.company_size}</span>}
+            {contact.industry && (
+              <span className="abc-chip abc-chip-active">{contact.industry}</span>
+            )}
+            {contact.company_size && (
+              <span className="abc-chip">{contact.company_size}</span>
+            )}
           </div>
         </motion.div>
 
         {/* MESSAGES */}
         <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">
-          <div className="flex">
+          <div className="flex border-b border-abc-border">
             {TABS.map((t) => (
-              <button key={t.key} onClick={() => setTab(t.key)} className="relative flex-1 pb-2 text-sm font-medium" style={{ color: tab === t.key ? '#F0EAFF' : '#6B7280' }}>
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className="relative flex-1 pb-2.5 text-sm font-medium transition-colors"
+                style={{ color: tab === t.key ? '#F0EAFF' : '#3A2060' }}
+              >
                 {t.label}
                 {tab === t.key && (
-                  <motion.span layoutId="msg-underline" className="absolute bottom-0 left-0 w-full h-0.5 rounded-full" style={{ background: 'linear-gradient(90deg,#A78BFA,#38BDF8)' }} />
+                  <motion.span
+                    layoutId="msg-underline"
+                    className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-gradient-text"
+                    style={{ boxShadow: '0 0 6px rgba(167,139,250,0.5)' }}
+                  />
                 )}
               </button>
             ))}
@@ -234,47 +281,78 @@ export default function ContactResultPage() {
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Předmět emailu"
-              className="bg-[#111] border-[0.5px] border-[#1A0E30] focus:border-[#7C3AED] text-[#F0EAFF] rounded-lg px-3 py-2 text-sm outline-none"
+              className="abc-input px-3 py-2.5 text-sm"
             />
           )}
 
           <textarea
             value={messages[tab]}
             onChange={(e) => setMessages((m) => ({ ...m, [tab]: e.target.value }))}
-            className="bg-[#111] border-[0.5px] border-[#1A0E30] focus:border-[#7C3AED] text-[#F0EAFF] rounded-lg px-3 py-2 text-sm outline-none min-h-[100px] resize-none"
+            className="abc-input px-3 py-2.5 text-sm min-h-[110px] resize-none"
           />
 
           {limit !== null && (
-            <div className="text-right text-xs" style={{ color: over ? '#EF4444' : '#6B7280' }}>
+            <div className="text-right text-xs" style={{ color: over ? '#EF4444' : '#3A2060' }}>
               {messages[tab].length}/{limit}
             </div>
           )}
         </motion.div>
 
-        {error && <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>}
+        {error && (
+          <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
+            {error}
+          </p>
+        )}
       </motion.div>
 
       {/* STICKY BOTTOM */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-[#07050E] border-t border-[#1A0E30] p-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
-        <button onClick={handleSend} disabled={sending} className={`glow-btn w-full rounded-xl text-white font-semibold py-3.5 ${sending ? 'opacity-40' : ''}`}>
+      <div
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] border-t border-abc-border p-4 pb-[calc(env(safe-area-inset-bottom)+16px)]"
+        style={{ background: 'rgba(7, 5, 14, 0.95)', backdropFilter: 'blur(16px)' }}
+      >
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={handleSend}
+          disabled={sending}
+          className={`glow-btn w-full rounded-xl text-white font-semibold py-3.5 ${sending ? 'opacity-40' : ''}`}
+        >
           ✦ Schválit &amp; Odeslat
-        </button>
+        </motion.button>
         <div className="flex gap-3 mt-3">
-          <button onClick={() => setTab(tab)} className="flex-1 rounded-xl border border-[#1A0E30] text-[#F0EAFF] py-2.5 text-sm">Upravit</button>
-          <button onClick={() => router.push('/contacts')} className="flex-1 rounded-xl border border-[#1A0E30] text-[#F0EAFF] py-2.5 text-sm">Přeskočit</button>
+          <button onClick={() => setTab(tab)} className="ghost-btn flex-1 py-2.5 text-sm">Upravit</button>
+          <button onClick={() => router.push('/contacts')} className="ghost-btn flex-1 py-2.5 text-sm">Přeskočit</button>
         </div>
       </div>
 
       {/* FOLLOW-UP MODAL */}
       <AnimatePresence>
         {showFollowup && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 flex items-end justify-center" style={{ background: 'rgba(7,5,14,0.7)' }}>
-            <motion.div initial={{ y: 40 }} animate={{ y: 0 }} exit={{ y: 40 }} className="w-full max-w-[430px] rounded-t-2xl border-t border-[#1A0E30] bg-[#0D0A18] p-6">
-              <h3 className="font-bold text-[#F0EAFF] mb-1">Naplánovat follow-up?</h3>
-              <p className="text-sm text-[#6B7280] mb-5">Vytvoříme 3-krokovou sekvenci (LinkedIn +1d, Email +3d, WhatsApp +7d).</p>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-end justify-center"
+            style={{ background: 'rgba(7,5,14,0.75)', backdropFilter: 'blur(4px)' }}
+          >
+            <motion.div
+              initial={{ y: 48 }}
+              animate={{ y: 0 }}
+              exit={{ y: 48 }}
+              className="w-full max-w-[430px] rounded-t-2xl border-t border-abc-border bg-card p-6"
+              style={{ boxShadow: '0 -8px 40px rgba(124,58,237,0.15)' }}
+            >
+              <div className="w-10 h-1 rounded-full bg-abc-border mx-auto mb-5" />
+              <h3 className="font-bold text-text-primary mb-1">Naplánovat follow-up?</h3>
+              <p className="text-sm text-text-secondary mb-5 leading-relaxed">
+                Vytvoříme 3-krokovou sekvenci (LinkedIn +1d, Email +3d, WhatsApp +7d).
+              </p>
               <div className="flex gap-3">
-                <button onClick={() => scheduleFollowup(true)} className="glow-btn flex-1 rounded-xl text-white py-3 font-semibold">Ano, naplánovat</button>
-                <button onClick={() => scheduleFollowup(false)} className="flex-1 rounded-xl border border-[#1A0E30] text-[#F0EAFF] py-3">Ne</button>
+                <button onClick={() => scheduleFollowup(true)} className="glow-btn flex-1 rounded-xl text-white py-3 font-semibold">
+                  Ano, naplánovat
+                </button>
+                <button onClick={() => scheduleFollowup(false)} className="ghost-btn flex-1 py-3">
+                  Ne
+                </button>
               </div>
             </motion.div>
           </motion.div>
