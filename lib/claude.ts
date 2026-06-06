@@ -7,11 +7,66 @@ const anthropic = new Anthropic({
 
 type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
+type CardExtract = Pick<
+  ScanResult,
+  'name' | 'company' | 'role' | 'email' | 'phone' | 'website' | 'linkedin_url'
+>
+
+export async function extractBusinessCardFromImage(
+  imageBase64: string,
+  mediaType: ImageMediaType
+): Promise<CardExtract> {
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 600,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mediaType,
+              data: imageBase64,
+            },
+          },
+          {
+            type: 'text',
+            text: `Extract from this business card image. Return ONLY JSON, no markdown:
+{
+  "name": null,
+  "company": null,
+  "role": null,
+  "email": null,
+  "phone": null,
+  "website": null,
+  "linkedin_url": null
+}`,
+          },
+        ],
+      },
+    ],
+  })
+
+  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const clean = text.replace(/```json|```/g, '').trim()
+  return JSON.parse(clean) as CardExtract
+}
+
 export async function analyzeBusinessCard(
   imageBase64: string,
   userProfile: ABCProfile,
-  mediaType: ImageMediaType
+  mediaType: ImageMediaType,
+  enrichedContext: string = ''
 ): Promise<ScanResult> {
+  const researchBlock = enrichedContext.trim()
+    ? `Additional research about this contact: ${enrichedContext}
+
+Research context: ${enrichedContext}
+Use this to write highly personalized messages that reference specific details.`
+    : ''
+
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-5',
     max_tokens: 1500,
@@ -44,6 +99,8 @@ User context:
 - Goals: ${userProfile.goals}
 - Style: ${userProfile.communication_style}
 - Language: ${userProfile.outreach_language}
+
+${researchBlock}
 
 Calculate match_score (0-100) and match_reason (1 sentence).
 
