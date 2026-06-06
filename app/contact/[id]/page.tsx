@@ -55,14 +55,30 @@ export default function ContactResultPage() {
   useEffect(() => {
     let active = true
     ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      console.log('[contact] params id:', id)
+      console.log('[contact] session user_id:', user?.id ?? null)
+
+      if (!user) {
+        if (active) {
+          router.push('/login')
+          setLoading(false)
+        }
+        return
+      }
+
       const { data, error: e } = await supabase
         .from('scanned_contacts')
         .select('*')
         .eq('id', id)
-        .single()
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      console.log('[contact] fetch result:', { data: data?.id ?? null, error: e?.message ?? null })
+
       if (!active) return
       if (e || !data) {
-        setError('Kontakt nenalezen.')
+        setError(e?.message ?? 'Kontakt nenalezen.')
       } else {
         const c = data as ScannedContact
         setContact(c)
@@ -76,7 +92,7 @@ export default function ContactResultPage() {
       setLoading(false)
     })()
     return () => { active = false }
-  }, [id, supabase])
+  }, [id, router, supabase])
 
   const initials = useMemo(() => {
     if (!contact?.name) return '?'

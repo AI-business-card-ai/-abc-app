@@ -15,6 +15,12 @@ const CHANNELS: { key: Channel; label: string }[] = [
   { key: 'whatsapp', label: 'WhatsApp' },
 ]
 
+const CHANNEL_DOT: Record<Channel, string> = {
+  linkedin: '#A78BFA',
+  email: '#38BDF8',
+  whatsapp: '#34D399',
+}
+
 interface ChatMessage {
   id: string
   direction: 'in' | 'out'
@@ -28,36 +34,22 @@ const chipStyle = (active: boolean): React.CSSProperties =>
     ? { border: '0.5px solid #7C3AED', color: '#A78BFA', background: '#1A0A2E' }
     : { border: '0.5px solid #1A0E30', color: '#3A2060', background: 'transparent' }
 
+function channelLabel(channel: Channel) {
+  return CHANNELS.find((c) => c.key === channel)?.label ?? channel
+}
+
 function buildMessages(contact: ScannedContact, seqs: FollowupSequence[]): ChatMessage[] {
   const msgs: ChatMessage[] = []
 
   if (contact.status === 'sent' || contact.status === 'replied') {
     if (contact.message_linkedin) {
-      msgs.push({
-        id: `contact-li`,
-        direction: 'out',
-        body: contact.message_linkedin,
-        channel: 'linkedin',
-        at: contact.scanned_at,
-      })
+      msgs.push({ id: 'contact-li', direction: 'out', body: contact.message_linkedin, channel: 'linkedin', at: contact.scanned_at })
     }
     if (contact.message_email) {
-      msgs.push({
-        id: `contact-em`,
-        direction: 'out',
-        body: contact.message_email,
-        channel: 'email',
-        at: contact.scanned_at,
-      })
+      msgs.push({ id: 'contact-em', direction: 'out', body: contact.message_email, channel: 'email', at: contact.scanned_at })
     }
     if (contact.message_whatsapp) {
-      msgs.push({
-        id: `contact-wa`,
-        direction: 'out',
-        body: contact.message_whatsapp,
-        channel: 'whatsapp',
-        at: contact.scanned_at,
-      })
+      msgs.push({ id: 'contact-wa', direction: 'out', body: contact.message_whatsapp, channel: 'whatsapp', at: contact.scanned_at })
     }
   }
 
@@ -90,15 +82,23 @@ export default function ChatPage() {
   const [channel, setChannel] = useState<Channel>('linkedin')
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [activeSequenceId, setActiveSequenceId] = useState<string | null>(null)
+  const [sendingSequenceId, setSendingSequenceId] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
     const [{ data: c, error: cErr }, { data: seq, error: sErr }] = await Promise.all([
-      supabase.from('scanned_contacts').select('*').eq('id', id).single(),
+      supabase.from('scanned_contacts').select('*').eq('id', id).eq('user_id', user.id).maybeSingle(),
       supabase.from('followup_sequences').select('*').eq('contact_id', id).order('step', { ascending: true }),
     ])
 
     if (cErr || !c) {
-      setError('Konverzace nenalezena.')
+      setError(cErr?.message ?? 'Konverzace nenalezena.')
       setContact(null)
       setSequences([])
       setMessages([])
@@ -111,7 +111,7 @@ export default function ChatPage() {
     setSequences(seqs)
     setMessages(buildMessages(contactData, seqs))
     setError(sErr?.message ?? null)
-  }, [id, supabase])
+  }, [id, router, supabase])
 
   useEffect(() => {
     let active = true
@@ -130,6 +130,48 @@ export default function ChatPage() {
   const replied = contact?.status === 'replied'
   const scheduled = sequences.filter((s) => s.status === 'scheduled')
   const sent = sequences.filter((s) => s.status === 'sent')
+
+  const activeSequence = useMemo(
+    () => sequences.find((s) => s.id === activeSequenceId) ?? null,
+    [sequences, activeSequenceId]
+  )
+
+  function selectSequence(seq: FollowupSequence) {
+    setActiveSequenceId(seq.id)
+    setChannel(seq.message_type)
+    setDraft(seq.message_body)
+  }
+
+  async function sendNow(seq: FollowupSequence) {
+    setSendingSequenceId(seq.id)
+    setError(null)
+    try {
+      const now = new Date().toISOString()
+      const { data, error: updateError } = await supabase
+        .from('followup_sequences')
+        .update({ status: 'sent', sent_at: now })
+        .eq('id', seq.id)
+        .select()
+        .single()
+
+      if (updateError) throw new Error(updateError.message)
+
+      const row = data as FollowupSequence
+      setSequences((prev) => prev.map((s) => (s.id === row.id ? row : s)))
+      setMessages((m) => [
+        ...m,
+        { id: row.id, direction: 'out', body: row.message_body, channel: row.message_type, at: row.sent_at ?? now },
+      ])
+      if (activeSequenceId === seq.id) {
+        setActiveSequenceId(null)
+        setDraft('')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Odeslání selhalo.')
+    } finally {
+      setSendingSequenceId(null)
+    }
+  }
 
   async function send() {
     const body = draft.trim()
@@ -167,6 +209,7 @@ export default function ChatPage() {
         { id: row.id, direction: 'out', body, channel, at: row.sent_at ?? now },
       ])
       setDraft('')
+      setActiveSequenceId(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Odeslání selhalo.')
     } finally {
@@ -219,17 +262,24 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 pb-36">
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 pb-52">
         {messages.length === 0 ? (
           <p className="py-8 text-center text-sm" style={{ color: '#3A2060' }}>Zatím žádné zprávy.</p>
         ) : (
           messages.map((m) => {
             const out = m.direction === 'out'
+            const dotColor = CHANNEL_DOT[m.channel]
             return (
               <div
                 key={m.id}
                 className={`flex flex-col ${out ? 'self-end items-end' : 'self-start items-start'} max-w-[88%]`}
               >
+                <div className="flex items-center gap-1.5 mb-1 px-1">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: dotColor, boxShadow: `0 0 6px ${dotColor}` }} />
+                  <span className="text-[9px] font-medium uppercase tracking-wide" style={{ color: dotColor }}>
+                    {channelLabel(m.channel)}
+                  </span>
+                </div>
                 <div
                   className="px-3 py-2 text-sm leading-relaxed"
                   style={
@@ -237,7 +287,7 @@ export default function ChatPage() {
                       ? {
                           background: 'linear-gradient(135deg, #1A0A2E, #0A1428)',
                           color: '#C4B5FD',
-                          border: '0.5px solid #2A1A4A',
+                          border: `0.5px solid ${dotColor}44`,
                           borderRadius: '10px 10px 2px 10px',
                         }
                       : {
@@ -251,7 +301,7 @@ export default function ChatPage() {
                   {m.body}
                 </div>
                 <span className="mt-1 px-1" style={{ fontSize: '7px', color: '#2A1A4A' }}>
-                  {new Date(m.at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })} · {m.channel}
+                  {new Date(m.at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             )
@@ -269,28 +319,61 @@ export default function ChatPage() {
             <p className="text-xs" style={{ color: '#3A2060' }}>Žádné naplánované follow-upy.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {[...scheduled, ...sent].map((s) => {
-                const isSent = s.status === 'sent'
+              {scheduled.map((s) => {
+                const isActive = activeSequenceId === s.id
+                const dotColor = CHANNEL_DOT[s.message_type]
                 return (
-                  <div
+                  <button
                     key={s.id}
-                    className="flex items-center gap-2 rounded-lg px-3 py-2"
-                    style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
+                    type="button"
+                    onClick={() => selectSequence(s)}
+                    className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left w-full transition-colors"
+                    style={{
+                      background: isActive ? '#1A0A2E' : '#0D0A18',
+                      border: isActive ? `0.5px solid ${dotColor}` : '0.5px solid #1A0E30',
+                      boxShadow: isActive ? `0 0 12px ${dotColor}33` : undefined,
+                    }}
                   >
                     <span
                       className="w-2 h-2 rounded-full shrink-0"
-                      style={
-                        isSent
-                          ? { background: '#A78BFA', boxShadow: '0 0 8px #A78BFA' }
-                          : { background: '#1A0E30' }
-                      }
+                      style={{ background: dotColor, boxShadow: `0 0 8px ${dotColor}` }}
                     />
+                    <span className="text-xs flex-1 font-medium" style={{ color: isActive ? '#F0EAFF' : '#8B7AA8' }}>
+                      {channelLabel(s.message_type)} · krok {s.step}
+                    </span>
+                    <span className="text-[10px] shrink-0" style={{ color: '#3A2060' }}>
+                      {new Date(s.scheduled_at).toLocaleDateString('cs-CZ')}
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); sendNow(s) }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); sendNow(s) } }}
+                      className="text-[10px] font-semibold shrink-0 px-2 py-1 rounded-lg ml-1"
+                      style={{
+                        background: 'linear-gradient(135deg, #7C3AED, #0EA5E9)',
+                        color: '#fff',
+                        opacity: sendingSequenceId === s.id ? 0.5 : 1,
+                      }}
+                    >
+                      {sendingSequenceId === s.id ? '...' : 'Odeslat nyní'}
+                    </span>
+                  </button>
+                )
+              })}
+              {sent.map((s) => {
+                const dotColor = CHANNEL_DOT[s.message_type]
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-2 rounded-lg px-3 py-2 opacity-60"
+                    style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
                     <span className="text-xs flex-1" style={{ color: '#3A2060' }}>
-                      {CHANNELS.find((c) => c.key === s.message_type)?.label} · krok {s.step}
+                      {channelLabel(s.message_type)} · krok {s.step}
                     </span>
-                    <span className="text-[10px]" style={{ color: '#3A2060' }}>
-                      {isSent ? 'Odesláno' : new Date(s.scheduled_at).toLocaleDateString('cs-CZ')}
-                    </span>
+                    <span className="text-[10px]" style={{ color: '#3A2060' }}>Odesláno</span>
                   </div>
                 )
               })}
@@ -307,6 +390,27 @@ export default function ChatPage() {
         className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px]"
         style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
       >
+        {activeSequence && (
+          <div className="px-4 pt-3 pb-1">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: CHANNEL_DOT[activeSequence.message_type], boxShadow: `0 0 6px ${CHANNEL_DOT[activeSequence.message_type]}` }}
+              />
+              <span className="text-[10px] font-medium" style={{ color: CHANNEL_DOT[activeSequence.message_type] }}>
+                {channelLabel(activeSequence.message_type)} · krok {activeSequence.step}
+              </span>
+            </div>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={3}
+              className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none"
+              style={{ background: '#0D0A18', border: `0.5px solid ${CHANNEL_DOT[activeSequence.message_type]}`, color: '#F0EAFF' }}
+            />
+          </div>
+        )}
+
         <div className="px-4 pb-2 pt-2 flex gap-2">
           {CHANNELS.map((c) => (
             <button

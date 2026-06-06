@@ -102,11 +102,17 @@ create policy "profiles_update_own" on public.abc_profiles
 drop policy if exists "contacts_all_own" on public.scanned_contacts;
 create policy "contacts_all_own" on public.scanned_contacts
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "contacts_select_own" on public.scanned_contacts;
+create policy "contacts_select_own" on public.scanned_contacts
+  for select using (auth.uid() = user_id);
 
 -- followup_sequences: owner-only
 drop policy if exists "followups_all_own" on public.followup_sequences;
 create policy "followups_all_own" on public.followup_sequences
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "followups_select_own" on public.followup_sequences;
+create policy "followups_select_own" on public.followup_sequences
+  for select using (auth.uid() = user_id);
 
 -- =========================================================
 -- Auto-create a profile row on signup
