@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { IconArrowLeft, IconSend } from '@tabler/icons-react'
@@ -28,6 +28,54 @@ const chipStyle = (active: boolean): React.CSSProperties =>
     ? { border: '0.5px solid #7C3AED', color: '#A78BFA', background: '#1A0A2E' }
     : { border: '0.5px solid #1A0E30', color: '#3A2060', background: 'transparent' }
 
+function buildMessages(contact: ScannedContact, seqs: FollowupSequence[]): ChatMessage[] {
+  const msgs: ChatMessage[] = []
+
+  if (contact.status === 'sent' || contact.status === 'replied') {
+    if (contact.message_linkedin) {
+      msgs.push({
+        id: `contact-li`,
+        direction: 'out',
+        body: contact.message_linkedin,
+        channel: 'linkedin',
+        at: contact.scanned_at,
+      })
+    }
+    if (contact.message_email) {
+      msgs.push({
+        id: `contact-em`,
+        direction: 'out',
+        body: contact.message_email,
+        channel: 'email',
+        at: contact.scanned_at,
+      })
+    }
+    if (contact.message_whatsapp) {
+      msgs.push({
+        id: `contact-wa`,
+        direction: 'out',
+        body: contact.message_whatsapp,
+        channel: 'whatsapp',
+        at: contact.scanned_at,
+      })
+    }
+  }
+
+  for (const s of seqs) {
+    if (s.sent_at) {
+      msgs.push({
+        id: s.id,
+        direction: 'out',
+        body: s.message_body,
+        channel: s.message_type,
+        at: s.sent_at,
+      })
+    }
+  }
+
+  return msgs.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+}
+
 export default function ChatPage() {
   const params = useParams()
   const router = useRouter()
@@ -41,35 +89,38 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null)
   const [channel, setChannel] = useState<Channel>('linkedin')
   const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const loadData = useCallback(async () => {
+    const [{ data: c, error: cErr }, { data: seq, error: sErr }] = await Promise.all([
+      supabase.from('scanned_contacts').select('*').eq('id', id).single(),
+      supabase.from('followup_sequences').select('*').eq('contact_id', id).order('step', { ascending: true }),
+    ])
+
+    if (cErr || !c) {
+      setError('Konverzace nenalezena.')
+      setContact(null)
+      setSequences([])
+      setMessages([])
+      return
+    }
+
+    const contactData = c as ScannedContact
+    const seqs = (seq as FollowupSequence[]) ?? []
+    setContact(contactData)
+    setSequences(seqs)
+    setMessages(buildMessages(contactData, seqs))
+    setError(sErr?.message ?? null)
+  }, [id, supabase])
 
   useEffect(() => {
     let active = true
     ;(async () => {
-      const [{ data: c }, { data: seq }] = await Promise.all([
-        supabase.from('scanned_contacts').select('*').eq('id', id).single(),
-        supabase.from('followup_sequences').select('*').eq('contact_id', id).order('step', { ascending: true }),
-      ])
-      if (!active) return
-      if (!c) {
-        setError('Konverzace nenalezena.')
-      } else {
-        setContact(c as ScannedContact)
-        const seqs = (seq as FollowupSequence[]) ?? []
-        setSequences(seqs)
-        setMessages(
-          seqs.filter((s) => s.sent_at !== null).map((s) => ({
-            id: s.id,
-            direction: 'out' as const,
-            body: s.message_body,
-            channel: s.message_type,
-            at: s.sent_at ?? s.scheduled_at,
-          }))
-        )
-      }
-      setLoading(false)
+      await loadData()
+      if (active) setLoading(false)
     })()
     return () => { active = false }
-  }, [id, supabase])
+  }, [loadData])
 
   const initials = useMemo(() => {
     if (!contact?.name) return '?'
@@ -80,15 +131,52 @@ export default function ChatPage() {
   const scheduled = sequences.filter((s) => s.status === 'scheduled')
   const sent = sequences.filter((s) => s.status === 'sent')
 
-  function send() {
+  async function send() {
     const body = draft.trim()
-    if (!body) return
-    setMessages((m) => [...m, { id: `local-${Date.now()}`, direction: 'out', body, channel, at: new Date().toISOString() }])
-    setDraft('')
+    if (!body || !contact) return
+    setSending(true)
+    setError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+
+      const nextStep = sequences.length > 0 ? Math.max(...sequences.map((s) => s.step)) + 1 : 1
+      const now = new Date().toISOString()
+
+      const { data, error: insertError } = await supabase
+        .from('followup_sequences')
+        .insert({
+          contact_id: id,
+          user_id: user.id,
+          step: nextStep,
+          message_type: channel,
+          message_body: body,
+          scheduled_at: now,
+          sent_at: now,
+          status: 'sent',
+        })
+        .select()
+        .single()
+
+      if (insertError) throw new Error(insertError.message)
+
+      const row = data as FollowupSequence
+      setSequences((prev) => [...prev, row])
+      setMessages((m) => [
+        ...m,
+        { id: row.id, direction: 'out', body, channel, at: row.sent_at ?? now },
+      ])
+      setDraft('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Odeslání selhalo.')
+    } finally {
+      setSending(false)
+    }
   }
 
   function statusText() {
     if (replied) return '● Odpověděl dnes'
+    if (contact?.status === 'sent') return '● Odesláno'
     return '● Čeká na odpověď'
   }
 
@@ -110,7 +198,6 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#07050E' }}>
-      {/* 1. TOP BAR */}
       <div
         className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3"
         style={{ background: 'linear-gradient(180deg, #0A0614, #08060F)', borderBottom: '0.5px solid #1A0E30' }}
@@ -126,12 +213,13 @@ export default function ChatPage() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold truncate" style={{ color: '#F0EAFF' }}>{contact?.name ?? 'Kontakt'}</p>
-          <p className="text-xs" style={{ color: replied ? '#A78BFA' : '#3A2060' }}>{statusText()}</p>
+          <p className="text-xs" style={{ color: replied || contact?.status === 'sent' ? '#A78BFA' : '#3A2060' }}>
+            {statusText()}
+          </p>
         </div>
       </div>
 
-      {/* 2. MESSAGES */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 pb-36">
         {messages.length === 0 ? (
           <p className="py-8 text-center text-sm" style={{ color: '#3A2060' }}>Zatím žádné zprávy.</p>
         ) : (
@@ -170,7 +258,6 @@ export default function ChatPage() {
           })
         )}
 
-        {/* 3. SCHEDULED PANEL */}
         <div
           className="mt-2 px-4 py-3 -mx-4"
           style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
@@ -182,7 +269,7 @@ export default function ChatPage() {
             <p className="text-xs" style={{ color: '#3A2060' }}>Žádné naplánované follow-upy.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {[...sent, ...scheduled].map((s) => {
+              {[...scheduled, ...sent].map((s) => {
                 const isSent = s.status === 'sent'
                 return (
                   <div
@@ -210,9 +297,12 @@ export default function ChatPage() {
             </div>
           )}
         </div>
+
+        {error && contact && (
+          <p className="text-sm text-red-300 text-center">{error}</p>
+        )}
       </div>
 
-      {/* 4. CHANNEL TABS + 5. INPUT BAR */}
       <div
         className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px]"
         style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
@@ -234,15 +324,17 @@ export default function ChatPage() {
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && send()}
+            onKeyDown={(e) => e.key === 'Enter' && !sending && send()}
             placeholder="Napsat zprávu..."
-            className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none"
+            disabled={sending}
+            className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none disabled:opacity-50"
             style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
           />
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={send}
-            className="glow-btn w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
+            disabled={sending || !draft.trim()}
+            className="glow-btn w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 disabled:opacity-40"
           >
             <IconSend size={18} />
           </motion.button>

@@ -49,6 +49,7 @@ export default function ContactResultPage() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [sending, setSending] = useState(false)
   const [showFollowup, setShowFollowup] = useState(false)
+  const [followupError, setFollowupError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -88,13 +89,22 @@ export default function ContactResultPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
-      const res = await fetch('/api/card/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId: contact.id, messageType: tab, messageBody: messages[tab], userId: user.id }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.error || 'Odeslání selhalo.')
+
+      const { data: updated, error: updateError } = await supabase
+        .from('scanned_contacts')
+        .update({
+          status: 'sent',
+          message_linkedin: messages.linkedin,
+          message_email: messages.email,
+          message_whatsapp: messages.whatsapp,
+          email_subject: subject,
+        })
+        .eq('id', contact.id)
+        .select()
+        .single()
+
+      if (updateError) throw new Error(updateError.message)
+      if (updated) setContact(updated as ScannedContact)
       setShowFollowup(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Něco se pokazilo.')
@@ -105,17 +115,55 @@ export default function ContactResultPage() {
 
   async function scheduleFollowup(yes: boolean) {
     if (!contact) { router.push('/contacts'); return }
+    setFollowupError(null)
     if (yes) {
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          await fetch('/api/card/followup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contactId: contact.id, userId: user.id }),
-          })
-        }
-      } catch { /* non-blocking */ }
+        if (!user) { router.push('/login'); return }
+
+        await supabase
+          .from('followup_sequences')
+          .delete()
+          .eq('contact_id', contact.id)
+          .eq('status', 'scheduled')
+
+        const now = new Date()
+        const sequences = [
+          {
+            contact_id: contact.id,
+            user_id: user.id,
+            step: 1,
+            message_type: 'linkedin' as const,
+            message_body: messages.linkedin || 'Follow-up LinkedIn',
+            scheduled_at: new Date(now.getTime() + 86400000).toISOString(),
+            status: 'scheduled' as const,
+          },
+          {
+            contact_id: contact.id,
+            user_id: user.id,
+            step: 2,
+            message_type: 'email' as const,
+            message_body: messages.email || 'Follow-up Email',
+            scheduled_at: new Date(now.getTime() + 3 * 86400000).toISOString(),
+            status: 'scheduled' as const,
+          },
+          {
+            contact_id: contact.id,
+            user_id: user.id,
+            step: 3,
+            message_type: 'whatsapp' as const,
+            message_body: messages.whatsapp || 'Follow-up WhatsApp',
+            scheduled_at: new Date(now.getTime() + 7 * 86400000).toISOString(),
+            status: 'scheduled' as const,
+          },
+        ]
+
+        const { error: insertError } = await supabase.from('followup_sequences').insert(sequences)
+        if (insertError) throw new Error(insertError.message)
+      } catch (err) {
+        setFollowupError(err instanceof Error ? err.message : 'Follow-up se nepodařilo naplánovat.')
+        return
+      }
     }
     router.push('/contacts')
   }
@@ -346,6 +394,9 @@ export default function ContactResultPage() {
               <p className="text-sm text-text-secondary mb-5 leading-relaxed">
                 Vytvoříme 3-krokovou sekvenci (LinkedIn +1d, Email +3d, WhatsApp +7d).
               </p>
+              {followupError && (
+                <p className="text-sm text-red-300 mb-3">{followupError}</p>
+              )}
               <div className="flex gap-3">
                 <button onClick={() => scheduleFollowup(true)} className="glow-btn flex-1 rounded-xl text-white py-3 font-semibold">
                   Ano, naplánovat

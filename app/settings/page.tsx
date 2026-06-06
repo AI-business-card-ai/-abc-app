@@ -72,7 +72,25 @@ export default function SettingsPage() {
     setSaving(true)
     setError(null)
     try {
-      const { error: e } = await supabase.from('abc_profiles').upsert({ id: userId, ...profile })
+      const payload = {
+        id: userId,
+        full_name: profile.full_name || null,
+        company: profile.company || null,
+        role: profile.role || null,
+        email: profile.email || null,
+        phone: profile.phone || null,
+        linkedin_url: profile.linkedin_url || null,
+        website: profile.website || null,
+        communication_style: profile.communication_style,
+        outreach_language: profile.outreach_language,
+        goals: profile.goals || null,
+        plan: profile.plan,
+        scans_used: profile.scans_used,
+        scans_limit: profile.scans_limit,
+      }
+      const { error: e } = await supabase
+        .from('abc_profiles')
+        .upsert(payload, { onConflict: 'id' })
       if (e) throw new Error(e.message)
       setToast(true)
       setTimeout(() => setToast(false), 3000)

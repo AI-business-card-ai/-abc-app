@@ -26,19 +26,21 @@ export default function ContactsPage() {
 
   useEffect(() => {
     let active = true
-    ;(async () => {
+    async function loadContacts() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       const { data, error: e } = await supabase
         .from('scanned_contacts')
         .select('*')
         .eq('user_id', user.id)
+        .neq('status', 'archived')
         .order('scanned_at', { ascending: false })
       if (!active) return
       if (e) setError(e.message)
       else setContacts((data as ScannedContact[]) ?? [])
       setLoading(false)
-    })()
+    }
+    loadContacts()
     return () => { active = false }
   }, [router, supabase])
 

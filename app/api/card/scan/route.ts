@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabase-admin'
 import { analyzeBusinessCard } from '@/lib/claude'
 import { ABCProfile } from '@/lib/types'
 
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     const result = await analyzeBusinessCard(base64, userProfile, mediaType)
 
-    const supabase = createServerClient()
+    const supabase = createAdminClient()
     const { data, error } = await supabase
       .from('scanned_contacts')
       .insert({
