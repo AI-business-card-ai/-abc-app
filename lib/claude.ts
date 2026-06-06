@@ -5,9 +5,12 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 })
 
+type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
+
 export async function analyzeBusinessCard(
   imageBase64: string,
-  userProfile: ABCProfile
+  userProfile: ABCProfile,
+  mediaType: ImageMediaType
 ): Promise<ScanResult> {
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-5',
@@ -20,7 +23,7 @@ export async function analyzeBusinessCard(
             type: 'image',
             source: {
               type: 'base64',
-              media_type: 'image/jpeg',
+              media_type: mediaType,
               data: imageBase64,
             },
           },

@@ -16,8 +16,9 @@ export async function POST(req: NextRequest) {
     const userProfile: ABCProfile = JSON.parse(userProfileRaw)
     const arrayBuffer = await image.arrayBuffer()
     const base64 = Buffer.from(arrayBuffer).toString('base64')
+    const mediaType = image.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
-    const result = await analyzeBusinessCard(base64, userProfile)
+    const result = await analyzeBusinessCard(base64, userProfile, mediaType)
 
     const supabase = createServerClient()
     const { data, error } = await supabase
