@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { IconArrowLeft, IconSend } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase-client'
-import GradientAvatar from '@/components/ui/GradientAvatar'
 import type { FollowupSequence, ScannedContact } from '@/lib/types'
 
 type Channel = 'linkedin' | 'email' | 'whatsapp'
@@ -23,6 +22,11 @@ interface ChatMessage {
   channel: Channel
   at: string
 }
+
+const chipStyle = (active: boolean): React.CSSProperties =>
+  active
+    ? { border: '0.5px solid #7C3AED', color: '#A78BFA', background: '#1A0A2E' }
+    : { border: '0.5px solid #1A0E30', color: '#3A2060', background: 'transparent' }
 
 export default function ChatPage() {
   const params = useParams()
@@ -74,6 +78,7 @@ export default function ChatPage() {
 
   const replied = contact?.status === 'replied'
   const scheduled = sequences.filter((s) => s.status === 'scheduled')
+  const sent = sequences.filter((s) => s.status === 'sent')
 
   function send() {
     const body = draft.trim()
@@ -82,117 +87,143 @@ export default function ChatPage() {
     setDraft('')
   }
 
+  function statusText() {
+    if (replied) return '● Odpověděl dnes'
+    return '● Čeká na odpověď'
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg">
-        <div className="w-7 h-7 rounded-full border-2 border-transparent border-t-primary border-r-secondary animate-spin" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#07050E' }}>
+        <div className="w-7 h-7 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#7C3AED', borderRightColor: '#0EA5E9' }} />
       </div>
     )
   }
 
   if (error && !contact) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-text-secondary px-6 text-center bg-bg">
+      <div className="min-h-screen flex items-center justify-center px-6 text-center" style={{ background: '#07050E', color: '#3A2060' }}>
         {error}
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col">
-      {/* TOP BAR */}
+    <div className="min-h-screen flex flex-col" style={{ background: '#07050E' }}>
+      {/* 1. TOP BAR */}
       <div
-        className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 border-b border-abc-border hero-radial"
-        style={{ background: 'rgba(7, 5, 14, 0.92)', backdropFilter: 'blur(20px)' }}
+        className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3"
+        style={{ background: 'linear-gradient(180deg, #0A0614, #08060F)', borderBottom: '0.5px solid #1A0E30' }}
       >
-        <button onClick={() => router.back()} className="icon-btn shrink-0">
-          <IconArrowLeft size={18} />
+        <button onClick={() => router.back()} aria-label="Zpět">
+          <IconArrowLeft size={20} style={{ color: '#2A1A4A' }} />
         </button>
-        <GradientAvatar initials={initials} size="sm" />
+        <div
+          className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+          style={{ background: 'linear-gradient(135deg, #7C3AED, #0EA5E9)' }}
+        >
+          {initials}
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-text-primary truncate">{contact?.name ?? 'Kontakt'}</p>
-          <p className="text-xs flex items-center gap-1" style={{ color: replied ? '#34D399' : '#3A2060' }}>
-            <span
-              className="w-1.5 h-1.5 rounded-full inline-block"
-              style={{
-                background: replied ? '#34D399' : '#3A2060',
-                boxShadow: replied ? '0 0 6px #34D399' : undefined,
-              }}
-            />
-            {replied ? 'Odpověděl' : 'Čeká'}
-          </p>
+          <p className="text-sm font-bold truncate" style={{ color: '#F0EAFF' }}>{contact?.name ?? 'Kontakt'}</p>
+          <p className="text-xs" style={{ color: replied ? '#A78BFA' : '#3A2060' }}>{statusText()}</p>
         </div>
       </div>
 
-      {/* MESSAGES */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 pb-36">
+      {/* 2. MESSAGES */}
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
         {messages.length === 0 ? (
-          <div className="py-12 text-center">
-            <p className="text-sm text-muted">Zatím žádné odeslané zprávy.</p>
-            <p className="text-xs text-text-secondary mt-1">Napiš první zprávu níže.</p>
-          </div>
+          <p className="py-8 text-center text-sm" style={{ color: '#3A2060' }}>Zatím žádné zprávy.</p>
         ) : (
           messages.map((m) => {
             const out = m.direction === 'out'
             return (
-              <motion.div
+              <div
                 key={m.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`flex flex-col ${out ? 'self-end items-end' : 'self-start items-start'} max-w-[82%]`}
+                className={`flex flex-col ${out ? 'self-end items-end' : 'self-start items-start'} max-w-[88%]`}
               >
-                <div className={`px-3.5 py-2.5 text-sm leading-relaxed ${out ? 'chat-bubble-out' : 'chat-bubble-in'}`}>
+                <div
+                  className="px-3 py-2 text-sm leading-relaxed"
+                  style={
+                    out
+                      ? {
+                          background: 'linear-gradient(135deg, #1A0A2E, #0A1428)',
+                          color: '#C4B5FD',
+                          border: '0.5px solid #2A1A4A',
+                          borderRadius: '10px 10px 2px 10px',
+                        }
+                      : {
+                          background: '#0D0A18',
+                          color: '#6A5098',
+                          border: '0.5px solid #1A0E30',
+                          borderRadius: '10px 10px 10px 2px',
+                        }
+                  }
+                >
                   {m.body}
                 </div>
-                <span className="text-[10px] text-muted mt-1 px-1">
+                <span className="mt-1 px-1" style={{ fontSize: '7px', color: '#2A1A4A' }}>
                   {new Date(m.at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })} · {m.channel}
                 </span>
-              </motion.div>
+              </div>
             )
           })
         )}
 
-        {/* SCHEDULED PANEL */}
-        <div className="abc-card p-3.5 mt-2 flex flex-col gap-2.5">
-          <span className="abc-label">Plánované zprávy</span>
-          {scheduled.length === 0 ? (
-            <p className="text-xs text-text-secondary">Žádné naplánované follow-upy.</p>
+        {/* 3. SCHEDULED PANEL */}
+        <div
+          className="mt-2 px-4 py-3 -mx-4"
+          style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
+        >
+          <span className="block tracking-widest uppercase mb-2" style={{ fontSize: '8px', color: '#3A2060' }}>
+            PLÁNOVANÉ ZPRÁVY
+          </span>
+          {scheduled.length === 0 && sent.length === 0 ? (
+            <p className="text-xs" style={{ color: '#3A2060' }}>Žádné naplánované follow-upy.</p>
           ) : (
-            scheduled.map((s) => (
-              <div key={s.id} className="flex items-center gap-3">
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={
-                    s.status === 'sent'
-                      ? { background: '#7C3AED', boxShadow: '0 0 8px #7C3AED' }
-                      : { background: '#3A2060' }
-                  }
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-text-primary truncate">
-                    {CHANNELS.find((c) => c.key === s.message_type)?.label} · krok {s.step}
-                  </p>
-                  <p className="text-[11px] text-muted">
-                    {new Date(s.scheduled_at).toLocaleDateString('cs-CZ')}
-                  </p>
-                </div>
-              </div>
-            ))
+            <div className="flex flex-col gap-2">
+              {[...sent, ...scheduled].map((s) => {
+                const isSent = s.status === 'sent'
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-2 rounded-lg px-3 py-2"
+                    style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={
+                        isSent
+                          ? { background: '#A78BFA', boxShadow: '0 0 8px #A78BFA' }
+                          : { background: '#1A0E30' }
+                      }
+                    />
+                    <span className="text-xs flex-1" style={{ color: '#3A2060' }}>
+                      {CHANNELS.find((c) => c.key === s.message_type)?.label} · krok {s.step}
+                    </span>
+                    <span className="text-[10px]" style={{ color: '#3A2060' }}>
+                      {isSent ? 'Odesláno' : new Date(s.scheduled_at).toLocaleDateString('cs-CZ')}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       </div>
 
-      {/* CHANNEL TABS + INPUT */}
+      {/* 4. CHANNEL TABS + 5. INPUT BAR */}
       <div
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] border-t border-abc-border"
-        style={{ background: 'rgba(6, 4, 12, 0.95)', backdropFilter: 'blur(16px)' }}
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px]"
+        style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
       >
-        <div className="px-4 flex gap-2 pt-2.5">
+        <div className="px-4 pb-2 pt-2 flex gap-2">
           {CHANNELS.map((c) => (
             <button
               key={c.key}
               onClick={() => setChannel(c.key)}
-              className={`abc-chip ${channel === c.key ? 'abc-chip-active' : ''}`}
+              className="px-3 py-1 rounded-full text-xs"
+              style={chipStyle(channel === c.key)}
             >
               {c.label}
             </button>
@@ -205,12 +236,13 @@ export default function ChatPage() {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && send()}
             placeholder="Napsat zprávu..."
-            className="abc-input flex-1 px-4 py-2.5 text-sm"
+            className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none"
+            style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
           />
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={send}
-            className="glow-btn w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
+            className="glow-btn w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
           >
             <IconSend size={18} />
           </motion.button>

@@ -17,11 +17,8 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] border-t border-abc-border pb-[env(safe-area-inset-bottom)] z-30"
-      style={{
-        background: 'rgba(6, 4, 12, 0.92)',
-        backdropFilter: 'blur(20px)',
-      }}
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-30 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
+      style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
     >
       <div className="flex">
         {tabs.map((tab) => {
@@ -31,23 +28,27 @@ export default function BottomNav() {
               key={tab.path}
               whileTap={{ scale: 0.9 }}
               onClick={() => router.push(tab.path)}
-              className="flex-1 flex flex-col items-center gap-0.5 py-3 relative"
+              className="flex-1 flex flex-col items-center gap-0.5 py-2.5 relative"
             >
               {active && (
-                <motion.div
-                  layoutId="nav-glow"
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-gradient-primary"
-                  style={{ boxShadow: '0 0 8px rgba(124,58,237,0.6)' }}
+                <span
+                  className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                  style={{ background: '#A78BFA', boxShadow: '0 0 6px #A78BFA' }}
                 />
               )}
               <tab.icon
                 size={22}
-                className={active ? 'text-[#A78BFA]' : 'text-muted'}
-                style={active ? { filter: 'drop-shadow(0 0 4px rgba(167,139,250,0.5))' } : undefined}
+                style={
+                  active
+                    ? { color: '#A78BFA', filter: 'drop-shadow(0 0 4px rgba(167,139,250,0.5))' }
+                    : { color: '#2A1A4A' }
+                }
               />
-              <span className={`text-[10px] font-medium ${active ? 'gradient-text' : 'text-muted'}`}>
-                {tab.label}
-              </span>
+              {active ? (
+                <span className="text-[10px] font-medium gradient-text">{tab.label}</span>
+              ) : (
+                <span className="text-[10px] font-medium" style={{ color: '#2A1A4A' }}>{tab.label}</span>
+              )}
             </motion.button>
           )
         })}
