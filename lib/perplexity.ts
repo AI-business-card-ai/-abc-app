@@ -1,43 +1,45 @@
 import { ABCProfile } from './types'
 
 export async function enrichContact(
-  name: string,
-  company: string,
+  name: string | null,
+  company: string | null,
   userProfile: ABCProfile
 ): Promise<string> {
-  const response = await fetch('https://api.perplexity.ai/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama-3.1-sonar-small-128k-online',
-      messages: [
-        {
-          role: 'user',
-          content: `Research this person and company for a business outreach context:
-Person: ${name}
-Company: ${company}
-My goals: ${userProfile.goals}
+  if (!name && !company) return ''
 
-Find and return in 3-4 sentences:
-1. What does ${company} do, size, recent news or funding
-2. ${name}'s role, background, LinkedIn activity if available
-3. Any relevant connection to: ${userProfile.goals}
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-sonar-small-128k-online',
+        messages: [
+          {
+            role: 'user',
+            content: `Research this person for business outreach:
+Person: ${name || 'unknown'}
+Company: ${company || 'unknown'}
+My goals: ${userProfile.goals || 'B2B networking'}
 
-Be specific and factual. Only real information.`,
-        },
-      ],
-      max_tokens: 300,
-    }),
-  })
+Return 3-4 sentences covering:
+1. What ${company} does, size, recent news or funding
+2. ${name} role, background, LinkedIn if available
+3. Relevant connection to my goals
 
-  if (!response.ok) {
-    const errText = await response.text()
-    throw new Error(`Perplexity API error: ${response.status} ${errText}`)
+Only real verified facts. Be specific.`,
+          },
+        ],
+        max_tokens: 300,
+      }),
+    })
+
+    const data = await response.json()
+    return data.choices?.[0]?.message?.content || ''
+  } catch (error) {
+    console.error('Perplexity error:', error)
+    return ''
   }
-
-  const data = await response.json()
-  return data.choices?.[0]?.message?.content || ''
 }

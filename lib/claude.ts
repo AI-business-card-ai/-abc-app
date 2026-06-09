@@ -61,10 +61,13 @@ export async function analyzeBusinessCard(
   enrichedContext: string = ''
 ): Promise<ScanResult> {
   const researchBlock = enrichedContext.trim()
-    ? `Additional research about this contact: ${enrichedContext}
+    ? `Additional research about this contact:
+${enrichedContext}
 
-Research context: ${enrichedContext}
-Use this to write highly personalized messages that reference specific details.`
+Use this research to:
+- Write highly personalized messages referencing specific details
+- Calculate accurate match_score based on user goals: ${userProfile.goals}
+- Mention specific company news, products or achievements in messages`
     : ''
 
   const response = await anthropic.messages.create({

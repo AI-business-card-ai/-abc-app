@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { IconSearch, IconCamera } from '@tabler/icons-react'
+import { IconSearch, IconCreditCard } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase-client'
 import BottomNav from '@/components/ui/BottomNav'
 import CardStack from '@/components/ui/CardStack'
@@ -28,12 +28,14 @@ export default function ContactsPage() {
     let active = true
     async function loadContacts() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
+      if (!user) {
+        router.push('/login')
+        return
+      }
       const { data, error: e } = await supabase
         .from('scanned_contacts')
         .select('*')
         .eq('user_id', user.id)
-        .neq('status', 'archived')
         .order('scanned_at', { ascending: false })
       if (!active) return
       if (e) setError(e.message)
@@ -45,7 +47,7 @@ export default function ContactsPage() {
   }, [router, supabase])
 
   const stats = useMemo(() => ({
-    scans: contacts.length,
+    total: contacts.length,
     sent: contacts.filter((c) => c.status === 'sent' || c.status === 'replied').length,
     replied: contacts.filter((c) => c.status === 'replied').length,
   }), [contacts])
@@ -66,7 +68,6 @@ export default function ContactsPage() {
 
   return (
     <div className="min-h-screen pb-28" style={{ background: '#07050E' }}>
-      {/* 1. TOP BAR */}
       <div className="flex items-center justify-between px-4 pt-6 pb-2">
         <h1 className="gradient-text text-xl font-black tracking-wide">KARTOTÉKA</h1>
         <button aria-label="Hledat">
@@ -74,10 +75,9 @@ export default function ContactsPage() {
         </button>
       </div>
 
-      {/* 2. STATS */}
       <div className="grid grid-cols-3 gap-2 px-4 py-3">
         {[
-          { value: stats.scans, label: 'Skenů', gradient: false },
+          { value: stats.total, label: 'Celkem', gradient: false },
           { value: stats.sent, label: 'Odesláno', gradient: false },
           { value: stats.replied, label: 'Odpovědělo', gradient: true },
         ].map((s) => (
@@ -99,7 +99,6 @@ export default function ContactsPage() {
         ))}
       </div>
 
-      {/* 3. FILTER CHIPS */}
       <div className="px-4 pb-3 flex gap-2 flex-wrap">
         {events.map((ev) => (
           <button
@@ -119,20 +118,24 @@ export default function ContactsPage() {
         </div>
       ) : error ? (
         <p className="mx-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>
-      ) : filtered.length === 0 ? (
+      ) : contacts.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-14 px-6 text-center">
-          <p className="text-sm" style={{ color: '#3A2060' }}>Zatím nemáš žádné naskenované vizitky.</p>
+          <IconCreditCard size={48} style={{ color: '#2A1A4A' }} stroke={1.2} />
+          <p className="text-sm" style={{ color: '#3A2060' }}>Zatím žádné vizitky</p>
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => router.push('/scan')}
             className="glow-btn rounded-xl text-white px-5 py-2.5 flex items-center gap-2"
           >
-            <IconCamera size={18} /> Naskenovat první
+            📷 Naskenovat první vizitku
           </motion.button>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center gap-4 py-14 px-6 text-center">
+          <p className="text-sm" style={{ color: '#3A2060' }}>Žádné kontakty pro tento filtr.</p>
         </div>
       ) : (
         <>
-          {/* 4. WALLET STACK */}
           <CardStack
             contacts={filtered}
             cur={cur}
@@ -140,7 +143,6 @@ export default function ContactsPage() {
             onSelect={(id) => router.push('/contact/' + id)}
           />
 
-          {/* 5. PAGINATION DOTS */}
           <div className="flex justify-center gap-1 py-2">
             {filtered.map((c, i) => (
               <button
@@ -157,7 +159,6 @@ export default function ContactsPage() {
             ))}
           </div>
 
-          {/* 6. INFO STRIP */}
           <AnimatePresence mode="wait">
             {active && (
               <motion.div

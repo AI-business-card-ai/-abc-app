@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
+import { createServerClient } from '@/lib/supabase'
 import { analyzeBusinessCard, extractBusinessCardFromImage } from '@/lib/claude'
 import { enrichContact } from '@/lib/perplexity'
 import { ABCProfile } from '@/lib/types'
+
+const EMPTY_PROFILE = {} as ABCProfile
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,23 +24,30 @@ export async function POST(req: NextRequest) {
 
     const extracted = await extractBusinessCardFromImage(base64, mediaType)
 
-    let enrichedData = ''
-    if (process.env.PERPLEXITY_API_KEY && (extracted.name || extracted.company)) {
-      try {
-        enrichedData = await enrichContact(
-          extracted.name ?? '',
-          extracted.company ?? '',
-          userProfile
-        )
-      } catch (err) {
-        console.warn('[scan] Perplexity enrichment failed:', err)
-      }
-    }
+    const supabase = createServerClient()
+    const { data: profile } = await supabase
+      .from('abc_profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
 
-    const result = await analyzeBusinessCard(base64, userProfile, mediaType, enrichedData)
+    const profileForPrompt = (profile as ABCProfile | null) ?? userProfile
 
-    const supabase = createAdminClient()
-    const { data, error } = await supabase
+    const enrichedContext = await enrichContact(
+      extracted.name,
+      extracted.company,
+      profile || EMPTY_PROFILE
+    )
+
+    const result = await analyzeBusinessCard(
+      base64,
+      profileForPrompt,
+      mediaType,
+      enrichedContext
+    )
+
+    const admin = createAdminClient()
+    const { data, error } = await admin
       .from('scanned_contacts')
       .insert({
         user_id: userId,

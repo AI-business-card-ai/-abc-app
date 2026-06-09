@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -51,48 +51,54 @@ export default function ContactResultPage() {
   const [showFollowup, setShowFollowup] = useState(false)
   const [followupError, setFollowupError] = useState<string | null>(null)
   const [schedulingFollowup, setSchedulingFollowup] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
+
+  const loadContact = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    console.log('[contact] params id:', id)
+    console.log('[contact] session user_id:', user?.id ?? null)
+
+    if (!user) {
+      router.push('/login')
+      setLoading(false)
+      return
+    }
+
+    const { data, error: e } = await supabase
+      .from('scanned_contacts')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    console.log('[contact] fetch result:', { data: data?.id ?? null, error: e?.message ?? null })
+
+    if (e) {
+      setError(e.message)
+      setContact(null)
+    } else if (!data) {
+      setError(null)
+      setContact(null)
+    } else {
+      const c = data as ScannedContact
+      setContact(c)
+      setMessages({
+        linkedin: c.message_linkedin ?? '',
+        email: c.message_email ?? '',
+        whatsapp: c.message_whatsapp ?? '',
+      })
+      setSubject(c.email_subject ?? '')
+      setError(null)
+    }
+    setLoading(false)
+  }, [id, router, supabase])
 
   useEffect(() => {
-    let active = true
-    ;(async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      console.log('[contact] params id:', id)
-      console.log('[contact] session user_id:', user?.id ?? null)
-
-      if (!user) {
-        if (active) {
-          router.push('/login')
-          setLoading(false)
-        }
-        return
-      }
-
-      const { data, error: e } = await supabase
-        .from('scanned_contacts')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      console.log('[contact] fetch result:', { data: data?.id ?? null, error: e?.message ?? null })
-
-      if (!active) return
-      if (e || !data) {
-        setError(e?.message ?? 'Kontakt nenalezen.')
-      } else {
-        const c = data as ScannedContact
-        setContact(c)
-        setMessages({
-          linkedin: c.message_linkedin ?? '',
-          email: c.message_email ?? '',
-          whatsapp: c.message_whatsapp ?? '',
-        })
-        setSubject(c.email_subject ?? '')
-      }
-      setLoading(false)
-    })()
-    return () => { active = false }
-  }, [id, router, supabase])
+    loadContact()
+  }, [loadContact, retryKey])
 
   const initials = useMemo(() => {
     if (!contact?.name) return '?'
@@ -175,27 +181,66 @@ export default function ContactResultPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-transparent border-t-primary border-r-secondary animate-spin" />
-          <span className="text-sm text-text-secondary">Načítám...</span>
+      <div className="min-h-screen bg-bg pb-44 px-4 pt-6 animate-pulse">
+        <div className="flex items-center justify-between mb-6">
+          <div className="w-9 h-9 rounded-full" style={{ background: '#1A0E30' }} />
+          <div className="h-4 w-20 rounded" style={{ background: '#1A0E30' }} />
+          <div className="w-9 h-9 rounded-full" style={{ background: '#1A0E30' }} />
         </div>
+        <div className="abc-card p-4 flex items-center gap-3 mb-4">
+          <div className="w-14 h-14 rounded-full" style={{ background: '#1A0E30' }} />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-32 rounded" style={{ background: '#1A0E30' }} />
+            <div className="h-3 w-24 rounded" style={{ background: '#1A0E30' }} />
+          </div>
+        </div>
+        <div className="abc-card p-4 h-24 mb-4" style={{ background: '#0D0A18' }} />
+        <div className="abc-card p-4 h-32 mb-4" style={{ background: '#0D0A18' }} />
+        <div className="abc-card p-4 h-40" style={{ background: '#0D0A18' }} />
       </div>
     )
   }
 
   if (error && !contact) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center hero-radial">
-        <p className="text-text-secondary">{error}</p>
-        <button onClick={() => router.push('/contacts')} className="glow-btn rounded-xl text-white px-5 py-2.5">
-          Zpět do kartotéky
-        </button>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center bg-bg">
+        <div className="abc-card p-6 max-w-sm w-full flex flex-col items-center gap-4">
+          <p className="text-sm text-red-300">{error}</p>
+          <button
+            onClick={() => setRetryKey((k) => k + 1)}
+            className="glow-btn rounded-xl text-white px-5 py-2.5 w-full"
+          >
+            Zkusit znovu
+          </button>
+          <button
+            onClick={() => router.push('/contacts')}
+            className="ghost-btn rounded-xl px-5 py-2.5 w-full text-sm"
+          >
+            ← Zpět na kartotéku
+          </button>
+        </div>
       </div>
     )
   }
 
-  if (!contact) return null
+  if (!contact) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center bg-bg">
+        <div className="abc-card p-6 max-w-sm w-full flex flex-col items-center gap-4">
+          <p className="text-text-primary font-semibold">Kontakt nenalezen</p>
+          <p className="text-sm text-text-secondary">
+            Tento kontakt neexistuje nebo k němu nemáš přístup.
+          </p>
+          <button
+            onClick={() => router.push('/contacts')}
+            className="glow-btn rounded-xl text-white px-5 py-2.5 w-full"
+          >
+            ← Zpět na kartotéku
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const limit = tab === 'linkedin' ? 300 : tab === 'whatsapp' ? 160 : null
   const over = limit !== null && messages[tab].length > limit
