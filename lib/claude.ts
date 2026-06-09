@@ -12,28 +12,87 @@ type CardExtract = Pick<
   'name' | 'company' | 'role' | 'email' | 'phone' | 'website' | 'linkedin_url'
 >
 
+const EMPTY_CARD_EXTRACT: CardExtract = {
+  name: null,
+  company: null,
+  role: null,
+  email: null,
+  phone: null,
+  website: null,
+  linkedin_url: null,
+}
+
+export class ClaudeVisionError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ClaudeVisionError'
+  }
+}
+
+export class ClaudeAnalysisError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ClaudeAnalysisError'
+  }
+}
+
+function parseClaudeJson<T>(text: string): T | null {
+  const clean = text.replace(/```json|```/g, '').trim()
+  try {
+    return JSON.parse(clean) as T
+  } catch {
+    const match = clean.match(/\{[\s\S]*\}/)
+    if (match) {
+      try {
+        return JSON.parse(match[0]) as T
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
+}
+
+async function callClaudeVision(
+  imageBase64: string,
+  mediaType: ImageMediaType,
+  prompt: string,
+  maxTokens: number
+): Promise<string> {
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5',
+      max_tokens: maxTokens,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mediaType,
+                data: imageBase64,
+              },
+            },
+            { type: 'text', text: prompt },
+          ],
+        },
+      ],
+    })
+
+    return response.content[0].type === 'text' ? response.content[0].text : ''
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    throw new ClaudeVisionError(`Claude Vision request failed: ${detail}`)
+  }
+}
+
 export async function extractBusinessCardFromImage(
   imageBase64: string,
   mediaType: ImageMediaType
 ): Promise<CardExtract> {
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 600,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mediaType,
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: `Extract from this business card image. Return ONLY JSON, no markdown:
+  const prompt = `Extract from this business card image. Return ONLY JSON, no markdown:
 {
   "name": null,
   "company": null,
@@ -42,16 +101,23 @@ export async function extractBusinessCardFromImage(
   "phone": null,
   "website": null,
   "linkedin_url": null
-}`,
-          },
-        ],
-      },
-    ],
-  })
+}`
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  const clean = text.replace(/```json|```/g, '').trim()
-  return JSON.parse(clean) as CardExtract
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const text = await callClaudeVision(imageBase64, mediaType, prompt, 600)
+      const parsed = parseClaudeJson<CardExtract>(text)
+      if (parsed) return parsed
+      console.warn(`Claude extract JSON parse failed (attempt ${attempt + 1})`)
+    } catch (err) {
+      if (err instanceof ClaudeVisionError) throw err
+      const detail = err instanceof Error ? err.message : String(err)
+      throw new ClaudeVisionError(`Claude Vision extraction failed: ${detail}`)
+    }
+  }
+
+  console.warn('Claude extract returning empty result after JSON parse failures')
+  return EMPTY_CARD_EXTRACT
 }
 
 export async function analyzeBusinessCard(
@@ -70,24 +136,7 @@ Use this research to:
 - Mention specific company news, products or achievements in messages`
     : ''
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 1500,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mediaType,
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: `Analyze this business card image.
+  const prompt = `Analyze this business card image.
 
 Extract (null if not visible):
 name, company, role, email, phone, website, linkedin_url
@@ -130,14 +179,24 @@ Return ONLY this JSON, no markdown:
   "message_email": "",
   "email_subject": "",
   "message_whatsapp": ""
-}`,
-          },
-        ],
-      },
-    ],
-  })
+}`
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  const clean = text.replace(/```json|```/g, '').trim()
-  return JSON.parse(clean) as ScanResult
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const text = await callClaudeVision(imageBase64, mediaType, prompt, 1500)
+      const parsed = parseClaudeJson<ScanResult>(text)
+      if (parsed) return parsed
+      console.warn(`Claude analysis JSON parse failed (attempt ${attempt + 1})`)
+    } catch (err) {
+      if (err instanceof ClaudeVisionError) {
+        throw new ClaudeAnalysisError(err.message)
+      }
+      const detail = err instanceof Error ? err.message : String(err)
+      throw new ClaudeAnalysisError(`Claude analysis failed: ${detail}`)
+    }
+  }
+
+  throw new ClaudeAnalysisError(
+    'Claude analysis failed: could not parse JSON response after retry'
+  )
 }

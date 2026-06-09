@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { createServerClient } from '@/lib/supabase'
-import { analyzeBusinessCard, extractBusinessCardFromImage } from '@/lib/claude'
+import {
+  analyzeBusinessCard,
+  extractBusinessCardFromImage,
+  ClaudeVisionError,
+  ClaudeAnalysisError,
+} from '@/lib/claude'
 import { enrichContact } from '@/lib/perplexity'
 import { ABCProfile } from '@/lib/types'
 
@@ -17,7 +22,13 @@ export async function POST(req: NextRequest) {
     if (!image) return NextResponse.json({ error: 'No image' }, { status: 400 })
     if (!userId) return NextResponse.json({ error: 'No userId' }, { status: 401 })
 
-    const userProfile: ABCProfile = JSON.parse(userProfileRaw)
+    let userProfile: ABCProfile
+    try {
+      userProfile = JSON.parse(userProfileRaw)
+    } catch {
+      return NextResponse.json({ error: 'Invalid userProfile JSON' }, { status: 400 })
+    }
+
     const arrayBuffer = await image.arrayBuffer()
     const base64 = Buffer.from(arrayBuffer).toString('base64')
     const mediaType = image.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
@@ -33,11 +44,17 @@ export async function POST(req: NextRequest) {
 
     const profileForPrompt = (profile as ABCProfile | null) ?? userProfile
 
-    const enrichedContext = await enrichContact(
-      extracted.name,
-      extracted.company,
-      profile || EMPTY_PROFILE
-    )
+    let enrichedContext = ''
+    try {
+      enrichedContext = await enrichContact(
+        extracted.name,
+        extracted.company,
+        profile || EMPTY_PROFILE
+      )
+    } catch (err) {
+      console.error('Perplexity enrichment skipped:', err)
+      enrichedContext = ''
+    }
 
     const result = await analyzeBusinessCard(
       base64,
@@ -60,8 +77,18 @@ export async function POST(req: NextRequest) {
     if (error) throw error
 
     return NextResponse.json({ success: true, contact: data })
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+  } catch (err) {
+    console.error('Scan error details:', JSON.stringify(err))
+
+    if (err instanceof ClaudeVisionError || err instanceof ClaudeAnalysisError) {
+      return NextResponse.json({ error: err.message }, { status: 502 })
+    }
+
+    return NextResponse.json(
+      {
+        error: err instanceof Error ? err.message : JSON.stringify(err),
+      },
+      { status: 500 }
+    )
   }
 }

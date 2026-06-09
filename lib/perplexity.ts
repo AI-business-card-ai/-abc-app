@@ -7,6 +7,11 @@ export async function enrichContact(
 ): Promise<string> {
   if (!name && !company) return ''
 
+  if (!process.env.PERPLEXITY_API_KEY) {
+    console.warn('PERPLEXITY_API_KEY not set, skipping enrichment')
+    return ''
+  }
+
   try {
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -35,6 +40,12 @@ Only real verified facts. Be specific.`,
         max_tokens: 300,
       }),
     })
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '')
+      console.error('Perplexity API error:', response.status, body)
+      return ''
+    }
 
     const data = await response.json()
     return data.choices?.[0]?.message?.content || ''
