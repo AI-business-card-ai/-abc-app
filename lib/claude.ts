@@ -123,8 +123,8 @@ export async function extractBusinessCardFromImage(
 export async function analyzeBusinessCard(
   imageBase64: string,
   userProfile: ABCProfile,
-  mediaType: ImageMediaType,
-  enrichedContext: string = ''
+  enrichedContext: string = '',
+  mediaType: ImageMediaType = 'image/jpeg'
 ): Promise<ScanResult> {
   const researchBlock = enrichedContext.trim()
     ? `Additional research about this contact:

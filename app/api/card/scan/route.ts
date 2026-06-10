@@ -29,10 +29,18 @@ export async function POST(req: NextRequest) {
     }
 
     const arrayBuffer = await image.arrayBuffer()
-    const base64 = Buffer.from(arrayBuffer).toString('base64')
-    const mediaType = image.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
+    const buffer = Buffer.from(arrayBuffer)
 
-    const extracted = await extractBusinessCardFromImage(base64, mediaType)
+    let mediaType = image.type || 'image/jpeg'
+    const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!supportedTypes.includes(mediaType)) {
+      mediaType = 'image/jpeg'
+    }
+
+    const base64 = buffer.toString('base64')
+    const claudeMediaType = mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+
+    const extracted = await extractBusinessCardFromImage(base64, claudeMediaType)
 
     const supabase = createServerSupabase()
 
@@ -59,8 +67,8 @@ export async function POST(req: NextRequest) {
     const result = await analyzeBusinessCard(
       base64,
       profileForPrompt,
-      mediaType,
-      enrichedContext
+      enrichedContext,
+      claudeMediaType
     )
 
     const { data, error } = await supabase
