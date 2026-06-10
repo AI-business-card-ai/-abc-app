@@ -1,3 +1,5 @@
+import { DEFAULT_RESEARCH_PREFERENCES } from './research'
+
 export async function enrichContact(
   name: string | null,
   company: string | null,
@@ -5,14 +7,8 @@ export async function enrichContact(
 ): Promise<string> {
   if (!name && !company) return ''
 
-  const selectedTopics: string[] = userProfile?.research_preferences || [
-    'revenue',
-    'location',
-    'news',
-    'linkedin',
-    'reputation',
-    'events',
-  ]
+  const selectedTopics: string[] =
+    userProfile?.research_preferences || [...DEFAULT_RESEARCH_PREFERENCES]
   const customQ: string = userProfile?.custom_questions || ''
 
   const dynamicSections = [
@@ -56,6 +52,34 @@ export async function enrichContact(
 - Trade shows they attend
 - Speaking engagements
 - Product launches`
+      : '',
+    selectedTopics.includes('competitors')
+      ? `
+## COMPETITORS
+- Main competitors in their market
+- How they differentiate
+- Market position`
+      : '',
+    selectedTopics.includes('technology')
+      ? `
+## TECHNOLOGY STACK
+- Tools and software they use
+- CRM, marketing tools, infrastructure
+- Tech partnerships`
+      : '',
+    selectedTopics.includes('decision_maker')
+      ? `
+## DECISION MAKING POWER
+- Is ${name} a decision maker?
+- Who else is involved in buying decisions?
+- Budget authority level`
+      : '',
+    selectedTopics.includes('pain_points')
+      ? `
+## CURRENT CHALLENGES
+- What problems is the company solving now?
+- Recent pain points from news or reviews
+- What they are hiring for (signals needs)`
       : '',
     customQ
       ? `

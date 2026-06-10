@@ -5,6 +5,10 @@ export const DEFAULT_RESEARCH_PREFERENCES = [
   'linkedin',
   'reputation',
   'events',
+  'competitors',
+  'technology',
+  'decision_maker',
+  'pain_points',
 ] as const
 
 export type ResearchPreferenceKey = (typeof DEFAULT_RESEARCH_PREFERENCES)[number]
@@ -19,6 +23,10 @@ export const RESEARCH_PREFERENCE_OPTIONS: {
   { key: 'linkedin', label: 'LinkedIn profil osoby' },
   { key: 'reputation', label: 'Reputace a kauzy' },
   { key: 'events', label: 'Nadcházející eventy' },
+  { key: 'competitors', label: 'Konkurenti firmy' },
+  { key: 'technology', label: 'Technologie které používají' },
+  { key: 'decision_maker', label: 'Je to decision maker?' },
+  { key: 'pain_points', label: 'Aktuální problémy firmy' },
 ]
 
 export interface EnrichedSection {
