@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase'
 import {
   analyzeBusinessCard,
-  extractBusinessCardFromImage,
   ClaudeVisionError,
   ClaudeAnalysisError,
 } from '@/lib/claude'
 import { enrichContact } from '@/lib/perplexity'
 import { ABCProfile } from '@/lib/types'
-
-const EMPTY_PROFILE = {} as ABCProfile
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,43 +37,51 @@ export async function POST(req: NextRequest) {
     const base64 = buffer.toString('base64')
     const claudeMediaType = mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 
-    const extracted = await extractBusinessCardFromImage(base64, claudeMediaType)
-
     const supabase = createServerSupabase()
 
-    const { data: profile } = await supabase
+    const { data: profileRow } = await supabase
       .from('abc_profiles')
       .select('*')
       .eq('id', userId)
       .single()
 
-    const profileForPrompt = (profile as ABCProfile | null) ?? userProfile
+    const profile: ABCProfile = (profileRow as ABCProfile | null) ?? userProfile
 
+    // 1. Extrahuj data z vizitky
+    const claudeResult = await analyzeBusinessCard(base64, profile, '', claudeMediaType)
+
+    // 2. Fetchni Perplexity data
     let enrichedContext = ''
     try {
       enrichedContext = await enrichContact(
-        extracted.name,
-        extracted.company,
-        profile || EMPTY_PROFILE
+        claudeResult.name,
+        claudeResult.company,
+        profile
       )
     } catch (err) {
       console.error('Perplexity enrichment skipped:', err)
       enrichedContext = ''
     }
 
-    const result = await analyzeBusinessCard(
+    console.log('Perplexity result:', enrichedContext?.substring(0, 200))
+    console.log('Enriched context length:', enrichedContext?.length)
+    console.log('Enriched context preview:', enrichedContext?.substring(0, 200))
+
+    // 3. Přegeneruj zprávy s Perplexity kontextem
+    const finalResult = await analyzeBusinessCard(
       base64,
-      profileForPrompt,
+      profile,
       enrichedContext,
       claudeMediaType
     )
 
+    // 4. Ulož do Supabase včetně enriched_context
     const { data, error } = await supabase
       .from('scanned_contacts')
       .insert({
         user_id: userId,
-        ...result,
-        enriched_context: enrichedContext || null,
+        ...finalResult,
+        enriched_context: enrichedContext,
         status: 'pending',
       })
       .select()
@@ -86,6 +91,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, contact: data })
   } catch (err) {
+    console.error('Scan error:', err)
     console.error('Scan error details:', JSON.stringify(err))
 
     if (err instanceof ClaudeVisionError || err instanceof ClaudeAnalysisError) {
