@@ -132,8 +132,8 @@ ${enrichedContext}
 
 Use this research to:
 - Write highly personalized messages referencing specific details
-- Calculate accurate match_score based on user goals: ${userProfile.goals}
-- Mention specific company news, products or achievements in messages`
+- Mention specific company news, products or achievements in messages
+- Apply the match_score rubric below using facts from this research`
     : ''
 
   const prompt = `Analyze this business card image.
@@ -154,7 +154,14 @@ User context:
 
 ${researchBlock}
 
-Calculate match_score (0-100) and match_reason (1 sentence).
+Calculate match_score (0-100):
+- Alignment with user goals (40 points)
+- Company size and revenue fit (20 points)
+- Person seniority and decision power (20 points)
+- Industry relevance (10 points)
+- Reputation risk - penalize for negative news (10 points)
+
+match_reason: 2-3 sentences with specific facts from research.
 
 Generate personalized messages:
 - message_linkedin: max 300 chars, casual, mention something specific
