@@ -56,6 +56,7 @@ export default function ContactResultPage() {
   const [retryKey, setRetryKey] = useState(0)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [enriching, setEnriching] = useState(false)
 
   const loadContact = useCallback(async () => {
     setLoading(true)
@@ -113,6 +114,29 @@ export default function ContactResultPage() {
     () => parseEnrichedContext(contact?.enriched_context),
     [contact?.enriched_context]
   )
+
+  async function handleEnrichMore() {
+    if (!contact) return
+    setEnriching(true)
+    setError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+
+      const res = await fetch('/api/card/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: contact.id, userId: user.id }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || 'Research selhal.')
+      if (json.contact) setContact(json.contact as ScannedContact)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Research selhal.')
+    } finally {
+      setEnriching(false)
+    }
+  }
 
   async function handleSend() {
     if (!contact) return
@@ -352,6 +376,64 @@ export default function ContactResultPage() {
           </div>
         </motion.div>
 
+        {/* COMPANY INTELLIGENCE */}
+        <motion.div variants={item} className="flex flex-col">
+          <span className="abc-label px-4 mb-2">Company Intelligence</span>
+
+          {enrichedSections.length > 0 ? (
+            enrichedSections.map((section) => (
+              <div
+                key={section.title}
+                className="rounded-xl p-4 mx-4 mb-3"
+                style={{
+                  background: '#0D0A18',
+                  border: section.isRisk ? '0.5px solid #EF4444' : '0.5px solid #1A0E30',
+                }}
+              >
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <span>{section.icon}</span>
+                  <span className="gradient-text">{section.label}</span>
+                </h3>
+                <p
+                  className="text-sm whitespace-pre-wrap"
+                  style={{ color: '#9090A0', lineHeight: 1.6 }}
+                >
+                  {splitContentWithUrls(section.content).map((seg, i) =>
+                    seg.isUrl ? (
+                      <a
+                        key={i}
+                        href={seg.text.startsWith('http') ? seg.text : `https://${seg.text}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[#A78BFA] underline break-all"
+                      >
+                        {seg.text}
+                      </a>
+                    ) : (
+                      <span key={i}>{seg.text}</span>
+                    )
+                  )}
+                </p>
+              </div>
+            ))
+          ) : (
+            <div className="mx-4 mb-3">
+              <button
+                onClick={handleEnrichMore}
+                disabled={enriching}
+                className="w-full rounded-xl py-3 text-sm font-medium disabled:opacity-40"
+                style={{
+                  background: '#0D0A18',
+                  border: '0.5px solid #1A0E30',
+                  color: '#A78BFA',
+                }}
+              >
+                {enriching ? 'Zjišťuji informace...' : '🔍 Zjistit více informací'}
+              </button>
+            </div>
+          )}
+        </motion.div>
+
         {/* COMPANY */}
         <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">
           <div className="flex items-start gap-2.5">
@@ -371,48 +453,6 @@ export default function ContactResultPage() {
             )}
           </div>
         </motion.div>
-
-        {/* COMPANY INTELLIGENCE */}
-        {enrichedSections.length > 0 && (
-          <motion.div variants={item} className="flex flex-col gap-3">
-            <span className="abc-label px-1">Company Intelligence</span>
-            {enrichedSections.map((section) => (
-              <div
-                key={section.title}
-                className="rounded-xl p-4"
-                style={{
-                  background: '#0D0A18',
-                  border: section.isRisk ? '0.5px solid #EF4444' : '0.5px solid #1A0E30',
-                }}
-              >
-                <h3
-                  className="text-sm font-semibold mb-2 flex items-center gap-1.5"
-                  style={{ color: section.isRisk ? '#FCA5A5' : '#F0EAFF' }}
-                >
-                  {section.isRisk && <span>⚠️</span>}
-                  {section.title}
-                </h3>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: '#8B6ABF' }}>
-                  {splitContentWithUrls(section.content).map((seg, i) =>
-                    seg.isUrl ? (
-                      <a
-                        key={i}
-                        href={seg.text.startsWith('http') ? seg.text : `https://${seg.text}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[#A78BFA] underline break-all"
-                      >
-                        {seg.text}
-                      </a>
-                    ) : (
-                      <span key={i}>{seg.text}</span>
-                    )
-                  )}
-                </p>
-              </div>
-            ))}
-          </motion.div>
-        )}
 
         {/* MESSAGES */}
         <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">

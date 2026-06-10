@@ -33,6 +33,48 @@ export interface EnrichedSection {
   title: string
   content: string
   isRisk: boolean
+  icon: string
+  label: string
+}
+
+const NEGATIVE_HINTS = [
+  'lawsuit', 'scandal', 'controvers', 'negative', 'fraud', 'bankruptcy',
+  'kauz', 'skandál', 'negativ', 'žalob', 'insolvence',
+]
+
+function detectNegativeContent(content: string): boolean {
+  const lower = content.toLowerCase()
+  return NEGATIVE_HINTS.some((hint) => lower.includes(hint))
+}
+
+export function getSectionDisplay(title: string): { icon: string; label: string } {
+  const upper = title.toUpperCase()
+
+  if (upper.includes('REPUTATION') || upper.includes('RISK')) {
+    return { icon: '⚠️', label: 'Reputace' }
+  }
+  if (upper.includes('NEWS') || upper.includes('RECENT') || upper.includes('EVENT')) {
+    return { icon: '📰', label: 'Novinky' }
+  }
+  if (
+    upper.includes('PERSON') ||
+    upper.includes('LINKEDIN') ||
+    upper.includes('DECISION')
+  ) {
+    return { icon: '👤', label: 'Profil osoby' }
+  }
+  if (upper.includes('MATCH')) {
+    return { icon: '🎯', label: 'Match analýza' }
+  }
+  if (
+    upper.includes('OUTREACH') ||
+    upper.includes('CUSTOM') ||
+    upper.includes('INTELLIGENCE')
+  ) {
+    return { icon: '💡', label: 'Jak oslovit' }
+  }
+
+  return { icon: '📊', label: 'Profil firmy' }
 }
 
 export function parseEnrichedContext(text: string | null | undefined): EnrichedSection[] {
@@ -43,13 +85,15 @@ export function parseEnrichedContext(text: string | null | undefined): EnrichedS
     const newline = part.indexOf('\n')
     const title = (newline === -1 ? part : part.slice(0, newline)).trim()
     const content = (newline === -1 ? '' : part.slice(newline + 1)).trim()
+    const { icon, label } = getSectionDisplay(title)
     const upper = title.toUpperCase()
     const isRisk =
       upper.includes('REPUTATION') ||
       upper.includes('RISKS') ||
       upper.includes('RISK') ||
-      upper.includes('KAUZ')
-    return { title, content, isRisk }
+      upper.includes('KAUZ') ||
+      detectNegativeContent(content)
+    return { title, content, isRisk, icon, label }
   })
 }
 

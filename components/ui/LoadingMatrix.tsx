@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const SCAN_STEPS = [
-  'Čtu vizitku...',
-  'Hledám informace o firmě...',
-  'Zjišťuji LinkedIn profil...',
-  'Analyzuji historii a obrat firmy...',
-  'Připravuji personalizované zprávy...',
-  'Dokončuji analýzu...',
+  'Analyzování kontaktu...',
+  'Zjišťování informací o firmě...',
+  'Prohledávání webu...',
+  'Příprava zpráv...',
+  'Dokončování...',
 ]
+
+const STEP_DURATION_MS = 2500
 
 interface Props {
   isVisible: boolean
@@ -27,7 +28,7 @@ export default function LoadingMatrix({ isVisible }: Props) {
 
     const interval = setInterval(() => {
       setStepIndex((prev) => Math.min(prev + 1, SCAN_STEPS.length - 1))
-    }, 2000)
+    }, STEP_DURATION_MS)
 
     return () => clearInterval(interval)
   }, [isVisible])
