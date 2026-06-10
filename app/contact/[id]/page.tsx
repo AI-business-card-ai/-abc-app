@@ -15,6 +15,7 @@ import { createClientComponent } from '@/lib/supabase'
 import MatchScore from '@/components/ui/MatchScore'
 import GradientAvatar from '@/components/ui/GradientAvatar'
 import { parseEnrichedContext, splitContentWithUrls } from '@/lib/research'
+import DeleteContactDialog, { deleteContactApi } from '@/components/ui/DeleteContactDialog'
 import type { ScannedContact } from '@/lib/types'
 
 type Tab = 'linkedin' | 'email' | 'whatsapp'
@@ -53,6 +54,8 @@ export default function ContactResultPage() {
   const [followupError, setFollowupError] = useState<string | null>(null)
   const [schedulingFollowup, setSchedulingFollowup] = useState(false)
   const [retryKey, setRetryKey] = useState(0)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const loadContact = useCallback(async () => {
     setLoading(true)
@@ -175,14 +178,27 @@ export default function ContactResultPage() {
 
   async function archive() {
     if (!contact) return
+    setMenuOpen(false)
     await supabase.from('scanned_contacts').update({ status: 'archived' }).eq('id', contact.id)
     router.push('/contacts')
   }
 
-  async function remove() {
+  async function confirmDelete() {
     if (!contact) return
-    await supabase.from('scanned_contacts').delete().eq('id', contact.id)
-    router.push('/contacts')
+    setDeleting(true)
+    setError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+
+      await deleteContactApi(contact.id, user.id)
+      setShowDeleteConfirm(false)
+      router.push('/contacts')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Smazání selhalo.')
+      setDeleting(false)
+      setShowDeleteConfirm(false)
+    }
   }
 
   if (loading) {
@@ -252,7 +268,11 @@ export default function ContactResultPage() {
   const over = limit !== null && messages[tab].length > limit
 
   return (
-    <div className="min-h-screen bg-bg pb-44">
+    <motion.div
+      className="min-h-screen bg-bg pb-44"
+      animate={{ opacity: deleting ? 0.4 : 1 }}
+      transition={{ duration: 0.25 }}
+    >
       {/* TOP BAR */}
       <div className="hero-radial flex items-center justify-between px-4 pt-6 pb-4 relative">
         <button onClick={() => router.push('/contacts')} className="icon-btn">
@@ -273,7 +293,13 @@ export default function ContactResultPage() {
             >
               <button onClick={() => { setMenuOpen(false); setTab(tab) }} className="block w-full text-left px-4 py-2.5 text-sm text-text-primary hover:bg-[#1A0A2E] transition-colors">Upravit</button>
               <button onClick={archive} className="block w-full text-left px-4 py-2.5 text-sm text-text-primary hover:bg-[#1A0A2E] transition-colors">Archivovat</button>
-              <button onClick={remove} className="block w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-[#1A0A2E] transition-colors">Smazat</button>
+              <button
+                onClick={() => { setMenuOpen(false); setShowDeleteConfirm(true) }}
+                className="block w-full text-left px-4 py-2.5 text-sm hover:bg-[#1A0A2E] transition-colors"
+                style={{ color: '#EF4444' }}
+              >
+                🗑 Smazat kontakt
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -503,6 +529,13 @@ export default function ContactResultPage() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+
+      <DeleteContactDialog
+        open={showDeleteConfirm}
+        deleting={deleting}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={confirmDelete}
+      />
+    </motion.div>
   )
 }

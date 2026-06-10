@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { IconSearch, IconCreditCard } from '@tabler/icons-react'
+import { IconSearch, IconCreditCard, IconTrash } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
 import CardStack from '@/components/ui/CardStack'
+import DeleteContactDialog, { deleteContactApi } from '@/components/ui/DeleteContactDialog'
 import type { ScannedContact } from '@/lib/types'
 
 const chipStyle = (active: boolean): React.CSSProperties =>
@@ -23,28 +24,30 @@ export default function ContactsPage() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState('Vše')
   const [cur, setCur] = useState(0)
+  const [deleteTarget, setDeleteTarget] = useState<ScannedContact | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const loadContacts = useCallback(async () => {
+    setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
+    const { data, error: e } = await supabase
+      .from('scanned_contacts')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('scanned_at', { ascending: false })
+    if (e) setError(e.message)
+    else setContacts((data as ScannedContact[]) ?? [])
+    setLoading(false)
+  }, [router, supabase])
 
   useEffect(() => {
-    let active = true
-    async function loadContacts() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-      const { data, error: e } = await supabase
-        .from('scanned_contacts')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('scanned_at', { ascending: false })
-      if (!active) return
-      if (e) setError(e.message)
-      else setContacts((data as ScannedContact[]) ?? [])
-      setLoading(false)
-    }
     loadContacts()
-    return () => { active = false }
-  }, [router, supabase])
+  }, [loadContacts, refreshKey])
 
   const stats = useMemo(() => ({
     total: contacts.length,
@@ -65,6 +68,25 @@ export default function ContactsPage() {
   useEffect(() => { setCur(0) }, [filter])
 
   const active = filtered[cur] ?? null
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+
+      await deleteContactApi(deleteTarget.id, user.id)
+      setDeleteTarget(null)
+      setCur(0)
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Smazání selhalo.')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="min-h-screen pb-28" style={{ background: '#07050E' }}>
@@ -164,7 +186,7 @@ export default function ContactsPage() {
               <motion.div
                 key={active.id}
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                animate={{ opacity: deleting && deleteTarget?.id === active.id ? 0.3 : 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.25 }}
                 className="mx-4 rounded-xl p-3 mt-2 flex flex-col gap-2"
@@ -187,7 +209,7 @@ export default function ContactsPage() {
                 {active.notes && (
                   <p className="text-sm" style={{ color: '#3A2060' }}>{active.notes}</p>
                 )}
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   <button
                     onClick={() => router.push('/chat/' + active.id)}
                     className="flex-1 py-2 text-xs rounded-lg"
@@ -208,6 +230,14 @@ export default function ContactsPage() {
                   >
                     ✦ Detail
                   </button>
+                  <button
+                    onClick={() => setDeleteTarget(active)}
+                    aria-label="Smazat kontakt"
+                    className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg"
+                    style={{ border: '0.5px solid #1A0E30', color: '#EF4444' }}
+                  >
+                    <IconTrash size={16} />
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -216,6 +246,13 @@ export default function ContactsPage() {
       )}
 
       <BottomNav />
+
+      <DeleteContactDialog
+        open={!!deleteTarget}
+        deleting={deleting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }
