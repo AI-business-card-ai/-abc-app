@@ -51,30 +51,30 @@ export function getSectionDisplay(title: string): { icon: string; label: string 
   const upper = title.toUpperCase()
 
   if (upper.includes('REPUTATION') || upper.includes('RISK')) {
-    return { icon: '⚠️', label: 'Reputace' }
+    return { icon: '⚠️', label: 'Reputation' }
   }
   if (upper.includes('NEWS') || upper.includes('RECENT') || upper.includes('EVENT')) {
-    return { icon: '📰', label: 'Novinky' }
+    return { icon: '📰', label: 'Recent News' }
   }
   if (
     upper.includes('PERSON') ||
     upper.includes('LINKEDIN') ||
     upper.includes('DECISION')
   ) {
-    return { icon: '👤', label: 'Profil osoby' }
+    return { icon: '👤', label: 'Person Profile' }
   }
   if (upper.includes('MATCH')) {
-    return { icon: '🎯', label: 'Match analýza' }
+    return { icon: '🎯', label: 'Match Analysis' }
   }
   if (
     upper.includes('OUTREACH') ||
     upper.includes('CUSTOM') ||
     upper.includes('INTELLIGENCE')
   ) {
-    return { icon: '💡', label: 'Jak oslovit' }
+    return { icon: '💡', label: 'Outreach Strategy' }
   }
 
-  return { icon: '📊', label: 'Profil firmy' }
+  return { icon: '📊', label: 'Company Profile' }
 }
 
 export function parseEnrichedContext(text: string | null | undefined): EnrichedSection[] {

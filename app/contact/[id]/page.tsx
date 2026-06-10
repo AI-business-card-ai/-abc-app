@@ -40,6 +40,7 @@ const cleanText = (text: string) =>
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/#{1,6}\s/g, '')
+    .replace(/\[(\d+)\]/g, '')
     .trim()
 
 export default function ContactResultPage() {
@@ -322,7 +323,7 @@ export default function ContactResultPage() {
               className="absolute right-4 top-16 z-20 abc-card overflow-hidden w-44"
               style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
             >
-              <button onClick={() => { setMenuOpen(false); setTab(tab) }} className="block w-full text-left px-4 py-2.5 text-sm text-text-primary hover:bg-[#1A0A2E] transition-colors">Upravit</button>
+              <button onClick={() => { setMenuOpen(false); setTab(tab) }} className="block w-full text-left px-4 py-2.5 text-sm text-text-primary hover:bg-[#1A0A2E] transition-colors">Edit</button>
               <button onClick={archive} className="block w-full text-left px-4 py-2.5 text-sm text-text-primary hover:bg-[#1A0A2E] transition-colors">Archivovat</button>
               <button
                 onClick={() => { setMenuOpen(false); setShowDeleteConfirm(true) }}
@@ -528,11 +529,11 @@ export default function ContactResultPage() {
           disabled={sending}
           className={`glow-btn w-full rounded-xl text-white font-semibold py-3.5 ${sending ? 'opacity-40' : ''}`}
         >
-          ✦ Schválit &amp; Odeslat
+          ✦ Approve &amp; Send
         </motion.button>
         <div className="flex gap-3 mt-3">
-          <button onClick={() => setTab(tab)} className="ghost-btn flex-1 py-2.5 text-sm">Upravit</button>
-          <button onClick={() => router.push('/contacts')} className="ghost-btn flex-1 py-2.5 text-sm">Přeskočit</button>
+          <button onClick={() => setTab(tab)} className="ghost-btn flex-1 py-2.5 text-sm">Edit</button>
+          <button onClick={() => router.push('/contacts')} className="ghost-btn flex-1 py-2.5 text-sm">Skip</button>
         </div>
       </div>
 

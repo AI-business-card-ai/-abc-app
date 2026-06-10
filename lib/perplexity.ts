@@ -97,12 +97,6 @@ ${customQ}`
     .filter(Boolean)
     .join('\n')
 
-  const languageInstruction =
-    userProfile?.outreach_language === 'CZ' ? 'Answer in Czech language.' :
-    userProfile?.outreach_language === 'DE' ? 'Answer in German language.' :
-    userProfile?.outreach_language === 'Mix' ? 'Answer in Czech language but use English for technical terms.' :
-    'Answer in English language.'
-
   try {
     console.log('PERPLEXITY KEY:', process.env.PERPLEXITY_API_KEY?.substring(0, 15))
 
@@ -136,7 +130,8 @@ Be factual. If not found say "Not found".
 
 ${dynamicSections}
 
-${languageInstruction}`,
+IMPORTANT: Answer ONLY in English.
+All sections, all text, everything in English.`,
             },
           ],
           max_tokens: 800,
