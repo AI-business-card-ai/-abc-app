@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { IconSearch, IconCreditCard, IconTrash } from '@tabler/icons-react'
+import { IconSearch, IconCreditCard } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
 import CardStack from '@/components/ui/CardStack'
@@ -185,58 +185,65 @@ export default function ContactsPage() {
             {active && (
               <motion.div
                 key={active.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: deleting && deleteTarget?.id === active.id ? 0.3 : 1 }}
-                exit={{ opacity: 0 }}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: deleting && deleteTarget?.id === active.id ? 0.3 : 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.25 }}
-                className="mx-4 rounded-xl p-3 mt-2 flex flex-col gap-2"
+                className="mx-4 rounded-xl p-3 mt-1 flex flex-col gap-2.5"
                 style={{ background: '#06040C', border: '0.5px solid #1A0E30' }}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <span
-                      className="w-1.5 h-1.5 rounded-full"
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
                       style={{ background: '#A78BFA', boxShadow: '0 0 6px #A78BFA' }}
                     />
-                    <span className="text-xs font-medium" style={{ color: '#A78BFA' }}>
+                    <span className="text-xs font-medium truncate" style={{ color: '#A78BFA' }}>
                       {active.event_name ?? 'Bez události'}
                     </span>
                   </div>
-                  <span className="text-xs" style={{ color: '#3A2060' }}>
+                  <span className="text-xs shrink-0 ml-2" style={{ color: '#3A2060' }}>
                     {new Date(active.scanned_at).toLocaleDateString('cs-CZ')}
                   </span>
                 </div>
-                {active.notes && (
-                  <p className="text-sm" style={{ color: '#3A2060' }}>{active.notes}</p>
+
+                {active.notes ? (
+                  <p className="text-sm italic leading-relaxed" style={{ color: '#3A2060' }}>
+                    {active.notes}
+                  </p>
+                ) : (
+                  <p className="text-sm italic" style={{ color: '#2A1A4A' }}>
+                    Bez poznámky
+                  </p>
                 )}
-                <div className="flex gap-2 items-center">
+
+                <div className="flex gap-1.5 items-stretch flex-wrap">
                   <button
                     onClick={() => router.push('/chat/' + active.id)}
-                    className="flex-1 py-2 text-xs rounded-lg"
+                    className="flex-1 min-w-[72px] py-2 text-xs rounded-lg"
                     style={{ border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
                   >
                     💬 Chat
                   </button>
                   <button
                     onClick={() => router.push('/contact/' + active.id)}
-                    className="flex-1 py-2 text-xs rounded-lg"
+                    className="flex-1 min-w-[72px] py-2 text-xs rounded-lg"
                     style={{ border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
                   >
                     ✉ Zpráva
                   </button>
                   <button
                     onClick={() => router.push('/contact/' + active.id)}
-                    className="flex-1 py-2 text-xs rounded-lg glow-btn text-white font-medium"
+                    className="flex-1 min-w-[72px] py-2 text-xs rounded-lg glow-btn text-white font-medium"
                   >
                     ✦ Detail
                   </button>
                   <button
                     onClick={() => setDeleteTarget(active)}
-                    aria-label="Smazat kontakt"
-                    className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg"
-                    style={{ border: '0.5px solid #1A0E30', color: '#EF4444' }}
+                    className="flex-1 min-w-[72px] py-2 text-xs rounded-lg font-medium"
+                    style={{ border: '0.5px solid rgba(239,68,68,0.35)', color: '#EF4444' }}
                   >
-                    <IconTrash size={16} />
+                    🗑 Smazat
                   </button>
                 </div>
               </motion.div>

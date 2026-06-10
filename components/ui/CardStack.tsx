@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef } from 'react'
-import { motion } from 'framer-motion'
+import { useState } from 'react'
+import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion'
 import type { ScannedContact } from '@/lib/types'
 
 interface Props {
@@ -11,119 +11,257 @@ interface Props {
   onSelect: (id: string) => void
 }
 
-const WALLET_GRADIENTS = [
-  'linear-gradient(145deg, #1E1040 0%, #12082A 50%, #0A0A22 100%)',
-  'linear-gradient(145deg, #10243F 0%, #0C1830 50%, #0A0A22 100%)',
-  'linear-gradient(145deg, #2A1040 0%, #180828 50%, #0A0A22 100%)',
-  'linear-gradient(145deg, #101A40 0%, #0A1228 50%, #0A0A22 100%)',
-  'linear-gradient(145deg, #231040 0%, #140828 50%, #0A0A22 100%)',
+const SPRING = { type: 'spring' as const, stiffness: 320, damping: 32 }
+
+const STACK_LAYERS = [
+  { top: 0, scale: 1, opacity: 1, zIndex: 10 },
+  { top: 20, scale: 0.96, opacity: 1, zIndex: 9 },
+  { top: 40, scale: 0.92, opacity: 0.9, zIndex: 8 },
+  { top: 60, scale: 0.88, opacity: 0.7, zIndex: 7 },
+  { top: 80, scale: 0.84, opacity: 0.5, zIndex: 6 },
 ]
 
-const ACCENT_GLOWS = ['#7C3AED', '#0EA5E9', '#A855F7', '#38BDF8', '#8B5CF6']
-const SCORE_COLORS = ['#A78BFA', '#38BDF8', '#7C3AED', '#0EA5E9', '#C4B5FD']
-
-const SPRING = { type: 'spring' as const, stiffness: 300, damping: 30 }
-
-const OFFSETS = [
-  { top: 0, scale: 1, opacity: 1 },
-  { top: 18, scale: 0.95, opacity: 1 },
-  { top: 36, scale: 0.9, opacity: 1 },
-  { top: 54, scale: 0.85, opacity: 0.7 },
+const CARD_THEMES = [
+  { bg: 'linear-gradient(135deg, #0a1628, #1a0a3c)', glow: '#7C3AED', score: '#A78BFA', accent: '#6366F1' },
+  { bg: 'linear-gradient(135deg, #0a2818, #1a3c0a)', glow: '#22C55E', score: '#86EFAC', accent: '#4ADE80' },
+  { bg: 'linear-gradient(135deg, #280a0a, #3c1a0a)', glow: '#F97316', score: '#FDBA74', accent: '#FB923C' },
+  { bg: 'linear-gradient(135deg, #0a1a28, #0a2838)', glow: '#0EA5E9', score: '#7DD3FC', accent: '#38BDF8' },
+  { bg: 'linear-gradient(135deg, #1a0a28, #280a1a)', glow: '#EC4899', score: '#F9A8D4', accent: '#F472B6' },
+  { bg: 'linear-gradient(135deg, #28200a, #1a280a)', glow: '#EAB308', score: '#FDE047', accent: '#FACC15' },
 ]
+
+const NOISE_BG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`
+
+function BusinessCardFace({
+  contact,
+  themeIndex,
+  isTop,
+}: {
+  contact: ScannedContact
+  themeIndex: number
+  isTop: boolean
+}) {
+  const theme = CARD_THEMES[themeIndex % CARD_THEMES.length]
+  const secondary = contact.website || contact.phone || ''
+
+  return (
+    <>
+      <div
+        className="absolute inset-0 pointer-events-none rounded-2xl"
+        style={{ backgroundImage: NOISE_BG, opacity: 0.03, backgroundSize: 'cover' }}
+      />
+      <span
+        className="pointer-events-none absolute -right-6 -top-6 w-32 h-32 rounded-full"
+        style={{ background: `radial-gradient(circle, ${theme.glow}66, transparent 70%)` }}
+      />
+
+      <div className="relative h-full p-4 flex flex-col">
+        <div className="flex items-start justify-between gap-2">
+          <span
+            className="font-black tracking-tight truncate max-w-[75%] text-lg leading-tight"
+            style={{
+              background: `linear-gradient(135deg, #fff, ${theme.accent})`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            {contact.company ?? '—'}
+          </span>
+          <span
+            className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-sm select-none"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '0.5px solid rgba(255,255,255,0.1)',
+              color: theme.accent,
+              opacity: 0.85,
+            }}
+          >
+            ✦
+          </span>
+        </div>
+
+        <div className="mt-4 flex-1">
+          <p className="font-bold truncate" style={{ fontSize: 18, color: '#fff' }}>
+            {contact.name ?? 'Neznámý'}
+          </p>
+          <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+            {contact.role ?? '—'}
+          </p>
+        </div>
+
+        <div className="flex items-end justify-between gap-2 mt-auto">
+          <div className="min-w-0 flex-1">
+            {contact.email && (
+              <p className="truncate" style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+                {contact.email}
+              </p>
+            )}
+            {secondary && (
+              <p className="truncate mt-0.5" style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+                {secondary}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <span
+              className="rounded-full px-3 py-1 text-xs font-bold tabular-nums"
+              style={{
+                background: 'rgba(0,0,0,0.4)',
+                color: theme.score,
+                border: '0.5px solid rgba(255,255,255,0.08)',
+              }}
+            >
+              {contact.match_score ?? '–'}
+            </span>
+            {contact.event_name && (
+              <span className="flex items-center gap-1 max-w-[88px]">
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ background: theme.accent, boxShadow: `0 0 4px ${theme.accent}` }}
+                />
+                <span className="truncate" style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>
+                  {contact.event_name}
+                </span>
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {isTop && (
+        <div
+          className="absolute inset-0 rounded-2xl pointer-events-none"
+          style={{ boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}
+        />
+      )}
+    </>
+  )
+}
 
 export default function CardStack({ contacts, cur, onCurChange, onSelect }: Props) {
-  const touchStartX = useRef<number | null>(null)
-
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX
-  }
-
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null) return
-    const dx = e.changedTouches[0].clientX - touchStartX.current
-    if (dx < -50 && cur < contacts.length - 1) onCurChange(cur + 1)
-    else if (dx > 50 && cur > 0) onCurChange(cur - 1)
-    touchStartX.current = null
-  }
+  const [flyAway, setFlyAway] = useState<'left' | 'right' | null>(null)
+  const dragX = useMotionValue(0)
+  const dragRotate = useTransform(dragX, [-150, 0, 150], [-12, 0, 12])
 
   if (contacts.length === 0) {
     return (
-      <div className="h-[220px] flex items-center justify-center text-sm" style={{ color: '#3A2060' }}>
+      <div className="h-[320px] flex items-center justify-center text-sm" style={{ color: '#3A2060' }}>
         Zatím žádné kontakty.
       </div>
     )
   }
 
+  const visible = contacts.slice(cur, cur + 5)
+
+  function handleDragEnd(_: unknown, info: PanInfo) {
+    if (flyAway) return
+    if (info.offset.x < -80) {
+      if (cur < contacts.length - 1) {
+        setFlyAway('left')
+        window.setTimeout(handleFlyComplete, 280)
+      } else {
+        onSelect(contacts[cur].id)
+      }
+      return
+    }
+    if (info.offset.x > 80 && cur > 0) {
+      setFlyAway('right')
+      window.setTimeout(handleFlyComplete, 280)
+    }
+  }
+
+  function handleFlyComplete() {
+    if (flyAway === 'left' && cur < contacts.length - 1) {
+      onCurChange(cur + 1)
+    } else if (flyAway === 'right' && cur > 0) {
+      onCurChange(cur - 1)
+    }
+    setFlyAway(null)
+    dragX.set(0)
+  }
+
+  function handleCardClick(stackIndex: number) {
+    if (flyAway) return
+    const globalIndex = cur + stackIndex
+    if (stackIndex === 0) {
+      if (globalIndex < contacts.length - 1) onCurChange(globalIndex + 1)
+      else onSelect(contacts[globalIndex].id)
+    } else {
+      onCurChange(globalIndex)
+    }
+  }
+
   return (
-    <div
-      className="relative mx-4"
-      style={{ height: 220 }}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
-      {contacts.map((c, i) => {
-        const offset = i - cur
-        if (offset < 0 || offset > 3) {
-          return <motion.div key={c.id} animate={{ opacity: 0 }} transition={SPRING} className="absolute inset-x-0 pointer-events-none" />
+    <div className="relative px-4" style={{ height: 320, overflow: 'visible' }}>
+      {visible.map((contact, stackIndex) => {
+        const layer = STACK_LAYERS[stackIndex] ?? STACK_LAYERS[STACK_LAYERS.length - 1]
+        const themeIndex = (cur + stackIndex) % CARD_THEMES.length
+        const theme = CARD_THEMES[themeIndex]
+        const isTop = stackIndex === 0
+
+        const cardStyle: React.CSSProperties = {
+          height: 200,
+          borderRadius: 16,
+          background: theme.bg,
+          border: '0.5px solid rgba(255,255,255,0.08)',
+          boxShadow: isTop ? '0 16px 48px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.4)',
+          transformOrigin: 'top center',
+          zIndex: layer.zIndex,
         }
 
-        const cfg = OFFSETS[offset]
-        const zIndex = 5 - offset
-        const grad = WALLET_GRADIENTS[i % WALLET_GRADIENTS.length]
-        const glow = ACCENT_GLOWS[i % ACCENT_GLOWS.length]
-        const scoreColor = SCORE_COLORS[i % SCORE_COLORS.length]
-        const isTop = offset === 0
+        if (isTop) {
+          return (
+            <motion.div
+              key={contact.id}
+              drag={flyAway ? false : 'x'}
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.85}
+              style={{
+                ...cardStyle,
+                x: flyAway ? undefined : dragX,
+                rotate: flyAway ? undefined : dragRotate,
+              }}
+              animate={
+                flyAway
+                  ? {
+                      x: flyAway === 'left' ? -300 : 300,
+                      opacity: 0,
+                      rotate: flyAway === 'left' ? -20 : 20,
+                      top: layer.top,
+                      scale: layer.scale,
+                    }
+                  : {
+                      x: 0,
+                      opacity: layer.opacity,
+                      rotate: 0,
+                      top: layer.top,
+                      scale: layer.scale,
+                    }
+              }
+              transition={flyAway ? { duration: 0.28, ease: 'easeIn' } : SPRING}
+              onDragEnd={handleDragEnd}
+              onClick={() => handleCardClick(stackIndex)}
+              className="absolute inset-x-0 cursor-pointer overflow-hidden rounded-2xl"
+            >
+              <BusinessCardFace contact={contact} themeIndex={themeIndex} isTop />
+            </motion.div>
+          )
+        }
 
         return (
           <motion.div
-            key={c.id}
-            onClick={() =>
-              isTop
-                ? i < contacts.length - 1
-                  ? onCurChange(i + 1)
-                  : onSelect(c.id)
-                : onCurChange(i)
-            }
-            animate={{ top: cfg.top, scale: cfg.scale, opacity: cfg.opacity, zIndex }}
-            transition={SPRING}
-            className="absolute inset-x-0 cursor-pointer overflow-hidden"
-            style={{
-              height: 160,
-              borderRadius: 14,
-              background: grad,
-              border: '0.5px solid #1A0E30',
-              zIndex,
-              transformOrigin: 'top center',
+            key={contact.id}
+            animate={{
+              top: layer.top,
+              scale: layer.scale,
+              opacity: layer.opacity,
             }}
+            transition={SPRING}
+            onClick={() => handleCardClick(stackIndex)}
+            className="absolute inset-x-0 cursor-pointer overflow-hidden rounded-2xl"
+            style={cardStyle}
           >
-            <span
-              className="pointer-events-none absolute -right-4 -top-4 w-28 h-28 rounded-full"
-              style={{ background: `radial-gradient(circle, ${glow}55, transparent 70%)` }}
-            />
-            <span className="absolute right-4 top-3 text-2xl select-none" style={{ opacity: 0.25, color: glow }}>
-              ✦
-            </span>
-
-            <div className="relative h-full p-4 flex flex-col justify-between">
-              <span className="gradient-text font-bold tracking-wide truncate text-base">
-                {c.company ?? '—'}
-              </span>
-              <div>
-                <p className="font-bold text-sm" style={{ color: '#fff' }}>{c.name ?? 'Neznámý'}</p>
-                <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{c.role ?? ''}</p>
-              </div>
-              <div className="flex items-end justify-between gap-2">
-                <span className="text-[9px] truncate max-w-[65%]" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                  {c.email ?? c.website ?? ''}
-                </span>
-                <span
-                  className="rounded-full px-2.5 py-0.5 text-xs font-bold shrink-0"
-                  style={{ background: 'rgba(0,0,0,0.4)', color: scoreColor }}
-                >
-                  {c.match_score ?? '–'}
-                </span>
-              </div>
-            </div>
+            <BusinessCardFace contact={contact} themeIndex={themeIndex} isTop={false} />
           </motion.div>
         )
       })}
