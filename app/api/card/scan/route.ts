@@ -9,6 +9,10 @@ import { enrichContact } from '@/lib/perplexity'
 import { ABCProfile } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
+  console.log('=== SCAN START ===')
+  console.log('PERPLEXITY_API_KEY exists:', !!process.env.PERPLEXITY_API_KEY)
+  console.log('PERPLEXITY_API_KEY prefix:', process.env.PERPLEXITY_API_KEY?.substring(0, 10))
+
   try {
     const formData = await req.formData()
     const image = formData.get('image') as File
@@ -51,6 +55,7 @@ export async function POST(req: NextRequest) {
     const claudeResult = await analyzeBusinessCard(base64, profile, '', claudeMediaType)
 
     // 2. Fetchni Perplexity data
+    console.log('Calling enrichContact with:', claudeResult.name, claudeResult.company)
     let enrichedContext = ''
     try {
       enrichedContext = await enrichContact(
