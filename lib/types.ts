@@ -24,6 +24,7 @@ export interface ScannedContact {
   image_url: string | null
   scanned_at: string
   created_at: string
+  enriched_context: string | null
 }
 
 export interface FollowupSequence {
@@ -53,6 +54,8 @@ export interface ABCProfile {
   plan: 'free' | 'pro' | 'team'
   scans_used: number
   scans_limit: number
+  research_preferences: string[] | null
+  custom_questions: string | null
 }
 
 export interface ScanResult {

@@ -14,6 +14,7 @@ import {
 import { createClientComponent } from '@/lib/supabase'
 import MatchScore from '@/components/ui/MatchScore'
 import GradientAvatar from '@/components/ui/GradientAvatar'
+import { parseEnrichedContext, splitContentWithUrls } from '@/lib/research'
 import type { ScannedContact } from '@/lib/types'
 
 type Tab = 'linkedin' | 'email' | 'whatsapp'
@@ -104,6 +105,11 @@ export default function ContactResultPage() {
     if (!contact?.name) return '?'
     return contact.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
   }, [contact?.name])
+
+  const enrichedSections = useMemo(
+    () => parseEnrichedContext(contact?.enriched_context),
+    [contact?.enriched_context]
+  )
 
   async function handleSend() {
     if (!contact) return
@@ -339,6 +345,48 @@ export default function ContactResultPage() {
             )}
           </div>
         </motion.div>
+
+        {/* COMPANY INTELLIGENCE */}
+        {enrichedSections.length > 0 && (
+          <motion.div variants={item} className="flex flex-col gap-3">
+            <span className="abc-label px-1">Company Intelligence</span>
+            {enrichedSections.map((section) => (
+              <div
+                key={section.title}
+                className="rounded-xl p-4"
+                style={{
+                  background: '#0D0A18',
+                  border: section.isRisk ? '0.5px solid #EF4444' : '0.5px solid #1A0E30',
+                }}
+              >
+                <h3
+                  className="text-sm font-semibold mb-2 flex items-center gap-1.5"
+                  style={{ color: section.isRisk ? '#FCA5A5' : '#F0EAFF' }}
+                >
+                  {section.isRisk && <span>⚠️</span>}
+                  {section.title}
+                </h3>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: '#8B6ABF' }}>
+                  {splitContentWithUrls(section.content).map((seg, i) =>
+                    seg.isUrl ? (
+                      <a
+                        key={i}
+                        href={seg.text.startsWith('http') ? seg.text : `https://${seg.text}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[#A78BFA] underline break-all"
+                      >
+                        {seg.text}
+                      </a>
+                    ) : (
+                      <span key={i}>{seg.text}</span>
+                    )
+                  )}
+                </p>
+              </div>
+            ))}
+          </motion.div>
+        )}
 
         {/* MESSAGES */}
         <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">

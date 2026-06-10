@@ -5,6 +5,68 @@ export async function enrichContact(
 ): Promise<string> {
   if (!name && !company) return ''
 
+  const selectedTopics: string[] = userProfile?.research_preferences || [
+    'revenue',
+    'location',
+    'news',
+    'linkedin',
+    'reputation',
+    'events',
+  ]
+  const customQ: string = userProfile?.custom_questions || ''
+
+  const dynamicSections = [
+    selectedTopics.includes('revenue')
+      ? `
+## COMPANY SIZE & REVENUE
+- Estimated annual revenue
+- Number of employees
+- Growth trajectory`
+      : '',
+    selectedTopics.includes('location')
+      ? `
+## LOCATION & OFFICES
+- Headquarters city and country
+- Other offices or branches`
+      : '',
+    selectedTopics.includes('news')
+      ? `
+## RECENT NEWS (last 6 months)
+- Latest announcements
+- New products or services
+- Partnerships or deals`
+      : '',
+    selectedTopics.includes('linkedin')
+      ? `
+## PERSON PROFILE
+- LinkedIn URL
+- Career history
+- Recent posts or activity`
+      : '',
+    selectedTopics.includes('reputation')
+      ? `
+## REPUTATION & RISKS
+- Negative news, lawsuits, controversies
+- Customer sentiment
+- Red flags`
+      : '',
+    selectedTopics.includes('events')
+      ? `
+## UPCOMING EVENTS
+- Trade shows they attend
+- Speaking engagements
+- Product launches`
+      : '',
+    customQ
+      ? `
+## CUSTOM QUESTIONS
+Answer these specific questions:
+${customQ}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
   try {
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -25,52 +87,10 @@ MY GOALS: ${userProfile?.goals || 'B2B networking'}
 MY COMPANY: ${userProfile?.company || ''}
 MY ROLE: ${userProfile?.role || ''}
 
-Research and return ALL sections:
+Research and return ONLY the sections below. Use ## headers exactly as shown.
+Be factual. If not found say "Not found".
 
-## 1. COMPANY PROFILE
-- What they do, specialization, niche
-- Industry and sub-industry
-- Headquarters: city and country
-- Founded year, how long operating
-- Company size (employees)
-- Estimated annual revenue
-- Key clients or markets
-
-## 2. COMPANY REPUTATION
-- Market reputation
-- Negative news, lawsuits, controversies, scandals
-- Customer reviews sentiment
-- Awards or recognitions
-- Recent funding or acquisitions
-
-## 3. RECENT ACTIVITY (last 6 months)
-- Latest news
-- New products or services
-- Upcoming events or trade shows
-- Recent partnerships or deals
-
-## 4. PERSON PROFILE
-- Exact role and responsibilities
-- LinkedIn URL if findable
-- Career history (previous companies)
-- Education
-- Public speaking, articles, thought leadership
-- Mutual interests
-
-## 5. MATCH ANALYSIS
-Based on MY GOALS: "${userProfile?.goals}"
-- Score 0-100 relevance
-- Top 3 reasons why they match or not
-- Best outreach angle
-- Red flags or risks
-
-## 6. OUTREACH INTELLIGENCE
-- Best talking points
-- Topics to avoid
-- Recommended tone
-- Best channel: LinkedIn/Email/WhatsApp
-
-Be factual. If not found say "Not found".`,
+${dynamicSections}`,
           },
         ],
         max_tokens: 800,

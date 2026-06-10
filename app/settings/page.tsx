@@ -12,6 +12,10 @@ import {
 } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
+import {
+  DEFAULT_RESEARCH_PREFERENCES,
+  RESEARCH_PREFERENCE_OPTIONS,
+} from '@/lib/research'
 import type { ABCProfile } from '@/lib/types'
 
 const STYLES: { key: ABCProfile['communication_style']; label: string }[] = [
@@ -24,6 +28,8 @@ const LANGUAGES = ['EN', 'CZ', 'DE', 'Mix']
 const EMPTY: Omit<ABCProfile, 'id'> = {
   full_name: '', company: '', role: '', email: '', phone: '', linkedin_url: '', website: '',
   communication_style: 'direct', outreach_language: 'EN', goals: '', plan: 'free', scans_used: 0, scans_limit: 30,
+  research_preferences: [...DEFAULT_RESEARCH_PREFERENCES],
+  custom_questions: '',
 }
 
 const chipStyle = (active: boolean): React.CSSProperties =>
@@ -54,7 +60,14 @@ export default function SettingsPage() {
       if (!active) return
       if (data) {
         const { id: _id, ...rest } = data as ABCProfile
-        setProfile({ ...EMPTY, ...rest })
+        setProfile({
+          ...EMPTY,
+          ...rest,
+          research_preferences: rest.research_preferences?.length
+            ? rest.research_preferences
+            : [...DEFAULT_RESEARCH_PREFERENCES],
+          custom_questions: rest.custom_questions ?? '',
+        })
       } else {
         setProfile((p) => ({ ...p, email: user.email ?? '' }))
       }
@@ -65,6 +78,16 @@ export default function SettingsPage() {
 
   function update<K extends keyof typeof profile>(key: K, value: (typeof profile)[K]) {
     setProfile((p) => ({ ...p, [key]: value }))
+  }
+
+  function toggleResearchPreference(key: string) {
+    setProfile((p) => {
+      const current = p.research_preferences ?? [...DEFAULT_RESEARCH_PREFERENCES]
+      const next = current.includes(key)
+        ? current.filter((k) => k !== key)
+        : [...current, key]
+      return { ...p, research_preferences: next }
+    })
   }
 
   async function save() {
@@ -87,6 +110,8 @@ export default function SettingsPage() {
         plan: profile.plan,
         scans_used: profile.scans_used,
         scans_limit: profile.scans_limit,
+        research_preferences: profile.research_preferences ?? [...DEFAULT_RESEARCH_PREFERENCES],
+        custom_questions: profile.custom_questions || null,
       }
       const { error: e } = await supabase
         .from('abc_profiles')
@@ -242,6 +267,48 @@ export default function SettingsPage() {
           value={profile.goals ?? ''}
           onChange={(e) => update('goals', e.target.value)}
           placeholder="B2B SaaS partneři, investoři seed stage EU..."
+          className="w-full min-h-[80px] resize-none rounded-lg px-3 py-2 text-sm outline-none"
+          style={{ background: '#111', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
+          onFocus={(e) => { e.target.style.borderColor = '#7C3AED' }}
+          onBlur={(e) => { e.target.style.borderColor = '#1A0E30' }}
+        />
+      </div>
+
+      {/* RESEARCH PREFERENCES */}
+      <div
+        className="mx-4 mt-3 p-4 rounded-xl"
+        style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
+      >
+        <span className="gradient-text font-bold tracking-widest uppercase block mb-3" style={{ fontSize: '9px' }}>
+          CO CHCI VŽDY ZJISTIT
+        </span>
+        <div className="flex flex-col gap-2.5 mb-4">
+          {RESEARCH_PREFERENCE_OPTIONS.map((opt) => {
+            const checked = (profile.research_preferences ?? DEFAULT_RESEARCH_PREFERENCES).includes(opt.key)
+            return (
+              <label
+                key={opt.key}
+                className="flex items-center gap-3 cursor-pointer text-sm"
+                style={{ color: checked ? '#F0EAFF' : '#5A3A8A' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleResearchPreference(opt.key)}
+                  className="w-4 h-4 rounded accent-[#7C3AED]"
+                />
+                {opt.label}
+              </label>
+            )
+          })}
+        </div>
+        <span className="block mb-2 text-xs" style={{ color: '#3A2060' }}>
+          Vlastní otázky (každá na nový řádek):
+        </span>
+        <textarea
+          value={profile.custom_questions ?? ''}
+          onChange={(e) => update('custom_questions', e.target.value)}
+          placeholder={'Hledají investory?\nMají pobočku v ČR?\n...'}
           className="w-full min-h-[80px] resize-none rounded-lg px-3 py-2 text-sm outline-none"
           style={{ background: '#111', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
           onFocus={(e) => { e.target.style.borderColor = '#7C3AED' }}

@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
       .insert({
         user_id: userId,
         ...result,
+        enriched_context: enrichedContext || null,
         status: 'pending',
       })
       .select()
