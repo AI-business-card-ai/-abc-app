@@ -1,13 +1,39 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+
+const SCAN_STEPS = [
+  'Čtu vizitku...',
+  'Hledám informace o firmě...',
+  'Zjišťuji LinkedIn profil...',
+  'Analyzuji historii a obrat firmy...',
+  'Připravuji personalizované zprávy...',
+  'Dokončuji analýzu...',
+]
 
 interface Props {
   isVisible: boolean
-  text?: string
 }
 
-export default function LoadingMatrix({ isVisible, text = 'AI analyzuje vizitku...' }: Props) {
+export default function LoadingMatrix({ isVisible }: Props) {
+  const [stepIndex, setStepIndex] = useState(0)
+
+  useEffect(() => {
+    if (!isVisible) {
+      setStepIndex(0)
+      return
+    }
+
+    const interval = setInterval(() => {
+      setStepIndex((prev) => Math.min(prev + 1, SCAN_STEPS.length - 1))
+    }, 2000)
+
+    return () => clearInterval(interval)
+  }, [isVisible])
+
+  const progress = ((stepIndex + 1) / SCAN_STEPS.length) * 100
+
   return (
     <AnimatePresence>
       {isVisible && (
@@ -15,7 +41,7 @@ export default function LoadingMatrix({ isVisible, text = 'AI analyzuje vizitku.
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center px-8"
           style={{ background: 'rgba(7, 5, 14, 0.97)', backdropFilter: 'blur(8px)' }}
         >
           <div
@@ -28,36 +54,31 @@ export default function LoadingMatrix({ isVisible, text = 'AI analyzuje vizitku.
           <motion.div
             animate={{ scale: [1, 1.06, 1] }}
             transition={{ duration: 1.5, repeat: Infinity }}
-            className="gradient-text text-5xl font-black tracking-widest mb-8 relative"
+            className="gradient-text text-5xl font-black tracking-widest mb-4 relative"
             style={{ filter: 'drop-shadow(0 0 24px rgba(124,58,237,0.5))' }}
           >
             ABC
           </motion.div>
 
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: 'linear' }}
-            className="w-12 h-12 rounded-full mb-6 relative"
-            style={{
-              border: '2px solid transparent',
-              borderTopColor: '#7C3AED',
-              borderRightColor: '#0EA5E9',
-              boxShadow: '0 0 20px rgba(124,58,237,0.3)',
-            }}
-          />
+          <p className="text-sm text-center mb-8 relative min-h-[20px]" style={{ color: '#A78BFA' }}>
+            {SCAN_STEPS[stepIndex]}
+          </p>
 
-          <p className="text-text-secondary text-sm mb-4 relative">{text}</p>
-
-          <div className="flex gap-1.5 relative">
-            {[0, 1, 2].map((i) => (
+          <div className="w-full max-w-xs relative">
+            <div
+              className="h-1.5 rounded-full overflow-hidden"
+              style={{ background: '#1A0E30' }}
+            >
               <motion.div
-                key={i}
-                animate={{ y: [0, -8, 0], opacity: [0.4, 1, 0.4] }}
-                transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.15 }}
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ background: 'linear-gradient(135deg, #7C3AED, #0EA5E9)' }}
+                className="h-full rounded-full"
+                style={{ background: 'linear-gradient(90deg, #7C3AED, #0EA5E9)' }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
               />
-            ))}
+            </div>
+            <p className="text-center text-xs mt-2 tabular-nums" style={{ color: '#3A2060' }}>
+              {Math.round(progress)}%
+            </p>
           </div>
         </motion.div>
       )}

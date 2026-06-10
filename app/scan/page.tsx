@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { IconX, IconCreditCard, IconMicrophone } from '@tabler/icons-react'
-import { createClient } from '@/lib/supabase-client'
+import { createClientComponent } from '@/lib/supabase'
 import LoadingMatrix from '@/components/ui/LoadingMatrix'
 import BottomNav from '@/components/ui/BottomNav'
 import type { ABCProfile } from '@/lib/types'
@@ -18,7 +18,7 @@ const chipStyle = (active: boolean): React.CSSProperties =>
 
 export default function ScanPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = createClientComponent()
 
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
@@ -51,6 +51,11 @@ export default function ScanPage() {
     setSelectedImage(file)
     setImagePreview(URL.createObjectURL(file))
     setError(null)
+  }
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    handleFile(e.target.files?.[0])
+    e.target.value = ''
   }
 
   async function startRecording() {
@@ -212,8 +217,21 @@ export default function ScanPage() {
           ↑ Nahrát z galerie
         </motion.button>
 
-        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => handleFile(e.target.files?.[0])} />
-        <input ref={galleryInputRef} type="file" accept="image/*" hidden onChange={(e) => handleFile(e.target.files?.[0])} />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleImageSelect}
+        />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageSelect}
+        />
       </div>
 
       {/* 3. POZNÁMKA */}

@@ -10,7 +10,7 @@ import {
   IconBrandLinkedin,
   IconLogout,
 } from '@tabler/icons-react'
-import { createClient } from '@/lib/supabase-client'
+import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
 import type { ABCProfile } from '@/lib/types'
 
@@ -33,7 +33,7 @@ const chipStyle = (active: boolean): React.CSSProperties =>
 
 export default function SettingsPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = createClientComponent()
 
   const [userId, setUserId] = useState<string | null>(null)
   const [profile, setProfile] = useState<Omit<ABCProfile, 'id'>>(EMPTY)

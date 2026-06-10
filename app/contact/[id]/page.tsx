@@ -11,7 +11,7 @@ import {
   IconBrandLinkedin,
   IconBuilding,
 } from '@tabler/icons-react'
-import { createClient } from '@/lib/supabase-client'
+import { createClientComponent } from '@/lib/supabase'
 import MatchScore from '@/components/ui/MatchScore'
 import GradientAvatar from '@/components/ui/GradientAvatar'
 import type { ScannedContact } from '@/lib/types'
@@ -36,7 +36,7 @@ const item = {
 export default function ContactResultPage() {
   const params = useParams()
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = createClientComponent()
   const id = String(params?.id ?? '')
 
   const [contact, setContact] = useState<ScannedContact | null>(null)

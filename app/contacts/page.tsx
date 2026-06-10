@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { IconSearch, IconCreditCard } from '@tabler/icons-react'
-import { createClient } from '@/lib/supabase-client'
+import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
 import CardStack from '@/components/ui/CardStack'
 import type { ScannedContact } from '@/lib/types'
@@ -16,7 +16,7 @@ const chipStyle = (active: boolean): React.CSSProperties =>
 
 export default function ContactsPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = createClientComponent()
 
   const [contacts, setContacts] = useState<ScannedContact[]>([])
   const [loading, setLoading] = useState(true)

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerSupabase } from '@/lib/supabase'
 import {
   analyzeBusinessCard,
   extractBusinessCardFromImage,
@@ -34,10 +34,7 @@ export async function POST(req: NextRequest) {
 
     const extracted = await extractBusinessCardFromImage(base64, mediaType)
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServerSupabase()
 
     const { data: profile } = await supabase
       .from('abc_profiles')

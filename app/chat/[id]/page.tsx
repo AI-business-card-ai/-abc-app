@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { IconArrowLeft, IconSend } from '@tabler/icons-react'
-import { createClient } from '@/lib/supabase-client'
+import { createClientComponent } from '@/lib/supabase'
 import type { FollowupSequence, ScannedContact } from '@/lib/types'
 
 type Channel = 'linkedin' | 'email' | 'whatsapp'
@@ -71,7 +71,7 @@ function buildMessages(contact: ScannedContact, seqs: FollowupSequence[]): ChatM
 export default function ChatPage() {
   const params = useParams()
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = createClientComponent()
   const id = String(params?.id ?? '')
 
   const [contact, setContact] = useState<ScannedContact | null>(null)

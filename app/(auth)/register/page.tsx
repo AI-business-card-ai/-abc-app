@@ -4,11 +4,11 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { createClient } from '@/lib/supabase-client'
+import { createClientComponent } from '@/lib/supabase'
 
 export default function RegisterPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = createClientComponent()
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')

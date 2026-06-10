@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase-admin'
+import { createServerSupabase } from '@/lib/supabase'
 
 type MessageType = 'linkedin' | 'email' | 'whatsapp'
 
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing contactId or userId' }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = createServerSupabase()
 
     const { data: contact, error: fetchError } = await supabase
       .from('scanned_contacts')

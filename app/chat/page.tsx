@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { IconChevronRight, IconCamera } from '@tabler/icons-react'
-import { createClient } from '@/lib/supabase-client'
+import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
 import GradientAvatar from '@/components/ui/GradientAvatar'
 import type { ScannedContact } from '@/lib/types'
 
 export default function ChatListPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = createClientComponent()
 
   const [contacts, setContacts] = useState<ScannedContact[]>([])
   const [loading, setLoading] = useState(true)
