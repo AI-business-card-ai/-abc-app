@@ -35,6 +35,13 @@ const item = {
   show: { opacity: 1, y: 0 },
 }
 
+const cleanText = (text: string) =>
+  text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/#{1,6}\s/g, '')
+    .trim()
+
 export default function ContactResultPage() {
   const params = useParams()
   const router = useRouter()
@@ -91,11 +98,11 @@ export default function ContactResultPage() {
       const c = data as ScannedContact
       setContact(c)
       setMessages({
-        linkedin: c.message_linkedin ?? '',
-        email: c.message_email ?? '',
-        whatsapp: c.message_whatsapp ?? '',
+        linkedin: c.message_linkedin ? cleanText(c.message_linkedin) : '',
+        email: c.message_email ? cleanText(c.message_email) : '',
+        whatsapp: c.message_whatsapp ? cleanText(c.message_whatsapp) : '',
       })
-      setSubject(c.email_subject ?? '')
+      setSubject(c.email_subject ? cleanText(c.email_subject) : '')
       setError(null)
     }
     setLoading(false)
@@ -371,7 +378,7 @@ export default function ContactResultPage() {
           <div className="flex-1 relative">
             <p className="abc-label">Match Score</p>
             <p className="text-sm text-text-secondary mt-1.5 leading-relaxed">
-              {contact.match_reason ?? 'Bez vyhodnocení relevance.'}
+              {contact.match_reason ? cleanText(contact.match_reason) : 'Bez vyhodnocení relevance.'}
             </p>
           </div>
         </motion.div>
@@ -398,7 +405,12 @@ export default function ContactResultPage() {
                   className="text-sm whitespace-pre-wrap"
                   style={{ color: '#9090A0', lineHeight: 1.6 }}
                 >
-                  {splitContentWithUrls(section.content).map((seg, i) =>
+                  {splitContentWithUrls(
+                    section.content
+                      .split('\n')
+                      .map((line) => cleanText(line))
+                      .join('\n')
+                  ).map((seg, i) =>
                     seg.isUrl ? (
                       <a
                         key={i}
@@ -441,7 +453,7 @@ export default function ContactResultPage() {
               <IconBuilding size={18} className="text-secondary" />
             </div>
             <p className="text-sm text-text-secondary flex-1 leading-relaxed">
-              {contact.company_summary ?? 'Bez popisu firmy.'}
+              {contact.company_summary ? cleanText(contact.company_summary) : 'Bez popisu firmy.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -136,6 +136,12 @@ Use this research to:
 - Apply the match_score rubric below using facts from this research`
     : ''
 
+  const msgLanguage =
+    userProfile?.outreach_language === 'CZ' ? 'Write all messages in Czech.' :
+    userProfile?.outreach_language === 'DE' ? 'Write all messages in German.' :
+    userProfile?.outreach_language === 'Mix' ? 'Write messages in the language of the contact based on their company location.' :
+    'Write all messages in English.'
+
   const prompt = `Analyze this business card image.
 
 Extract (null if not visible):
@@ -167,6 +173,8 @@ Generate personalized messages:
 - message_linkedin: max 300 chars, casual, mention something specific
 - message_email: 3-4 sentences + email_subject line
 - message_whatsapp: max 160 chars, friendly
+
+${msgLanguage}
 
 Return ONLY this JSON, no markdown:
 {
