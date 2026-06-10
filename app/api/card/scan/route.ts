@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase-admin'
-import { createServerClient } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import {
   analyzeBusinessCard,
   extractBusinessCardFromImage,
@@ -35,7 +34,11 @@ export async function POST(req: NextRequest) {
 
     const extracted = await extractBusinessCardFromImage(base64, mediaType)
 
-    const supabase = createServerClient()
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
     const { data: profile } = await supabase
       .from('abc_profiles')
       .select('*')
@@ -63,8 +66,7 @@ export async function POST(req: NextRequest) {
       enrichedContext
     )
 
-    const admin = createAdminClient()
-    const { data, error } = await admin
+    const { data, error } = await supabase
       .from('scanned_contacts')
       .insert({
         user_id: userId,
