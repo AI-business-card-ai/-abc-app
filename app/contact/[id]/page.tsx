@@ -13,7 +13,6 @@ import {
 } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import MatchScore from '@/components/ui/MatchScore'
-import GradientAvatar from '@/components/ui/GradientAvatar'
 import { parseEnrichedContext, splitContentWithUrls } from '@/lib/research'
 import DeleteContactDialog, { deleteContactApi } from '@/components/ui/DeleteContactDialog'
 import type { ScannedContact } from '@/lib/types'
@@ -112,11 +111,6 @@ export default function ContactResultPage() {
   useEffect(() => {
     loadContact()
   }, [loadContact, retryKey])
-
-  const initials = useMemo(() => {
-    if (!contact?.name) return '?'
-    return contact.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
-  }, [contact?.name])
 
   const enrichedSections = useMemo(
     () => parseEnrichedContext(contact?.enriched_context),
@@ -299,6 +293,26 @@ export default function ContactResultPage() {
   const limit = tab === 'linkedin' ? 300 : tab === 'whatsapp' ? 160 : null
   const over = limit !== null && messages[tab].length > limit
 
+  const openLinkedIn = () => {
+    if (contact.linkedin_url) {
+      void navigator.clipboard.writeText(contact.message_linkedin || messages.linkedin || '')
+      window.open(contact.linkedin_url, '_blank')
+    }
+  }
+
+  const openEmail = () => {
+    const emailSubject = encodeURIComponent(contact.email_subject || subject || '')
+    const body = encodeURIComponent(contact.message_email || messages.email || '')
+    window.open(`mailto:${contact.email}?subject=${emailSubject}&body=${body}`)
+  }
+
+  const openWhatsApp = () => {
+    const phone = contact.phone?.replace(/\D/g, '')
+    const text = encodeURIComponent(contact.message_whatsapp || messages.whatsapp || '')
+    if (phone) window.open(`https://wa.me/${phone}?text=${text}`)
+    else void navigator.clipboard.writeText(contact.message_whatsapp || messages.whatsapp || '')
+  }
+
   return (
     <motion.div
       className="min-h-screen bg-bg pb-44"
@@ -310,7 +324,7 @@ export default function ContactResultPage() {
         <button onClick={() => router.push('/contacts')} className="icon-btn">
           <IconArrowLeft size={18} />
         </button>
-        <span className="text-sm font-semibold gradient-text">Výsledek</span>
+        <span className="text-sm font-semibold gradient-text">Result</span>
         <button onClick={() => setMenuOpen((o) => !o)} className="icon-btn">
           <IconDots size={18} />
         </button>
@@ -340,7 +354,26 @@ export default function ContactResultPage() {
       <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-4 px-4">
         {/* HERO CONTACT */}
         <motion.div variants={item} className="abc-card p-4 flex items-center gap-3">
-          <GradientAvatar initials={initials} size="lg" />
+          {contact.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={contact.photo_url}
+              alt={contact.name || ''}
+              className="w-14 h-14 rounded-full object-cover shrink-0"
+              style={{ border: '2px solid #7C3AED' }}
+            />
+          ) : (
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0"
+              style={{
+                background: 'linear-gradient(135deg, #1E0A3C, #0A1A2E)',
+                border: '2px solid #7C3AED',
+                color: '#F0EAFF',
+              }}
+            >
+              {contact.name?.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <h2 className="font-bold text-text-primary truncate">{contact.name ?? 'Neznámý kontakt'}</h2>
             <p className="text-xs text-text-secondary truncate">
@@ -464,7 +497,47 @@ export default function ContactResultPage() {
             {contact.company_size && (
               <span className="abc-chip">{contact.company_size}</span>
             )}
+            {contact.company_revenue && (
+              <span className="abc-chip">{contact.company_revenue}</span>
+            )}
+            {(contact.technologies ?? []).map((tech) => (
+              <span key={tech} className="abc-chip">{tech}</span>
+            ))}
           </div>
+        </motion.div>
+
+        {/* DIRECT SEND */}
+        <motion.div variants={item} className="flex flex-wrap gap-2">
+          {contact.linkedin_url && (
+            <button
+              type="button"
+              onClick={openLinkedIn}
+              className="flex-1 min-w-[100px] text-sm font-semibold text-white"
+              style={{ background: '#0077B5', borderRadius: 10, padding: '8px 16px' }}
+            >
+              LinkedIn
+            </button>
+          )}
+          {contact.email && (
+            <button
+              type="button"
+              onClick={openEmail}
+              className="flex-1 min-w-[100px] text-sm font-semibold text-white"
+              style={{ background: '#059669', borderRadius: 10, padding: '8px 16px' }}
+            >
+              Email
+            </button>
+          )}
+          {(contact.phone || contact.message_whatsapp) && (
+            <button
+              type="button"
+              onClick={openWhatsApp}
+              className="flex-1 min-w-[100px] text-sm font-semibold text-white"
+              style={{ background: '#25D366', borderRadius: 10, padding: '8px 16px' }}
+            >
+              WhatsApp
+            </button>
+          )}
         </motion.div>
 
         {/* MESSAGES */}

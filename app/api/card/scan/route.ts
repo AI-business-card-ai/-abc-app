@@ -5,6 +5,7 @@ import {
   ClaudeVisionError,
   ClaudeAnalysisError,
 } from '@/lib/claude'
+import { enrichWithApollo } from '@/lib/apollo'
 import { enrichContact } from '@/lib/perplexity'
 import { ABCProfile } from '@/lib/types'
 
@@ -54,6 +55,12 @@ export async function POST(req: NextRequest) {
     // 1. Extrahuj data z vizitky
     const claudeResult = await analyzeBusinessCard(base64, profile, '', claudeMediaType)
 
+    const apolloData = await enrichWithApollo(
+      claudeResult.name,
+      claudeResult.company,
+      claudeResult.email
+    ).catch(() => null)
+
     // 2. Fetchni Perplexity data
     console.log('Calling enrichContact with:', claudeResult.name, claudeResult.company)
     let enrichedContext = ''
@@ -86,6 +93,12 @@ export async function POST(req: NextRequest) {
       .insert({
         user_id: userId,
         ...finalResult,
+        photo_url: apolloData?.photo_url || null,
+        linkedin_url: apolloData?.linkedin_url || finalResult.linkedin_url,
+        company_size: apolloData?.company_size || finalResult.company_size,
+        company_revenue: apolloData?.company_revenue || null,
+        industry: apolloData?.company_industry || finalResult.industry,
+        technologies: apolloData?.technologies || null,
         enriched_context: enrichedContext,
         status: 'pending',
       })

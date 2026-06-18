@@ -91,7 +91,7 @@ export default function ContactsPage() {
   return (
     <div className="min-h-screen pb-28" style={{ background: '#07050E' }}>
       <div className="flex items-center justify-between px-4 pt-6 pb-2">
-        <h1 className="gradient-text text-xl font-black tracking-wide">KARTOTÉKA</h1>
+        <h1 className="gradient-text text-xl font-black tracking-wide">CONTACTS</h1>
         <button aria-label="Hledat">
           <IconSearch size={20} style={{ color: '#2A1A4A' }} />
         </button>
@@ -99,9 +99,9 @@ export default function ContactsPage() {
 
       <div className="grid grid-cols-3 gap-2 px-4 py-3">
         {[
-          { value: stats.total, label: 'Celkem', gradient: false },
-          { value: stats.sent, label: 'Odesláno', gradient: false },
-          { value: stats.replied, label: 'Odpovědělo', gradient: true },
+          { value: stats.total, label: 'Scanned', gradient: false },
+          { value: stats.sent, label: 'Sent', gradient: false },
+          { value: stats.replied, label: 'Replied', gradient: true },
         ].map((s) => (
           <div
             key={s.label}

@@ -191,7 +191,7 @@ export default function ScanPage() {
         </div>
 
         <p className="text-center text-xs mt-3 relative" style={{ color: '#2A1A4A' }}>
-          Namiřte na vizitku
+          Point at business card
         </p>
 
         <motion.button
@@ -236,7 +236,7 @@ export default function ScanPage() {
 
       {/* 3. POZNÁMKA */}
       <div className="mx-4 mt-4 flex flex-col gap-2">
-        <span className="tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>POZNÁMKA</span>
+        <span className="tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>NOTE</span>
         <div className="flex items-center gap-2">
           <button
             onClick={isRecording ? stopRecording : startRecording}
@@ -267,7 +267,7 @@ export default function ScanPage() {
 
       {/* 4. UDÁLOST */}
       <div className="mx-4 mt-3 flex flex-col gap-2">
-        <span className="tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>UDÁLOST</span>
+        <span className="tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>EVENT</span>
         <div className="flex flex-wrap gap-2">
           {events.map((ev) => (
             <button
@@ -321,7 +321,7 @@ export default function ScanPage() {
             !selectedImage || isLoading ? 'opacity-40 cursor-not-allowed' : ''
           }`}
         >
-          ✦ Analyzovat AI
+          ✦ Analyze with AI
         </motion.button>
       </div>
 
