@@ -9,7 +9,7 @@ import LoadingMatrix from '@/components/ui/LoadingMatrix'
 import BottomNav from '@/components/ui/BottomNav'
 import type { ABCProfile } from '@/lib/types'
 
-const EVENTS = ['Medica', 'Heim Textile', 'Web Summit', 'Osobní']
+const EVENTS = ['Medica', 'Heim Textile', 'Web Summit', 'Personal']
 
 const chipStyle = (active: boolean): React.CSSProperties =>
   active
@@ -69,7 +69,7 @@ export default function ScanPage() {
       setRecordingTime(0)
       timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000)
     } catch {
-      setError('Nepodařilo se získat přístup k mikrofonu.')
+      setError('Could not access the microphone.')
     }
   }
 
@@ -134,11 +134,11 @@ export default function ScanPage() {
 
       const res = await fetch('/api/card/scan', { method: 'POST', body: formData })
       const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.error || 'Analýza selhala.')
+      if (!res.ok || !json.success) throw new Error(json.error || 'Analysis failed.')
 
       router.push('/contact/' + json.contact.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Něco se pokazilo.')
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
       setIsLoading(false)
     }
   }
@@ -153,7 +153,7 @@ export default function ScanPage() {
         style={{ background: '#06040C', borderBottom: '0.5px solid #1A0E30' }}
       >
         <span className="gradient-text text-xl font-black tracking-widest">ABC</span>
-        <button onClick={() => router.push('/contacts')} aria-label="Zavřít">
+        <button onClick={() => router.push('/contacts')} aria-label="Close">
           <IconX size={20} style={{ color: '#2A1A4A' }} />
         </button>
       </div>
@@ -177,7 +177,7 @@ export default function ScanPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={imagePreview}
-              alt="Náhled vizitky"
+              alt="Business card preview"
               className="absolute inset-0 w-full h-full object-cover rounded-lg z-10"
             />
           ) : (
@@ -199,12 +199,12 @@ export default function ScanPage() {
           onClick={() => cameraInputRef.current?.click()}
           className="glow-btn relative w-full rounded-xl text-white font-bold py-3 mt-4"
         >
-          📷 Vyfotit vizitku
+          📷 Take Photo
         </motion.button>
 
         <div className="flex items-center gap-3 my-3 text-xs relative" style={{ color: '#3A2060' }}>
           <span className="h-px flex-1" style={{ background: '#1A0E30' }} />
-          nebo
+          or
           <span className="h-px flex-1" style={{ background: '#1A0E30' }} />
         </div>
 
@@ -214,7 +214,7 @@ export default function ScanPage() {
           className="relative w-full rounded-xl font-medium py-3"
           style={{ background: 'transparent', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
         >
-          ↑ Nahrát z galerie
+          ↑ Upload from Gallery
         </motion.button>
 
         <input
@@ -234,7 +234,7 @@ export default function ScanPage() {
         />
       </div>
 
-      {/* 3. POZNÁMKA */}
+      {/* 3. NOTE */}
       <div className="mx-4 mt-4 flex flex-col gap-2">
         <span className="tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>NOTE</span>
         <div className="flex items-center gap-2">
@@ -251,21 +251,21 @@ export default function ScanPage() {
             ) : (
               <>
                 <IconMicrophone size={16} />
-                <span className="text-xs">Hlas</span>
+                <span className="text-xs">Voice</span>
               </>
             )}
           </button>
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Kde jsme se potkali..."
+            placeholder="Where did we meet..."
             className="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
             style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
           />
         </div>
       </div>
 
-      {/* 4. UDÁLOST */}
+      {/* 4. EVENT */}
       <div className="mx-4 mt-3 flex flex-col gap-2">
         <span className="tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>EVENT</span>
         <div className="flex flex-wrap gap-2">
@@ -286,7 +286,7 @@ export default function ScanPage() {
               onChange={(e) => setNewTag(e.target.value)}
               onBlur={addCustomTag}
               onKeyDown={(e) => e.key === 'Enter' && addCustomTag()}
-              placeholder="Název..."
+              placeholder="Name..."
               className="w-24 px-3 py-1.5 rounded-full text-xs outline-none"
               style={{ background: '#0D0A18', border: '0.5px solid #7C3AED', color: '#F0EAFF' }}
             />
@@ -296,7 +296,7 @@ export default function ScanPage() {
               className="px-3 py-1.5 rounded-full text-xs"
               style={chipStyle(false)}
             >
-              + Nová
+              + New
             </button>
           )}
         </div>

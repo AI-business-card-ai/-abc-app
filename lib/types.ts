@@ -12,6 +12,9 @@ export interface ScannedContact {
   company_summary: string | null
   industry: string | null
   company_size: string | null
+  company_revenue: string | null
+  technologies: string[] | null
+  photo_url: string | null
   message_linkedin: string | null
   message_email: string | null
   message_whatsapp: string | null
@@ -22,9 +25,6 @@ export interface ScannedContact {
   notes: string | null
   voice_note_url: string | null
   image_url: string | null
-  photo_url: string | null
-  company_revenue: string | null
-  technologies: string[] | null
   scanned_at: string
   created_at: string
   enriched_context: string | null

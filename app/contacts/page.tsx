@@ -22,7 +22,7 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<ScannedContact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState('Vše')
+  const [filter, setFilter] = useState('All')
   const [cur, setCur] = useState(0)
   const [deleteTarget, setDeleteTarget] = useState<ScannedContact | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -58,11 +58,11 @@ export default function ContactsPage() {
   const events = useMemo(() => {
     const set = new Set<string>()
     contacts.forEach((c) => c.event_name && set.add(c.event_name))
-    return ['Vše', ...Array.from(set)]
+    return ['All', ...Array.from(set)]
   }, [contacts])
 
   const filtered = useMemo(() => (
-    filter === 'Vše' ? contacts : contacts.filter((c) => c.event_name === filter)
+    filter === 'All' ? contacts : contacts.filter((c) => c.event_name === filter)
   ), [contacts, filter])
 
   useEffect(() => { setCur(0) }, [filter])
@@ -82,7 +82,7 @@ export default function ContactsPage() {
       setCur(0)
       setRefreshKey((k) => k + 1)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Smazání selhalo.')
+      setError(err instanceof Error ? err.message : 'Delete failed.')
     } finally {
       setDeleting(false)
     }
@@ -92,7 +92,7 @@ export default function ContactsPage() {
     <div className="min-h-screen pb-28" style={{ background: '#07050E' }}>
       <div className="flex items-center justify-between px-4 pt-6 pb-2">
         <h1 className="gradient-text text-xl font-black tracking-wide">CONTACTS</h1>
-        <button aria-label="Hledat">
+        <button aria-label="Search">
           <IconSearch size={20} style={{ color: '#2A1A4A' }} />
         </button>
       </div>
@@ -143,18 +143,18 @@ export default function ContactsPage() {
       ) : contacts.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-14 px-6 text-center">
           <IconCreditCard size={48} style={{ color: '#2A1A4A' }} stroke={1.2} />
-          <p className="text-sm" style={{ color: '#3A2060' }}>Zatím žádné vizitky</p>
+          <p className="text-sm" style={{ color: '#3A2060' }}>No business cards yet</p>
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => router.push('/scan')}
             className="glow-btn rounded-xl text-white px-5 py-2.5 flex items-center gap-2"
           >
-            📷 Naskenovat první vizitku
+            📷 Scan your first card
           </motion.button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-14 px-6 text-center">
-          <p className="text-sm" style={{ color: '#3A2060' }}>Žádné kontakty pro tento filtr.</p>
+          <p className="text-sm" style={{ color: '#3A2060' }}>No contacts for this filter.</p>
         </div>
       ) : (
         <>
@@ -199,11 +199,11 @@ export default function ContactsPage() {
                       style={{ background: '#A78BFA', boxShadow: '0 0 6px #A78BFA' }}
                     />
                     <span className="text-xs font-medium truncate" style={{ color: '#A78BFA' }}>
-                      {active.event_name ?? 'Bez události'}
+                      {active.event_name ?? 'No event'}
                     </span>
                   </div>
                   <span className="text-xs shrink-0 ml-2" style={{ color: '#3A2060' }}>
-                    {new Date(active.scanned_at).toLocaleDateString('cs-CZ')}
+                    {new Date(active.scanned_at).toLocaleDateString('en-US')}
                   </span>
                 </div>
 
@@ -213,7 +213,7 @@ export default function ContactsPage() {
                   </p>
                 ) : (
                   <p className="text-sm italic" style={{ color: '#2A1A4A' }}>
-                    Bez poznámky
+                    No notes
                   </p>
                 )}
 
@@ -230,7 +230,7 @@ export default function ContactsPage() {
                     className="flex-1 min-w-[72px] py-2 text-xs rounded-lg"
                     style={{ border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
                   >
-                    ✉ Zpráva
+                    ✉ Message
                   </button>
                   <button
                     onClick={() => router.push('/contact/' + active.id)}
@@ -243,7 +243,7 @@ export default function ContactsPage() {
                     className="flex-1 min-w-[72px] py-2 text-xs rounded-lg font-medium"
                     style={{ border: '0.5px solid rgba(239,68,68,0.35)', color: '#EF4444' }}
                   >
-                    🗑 Smazat
+                    🗑 Delete
                   </button>
                 </div>
               </motion.div>

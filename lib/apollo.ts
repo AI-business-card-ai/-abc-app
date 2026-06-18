@@ -12,7 +12,6 @@ export async function enrichWithApollo(
   technologies: string[] | null
 } | null> {
   if (!name && !email) return null
-
   try {
     const response = await fetch('https://api.apollo.io/v1/people/match', {
       method: 'POST',
@@ -28,12 +27,10 @@ export async function enrichWithApollo(
         reveal_phone_number: false,
       }),
     })
-
     if (!response.ok) return null
     const data = await response.json()
     const person = data.person
     if (!person) return null
-
     return {
       photo_url: person.photo_url || null,
       linkedin_url: person.linkedin_url || null,

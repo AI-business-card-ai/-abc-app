@@ -64,6 +64,12 @@ export default function ContactResultPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [enriching, setEnriching] = useState(false)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
+
+  const toast = useCallback((msg: string) => {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(null), 2500)
+  }, [])
 
   const loadContact = useCallback(async () => {
     setLoading(true)
@@ -116,6 +122,33 @@ export default function ContactResultPage() {
     () => parseEnrichedContext(contact?.enriched_context),
     [contact?.enriched_context]
   )
+
+  const openLinkedIn = () => {
+    if (!contact) return
+    if (contact.linkedin_url) {
+      navigator.clipboard.writeText(contact.message_linkedin || '')
+      window.open(contact.linkedin_url, '_blank')
+      toast('✓ Message copied! Opening LinkedIn...')
+    }
+  }
+
+  const openEmail = () => {
+    if (!contact) return
+    const subject = encodeURIComponent(contact.email_subject || 'Hello')
+    const body = encodeURIComponent(contact.message_email || '')
+    window.open(`mailto:${contact.email}?subject=${subject}&body=${body}`)
+  }
+
+  const openWhatsApp = () => {
+    if (!contact) return
+    const phone = contact.phone?.replace(/\D/g, '')
+    const text = encodeURIComponent(contact.message_whatsapp || '')
+    if (phone) window.open(`https://wa.me/${phone}?text=${text}`)
+    else {
+      navigator.clipboard.writeText(contact.message_whatsapp || '')
+      toast('✓ WhatsApp message copied!')
+    }
+  }
 
   async function handleEnrichMore() {
     if (!contact) return
@@ -293,26 +326,6 @@ export default function ContactResultPage() {
   const limit = tab === 'linkedin' ? 300 : tab === 'whatsapp' ? 160 : null
   const over = limit !== null && messages[tab].length > limit
 
-  const openLinkedIn = () => {
-    if (contact.linkedin_url) {
-      void navigator.clipboard.writeText(contact.message_linkedin || messages.linkedin || '')
-      window.open(contact.linkedin_url, '_blank')
-    }
-  }
-
-  const openEmail = () => {
-    const emailSubject = encodeURIComponent(contact.email_subject || subject || '')
-    const body = encodeURIComponent(contact.message_email || messages.email || '')
-    window.open(`mailto:${contact.email}?subject=${emailSubject}&body=${body}`)
-  }
-
-  const openWhatsApp = () => {
-    const phone = contact.phone?.replace(/\D/g, '')
-    const text = encodeURIComponent(contact.message_whatsapp || messages.whatsapp || '')
-    if (phone) window.open(`https://wa.me/${phone}?text=${text}`)
-    else void navigator.clipboard.writeText(contact.message_whatsapp || messages.whatsapp || '')
-  }
-
   return (
     <motion.div
       className="min-h-screen bg-bg pb-44"
@@ -353,50 +366,68 @@ export default function ContactResultPage() {
 
       <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-4 px-4">
         {/* HERO CONTACT */}
-        <motion.div variants={item} className="abc-card p-4 flex items-center gap-3">
-          {contact.photo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={contact.photo_url}
-              alt={contact.name || ''}
-              className="w-14 h-14 rounded-full object-cover shrink-0"
-              style={{ border: '2px solid #7C3AED' }}
-            />
-          ) : (
-            <div
-              className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0"
-              style={{
-                background: 'linear-gradient(135deg, #1E0A3C, #0A1A2E)',
-                border: '2px solid #7C3AED',
-                color: '#F0EAFF',
-              }}
-            >
-              {contact.name?.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+        <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            {contact.photo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={contact.photo_url}
+                alt={contact.name || ''}
+                className="w-14 h-14 rounded-full object-cover"
+                style={{ border: '2px solid #7C3AED' }}
+              />
+            ) : (
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold"
+                style={{ background: 'linear-gradient(135deg, #1E0A3C, #0A1A2E)', border: '2px solid #7C3AED', color: '#F0EAFF' }}
+              >
+                {contact.name?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <h2 className="font-bold text-text-primary truncate">{contact.name ?? 'Unknown contact'}</h2>
+              <p className="text-xs text-text-secondary truncate">
+                {[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}
+              </p>
+            </div>
+            <div className="flex gap-1.5 shrink-0">
+              {contact.email && (
+                <a href={`mailto:${contact.email}`} className="icon-btn w-8 h-8">
+                  <IconMail size={15} />
+                </a>
+              )}
+              {contact.phone && (
+                <a href={`tel:${contact.phone}`} className="icon-btn w-8 h-8">
+                  <IconPhone size={15} />
+                </a>
+              )}
+              {contact.linkedin_url && (
+                <a href={contact.linkedin_url} target="_blank" rel="noreferrer" className="icon-btn w-8 h-8">
+                  <IconBrandLinkedin size={15} />
+                </a>
+              )}
+            </div>
+          </div>
+
+          {contact.company_revenue && (
+            <p className="text-xs" style={{ color: '#A78BFA' }}>
+              Revenue: {contact.company_revenue}
+            </p>
+          )}
+
+          {contact.technologies && contact.technologies.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {contact.technologies.map((tech) => (
+                <span
+                  key={tech}
+                  className="px-2 py-0.5 rounded-full text-xs"
+                  style={{ background: '#1A0A2E', border: '0.5px solid #7C3AED44', color: '#A78BFA' }}
+                >
+                  {tech}
+                </span>
+              ))}
             </div>
           )}
-          <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-text-primary truncate">{contact.name ?? 'Neznámý kontakt'}</h2>
-            <p className="text-xs text-text-secondary truncate">
-              {[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}
-            </p>
-          </div>
-          <div className="flex gap-1.5 shrink-0">
-            {contact.email && (
-              <a href={`mailto:${contact.email}`} className="icon-btn w-8 h-8">
-                <IconMail size={15} />
-              </a>
-            )}
-            {contact.phone && (
-              <a href={`tel:${contact.phone}`} className="icon-btn w-8 h-8">
-                <IconPhone size={15} />
-              </a>
-            )}
-            {contact.linkedin_url && (
-              <a href={contact.linkedin_url} target="_blank" rel="noreferrer" className="icon-btn w-8 h-8">
-                <IconBrandLinkedin size={15} />
-              </a>
-            )}
-          </div>
         </motion.div>
 
         {/* MATCH SCORE */}
@@ -497,47 +528,7 @@ export default function ContactResultPage() {
             {contact.company_size && (
               <span className="abc-chip">{contact.company_size}</span>
             )}
-            {contact.company_revenue && (
-              <span className="abc-chip">{contact.company_revenue}</span>
-            )}
-            {(contact.technologies ?? []).map((tech) => (
-              <span key={tech} className="abc-chip">{tech}</span>
-            ))}
           </div>
-        </motion.div>
-
-        {/* DIRECT SEND */}
-        <motion.div variants={item} className="flex flex-wrap gap-2">
-          {contact.linkedin_url && (
-            <button
-              type="button"
-              onClick={openLinkedIn}
-              className="flex-1 min-w-[100px] text-sm font-semibold text-white"
-              style={{ background: '#0077B5', borderRadius: 10, padding: '8px 16px' }}
-            >
-              LinkedIn
-            </button>
-          )}
-          {contact.email && (
-            <button
-              type="button"
-              onClick={openEmail}
-              className="flex-1 min-w-[100px] text-sm font-semibold text-white"
-              style={{ background: '#059669', borderRadius: 10, padding: '8px 16px' }}
-            >
-              Email
-            </button>
-          )}
-          {(contact.phone || contact.message_whatsapp) && (
-            <button
-              type="button"
-              onClick={openWhatsApp}
-              className="flex-1 min-w-[100px] text-sm font-semibold text-white"
-              style={{ background: '#25D366', borderRadius: 10, padding: '8px 16px' }}
-            >
-              WhatsApp
-            </button>
-          )}
         </motion.div>
 
         {/* MESSAGES */}
@@ -582,6 +573,30 @@ export default function ContactResultPage() {
               {messages[tab].length}/{limit}
             </div>
           )}
+        </motion.div>
+
+        {/* DIRECT SEND */}
+        <motion.div variants={item} className="flex flex-col">
+          <button
+            onClick={openLinkedIn}
+            style={{ background: '#0077B5', color: 'white', borderRadius: '10px', padding: '10px 16px', fontWeight: '600', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', marginBottom: '8px' }}
+          >
+            🔗 Open LinkedIn + Copy Message
+          </button>
+
+          <button
+            onClick={openEmail}
+            style={{ background: '#059669', color: 'white', borderRadius: '10px', padding: '10px 16px', fontWeight: '600', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', marginBottom: '8px' }}
+          >
+            ✉ Open Email Client
+          </button>
+
+          <button
+            onClick={openWhatsApp}
+            style={{ background: '#25D366', color: 'white', borderRadius: '10px', padding: '10px 16px', fontWeight: '600', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', marginBottom: '8px' }}
+          >
+            💬 Open WhatsApp
+          </button>
         </motion.div>
 
         {error && (
@@ -652,6 +667,20 @@ export default function ContactResultPage() {
                 </button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {toastMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed left-1/2 -translate-x-1/2 bottom-32 z-50 rounded-xl px-4 py-2.5 text-sm font-medium"
+            style={{ background: '#1A0A2E', border: '0.5px solid #7C3AED', color: '#F0EAFF', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+          >
+            {toastMsg}
           </motion.div>
         )}
       </AnimatePresence>
