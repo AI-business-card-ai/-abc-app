@@ -32,6 +32,7 @@ const EMPTY: Omit<ABCProfile, 'id'> = {
   communication_style: 'direct', outreach_language: 'EN', goals: '', plan: 'free', scans_used: 0, scans_limit: 30,
   research_preferences: [...DEFAULT_RESEARCH_PREFERENCES],
   custom_questions: '',
+  hubspot_api_key: null,
 }
 
 const chipStyle = (active: boolean): React.CSSProperties =>
@@ -52,6 +53,10 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState(false)
   const [editingField, setEditingField] = useState<string | null>(null)
+  const [hubspotToken, setHubspotToken] = useState('')
+  const [hubspotConnected, setHubspotConnected] = useState(false)
+  const [hubspotSaving, setHubspotSaving] = useState(false)
+  const [hubspotError, setHubspotError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -72,6 +77,7 @@ export default function SettingsPage() {
             : [...DEFAULT_RESEARCH_PREFERENCES],
           custom_questions: rest.custom_questions ?? '',
         })
+        setHubspotConnected(!!rest.hubspot_api_key)
       } else {
         setProfile((p) => ({ ...p, email: user.email ?? '' }))
       }
@@ -157,6 +163,49 @@ export default function SettingsPage() {
       setError(err instanceof Error ? err.message : 'Save failed.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function saveHubspot() {
+    if (!userId || !hubspotToken) return
+    setHubspotSaving(true)
+    setHubspotError(null)
+    try {
+      const res = await fetch('/api/settings/hubspot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, apiKey: hubspotToken }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to save token')
+      setHubspotConnected(true)
+      setHubspotToken('')
+      showToast()
+    } catch (err) {
+      setHubspotError(err instanceof Error ? err.message : 'Failed to save token')
+    } finally {
+      setHubspotSaving(false)
+    }
+  }
+
+  async function disconnectHubspot() {
+    if (!userId) return
+    setHubspotSaving(true)
+    setHubspotError(null)
+    try {
+      const res = await fetch('/api/settings/hubspot', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to disconnect')
+      setHubspotConnected(false)
+      setHubspotToken('')
+    } catch (err) {
+      setHubspotError(err instanceof Error ? err.message : 'Failed to disconnect')
+    } finally {
+      setHubspotSaving(false)
     }
   }
 
@@ -418,6 +467,76 @@ export default function SettingsPage() {
               {l}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* CRM INTEGRATION */}
+      <div
+        className="mx-4 mt-3 p-4 rounded-xl"
+        style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <span className="gradient-text font-bold tracking-widest uppercase" style={{ fontSize: '9px' }}>
+            CRM INTEGRATION
+          </span>
+          {hubspotConnected && (
+            <span style={{ color: '#16A34A', fontSize: '11px', fontWeight: 600 }}>✅ Connected</span>
+          )}
+        </div>
+        <p className="text-xs mb-4" style={{ color: '#5A3A8A' }}>
+          Connect your CRM to automatically sync contacts after every scan.
+        </p>
+
+        <div className="flex items-center gap-2 mb-2">
+          <span
+            style={{ width: 22, height: 22, borderRadius: 6, background: '#FF7A59', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}
+          >
+            🧡
+          </span>
+          <span style={{ color: '#F0EAFF', fontSize: 14, fontWeight: 600 }}>HubSpot</span>
+        </div>
+
+        <label className="block text-xs mb-1" style={{ color: '#3A2060' }}>
+          Private App Token
+        </label>
+        <input
+          type="password"
+          value={hubspotToken}
+          onChange={(e) => setHubspotToken(e.target.value)}
+          placeholder="pat-eu1-xxxxxxxxxx"
+          className="w-full rounded-lg px-3 py-2 text-base outline-none"
+          style={{ background: '#111', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
+          onFocus={(e) => { e.target.style.borderColor = '#7C3AED' }}
+          onBlur={(e) => { e.target.style.borderColor = '#1A0E30' }}
+        />
+        <p className="text-xs mt-2 leading-snug" style={{ color: '#3A2060' }}>
+          HubSpot → Settings → Integrations → Private Apps → Create app → Scopes:
+          crm.objects.contacts.write + read → Copy Access Token
+        </p>
+
+        {hubspotError && (
+          <p className="text-xs mt-2 text-red-300">{hubspotError}</p>
+        )}
+
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={saveHubspot}
+            disabled={hubspotSaving || !hubspotToken}
+            className="flex-1 rounded-lg py-2 text-sm font-semibold text-white disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg, #7C3AED, #0EA5E9)' }}
+          >
+            {hubspotSaving ? 'Saving...' : 'Save'}
+          </button>
+          {hubspotConnected && (
+            <button
+              onClick={disconnectHubspot}
+              disabled={hubspotSaving}
+              className="flex-1 rounded-lg py-2 text-sm font-medium disabled:opacity-40"
+              style={{ border: '0.5px solid rgba(239,68,68,0.35)', color: '#EF4444' }}
+            >
+              Disconnect
+            </button>
+          )}
         </div>
       </div>
 

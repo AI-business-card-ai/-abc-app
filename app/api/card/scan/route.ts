@@ -7,6 +7,7 @@ import {
 } from '@/lib/claude'
 import { enrichContact } from '@/lib/perplexity'
 import { enrichWithApollo } from '@/lib/apollo'
+import { createHubSpotContact } from '@/lib/hubspot'
 import { ABCProfile } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
@@ -126,6 +127,28 @@ export async function POST(req: NextRequest) {
       .from('abc_profiles')
       .update({ scans_used: used + 1 })
       .eq('id', userId)
+
+    // 5. HubSpot auto-sync (nesmí zastavit scan při chybě)
+    try {
+      const hubspotKey = (profileRow as { hubspot_api_key?: string } | null)?.hubspot_api_key
+      if (hubspotKey && data) {
+        for (const c of data) {
+          const synced = await createHubSpotContact(
+            {
+              name: c.name || '',
+              email: c.email || undefined,
+              phone: c.phone || undefined,
+              company: c.company || undefined,
+              position: c.role || undefined,
+            },
+            hubspotKey
+          )
+          console.log('HubSpot sync result:', synced)
+        }
+      }
+    } catch (e) {
+      console.error('HubSpot sync block error:', e)
+    }
 
     return NextResponse.json({
       success: true,

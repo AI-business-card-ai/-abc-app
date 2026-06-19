@@ -60,6 +60,7 @@ export interface ABCProfile {
   scans_limit: number
   research_preferences: string[] | null
   custom_questions: string | null
+  hubspot_api_key: string | null
 }
 
 export interface ScanResult {
