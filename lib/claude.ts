@@ -124,7 +124,9 @@ export async function analyzeBusinessCard(
   imageBase64: string,
   userProfile: ABCProfile,
   enrichedContext: string = '',
-  mediaType: ImageMediaType = 'image/jpeg'
+  mediaType: ImageMediaType = 'image/jpeg',
+  note: string | null = null,
+  eventName: string | null = null
 ): Promise<ScanResult> {
   const researchBlock = enrichedContext.trim()
     ? `Additional research about this contact:
@@ -135,6 +137,14 @@ Use this research to:
 - Mention specific company news, products or achievements in messages
 - Apply the match_score rubric below using facts from this research`
     : ''
+
+  const noteBlock = `USER CONTEXT:
+Notes: ${note || 'none'}
+Event: ${eventName || 'none'}
+
+Use these notes to personalize messages.
+If notes mention specific needs or interests,
+reference them directly in the outreach messages.`
 
   const prompt = `Analyze this business card image.
 
@@ -153,6 +163,8 @@ User context:
 - Language: ${userProfile.outreach_language}
 
 ${researchBlock}
+
+${noteBlock}
 
 Calculate match_score (0-100):
 - Alignment with user goals (40 points)

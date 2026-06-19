@@ -19,6 +19,8 @@ export async function POST(req: NextRequest) {
     const image = formData.get('image') as File
     const userId = formData.get('userId') as string
     const userProfileRaw = formData.get('userProfile') as string
+    const note = (formData.get('note') as string) || null
+    const eventName = (formData.get('eventName') as string) || null
 
     if (!image) return NextResponse.json({ error: 'No image' }, { status: 400 })
     if (!userId) return NextResponse.json({ error: 'No userId' }, { status: 401 })
@@ -85,12 +87,14 @@ export async function POST(req: NextRequest) {
     console.log('Enriched context length:', enrichedContext?.length)
     console.log('Enriched context preview:', enrichedContext?.substring(0, 200))
 
-    // 3. Přegeneruj zprávy s Perplexity kontextem
+    // 3. Přegeneruj zprávy s Perplexity kontextem + poznámkami uživatele
     const finalResult = await analyzeBusinessCard(
       base64,
       profile,
       enrichedContext,
-      claudeMediaType
+      claudeMediaType,
+      note,
+      eventName
     )
 
     // 4. Ulož do Supabase včetně enriched_context
@@ -104,6 +108,8 @@ export async function POST(req: NextRequest) {
         company_size: apolloData?.company_size || finalResult.company_size,
         company_revenue: apolloData?.company_revenue || null,
         technologies: apolloData?.technologies || null,
+        notes: note,
+        event_name: eventName,
         enriched_context: enrichedContext,
         status: 'pending',
       })

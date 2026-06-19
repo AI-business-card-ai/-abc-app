@@ -22,14 +22,12 @@ export default function ScanPage() {
 
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [isRecording, setIsRecording] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
+  const [recognitionInstance, setRecognitionInstance] = useState<any>(null)
   const [events, setEvents] = useState<string[]>(EVENTS)
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null)
   const [addingTag, setAddingTag] = useState(false)
@@ -39,7 +37,6 @@ export default function ScanPage() {
 
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
       if (imagePreview) URL.revokeObjectURL(imagePreview)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,34 +55,45 @@ export default function ScanPage() {
     e.target.value = ''
   }
 
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream)
-      recorder.start()
-      recorder.onstop = () => stream.getTracks().forEach((t) => t.stop())
-      mediaRecorderRef.current = recorder
-      setIsRecording(true)
-      setRecordingTime(0)
-      timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000)
-    } catch {
-      setError('Could not access the microphone.')
+  const startRecording = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition
+
+    if (!SpeechRecognition) {
+      alert('Voice recording not supported in this browser. Please use Chrome.')
+      return
     }
+
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'cs-CZ'
+    recognition.continuous = true
+    recognition.interimResults = true
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0].transcript)
+        .join('')
+      setNote(transcript)
+    }
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error)
+      setIsRecording(false)
+    }
+
+    recognition.onend = () => {
+      setIsRecording(false)
+    }
+
+    recognition.start()
+    setRecognitionInstance(recognition)
+    setIsRecording(true)
   }
 
-  function stopRecording() {
-    mediaRecorderRef.current?.stop()
+  const stopRecording = () => {
+    recognitionInstance?.stop()
     setIsRecording(false)
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-  }
-
-  function formatTime(s: number) {
-    const m = Math.floor(s / 60).toString().padStart(2, '0')
-    const sec = (s % 60).toString().padStart(2, '0')
-    return `${m}:${sec}`
   }
 
   function addCustomTag() {
@@ -246,7 +254,7 @@ export default function ScanPage() {
             {isRecording ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-xs tabular-nums">{formatTime(recordingTime)}</span>
+                <span className="text-xs">Listening...</span>
               </>
             ) : (
               <>
