@@ -54,6 +54,24 @@ export async function POST(req: NextRequest) {
 
     const profile: ABCProfile = (profileRow as ABCProfile | null) ?? userProfile
 
+    // 0. Kontrola scan limitu podle plánu
+    const limits: Record<string, number> = {
+      free: 3,
+      basic: 20,
+      pro: 100,
+      team: 500,
+    }
+    const plan = profile?.plan || 'free'
+    const limit = limits[plan] || 3
+    const used = profile?.scans_used || 0
+
+    if (used >= limit) {
+      return NextResponse.json(
+        { error: 'SCAN_LIMIT_REACHED', plan, used, limit },
+        { status: 403 }
+      )
+    }
+
     // 1. Extrahuj kontakty z fotky (1 nebo více vizitek najednou)
     const contacts = await analyzeBusinessCard(
       base64,
@@ -102,6 +120,12 @@ export async function POST(req: NextRequest) {
       .select()
 
     if (error) throw error
+
+    // 4. Increment scan counter po úspěšném scanu
+    await supabase
+      .from('abc_profiles')
+      .update({ scans_used: used + 1 })
+      .eq('id', userId)
 
     return NextResponse.json({
       success: true,

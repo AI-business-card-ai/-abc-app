@@ -37,11 +37,32 @@ export default function ScanPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
+  const [showPaywall, setShowPaywall] = useState(false)
+  const [scansRemaining, setScansRemaining] = useState<number | null>(null)
 
   useEffect(() => {
     return () => {
       if (imagePreview) URL.revokeObjectURL(imagePreview)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('abc_profiles')
+        .select('plan, scans_used')
+        .eq('id', user.id)
+        .single()
+      if (data) {
+        const limits: Record<string, number> = { free: 3, basic: 20, pro: 100, team: 500 }
+        const limit = limits[(data as { plan: string }).plan] || 3
+        setScansRemaining(limit - ((data as { scans_used: number }).scans_used || 0))
+      }
+    }
+    fetchProfile()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -152,6 +173,13 @@ export default function ScanPage() {
 
       const res = await fetch('/api/card/scan', { method: 'POST', body: formData })
       const data = await res.json()
+
+      if (res.status === 403 && data.error === 'SCAN_LIMIT_REACHED') {
+        setIsLoading(false)
+        setShowPaywall(true)
+        return
+      }
+
       if (!res.ok || !data.success) throw new Error(data.error || 'Analysis failed.')
 
       if (data.count > 1) {
@@ -173,6 +201,11 @@ export default function ScanPage() {
     }
   }
 
+  const upgradeMailto = (plan: string) =>
+    `mailto:hello@aibusinesscard.ai?subject=${encodeURIComponent(
+      `Upgrade ABC to ${plan}`
+    )}&body=${encodeURIComponent(`Hi, I would like to upgrade my ABC account to ${plan} plan.`)}`
+
   return (
     <div className="min-h-screen pb-32" style={{ background: '#07050E' }}>
       <LoadingMatrix isVisible={isLoading} />
@@ -187,6 +220,19 @@ export default function ScanPage() {
           <IconX size={20} style={{ color: '#2A1A4A' }} />
         </button>
       </div>
+
+      {scansRemaining !== null && (
+        <p
+          style={{
+            fontSize: '12px',
+            color: scansRemaining > 10 ? '#10B981' : scansRemaining > 3 ? '#F59E0B' : '#EF4444',
+            textAlign: 'center',
+            marginTop: '8px',
+          }}
+        >
+          {scansRemaining} scans remaining
+        </p>
+      )}
 
       {/* 2. CAMERA CARD */}
       <div
@@ -363,6 +409,76 @@ export default function ScanPage() {
           ✦ Analyze with AI
         </motion.button>
       </div>
+
+      {showPaywall && (
+        <div
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(7,5,14,0.97)',
+            zIndex: 50, display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            padding: '24px',
+            overflowY: 'auto',
+          }}
+        >
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚡</div>
+          <h2 style={{ color: '#F0EAFF', fontSize: '22px', fontWeight: 700, marginBottom: '8px', textAlign: 'center' }}>
+            You&apos;ve used all your scans
+          </h2>
+          <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '32px', textAlign: 'center' }}>
+            Upgrade to scan more contacts
+          </p>
+
+          <div style={{ width: '100%', maxWidth: '340px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* BASIC */}
+            <div style={{ background: '#0D0A18', border: '1px solid #1A0E30', borderRadius: '16px', padding: '16px' }}>
+              <p style={{ color: '#F0EAFF', fontSize: '16px', fontWeight: 700 }}>Basic</p>
+              <p style={{ color: '#8B7AA8', fontSize: '13px', marginBottom: '12px' }}>€8/month · 20 scans/month</p>
+              <a
+                href={upgradeMailto('Basic')}
+                style={{ display: 'block', textAlign: 'center', padding: '10px', borderRadius: '10px', border: '1px solid #1A0E30', color: '#A78BFA', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}
+              >
+                Upgrade to Basic
+              </a>
+            </div>
+
+            {/* PRO */}
+            <div style={{ background: 'linear-gradient(135deg, #1A0A2E, #0A1A2E)', border: '1px solid #7C3AED', borderRadius: '16px', padding: '16px', position: 'relative' }}>
+              <span style={{ position: 'absolute', top: '-10px', left: '16px', background: '#7C3AED', color: 'white', fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '8px' }}>
+                ⭐ Most Popular
+              </span>
+              <p style={{ color: '#F0EAFF', fontSize: '16px', fontWeight: 700 }}>Pro</p>
+              <p style={{ color: '#C4B5FD', fontSize: '13px', marginBottom: '12px' }}>€26/month · 100 scans/month</p>
+              <a
+                href={upgradeMailto('Pro')}
+                style={{ display: 'block', textAlign: 'center', padding: '10px', borderRadius: '10px', background: 'linear-gradient(135deg, #7C3AED, #0EA5E9)', color: 'white', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}
+              >
+                Upgrade to Pro
+              </a>
+            </div>
+
+            {/* TEAM */}
+            <div style={{ background: '#0D0A18', border: '1px solid #1A0E30', borderRadius: '16px', padding: '16px' }}>
+              <p style={{ color: '#F0EAFF', fontSize: '16px', fontWeight: 700 }}>Team</p>
+              <p style={{ color: '#8B7AA8', fontSize: '13px', marginBottom: '12px' }}>€49/month · 500 scans · 5 users</p>
+              <a
+                href={upgradeMailto('Team')}
+                style={{ display: 'block', textAlign: 'center', padding: '10px', borderRadius: '10px', border: '1px solid #1A0E30', color: '#A78BFA', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}
+              >
+                Upgrade to Team
+              </a>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowPaywall(false)}
+            style={{ marginTop: '16px', color: '#3A2060', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px' }}
+          >
+            Maybe later
+          </button>
+        </div>
+      )}
 
       <AnimatePresence>
         {toastMsg && (
