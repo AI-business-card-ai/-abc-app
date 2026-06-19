@@ -138,13 +138,18 @@ Use this research to:
 - Apply the match_score rubric below using facts from this research`
     : ''
 
-  const noteBlock = `USER CONTEXT:
-Notes: ${note || 'none'}
-Event: ${eventName || 'none'}
+  const noteBlock = note
+    ? `
+IMPORTANT CONTEXT FROM USER:
+Meeting notes: "${note}"
+Event: "${eventName || 'unknown'}"
 
-Use these notes to personalize messages.
-If notes mention specific needs or interests,
-reference them directly in the outreach messages.`
+Use this context to personalize messages:
+- Reference the event where they met
+- Mention specific topics from the notes
+- Make messages feel like you remember the conversation
+`
+    : ''
 
   const prompt = `Analyze this business card image.
 

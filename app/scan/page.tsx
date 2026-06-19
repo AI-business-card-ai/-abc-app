@@ -22,12 +22,14 @@ export default function ScanPage() {
 
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
+  const chunksRef = useRef<BlobPart[]>([])
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [isRecording, setIsRecording] = useState(false)
-  const [recognitionInstance, setRecognitionInstance] = useState<any>(null)
+  const [isTranscribing, setIsTranscribing] = useState(false)
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [events, setEvents] = useState<string[]>(EVENTS)
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null)
   const [addingTag, setAddingTag] = useState(false)
@@ -55,44 +57,51 @@ export default function ScanPage() {
     e.target.value = ''
   }
 
-  const startRecording = () => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      chunksRef.current = []
 
-    if (!SpeechRecognition) {
-      alert('Voice recording not supported in this browser. Please use Chrome.')
-      return
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+
+      recorder.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        stream.getTracks().forEach((t) => t.stop())
+
+        setIsTranscribing(true)
+        try {
+          const formData = new FormData()
+          formData.append('audio', blob, 'recording.webm')
+
+          const res = await fetch('/api/card/transcribe', {
+            method: 'POST',
+            body: formData,
+          })
+          const data = await res.json()
+
+          if (data.text) {
+            setNote((prev) => (prev ? prev + ' ' + data.text : data.text))
+          }
+        } catch (err) {
+          console.error('Transcription error:', err)
+        } finally {
+          setIsTranscribing(false)
+        }
+      }
+
+      recorder.start()
+      setMediaRecorder(recorder)
+      setIsRecording(true)
+    } catch {
+      alert('Microphone access denied. Please allow microphone access.')
     }
-
-    const recognition = new SpeechRecognition()
-    recognition.lang = 'cs-CZ'
-    recognition.continuous = true
-    recognition.interimResults = true
-
-    recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results)
-        .map((result: any) => result[0].transcript)
-        .join('')
-      setNote(transcript)
-    }
-
-    recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error)
-      setIsRecording(false)
-    }
-
-    recognition.onend = () => {
-      setIsRecording(false)
-    }
-
-    recognition.start()
-    setRecognitionInstance(recognition)
-    setIsRecording(true)
   }
 
   const stopRecording = () => {
-    recognitionInstance?.stop()
+    mediaRecorder?.stop()
     setIsRecording(false)
   }
 
@@ -248,13 +257,19 @@ export default function ScanPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={isRecording ? stopRecording : startRecording}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg shrink-0"
+            disabled={isTranscribing}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg shrink-0 disabled:opacity-60"
             style={{ background: '#1A0A2E', border: '0.5px solid #7C3AED44', color: '#A78BFA' }}
           >
-            {isRecording ? (
+            {isTranscribing ? (
+              <>
+                <span className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#A78BFA', borderRightColor: '#A78BFA' }} />
+                <span className="text-xs">Transcribing...</span>
+              </>
+            ) : isRecording ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-xs">Listening...</span>
+                <span className="text-xs">Recording...</span>
               </>
             ) : (
               <>
