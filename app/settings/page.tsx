@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -9,6 +9,7 @@ import {
   IconWorld,
   IconBrandLinkedin,
   IconLogout,
+  IconCamera,
 } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
@@ -19,14 +20,15 @@ import {
 import type { ABCProfile } from '@/lib/types'
 
 const STYLES: { key: ABCProfile['communication_style']; label: string }[] = [
-  { key: 'direct', label: 'Přímý' },
-  { key: 'formal', label: 'Formální' },
-  { key: 'casual', label: 'Neformální' },
+  { key: 'direct', label: 'Direct' },
+  { key: 'formal', label: 'Formal' },
+  { key: 'casual', label: 'Casual' },
 ]
 const LANGUAGES = ['EN', 'CZ', 'DE', 'Mix']
 
 const EMPTY: Omit<ABCProfile, 'id'> = {
   full_name: '', company: '', role: '', email: '', phone: '', linkedin_url: '', website: '',
+  avatar_url: '',
   communication_style: 'direct', outreach_language: 'EN', goals: '', plan: 'free', scans_used: 0, scans_limit: 30,
   research_preferences: [...DEFAULT_RESEARCH_PREFERENCES],
   custom_questions: '',
@@ -40,11 +42,13 @@ const chipStyle = (active: boolean): React.CSSProperties =>
 export default function SettingsPage() {
   const router = useRouter()
   const supabase = createClientComponent()
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   const [userId, setUserId] = useState<string | null>(null)
   const [profile, setProfile] = useState<Omit<ABCProfile, 'id'>>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState(false)
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -90,6 +94,37 @@ export default function SettingsPage() {
     })
   }
 
+  function showToast() {
+    setToast(true)
+    setTimeout(() => setToast(false), 3000)
+  }
+
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !userId) return
+    setUploading(true)
+    setError(null)
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${userId}/avatar.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, contentType: file.type })
+      if (upErr) throw upErr
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+      const url = `${data.publicUrl}?t=${Date.now()}`
+      update('avatar_url', url)
+      // Best-effort persist; never blocks profile usage
+      await supabase.from('abc_profiles').update({ avatar_url: url }).eq('id', userId)
+      showToast()
+    } catch (err) {
+      setError(err instanceof Error ? `Photo upload failed: ${err.message}` : 'Photo upload failed.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   async function save() {
     if (!userId) return
     setSaving(true)
@@ -117,10 +152,9 @@ export default function SettingsPage() {
         .from('abc_profiles')
         .upsert(payload, { onConflict: 'id' })
       if (e) throw new Error(e.message)
-      setToast(true)
-      setTimeout(() => setToast(false), 3000)
+      showToast()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Uložení selhalo.')
+      setError(err instanceof Error ? err.message : 'Save failed.')
     } finally {
       setSaving(false)
     }
@@ -140,7 +174,7 @@ export default function SettingsPage() {
   }
 
   const initials = profile.full_name?.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase() || '?'
-  const subtitle = [profile.company, profile.role].filter(Boolean).join(' · ') || 'Firma · Role'
+  const subtitle = [profile.company, profile.role].filter(Boolean).join(' · ') || 'Company · Role'
 
   return (
     <div className="min-h-screen pb-28" style={{ background: '#07050E' }}>
@@ -161,23 +195,50 @@ export default function SettingsPage() {
           <IconLogout size={18} />
         </button>
 
-        {/* Avatar 64px */}
-        <div
+        {/* Avatar 64px with upload */}
+        <button
+          onClick={() => photoInputRef.current?.click()}
+          disabled={uploading}
           className="relative rounded-full p-[2px]"
           style={{ background: 'linear-gradient(135deg, #A78BFA, #38BDF8)' }}
         >
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center text-lg font-bold text-white"
-            style={{ background: '#1E0A3C' }}
+          {profile.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={profile.avatar_url}
+              alt=""
+              className="w-16 h-16 rounded-full object-cover block"
+            />
+          ) : (
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center text-lg font-bold text-white"
+              style={{ background: '#1E0A3C' }}
+            >
+              {initials}
+            </div>
+          )}
+          <span
+            className="absolute bottom-0 right-0 w-6 h-6 rounded-full flex items-center justify-center"
+            style={{ background: '#7C3AED', border: '2px solid #07050E', color: '#fff' }}
           >
-            {initials}
-          </div>
-        </div>
+            <IconCamera size={12} />
+          </span>
+        </button>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handlePhoto}
+        />
+        {uploading && (
+          <span className="relative mt-2 text-xs" style={{ color: '#A78BFA' }}>Uploading...</span>
+        )}
 
         <input
           value={profile.full_name ?? ''}
           onChange={(e) => update('full_name', e.target.value)}
-          placeholder="Tvé jméno"
+          placeholder="Your name"
           className="relative mt-3 bg-transparent text-center font-bold outline-none w-full"
           style={{ color: '#F0EAFF', fontSize: '16px' }}
         />
@@ -188,7 +249,7 @@ export default function SettingsPage() {
           <input
             value={profile.company ?? ''}
             onChange={(e) => update('company', e.target.value)}
-            placeholder="Firma"
+            placeholder="Company"
             className="w-28 text-center text-xs outline-none rounded-lg px-2 py-1"
             style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#5A3A8A' }}
           />
@@ -202,14 +263,14 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* 2. VIZITKA */}
+      {/* 2. YOUR CARD */}
       <div
         className="mx-4 mt-4 rounded-xl overflow-hidden"
         style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
       >
         <div className="px-4 pt-4 pb-2">
           <span className="gradient-text font-bold tracking-widest uppercase" style={{ fontSize: '9px' }}>
-            TVOJE VIZITKA
+            YOUR CARD
           </span>
         </div>
         <VizitkaRow
@@ -220,11 +281,11 @@ export default function SettingsPage() {
           editing={editingField}
           onEdit={setEditingField}
           onChange={(v) => update('email', v)}
-          placeholder="email@firma.cz"
+          placeholder="email@company.com"
         />
         <VizitkaRow
           icon={<IconPhone size={16} />}
-          label="Telefon"
+          label="Phone"
           value={profile.phone ?? ''}
           fieldKey="phone"
           editing={editingField}
@@ -240,7 +301,7 @@ export default function SettingsPage() {
           editing={editingField}
           onEdit={setEditingField}
           onChange={(v) => update('website', v)}
-          placeholder="firma.cz"
+          placeholder="company.com"
         />
         <VizitkaRow
           icon={<IconBrandLinkedin size={16} />}
@@ -255,19 +316,19 @@ export default function SettingsPage() {
         />
       </div>
 
-      {/* 3. CÍLE */}
+      {/* 3. GOALS */}
       <div
         className="mx-4 mt-3 p-4 rounded-xl"
         style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
       >
         <span className="gradient-text font-bold tracking-widest uppercase block mb-2" style={{ fontSize: '9px' }}>
-          CÍLE
+          GOALS
         </span>
         <textarea
           value={profile.goals ?? ''}
           onChange={(e) => update('goals', e.target.value)}
-          placeholder="B2B SaaS partneři, investoři seed stage EU..."
-          className="w-full min-h-[80px] resize-none rounded-lg px-3 py-2 text-sm outline-none"
+          placeholder="B2B SaaS partners, seed-stage investors in the EU..."
+          className="w-full min-h-[80px] resize-none rounded-lg px-3 py-2 text-base outline-none"
           style={{ background: '#111', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
           onFocus={(e) => { e.target.style.borderColor = '#7C3AED' }}
           onBlur={(e) => { e.target.style.borderColor = '#1A0E30' }}
@@ -280,7 +341,7 @@ export default function SettingsPage() {
         style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
       >
         <span className="gradient-text font-bold tracking-widest uppercase block mb-3" style={{ fontSize: '9px' }}>
-          CO CHCI VŽDY ZJISTIT
+          WHAT TO ALWAYS RESEARCH
         </span>
         <div className="flex flex-col gap-2.5 mb-4">
           {RESEARCH_PREFERENCE_OPTIONS.map((opt) => {
@@ -303,26 +364,26 @@ export default function SettingsPage() {
           })}
         </div>
         <span className="block mb-2 text-xs" style={{ color: '#3A2060' }}>
-          Vlastní otázky (každá na nový řádek):
+          Custom questions (one per line):
         </span>
         <textarea
           value={profile.custom_questions ?? ''}
           onChange={(e) => update('custom_questions', e.target.value)}
-          placeholder={'Hledají investory?\nMají pobočku v ČR?\n...'}
-          className="w-full min-h-[80px] resize-none rounded-lg px-3 py-2 text-sm outline-none"
+          placeholder={'Are they raising funding?\nDo they have an office in the EU?\n...'}
+          className="w-full min-h-[80px] resize-none rounded-lg px-3 py-2 text-base outline-none"
           style={{ background: '#111', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
           onFocus={(e) => { e.target.style.borderColor = '#7C3AED' }}
           onBlur={(e) => { e.target.style.borderColor = '#1A0E30' }}
         />
       </div>
 
-      {/* 4. STYL */}
+      {/* 4. STYLE */}
       <div
         className="mx-4 mt-3 p-4 rounded-xl"
         style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
       >
         <span className="block mb-2 tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>
-          STYL
+          STYLE
         </span>
         <div className="flex gap-2 flex-wrap">
           {STYLES.map((s) => (
@@ -338,13 +399,13 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* 5. JAZYK */}
+      {/* 5. LANGUAGE */}
       <div
         className="mx-4 mt-3 p-4 rounded-xl"
         style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
       >
         <span className="block mb-2 tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>
-          JAZYK
+          LANGUAGE
         </span>
         <div className="flex gap-2 flex-wrap">
           {LANGUAGES.map((l) => (
@@ -374,7 +435,7 @@ export default function SettingsPage() {
           disabled={saving}
           className={`glow-btn w-full rounded-xl text-white font-semibold py-3.5 ${saving ? 'opacity-40' : ''}`}
         >
-          {saving ? 'Ukládám...' : 'Uložit profil'}
+          {saving ? 'Saving...' : 'Save profile'}
         </motion.button>
       </div>
 
@@ -387,7 +448,7 @@ export default function SettingsPage() {
             className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-full px-5 py-2.5 text-sm font-medium text-white"
             style={{ background: '#16A34A', boxShadow: '0 4px 16px rgba(22,163,74,0.4)' }}
           >
-            Uloženo ✓
+            Saved ✓
           </motion.div>
         )}
       </AnimatePresence>
@@ -436,7 +497,7 @@ function VizitkaRow({
           onBlur={() => onEdit(null)}
           onKeyDown={(e) => e.key === 'Enter' && onEdit(null)}
           placeholder={placeholder}
-          className="flex-1 bg-transparent text-sm outline-none text-right ml-auto"
+          className="flex-1 bg-transparent text-base outline-none text-right ml-auto"
           style={{ color: '#8B6ABF' }}
           onClick={(e) => e.stopPropagation()}
         />

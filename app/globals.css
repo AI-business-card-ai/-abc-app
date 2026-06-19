@@ -19,11 +19,39 @@
 
 * { box-sizing: border-box; }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
 body {
   background: #07050E;
   color: #F0EAFF;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+}
+
+/* Mobile: prevent iOS auto-zoom on focus by keeping inputs >= 16px */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+/* Remove 300ms tap delay and improve touch responsiveness */
+button,
+a,
+[role='button'] {
+  touch-action: manipulation;
+}
+
+/* Minimum 44px touch targets for tappable controls */
+.tap-target {
+  min-width: 44px;
+  min-height: 44px;
 }
 
 @layer utilities {

@@ -55,27 +55,28 @@ export async function POST(req: NextRequest) {
     // 1. Extrahuj data z vizitky
     const claudeResult = await analyzeBusinessCard(base64, profile, '', claudeMediaType)
 
-    // 1b. Apollo enrichment
-    const apolloData = await enrichWithApollo(
-      claudeResult.name,
-      claudeResult.company,
-      claudeResult.email
-    ).catch(() => null)
-
-    // 2. Fetchni Perplexity data
-    console.log('Calling enrichContact with:', claudeResult.name, claudeResult.company)
-    let enrichedContext = ''
-    try {
-      enrichedContext = await enrichContact(
+    // 2. Apollo + Perplexity PARALELNĚ (rychlost + odolnost proti chybám)
+    console.log('Calling Apollo + Perplexity in parallel:', claudeResult.name, claudeResult.company)
+    const [apolloData, perplexityContext] = await Promise.all([
+      enrichWithApollo(
+        claudeResult.name,
+        claudeResult.company,
+        claudeResult.email
+      ).catch((err) => {
+        console.error('Apollo enrichment skipped:', err)
+        return null
+      }),
+      enrichContact(
         claudeResult.name,
         claudeResult.company,
         profile
-      )
-    } catch (err) {
-      console.error('Perplexity enrichment skipped:', err)
-      enrichedContext = ''
-    }
+      ).catch((err) => {
+        console.error('Perplexity enrichment skipped:', err)
+        return ''
+      }),
+    ])
 
+    let enrichedContext = perplexityContext || ''
     if (apolloData) {
       enrichedContext = enrichedContext + '\nApollo data: ' + JSON.stringify(apolloData)
     }
@@ -117,7 +118,13 @@ export async function POST(req: NextRequest) {
     console.error('Scan error details:', JSON.stringify(err))
 
     if (err instanceof ClaudeVisionError || err instanceof ClaudeAnalysisError) {
-      return NextResponse.json({ error: err.message }, { status: 502 })
+      return NextResponse.json(
+        {
+          error:
+            'Could not read the business card. Please try again with better lighting.',
+        },
+        { status: 502 }
+      )
     }
 
     return NextResponse.json(

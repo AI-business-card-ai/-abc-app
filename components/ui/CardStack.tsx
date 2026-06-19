@@ -56,9 +56,25 @@ function BusinessCardFace({
       />
 
       <div className="relative h-full p-4 flex flex-col">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2.5">
+          {contact.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={contact.photo_url}
+              alt={contact.name || ''}
+              className="w-9 h-9 rounded-full object-cover shrink-0"
+              style={{ border: `1.5px solid ${theme.accent}` }}
+            />
+          ) : (
+            <span
+              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+              style={{ background: 'rgba(255,255,255,0.08)', border: `1.5px solid ${theme.accent}`, color: '#fff' }}
+            >
+              {contact.name?.split(' ').map((n) => n[0]).join('').substring(0, 2) || '✦'}
+            </span>
+          )}
           <span
-            className="font-black tracking-tight truncate max-w-[75%] text-lg leading-tight"
+            className="font-black tracking-tight truncate flex-1 text-lg leading-tight"
             style={{
               background: `linear-gradient(135deg, #fff, ${theme.accent})`,
               WebkitBackgroundClip: 'text',
@@ -67,22 +83,11 @@ function BusinessCardFace({
           >
             {contact.company ?? '—'}
           </span>
-          <span
-            className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-sm select-none"
-            style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: '0.5px solid rgba(255,255,255,0.1)',
-              color: theme.accent,
-              opacity: 0.85,
-            }}
-          >
-            ✦
-          </span>
         </div>
 
-        <div className="mt-4 flex-1">
+        <div className="mt-3 flex-1">
           <p className="font-bold truncate" style={{ fontSize: 18, color: '#fff' }}>
-            {contact.name ?? 'Neznámý'}
+            {contact.name ?? 'Unknown'}
           </p>
           <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
             {contact.role ?? '—'}
@@ -146,7 +151,7 @@ export default function CardStack({ contacts, cur, onCurChange, onSelect }: Prop
   if (contacts.length === 0) {
     return (
       <div className="h-[320px] flex items-center justify-center text-sm" style={{ color: '#3A2060' }}>
-        Zatím žádné kontakty.
+        No contacts yet.
       </div>
     )
   }
@@ -184,8 +189,7 @@ export default function CardStack({ contacts, cur, onCurChange, onSelect }: Prop
     if (flyAway) return
     const globalIndex = cur + stackIndex
     if (stackIndex === 0) {
-      if (globalIndex < contacts.length - 1) onCurChange(globalIndex + 1)
-      else onSelect(contacts[globalIndex].id)
+      onSelect(contacts[globalIndex].id)
     } else {
       onCurChange(globalIndex)
     }

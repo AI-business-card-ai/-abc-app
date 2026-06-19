@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const SCAN_STEPS = [
-  'Analyzování kontaktu...',
-  'Zjišťování informací o firmě...',
-  'Prohledávání webu...',
-  'Příprava zpráv...',
-  'Dokončování...',
+  '📷 Reading business card...',
+  '🔍 Researching company...',
+  '👤 Finding LinkedIn profile...',
+  '✍️ Writing personalized messages...',
+  '✅ Done!',
 ]
 
 const STEP_DURATION_MS = 2500

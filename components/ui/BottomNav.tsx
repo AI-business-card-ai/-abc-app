@@ -6,9 +6,9 @@ import { IconCamera, IconCards, IconMessage, IconUser } from '@tabler/icons-reac
 
 const tabs = [
   { icon: IconCamera, label: 'Scan', path: '/scan' },
-  { icon: IconCards, label: 'Kartotéka', path: '/contacts' },
+  { icon: IconCards, label: 'Contacts', path: '/contacts' },
   { icon: IconMessage, label: 'Chat', path: '/chat' },
-  { icon: IconUser, label: 'Profil', path: '/settings' },
+  { icon: IconUser, label: 'Profile', path: '/settings' },
 ]
 
 export default function BottomNav() {
@@ -20,7 +20,7 @@ export default function BottomNav() {
       className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-30 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
       style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
     >
-      <div className="flex">
+      <div className="flex" style={{ minHeight: 64 }}>
         {tabs.map((tab) => {
           const active = pathname.startsWith(tab.path)
           return (
@@ -28,7 +28,7 @@ export default function BottomNav() {
               key={tab.path}
               whileTap={{ scale: 0.9 }}
               onClick={() => router.push(tab.path)}
-              className="flex-1 flex flex-col items-center gap-0.5 py-2.5 relative"
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-3 relative"
             >
               {active && (
                 <span

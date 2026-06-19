@@ -51,6 +51,7 @@ export interface ABCProfile {
   phone: string | null
   linkedin_url: string | null
   website: string | null
+  avatar_url: string | null
   communication_style: 'direct' | 'formal' | 'casual'
   outreach_language: string
   goals: string | null

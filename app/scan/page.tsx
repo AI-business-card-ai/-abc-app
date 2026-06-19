@@ -183,11 +183,11 @@ export default function ScanPage() {
           ) : (
             <IconCreditCard size={44} className="relative z-10" style={{ color: '#2A1A4A' }} />
           )}
-          {/* Corner brackets */}
-          <span className="absolute left-0 top-0 w-5 h-5 z-20" style={{ borderLeft: '2px solid #A78BFA', borderTop: '2px solid #A78BFA' }} />
-          <span className="absolute right-0 top-0 w-5 h-5 z-20" style={{ borderRight: '2px solid #A78BFA', borderTop: '2px solid #A78BFA' }} />
-          <span className="absolute left-0 bottom-0 w-5 h-5 z-20" style={{ borderLeft: '2px solid #A78BFA', borderBottom: '2px solid #A78BFA' }} />
-          <span className="absolute right-0 bottom-0 w-5 h-5 z-20" style={{ borderRight: '2px solid #A78BFA', borderBottom: '2px solid #A78BFA' }} />
+          {/* Corner brackets — animated pulse */}
+          <span className="absolute left-0 top-0 w-5 h-5 z-20 animate-pulse" style={{ borderLeft: '2px solid #A78BFA', borderTop: '2px solid #A78BFA', filter: 'drop-shadow(0 0 6px rgba(167,139,250,0.8))' }} />
+          <span className="absolute right-0 top-0 w-5 h-5 z-20 animate-pulse" style={{ borderRight: '2px solid #A78BFA', borderTop: '2px solid #A78BFA', filter: 'drop-shadow(0 0 6px rgba(167,139,250,0.8))' }} />
+          <span className="absolute left-0 bottom-0 w-5 h-5 z-20 animate-pulse" style={{ borderLeft: '2px solid #A78BFA', borderBottom: '2px solid #A78BFA', filter: 'drop-shadow(0 0 6px rgba(167,139,250,0.8))' }} />
+          <span className="absolute right-0 bottom-0 w-5 h-5 z-20 animate-pulse" style={{ borderRight: '2px solid #A78BFA', borderBottom: '2px solid #A78BFA', filter: 'drop-shadow(0 0 6px rgba(167,139,250,0.8))' }} />
         </div>
 
         <p className="text-center text-xs mt-3 relative" style={{ color: '#2A1A4A' }}>
@@ -259,7 +259,7 @@ export default function ScanPage() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Where did we meet..."
-            className="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+            className="flex-1 rounded-lg px-3 py-2 text-base outline-none"
             style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
           />
         </div>
