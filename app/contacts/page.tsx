@@ -7,7 +7,6 @@ import { IconSearch, IconCreditCard } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
 import CardStack from '@/components/ui/CardStack'
-import DeleteContactDialog, { deleteContactApi } from '@/components/ui/DeleteContactDialog'
 import type { ScannedContact } from '@/lib/types'
 
 const chipStyle = (active: boolean): React.CSSProperties =>
@@ -24,9 +23,13 @@ export default function ContactsPage() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState('All')
   const [cur, setCur] = useState(0)
-  const [deleteTarget, setDeleteTarget] = useState<ScannedContact | null>(null)
-  const [deleting, setDeleting] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
+
+  const toast = useCallback((msg: string) => {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(null), 2500)
+  }, [])
 
   const loadContacts = useCallback(async () => {
     setLoading(true)
@@ -69,22 +72,28 @@ export default function ContactsPage() {
 
   const active = filtered[cur] ?? null
 
-  async function confirmDelete() {
-    if (!deleteTarget) return
-    setDeleting(true)
-    setError(null)
+  const handleDelete = async (contactId: string) => {
+    if (!confirm('Delete this contact?')) return
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
 
-      await deleteContactApi(deleteTarget.id, user.id)
-      setDeleteTarget(null)
-      setCur(0)
-      setRefreshKey((k) => k + 1)
+      const res = await fetch('/api/card/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId, userId: user?.id }),
+      })
+
+      if (res.ok) {
+        setContacts((prev) => prev.filter((c) => c.id !== contactId))
+        setCur(0)
+        toast('Contact deleted')
+      } else {
+        toast('Failed to delete')
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed.')
-    } finally {
-      setDeleting(false)
+      console.error(err)
+      toast('Failed to delete')
     }
   }
 
@@ -186,7 +195,7 @@ export default function ContactsPage() {
               <motion.div
                 key={active.id}
                 initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: deleting && deleteTarget?.id === active.id ? 0.3 : 1, y: 0 }}
+                animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.25 }}
                 className="mx-4 rounded-xl p-3 mt-1 flex flex-col gap-2.5"
@@ -239,7 +248,7 @@ export default function ContactsPage() {
                     ✦ Detail
                   </button>
                   <button
-                    onClick={() => setDeleteTarget(active)}
+                    onClick={() => handleDelete(active.id)}
                     className="flex-1 min-w-[72px] py-2 text-xs rounded-lg font-medium"
                     style={{ border: '0.5px solid rgba(239,68,68,0.35)', color: '#EF4444' }}
                   >
@@ -254,12 +263,19 @@ export default function ContactsPage() {
 
       <BottomNav />
 
-      <DeleteContactDialog
-        open={!!deleteTarget}
-        deleting={deleting}
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={confirmDelete}
-      />
+      <AnimatePresence>
+        {toastMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-full px-5 py-2.5 text-sm font-medium text-white"
+            style={{ background: '#16A34A', boxShadow: '0 4px 16px rgba(22,163,74,0.4)' }}
+          >
+            {toastMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

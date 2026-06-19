@@ -15,7 +15,6 @@ import {
 import { createClientComponent } from '@/lib/supabase'
 import MatchScore, { scoreColors } from '@/components/ui/MatchScore'
 import { parseEnrichedContext, splitContentWithUrls } from '@/lib/research'
-import DeleteContactDialog, { deleteContactApi } from '@/components/ui/DeleteContactDialog'
 import type { ScannedContact } from '@/lib/types'
 
 type Tab = 'linkedin' | 'email' | 'whatsapp'
@@ -73,8 +72,6 @@ export default function ContactResultPage() {
   const [followupError, setFollowupError] = useState<string | null>(null)
   const [schedulingFollowup, setSchedulingFollowup] = useState(false)
   const [retryKey, setRetryKey] = useState(0)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [enriching, setEnriching] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [openSection, setOpenSection] = useState<string | null>(null)
@@ -268,21 +265,28 @@ export default function ContactResultPage() {
     router.push('/contacts')
   }
 
-  async function confirmDelete() {
+  const handleDelete = async () => {
     if (!contact) return
-    setDeleting(true)
-    setError(null)
+    setMenuOpen(false)
+    if (!confirm('Delete this contact? This cannot be undone.')) return
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
 
-      await deleteContactApi(contact.id, user.id)
-      setShowDeleteConfirm(false)
-      router.push('/contacts')
+      const res = await fetch('/api/card/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: contact.id, userId: user?.id }),
+      })
+
+      if (res.ok) {
+        router.push('/contacts')
+      } else {
+        setError('Failed to delete.')
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed.')
-      setDeleting(false)
-      setShowDeleteConfirm(false)
+      console.error(err)
+      setError('Failed to delete.')
     }
   }
 
@@ -363,11 +367,7 @@ export default function ContactResultPage() {
   ].filter(Boolean) as { icon: string; label: string; value: string }[]
 
   return (
-    <motion.div
-      className="min-h-screen bg-bg pb-44"
-      animate={{ opacity: deleting ? 0.4 : 1 }}
-      transition={{ duration: 0.25 }}
-    >
+    <motion.div className="min-h-screen bg-bg pb-44">
       {/* TOP BAR */}
       <div className="hero-radial flex items-center justify-between px-4 pt-6 pb-4 relative">
         <button onClick={() => router.push('/contacts')} className="icon-btn">
@@ -389,7 +389,7 @@ export default function ContactResultPage() {
               <button onClick={() => { setMenuOpen(false) }} className="block w-full text-left px-4 py-2.5 text-sm text-text-primary hover:bg-[#1A0A2E] transition-colors">Edit</button>
               <button onClick={archive} className="block w-full text-left px-4 py-2.5 text-sm text-text-primary hover:bg-[#1A0A2E] transition-colors">Archive</button>
               <button
-                onClick={() => { setMenuOpen(false); setShowDeleteConfirm(true) }}
+                onClick={handleDelete}
                 className="block w-full text-left px-4 py-2.5 text-sm hover:bg-[#1A0A2E] transition-colors"
                 style={{ color: '#EF4444' }}
               >
@@ -740,13 +740,6 @@ export default function ContactResultPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <DeleteContactDialog
-        open={showDeleteConfirm}
-        deleting={deleting}
-        onCancel={() => setShowDeleteConfirm(false)}
-        onConfirm={confirmDelete}
-      />
     </motion.div>
   )
 }
