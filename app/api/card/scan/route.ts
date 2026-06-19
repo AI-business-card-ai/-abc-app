@@ -54,71 +54,60 @@ export async function POST(req: NextRequest) {
 
     const profile: ABCProfile = (profileRow as ABCProfile | null) ?? userProfile
 
-    // 1. Extrahuj data z vizitky
-    const claudeResult = await analyzeBusinessCard(base64, profile, '', claudeMediaType)
-
-    // 2. Apollo + Perplexity PARALELNĚ (rychlost + odolnost proti chybám)
-    console.log('Calling Apollo + Perplexity in parallel:', claudeResult.name, claudeResult.company)
-    const [apolloData, perplexityContext] = await Promise.all([
-      enrichWithApollo(
-        claudeResult.name,
-        claudeResult.company,
-        claudeResult.email
-      ).catch((err) => {
-        console.error('Apollo enrichment skipped:', err)
-        return null
-      }),
-      enrichContact(
-        claudeResult.name,
-        claudeResult.company,
-        profile
-      ).catch((err) => {
-        console.error('Perplexity enrichment skipped:', err)
-        return ''
-      }),
-    ])
-
-    let enrichedContext = perplexityContext || ''
-    if (apolloData) {
-      enrichedContext = enrichedContext + '\nApollo data: ' + JSON.stringify(apolloData)
-    }
-
-    console.log('Perplexity result:', enrichedContext?.substring(0, 200))
-    console.log('Enriched context length:', enrichedContext?.length)
-    console.log('Enriched context preview:', enrichedContext?.substring(0, 200))
-
-    // 3. Přegeneruj zprávy s Perplexity kontextem + poznámkami uživatele
-    const finalResult = await analyzeBusinessCard(
+    // 1. Extrahuj kontakty z fotky (1 nebo více vizitek najednou)
+    const contacts = await analyzeBusinessCard(
       base64,
       profile,
-      enrichedContext,
+      '',
       claudeMediaType,
       note,
       eventName
     )
+    console.log(`Detected ${contacts.length} business card(s)`)
 
-    // 4. Ulož do Supabase včetně enriched_context
+    // 2. Pro každý kontakt spusť Apollo + Perplexity paralelně (odolné proti chybám)
+    const enrichedContacts = await Promise.all(
+      contacts.map(async (contact) => {
+        const [apolloData, perplexityContext] = await Promise.all([
+          enrichWithApollo(contact.name, contact.company, contact.email).catch((err) => {
+            console.error('Apollo enrichment skipped:', err)
+            return null
+          }),
+          enrichContact(contact.name, contact.company, profile).catch((err) => {
+            console.error('Perplexity enrichment skipped:', err)
+            return ''
+          }),
+        ])
+
+        return {
+          ...contact,
+          photo_url: apolloData?.photo_url || null,
+          linkedin_url: apolloData?.linkedin_url || contact.linkedin_url,
+          company_size: apolloData?.company_size || contact.company_size,
+          company_revenue: apolloData?.company_revenue || null,
+          technologies: apolloData?.technologies || null,
+          enriched_context: perplexityContext || '',
+          user_id: userId,
+          status: 'pending',
+          event_name: eventName || null,
+          notes: note || null,
+        }
+      })
+    )
+
+    // 3. Ulož všechny kontakty do Supabase
     const { data, error } = await supabase
       .from('scanned_contacts')
-      .insert({
-        user_id: userId,
-        ...finalResult,
-        photo_url: apolloData?.photo_url || null,
-        linkedin_url: apolloData?.linkedin_url || finalResult.linkedin_url,
-        company_size: apolloData?.company_size || finalResult.company_size,
-        company_revenue: apolloData?.company_revenue || null,
-        technologies: apolloData?.technologies || null,
-        notes: note,
-        event_name: eventName,
-        enriched_context: enrichedContext,
-        status: 'pending',
-      })
+      .insert(enrichedContacts)
       .select()
-      .single()
 
     if (error) throw error
 
-    return NextResponse.json({ success: true, contact: data })
+    return NextResponse.json({
+      success: true,
+      contacts: data,
+      count: data?.length || 0,
+    })
   } catch (err) {
     console.error('Scan error:', err)
     console.error('Scan error details:', JSON.stringify(err))

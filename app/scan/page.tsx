@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { IconX, IconCreditCard, IconMicrophone } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import LoadingMatrix from '@/components/ui/LoadingMatrix'
@@ -36,6 +36,7 @@ export default function ScanPage() {
   const [newTag, setNewTag] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
 
   useEffect(() => {
     return () => {
@@ -150,10 +151,22 @@ export default function ScanPage() {
       if (selectedEvent) formData.append('eventName', selectedEvent)
 
       const res = await fetch('/api/card/scan', { method: 'POST', body: formData })
-      const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.error || 'Analysis failed.')
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Analysis failed.')
 
-      router.push('/contact/' + json.contact.id)
+      if (data.count > 1) {
+        setIsLoading(false)
+        setToastMsg(`Found ${data.count} business cards!`)
+        setTimeout(() => router.push('/contacts'), 1400)
+        return
+      }
+
+      if (data.count === 1) {
+        router.push('/contact/' + data.contacts[0].id)
+        return
+      }
+
+      throw new Error('No business card detected. Try again with better lighting.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setIsLoading(false)
@@ -209,6 +222,9 @@ export default function ScanPage() {
 
         <p className="text-center text-xs mt-3 relative" style={{ color: '#2A1A4A' }}>
           Point at business card
+        </p>
+        <p className="text-center text-xs mt-1.5 relative leading-snug px-2" style={{ color: '#3A2060' }}>
+          💡 Tip: Place multiple business cards side by side and scan them all at once!
         </p>
 
         <motion.button
@@ -347,6 +363,20 @@ export default function ScanPage() {
           ✦ Analyze with AI
         </motion.button>
       </div>
+
+      <AnimatePresence>
+        {toastMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-32 left-1/2 -translate-x-1/2 z-50 rounded-full px-5 py-2.5 text-sm font-medium text-white"
+            style={{ background: '#16A34A', boxShadow: '0 4px 16px rgba(22,163,74,0.4)' }}
+          >
+            {toastMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <BottomNav />
     </div>

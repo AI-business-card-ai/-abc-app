@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const SCAN_STEPS = [
-  '📷 Reading business card...',
-  '🔍 Researching company...',
-  '👤 Finding LinkedIn profile...',
+  '📷 Reading business cards...',
+  '🔍 Researching companies...',
+  '👤 Finding LinkedIn profiles...',
   '✍️ Writing personalized messages...',
   '✅ Done!',
 ]

@@ -53,6 +53,38 @@ function parseClaudeJson<T>(text: string): T | null {
   }
 }
 
+function parseContactsArray(text: string): ScanResult[] | null {
+  const clean = text.replace(/```json|```/g, '').trim()
+
+  const tryParse = (s: string): ScanResult[] | null => {
+    try {
+      const parsed = JSON.parse(s)
+      if (Array.isArray(parsed)) return parsed as ScanResult[]
+      if (parsed && typeof parsed === 'object') return [parsed as ScanResult]
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  const direct = tryParse(clean)
+  if (direct) return direct
+
+  const arrayMatch = clean.match(/\[[\s\S]*\]/)
+  if (arrayMatch) {
+    const parsed = tryParse(arrayMatch[0])
+    if (parsed) return parsed
+  }
+
+  const objectMatch = clean.match(/\{[\s\S]*\}/)
+  if (objectMatch) {
+    const parsed = tryParse(objectMatch[0])
+    if (parsed) return parsed
+  }
+
+  return null
+}
+
 async function callClaudeVision(
   imageBase64: string,
   mediaType: ImageMediaType,
@@ -127,7 +159,7 @@ export async function analyzeBusinessCard(
   mediaType: ImageMediaType = 'image/jpeg',
   note: string | null = null,
   eventName: string | null = null
-): Promise<ScanResult> {
+): Promise<ScanResult[]> {
   const researchBlock = enrichedContext.trim()
     ? `Additional research about this contact:
 ${enrichedContext}
@@ -151,9 +183,16 @@ Use this context to personalize messages:
 `
     : ''
 
-  const prompt = `Analyze this business card image.
+  const prompt = `You are analyzing a photo that may contain ONE or MULTIPLE business cards.
 
-Extract (null if not visible):
+If you see multiple business cards:
+- Analyze each card separately
+- Return an array of contacts
+
+If you see one business card:
+- Return array with one contact
+
+For EACH business card, extract (null if not visible):
 name, company, role, email, phone, website, linkedin_url
 
 Analyze company:
@@ -171,16 +210,16 @@ ${researchBlock}
 
 ${noteBlock}
 
-Calculate match_score (0-100):
+Calculate match_score (0-100) for each contact:
 - Alignment with user goals (40 points)
 - Company size and revenue fit (20 points)
 - Person seniority and decision power (20 points)
 - Industry relevance (10 points)
 - Reputation risk - penalize for negative news (10 points)
 
-match_reason: 2-3 sentences with specific facts from research.
+match_reason: 2-3 sentences with specific facts.
 
-Generate personalized messages:
+Generate personalized messages for each contact:
 - message_linkedin: max 300 chars, casual, mention something specific
 - message_email: 3-4 sentences + email_subject line
 - message_whatsapp: max 160 chars, friendly
@@ -191,31 +230,35 @@ Email in English.
 WhatsApp in English.
 All analysis in English.
 
-Return ONLY this JSON, no markdown:
-{
-  "name": null,
-  "company": null,
-  "role": null,
-  "email": null,
-  "phone": null,
-  "website": null,
-  "linkedin_url": null,
-  "industry": null,
-  "company_size": null,
-  "company_summary": null,
-  "match_score": 0,
-  "match_reason": "",
-  "message_linkedin": "",
-  "message_email": "",
-  "email_subject": "",
-  "message_whatsapp": ""
-}`
+IMPORTANT: Return a JSON array, always (one object per card):
+[
+  {
+    "name": null,
+    "company": null,
+    "role": null,
+    "email": null,
+    "phone": null,
+    "website": null,
+    "linkedin_url": null,
+    "industry": null,
+    "company_size": null,
+    "company_summary": null,
+    "match_score": 0,
+    "match_reason": "",
+    "message_linkedin": "",
+    "message_email": "",
+    "email_subject": "",
+    "message_whatsapp": ""
+  }
+]
+
+Return ONLY valid JSON array. No markdown.`
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const text = await callClaudeVision(imageBase64, mediaType, prompt, 1500)
-      const parsed = parseClaudeJson<ScanResult>(text)
-      if (parsed) return parsed
+      const text = await callClaudeVision(imageBase64, mediaType, prompt, 4000)
+      const parsed = parseContactsArray(text)
+      if (parsed && parsed.length > 0) return parsed
       console.warn(`Claude analysis JSON parse failed (attempt ${attempt + 1})`)
     } catch (err) {
       if (err instanceof ClaudeVisionError) {
