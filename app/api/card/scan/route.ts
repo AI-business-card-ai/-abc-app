@@ -130,10 +130,10 @@ export async function POST(req: NextRequest) {
 
     // 5. HubSpot auto-sync (nesmí zastavit scan při chybě)
     try {
-      const hubspotKey = (profileRow as { hubspot_api_key?: string } | null)?.hubspot_api_key
-      if (hubspotKey && data) {
+      const hubspotToken = (profileRow as { hubspot_access_token?: string } | null)?.hubspot_access_token
+      if (hubspotToken && data) {
         for (const c of data) {
-          const synced = await createHubSpotContact(
+          await createHubSpotContact(
             {
               name: c.name || '',
               email: c.email || undefined,
@@ -141,13 +141,12 @@ export async function POST(req: NextRequest) {
               company: c.company || undefined,
               position: c.role || undefined,
             },
-            hubspotKey
+            userId
           )
-          console.log('HubSpot sync result:', synced)
         }
       }
     } catch (e) {
-      console.error('HubSpot sync block error:', e)
+      console.error('HubSpot sync error:', e)
     }
 
     return NextResponse.json({

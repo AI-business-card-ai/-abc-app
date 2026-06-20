@@ -61,6 +61,10 @@ export interface ABCProfile {
   research_preferences: string[] | null
   custom_questions: string | null
   hubspot_api_key: string | null
+  hubspot_access_token: string | null
+  hubspot_refresh_token: string | null
+  hubspot_portal_id: string | null
+  hubspot_connected_at: string | null
 }
 
 export interface ScanResult {
