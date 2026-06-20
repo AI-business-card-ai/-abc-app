@@ -9,13 +9,15 @@ export function getSalesforceRedirectUri(): string {
   )
 }
 
-export function getSalesforceAuthorizeUrl(state: string): string {
+export function getSalesforceAuthorizeUrl(state: string, codeChallenge: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.SALESFORCE_CLIENT_ID!,
     redirect_uri: getSalesforceRedirectUri(),
     scope: SALESFORCE_SCOPES,
     state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
   })
   return `https://test.salesforce.com/services/oauth2/authorize?${params.toString()}`
 }
@@ -26,13 +28,17 @@ type SalesforceTokens = {
   instance_url: string
 }
 
-async function exchangeSalesforceCode(code: string): Promise<SalesforceTokens> {
+async function exchangeSalesforceCode(
+  code: string,
+  codeVerifier: string
+): Promise<SalesforceTokens> {
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     client_id: process.env.SALESFORCE_CLIENT_ID!,
     client_secret: process.env.SALESFORCE_CLIENT_SECRET!,
     redirect_uri: getSalesforceRedirectUri(),
     code,
+    code_verifier: codeVerifier,
   })
 
   const res = await fetch('https://test.salesforce.com/services/oauth2/token', {
