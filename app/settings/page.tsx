@@ -37,6 +37,10 @@ const EMPTY: Omit<ABCProfile, 'id'> = {
   hubspot_refresh_token: null,
   hubspot_portal_id: null,
   hubspot_connected_at: null,
+  salesforce_access_token: null,
+  salesforce_refresh_token: null,
+  salesforce_instance_url: null,
+  salesforce_connected_at: null,
 }
 
 const chipStyle = (active: boolean): React.CSSProperties =>
@@ -60,6 +64,9 @@ export default function SettingsPage() {
   const [hubspotConnected, setHubspotConnected] = useState(false)
   const [hubspotSaving, setHubspotSaving] = useState(false)
   const [hubspotError, setHubspotError] = useState<string | null>(null)
+  const [salesforceConnected, setSalesforceConnected] = useState(false)
+  const [salesforceSaving, setSalesforceSaving] = useState(false)
+  const [salesforceError, setSalesforceError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -81,6 +88,7 @@ export default function SettingsPage() {
           custom_questions: rest.custom_questions ?? '',
         })
         setHubspotConnected(!!rest.hubspot_access_token)
+        setSalesforceConnected(!!rest.salesforce_access_token)
       } else {
         setProfile((p) => ({ ...p, email: user.email ?? '' }))
       }
@@ -98,6 +106,13 @@ export default function SettingsPage() {
       router.replace('/settings')
     } else if (crm === 'hubspot-error') {
       setHubspotError('HubSpot connection failed. Please try again.')
+      router.replace('/settings')
+    } else if (crm === 'salesforce-connected') {
+      setSalesforceConnected(true)
+      showToast()
+      router.replace('/settings')
+    } else if (crm === 'salesforce-error') {
+      setSalesforceError('Salesforce connection failed. Please try again.')
       router.replace('/settings')
     }
   }, [router])
@@ -196,6 +211,23 @@ export default function SettingsPage() {
       setHubspotError(err instanceof Error ? err.message : 'Failed to disconnect')
     } finally {
       setHubspotSaving(false)
+    }
+  }
+
+  async function disconnectSalesforce() {
+    if (!userId) return
+    setSalesforceSaving(true)
+    setSalesforceError(null)
+    try {
+      const res = await fetch('/api/auth/salesforce/disconnect', { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to disconnect')
+      setSalesforceConnected(false)
+      showToast()
+    } catch (err) {
+      setSalesforceError(err instanceof Error ? err.message : 'Failed to disconnect')
+    } finally {
+      setSalesforceSaving(false)
     }
   }
 
@@ -509,6 +541,63 @@ export default function SettingsPage() {
             style={{ background: 'linear-gradient(135deg, #FF7A59, #FF5C35)' }}
           >
             Connect HubSpot
+          </a>
+        )}
+
+        <div style={{ borderTop: '0.5px solid #1A0E30', margin: '20px 0' }} />
+
+        <div className="flex items-center justify-between mb-1">
+          {salesforceConnected && (
+            <span style={{ color: '#16A34A', fontSize: '11px', fontWeight: 600, marginLeft: 'auto' }}>
+              ✅ Connected
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 mb-3 mt-2">
+          <span
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              background: '#0176D3',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 15,
+            }}
+          >
+            ☁️
+          </span>
+          <span style={{ color: '#F0EAFF', fontSize: 15, fontWeight: 600 }}>Salesforce</span>
+        </div>
+
+        <p className="text-xs mb-4 leading-snug" style={{ color: '#5A3A8A' }}>
+          {salesforceConnected
+            ? 'Contacts sync automatically after every scan.'
+            : 'Automatically sync contacts to your Salesforce CRM after every scan.'}
+        </p>
+
+        {salesforceError && (
+          <p className="text-xs mb-3 text-red-300">{salesforceError}</p>
+        )}
+
+        {salesforceConnected ? (
+          <button
+            onClick={disconnectSalesforce}
+            disabled={salesforceSaving}
+            className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40"
+            style={{ border: '0.5px solid rgba(239,68,68,0.35)', color: '#EF4444' }}
+          >
+            {salesforceSaving ? 'Disconnecting...' : 'Disconnect'}
+          </button>
+        ) : (
+          <a
+            href="/api/auth/salesforce"
+            className="block w-full rounded-lg py-3 text-sm font-semibold text-white text-center"
+            style={{ background: 'linear-gradient(135deg, #0176D3, #0EA5E9)' }}
+          >
+            Connect Salesforce
           </a>
         )}
       </div>

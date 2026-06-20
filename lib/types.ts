@@ -65,6 +65,10 @@ export interface ABCProfile {
   hubspot_refresh_token: string | null
   hubspot_portal_id: string | null
   hubspot_connected_at: string | null
+  salesforce_access_token: string | null
+  salesforce_refresh_token: string | null
+  salesforce_instance_url: string | null
+  salesforce_connected_at: string | null
 }
 
 export interface ScanResult {

@@ -8,6 +8,7 @@ import {
 import { enrichContact } from '@/lib/perplexity'
 import { enrichWithApollo } from '@/lib/apollo'
 import { createHubSpotContact } from '@/lib/hubspot'
+import { createSalesforceContact } from '@/lib/salesforce'
 import { ABCProfile } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
@@ -147,6 +148,28 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error('HubSpot sync error:', e)
+    }
+
+    // 6. Salesforce auto-sync (nesmí zastavit scan při chybě)
+    try {
+      const salesforceToken = (profileRow as { salesforce_access_token?: string } | null)
+        ?.salesforce_access_token
+      if (salesforceToken && data) {
+        for (const c of data) {
+          await createSalesforceContact(
+            {
+              name: c.name || '',
+              email: c.email || undefined,
+              phone: c.phone || undefined,
+              company: c.company || undefined,
+              position: c.role || undefined,
+            },
+            userId
+          )
+        }
+      }
+    } catch (e) {
+      console.error('Salesforce sync error:', e)
     }
 
     return NextResponse.json({
