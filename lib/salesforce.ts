@@ -17,7 +17,7 @@ export function getSalesforceAuthorizeUrl(state: string): string {
     scope: SALESFORCE_SCOPES,
     state,
   })
-  return `https://login.salesforce.com/services/oauth2/authorize?${params.toString()}`
+  return `https://test.salesforce.com/services/oauth2/authorize?${params.toString()}`
 }
 
 type SalesforceTokens = {
@@ -35,7 +35,7 @@ async function exchangeSalesforceCode(code: string): Promise<SalesforceTokens> {
     code,
   })
 
-  const res = await fetch('https://login.salesforce.com/services/oauth2/token', {
+  const res = await fetch('https://test.salesforce.com/services/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
@@ -57,7 +57,7 @@ async function refreshSalesforceToken(refreshToken: string): Promise<SalesforceT
     refresh_token: refreshToken,
   })
 
-  const res = await fetch('https://login.salesforce.com/services/oauth2/token', {
+  const res = await fetch('https://test.salesforce.com/services/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
