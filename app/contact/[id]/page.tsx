@@ -666,6 +666,14 @@ export default function ContactResultPage() {
             </button>
           </div>
 
+          <a
+            href={`/api/contact/vcard/${contact.id}`}
+            className="rounded-xl py-2.5 text-xs font-semibold text-center flex items-center justify-center gap-1 mt-1"
+            style={{ border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
+          >
+            📱 Save to Phone
+          </a>
+
           <button
             onClick={() => router.push('/contacts')}
             className="ghost-btn w-full py-2.5 text-sm mt-1"

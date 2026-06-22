@@ -316,6 +316,13 @@ export default function ContactsPage() {
                   >
                     ✉ Message
                   </button>
+                  <a
+                    href={`/api/contact/vcard/${active.id}`}
+                    className="flex-1 min-w-[72px] py-2 text-xs rounded-lg text-center"
+                    style={{ border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
+                  >
+                    📱 Save to Phone
+                  </a>
                   <button
                     onClick={() => router.push('/contact/' + active.id)}
                     className="flex-1 min-w-[72px] py-2 text-xs rounded-lg glow-btn text-white font-medium"
