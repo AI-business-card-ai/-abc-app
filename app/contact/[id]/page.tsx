@@ -11,6 +11,7 @@ import {
   IconBrandLinkedin,
   IconCopy,
   IconChevronDown,
+  IconDeviceMobile,
 } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import MatchScore, { scoreColors } from '@/components/ui/MatchScore'
@@ -443,6 +444,13 @@ export default function ContactResultPage() {
                   <IconPhone size={17} />
                 </a>
               )}
+              <a
+                href={`/api/contact/vcard/${contact.id}`}
+                className="icon-btn w-9 h-9"
+                aria-label="Save to Phone"
+              >
+                <IconDeviceMobile size={17} />
+              </a>
             </div>
           </div>
         </motion.div>
@@ -665,14 +673,6 @@ export default function ContactResultPage() {
               💬 WhatsApp
             </button>
           </div>
-
-          <a
-            href={`/api/contact/vcard/${contact.id}`}
-            className="rounded-xl py-2.5 text-xs font-semibold text-center flex items-center justify-center gap-1 mt-1"
-            style={{ border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
-          >
-            📱 Save to Phone
-          </a>
 
           <button
             onClick={() => router.push('/contacts')}

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { IconSearch, IconCreditCard } from '@tabler/icons-react'
+import { IconSearch, IconCreditCard, IconBrandLinkedin, IconMail, IconPhone, IconDeviceMobile } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
 import CardStack from '@/components/ui/CardStack'
@@ -301,6 +301,31 @@ export default function ContactsPage() {
                   </p>
                 )}
 
+                <div className="flex gap-1.5">
+                  {active.linkedin_url && (
+                    <a href={active.linkedin_url} target="_blank" rel="noreferrer" className="icon-btn w-9 h-9">
+                      <IconBrandLinkedin size={17} />
+                    </a>
+                  )}
+                  {active.email && (
+                    <a href={`mailto:${active.email}`} className="icon-btn w-9 h-9">
+                      <IconMail size={17} />
+                    </a>
+                  )}
+                  {active.phone && (
+                    <a href={`tel:${active.phone}`} className="icon-btn w-9 h-9">
+                      <IconPhone size={17} />
+                    </a>
+                  )}
+                  <a
+                    href={`/api/contact/vcard/${active.id}`}
+                    className="icon-btn w-9 h-9"
+                    aria-label="Save to Phone"
+                  >
+                    <IconDeviceMobile size={17} />
+                  </a>
+                </div>
+
                 <div className="flex gap-1.5 items-stretch flex-wrap">
                   <button
                     onClick={() => router.push('/chat/' + active.id)}
@@ -316,13 +341,6 @@ export default function ContactsPage() {
                   >
                     ✉ Message
                   </button>
-                  <a
-                    href={`/api/contact/vcard/${active.id}`}
-                    className="flex-1 min-w-[72px] py-2 text-xs rounded-lg text-center"
-                    style={{ border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
-                  >
-                    📱 Save to Phone
-                  </a>
                   <button
                     onClick={() => router.push('/contact/' + active.id)}
                     className="flex-1 min-w-[72px] py-2 text-xs rounded-lg glow-btn text-white font-medium"
