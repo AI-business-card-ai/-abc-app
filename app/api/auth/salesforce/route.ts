@@ -20,8 +20,9 @@ export async function GET(request: NextRequest) {
   const codeVerifier = randomBytes(64).toString('base64url')
   const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url')
 
-  const authorizeUrl = getSalesforceAuthorizeUrl(user.id, codeChallenge)
-  const response = NextResponse.redirect(authorizeUrl)
+  const authorizeUrl = new URL(getSalesforceAuthorizeUrl(user.id, codeChallenge))
+  authorizeUrl.searchParams.set('login_hint', 'bury.esco.a88c021b243f@agentforce.com')
+  const response = NextResponse.redirect(authorizeUrl.toString())
 
   response.cookies.set(PKCE_COOKIE, codeVerifier, {
     httpOnly: true,
