@@ -7,7 +7,8 @@ import { IconSearch, IconCreditCard, IconBrandLinkedin, IconMail, IconPhone, Ico
 import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
 import CardStack from '@/components/ui/CardStack'
-import type { ScannedContact } from '@/lib/types'
+import PipelineStageBadge from '@/components/ui/PipelineStageBadge'
+import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
 const chipStyle = (active: boolean): React.CSSProperties =>
   active
@@ -123,6 +124,22 @@ export default function ContactsPage() {
     a.download = `ABC_contacts_${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const updatePipelineStage = async (contactId: string, stage: PipelineStageId) => {
+    setContacts((prev) =>
+      prev.map((c) => (c.id === contactId ? { ...c, pipeline_stage: stage } : c))
+    )
+    try {
+      const res = await fetch('/api/pipeline/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId, stage }),
+      })
+      if (!res.ok) toast('Failed to update stage')
+    } catch {
+      toast('Failed to update stage')
+    }
   }
 
   const handleDelete = async (contactId: string) => {
@@ -276,7 +293,7 @@ export default function ContactsPage() {
                 className="mx-4 rounded-xl p-3 mt-1 flex flex-col gap-2.5"
                 style={{ background: '#06040C', border: '0.5px solid #1A0E30' }}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span
                       className="w-1.5 h-1.5 rounded-full shrink-0"
@@ -286,9 +303,15 @@ export default function ContactsPage() {
                       {active.event_name ?? 'No event'}
                     </span>
                   </div>
-                  <span className="text-xs shrink-0 ml-2" style={{ color: '#3A2060' }}>
-                    {new Date(active.scanned_at).toLocaleDateString('en-US')}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <PipelineStageBadge
+                      stage={active.pipeline_stage}
+                      onChange={(stage) => updatePipelineStage(active.id, stage)}
+                    />
+                    <span className="text-xs" style={{ color: '#3A2060' }}>
+                      {new Date(active.scanned_at).toLocaleDateString('en-US')}
+                    </span>
+                  </div>
                 </div>
 
                 {active.notes ? (

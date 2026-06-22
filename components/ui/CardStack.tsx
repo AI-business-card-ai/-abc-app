@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion'
 import type { ScannedContact } from '@/lib/types'
+import { getStageMeta } from '@/lib/pipeline'
 
 interface Props {
   contacts: ScannedContact[]
@@ -108,6 +109,16 @@ function BusinessCardFace({
             )}
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <span
+              className="rounded-full px-1.5 py-0.5 text-[8px] font-bold tracking-wide"
+              style={{
+                background: `${getStageMeta(contact.pipeline_stage).color}22`,
+                color: getStageMeta(contact.pipeline_stage).color,
+                border: `0.5px solid ${getStageMeta(contact.pipeline_stage).color}44`,
+              }}
+            >
+              {getStageMeta(contact.pipeline_stage).label}
+            </span>
             <span
               className="rounded-full px-3 py-1 text-xs font-bold tabular-nums"
               style={{

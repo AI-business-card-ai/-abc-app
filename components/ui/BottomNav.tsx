@@ -2,11 +2,12 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { IconCamera, IconCards, IconMessage, IconUser } from '@tabler/icons-react'
+import { IconCamera, IconCards, IconMessage, IconUser, IconChartFunnel } from '@tabler/icons-react'
 
 const tabs = [
   { icon: IconCamera, label: 'Scan', path: '/scan' },
   { icon: IconCards, label: 'Contacts', path: '/contacts' },
+  { icon: IconChartFunnel, label: 'Pipeline', path: '/pipeline' },
   { icon: IconMessage, label: 'Chat', path: '/chat' },
   { icon: IconUser, label: 'Profile', path: '/settings' },
 ]

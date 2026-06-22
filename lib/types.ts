@@ -1,3 +1,7 @@
+import type { PipelineStageId } from './pipeline'
+
+export type { PipelineStageId }
+
 export interface ScannedContact {
   id: string
   user_id: string
@@ -28,6 +32,11 @@ export interface ScannedContact {
   scanned_at: string
   created_at: string
   enriched_context: string | null
+  pipeline_stage: PipelineStageId | null
+  pipeline_notes: string | null
+  next_action: string | null
+  next_action_date: string | null
+  deal_value: number | null
 }
 
 export interface FollowupSequence {
