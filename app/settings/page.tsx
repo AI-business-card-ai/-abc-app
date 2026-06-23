@@ -248,7 +248,7 @@ export default function SettingsPage() {
   const subtitle = [profile.company, profile.role].filter(Boolean).join(' · ') || 'Company · Role'
 
   return (
-    <div className="min-h-screen pb-8 page-shell pt-6 lg:max-w-[600px] lg:mx-auto w-full">
+    <div className="min-h-screen pb-8 page-shell page-shell--narrow">
       {/* 1. HERO */}
       <div
         className="relative overflow-hidden flex flex-col items-center"

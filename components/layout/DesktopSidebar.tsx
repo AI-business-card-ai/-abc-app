@@ -46,13 +46,16 @@ export default function DesktopSidebar() {
     <aside
       className="fixed left-0 top-0 h-screen w-[220px] flex flex-col z-40"
       style={{
-        background: '#0d0d14',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
+        background: '#0d0f1a',
+        borderRight: '1px solid rgba(0, 212, 212, 0.1)',
       }}
     >
       <div className="px-5 pt-6 pb-8">
-        <span className="gradient-text text-lg font-black tracking-wide">ABC</span>
-        <p className="text-[10px] mt-0.5 uppercase tracking-widest" style={{ color: '#3A2060' }}>
+        <span className="gradient-logo text-lg font-black tracking-wide">ABC</span>
+        <p
+          className="text-[10px] mt-0.5 uppercase font-semibold"
+          style={{ color: '#00d4d4', letterSpacing: '2px' }}
+        >
           AI Business Card
         </p>
       </div>
@@ -68,38 +71,60 @@ export default function DesktopSidebar() {
               style={
                 active
                   ? {
-                      background: 'rgba(124,58,237,0.18)',
-                      color: '#A78BFA',
-                      border: '1px solid rgba(124,58,237,0.35)',
+                      background: 'rgba(0, 212, 212, 0.1)',
+                      color: '#00d4d4',
+                      borderLeft: '3px solid #00d4d4',
+                      paddingLeft: '9px',
                     }
-                  : { color: '#8B7AA8', border: '1px solid transparent' }
+                  : {
+                      color: '#8892b0',
+                      borderLeft: '3px solid transparent',
+                      paddingLeft: '9px',
+                    }
               }
+              onMouseEnter={(e) => {
+                if (!active) {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+                  e.currentTarget.style.color = '#f0f0ff'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!active) {
+                  e.currentTarget.style.background = 'transparent'
+                  e.currentTarget.style.color = '#8892b0'
+                }
+              }}
             >
-              <item.icon size={18} />
+              <item.icon size={18} style={{ color: active ? '#00d4d4' : 'inherit' }} />
               {item.label}
             </Link>
           )
         })}
       </nav>
 
-      <div className="px-4 py-5 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+      <div className="px-4 py-5 border-t" style={{ borderColor: 'rgba(0, 212, 212, 0.1)' }}>
         <Link href="/settings" className="flex items-center gap-3 group">
           {avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatar} alt="" className="w-9 h-9 rounded-full object-cover" />
+            <div className="gradient-ring shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={avatar} alt="" className="w-9 h-9 rounded-full object-cover" />
+            </div>
           ) : (
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold"
-              style={{ background: '#1A0A2E', color: '#A78BFA' }}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+              style={{
+                background: 'linear-gradient(135deg, #00d4d4, #f0197d)',
+                color: '#fff',
+              }}
             >
               {initials}
             </div>
           )}
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate" style={{ color: '#F0EAFF' }}>
+            <p className="text-sm font-medium truncate" style={{ color: '#f0f0ff' }}>
               {name}
             </p>
-            <p className="text-[10px]" style={{ color: '#5A3A8A' }}>
+            <p className="text-[10px] group-hover:opacity-80" style={{ color: '#00d4d4' }}>
               Settings →
             </p>
           </div>

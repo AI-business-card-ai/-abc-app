@@ -9,9 +9,9 @@ interface Props {
 }
 
 export function scoreColors(score: number): { from: string; to: string; text: string } {
-  if (score <= 40) return { from: '#F87171', to: '#DC2626', text: '#FCA5A5' }
-  if (score <= 70) return { from: '#FBBF24', to: '#F97316', text: '#FDBA74' }
-  return { from: '#4ADE80', to: '#16A34A', text: '#86EFAC' }
+  if (score <= 40) return { from: '#6b7280', to: '#4a5168', text: '#8892b0' }
+  if (score <= 70) return { from: '#fbbf24', to: '#d97706', text: '#fcd34d' }
+  return { from: '#f0197d', to: '#ef4444', text: '#fda4af' }
 }
 
 export default function MatchScore({ score, size = 88 }: Props) {
@@ -43,7 +43,7 @@ export default function MatchScore({ score, size = 88 }: Props) {
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#1A0E30"
+            stroke="rgba(139, 92, 246, 0.15)"
             strokeWidth="6"
           />
           <motion.circle

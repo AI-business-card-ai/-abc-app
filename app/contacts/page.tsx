@@ -12,8 +12,8 @@ import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
 const chipStyle = (active: boolean): React.CSSProperties =>
   active
-    ? { border: '0.5px solid #7C3AED', color: '#A78BFA', background: '#1A0A2E' }
-    : { border: '0.5px solid #1A0E30', color: '#3A2060', background: 'transparent' }
+    ? { border: '1px solid rgba(0, 212, 212, 0.5)', color: '#00d4d4', background: 'rgba(0, 212, 212, 0.08)' }
+    : { border: '1px solid rgba(139, 92, 246, 0.15)', color: '#4a5168', background: 'transparent' }
 
 export default function ContactsPage() {
   const router = useRouter()
@@ -184,7 +184,7 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="min-h-screen pb-8 page-shell pt-6">
+    <div className="min-h-screen pb-8 page-shell">
       <div className="flex items-center justify-between pb-1">
         <div>
           <h1 className="gradient-text page-heading font-black tracking-wide">CONTACTS</h1>

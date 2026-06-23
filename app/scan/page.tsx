@@ -12,8 +12,8 @@ const EVENTS = ['Medica', 'Heim Textile', 'Web Summit', 'Personal']
 
 const chipStyle = (active: boolean): React.CSSProperties =>
   active
-    ? { border: '0.5px solid #7C3AED', color: '#A78BFA', background: '#1A0A2E' }
-    : { border: '0.5px solid #1A0E30', color: '#3A2060', background: 'transparent' }
+    ? { border: '1px solid rgba(0, 212, 212, 0.5)', color: '#00d4d4', background: 'rgba(0, 212, 212, 0.08)' }
+    : { border: '1px solid rgba(139, 92, 246, 0.15)', color: '#4a5168', background: 'transparent' }
 
 export default function ScanPage() {
   const router = useRouter()
@@ -206,17 +206,17 @@ export default function ScanPage() {
     )}&body=${encodeURIComponent(`Hi, I would like to upgrade my ABC account to ${plan} plan.`)}`
 
   return (
-    <div className="min-h-screen pb-8 page-shell lg:max-w-[500px] lg:mx-auto w-full">
+    <div className="min-h-screen pb-8 page-shell page-shell--scan w-full max-w-[480px] mx-auto">
       <LoadingMatrix isVisible={isLoading} />
 
       {/* 1. TOP BAR */}
       <div
-        className="flex items-center justify-between px-4 py-4"
-        style={{ background: '#06040C', borderBottom: '0.5px solid #1A0E30' }}
+        className="flex items-center justify-between px-4 py-4 -mx-4 lg:-mx-6"
+        style={{ background: '#141628', borderBottom: '1px solid rgba(139, 92, 246, 0.12)' }}
       >
         <span className="gradient-text text-xl font-black tracking-widest">ABC</span>
         <button onClick={() => router.push('/contacts')} aria-label="Close">
-          <IconX size={20} style={{ color: '#2A1A4A' }} />
+          <IconX size={20} style={{ color: '#8892b0' }} />
         </button>
       </div>
 
@@ -224,9 +224,10 @@ export default function ScanPage() {
         <p
           style={{
             fontSize: '12px',
-            color: scansRemaining > 10 ? '#10B981' : scansRemaining > 3 ? '#F59E0B' : '#EF4444',
+            color: '#00d4d4',
             textAlign: 'center',
-            marginTop: '8px',
+            marginTop: '12px',
+            fontWeight: 600,
           }}
         >
           {scansRemaining} scans remaining
@@ -235,62 +236,61 @@ export default function ScanPage() {
 
       {/* 2. CAMERA CARD */}
       <div
-        className="mx-4 mt-4 rounded-xl p-5 relative overflow-hidden"
-        style={{ background: '#06040C', border: '0.5px solid #1A0E30' }}
+        className="mt-4 rounded-2xl p-5 relative overflow-hidden abc-card"
       >
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse, #7C3AED1A, transparent)' }}
+          style={{ background: 'radial-gradient(ellipse, rgba(0,212,212,0.08), transparent)' }}
         />
 
-        {/* Scan frame 240x152 */}
+        {/* Scan frame */}
         <div
-          className="relative mx-auto flex items-center justify-center"
-          style={{ width: 240, height: 152 }}
+          className="scan-frame relative mx-auto flex items-center justify-center"
+          style={{ width: '100%', maxWidth: 280, height: 176 }}
         >
           {imagePreview ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={imagePreview}
               alt="Business card preview"
-              className="absolute inset-0 w-full h-full object-cover rounded-lg z-10"
+              className="absolute inset-0 w-full h-full object-cover rounded-[14px] z-10"
             />
           ) : (
-            <IconCreditCard size={44} className="relative z-10" style={{ color: '#2A1A4A' }} />
+            <IconCreditCard size={44} className="relative z-10" style={{ color: '#4a5168' }} />
           )}
-          {/* Corner brackets — animated pulse */}
-          <span className="absolute left-0 top-0 w-5 h-5 z-20 animate-pulse" style={{ borderLeft: '2px solid #A78BFA', borderTop: '2px solid #A78BFA', filter: 'drop-shadow(0 0 6px rgba(167,139,250,0.8))' }} />
-          <span className="absolute right-0 top-0 w-5 h-5 z-20 animate-pulse" style={{ borderRight: '2px solid #A78BFA', borderTop: '2px solid #A78BFA', filter: 'drop-shadow(0 0 6px rgba(167,139,250,0.8))' }} />
-          <span className="absolute left-0 bottom-0 w-5 h-5 z-20 animate-pulse" style={{ borderLeft: '2px solid #A78BFA', borderBottom: '2px solid #A78BFA', filter: 'drop-shadow(0 0 6px rgba(167,139,250,0.8))' }} />
-          <span className="absolute right-0 bottom-0 w-5 h-5 z-20 animate-pulse" style={{ borderRight: '2px solid #A78BFA', borderBottom: '2px solid #A78BFA', filter: 'drop-shadow(0 0 6px rgba(167,139,250,0.8))' }} />
+          <span className="scan-corner scan-corner-tl z-20 animate-pulse" />
+          <span className="scan-corner scan-corner-tr z-20 animate-pulse" />
+          <span className="scan-corner scan-corner-bl z-20 animate-pulse" />
+          <span className="scan-corner scan-corner-br z-20 animate-pulse" />
         </div>
 
-        <p className="text-center text-xs mt-3 relative" style={{ color: '#2A1A4A' }}>
+        <p className="text-center text-xs mt-3 relative" style={{ color: '#8892b0' }}>
           Point at business card
         </p>
-        <p className="text-center text-xs mt-1.5 relative leading-snug px-2" style={{ color: '#3A2060' }}>
+        <p className="text-center text-xs mt-1.5 relative leading-snug px-2" style={{ color: '#4a5168' }}>
           💡 Tip: Place multiple business cards side by side and scan them all at once!
         </p>
 
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={() => cameraInputRef.current?.click()}
-          className="glow-btn relative w-full rounded-xl text-white font-bold py-3 mt-4"
+          className="btn-scan relative w-full rounded-xl text-white font-bold mt-4"
+          style={{ height: 52 }}
         >
           📷 Take Photo
         </motion.button>
 
-        <div className="flex items-center gap-3 my-3 text-xs relative" style={{ color: '#3A2060' }}>
-          <span className="h-px flex-1" style={{ background: '#1A0E30' }} />
+        <div className="flex items-center gap-3 my-3 text-xs relative" style={{ color: '#4a5168' }}>
+          <span className="h-px flex-1" style={{ background: 'rgba(139, 92, 246, 0.15)' }} />
           or
-          <span className="h-px flex-1" style={{ background: '#1A0E30' }} />
+          <span className="h-px flex-1" style={{ background: 'rgba(139, 92, 246, 0.15)' }} />
         </div>
 
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={() => galleryInputRef.current?.click()}
-          className="relative w-full rounded-xl font-medium py-3"
-          style={{ background: 'transparent', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
+          className="btn-outline-cyan relative w-full rounded-xl font-medium"
+          style={{ height: 52 }}
         >
           ↑ Upload from Gallery
         </motion.button>
@@ -313,18 +313,18 @@ export default function ScanPage() {
       </div>
 
       {/* 3. NOTE */}
-      <div className="mx-4 mt-4 flex flex-col gap-2">
-        <span className="tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>NOTE</span>
+      <div className="mt-4 flex flex-col gap-2">
+        <span className="tracking-widest uppercase abc-label">NOTE</span>
         <div className="flex items-center gap-2">
           <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isTranscribing}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg shrink-0 disabled:opacity-60"
-            style={{ background: '#1A0A2E', border: '0.5px solid #7C3AED44', color: '#A78BFA' }}
+            style={{ background: 'rgba(240, 25, 125, 0.12)', border: '1px solid rgba(240, 25, 125, 0.4)', color: '#f0197d' }}
           >
             {isTranscribing ? (
               <>
-                <span className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#A78BFA', borderRightColor: '#A78BFA' }} />
+                <span className="w-3.5 h-3.5 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#f0197d', borderRightColor: '#f0197d' }} />
                 <span className="text-xs">Transcribing...</span>
               </>
             ) : isRecording ? (
@@ -343,15 +343,14 @@ export default function ScanPage() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Where did we meet..."
-            className="flex-1 rounded-lg px-3 py-2 text-base outline-none"
-            style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
+            className="flex-1 rounded-lg px-3 py-2 text-base outline-none abc-input"
           />
         </div>
       </div>
 
       {/* 4. EVENT */}
-      <div className="mx-4 mt-3 flex flex-col gap-2">
-        <span className="tracking-widest uppercase" style={{ fontSize: '9px', color: '#3A2060' }}>EVENT</span>
+      <div className="mt-3 flex flex-col gap-2">
+        <span className="tracking-widest uppercase abc-label">EVENT</span>
         <div className="flex flex-wrap gap-2">
           {events.map((ev) => (
             <button
@@ -371,8 +370,8 @@ export default function ScanPage() {
               onBlur={addCustomTag}
               onKeyDown={(e) => e.key === 'Enter' && addCustomTag()}
               placeholder="Name..."
-              className="w-24 px-3 py-1.5 rounded-full text-xs outline-none"
-              style={{ background: '#0D0A18', border: '0.5px solid #7C3AED', color: '#F0EAFF' }}
+              className="w-24 px-3 py-1.5 rounded-full text-xs outline-none abc-input"
+              style={{ borderColor: 'rgba(0, 212, 212, 0.5)' }}
             />
           ) : (
             <button
@@ -387,23 +386,38 @@ export default function ScanPage() {
       </div>
 
       {error && (
-        <p className="mx-4 mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
+        <p className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
           {error}
         </p>
       )}
 
       {/* 5. ANALYZE BUTTON — fixed above bottom nav */}
       <div
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+64px)] left-1/2 -translate-x-1/2 w-full max-w-[430px] p-4 z-20"
-        style={{ background: '#07050E', borderTop: '0.5px solid #1A0E30' }}
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+64px)] left-1/2 -translate-x-1/2 w-full max-w-[480px] p-4 z-20 lg:hidden"
+        style={{ background: '#0d0f1a', borderTop: '1px solid rgba(0, 212, 212, 0.1)' }}
       >
         <motion.button
           whileTap={{ scale: 0.97 }}
           disabled={!selectedImage || isLoading}
           onClick={handleAnalyze}
-          className={`glow-btn w-full rounded-xl text-white font-semibold py-3.5 ${
+          className={`btn-analyze w-full rounded-xl text-white font-semibold ${
             !selectedImage || isLoading ? 'opacity-40 cursor-not-allowed' : ''
           }`}
+          style={{ height: 52 }}
+        >
+          ✦ Analyze with AI
+        </motion.button>
+      </div>
+
+      <div className="hidden lg:block mt-6 pb-4">
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          disabled={!selectedImage || isLoading}
+          onClick={handleAnalyze}
+          className={`btn-analyze w-full rounded-xl text-white font-semibold ${
+            !selectedImage || isLoading ? 'opacity-40 cursor-not-allowed' : ''
+          }`}
+          style={{ height: 52 }}
         >
           ✦ Analyze with AI
         </motion.button>

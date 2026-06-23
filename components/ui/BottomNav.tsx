@@ -19,7 +19,7 @@ export default function BottomNav() {
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 w-full z-30 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
-      style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
+      style={{ background: '#0d0f1a', borderTop: '1px solid rgba(0, 212, 212, 0.1)' }}
     >
       <div className="flex" style={{ minHeight: 64 }}>
         {tabs.map((tab) => {
@@ -33,22 +33,26 @@ export default function BottomNav() {
             >
               {active && (
                 <span
-                  className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                  style={{ background: '#A78BFA', boxShadow: '0 0 6px #A78BFA' }}
+                  className="absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full"
+                  style={{ background: '#f0197d', boxShadow: '0 0 6px rgba(240, 25, 125, 0.8)' }}
                 />
               )}
               <tab.icon
                 size={22}
                 style={
                   active
-                    ? { color: '#A78BFA', filter: 'drop-shadow(0 0 4px rgba(167,139,250,0.5))' }
-                    : { color: '#2A1A4A' }
+                    ? { color: '#00d4d4', filter: 'drop-shadow(0 0 4px rgba(0, 212, 212, 0.5))' }
+                    : { color: '#4a5168' }
                 }
               />
               {active ? (
-                <span className="text-[10px] font-medium gradient-text">{tab.label}</span>
+                <span className="text-[10px] font-medium" style={{ color: '#00d4d4' }}>
+                  {tab.label}
+                </span>
               ) : (
-                <span className="text-[10px] font-medium" style={{ color: '#2A1A4A' }}>{tab.label}</span>
+                <span className="text-[10px] font-medium" style={{ color: '#4a5168' }}>
+                  {tab.label}
+                </span>
               )}
             </motion.button>
           )

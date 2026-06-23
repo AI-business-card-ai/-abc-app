@@ -12,14 +12,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isAuthShell) {
     return (
-      <div className="min-h-screen flex justify-center" style={{ background: '#07050E' }}>
+      <div className="min-h-screen flex justify-center" style={{ background: '#0d0f1a' }}>
         <div className="w-full max-w-[430px] min-h-screen relative">{children}</div>
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#0a0a0f' }}>
+    <div className="flex min-h-screen" style={{ background: '#0d0f1a' }}>
       <div className="hidden lg:block shrink-0 w-[220px]" aria-hidden>
         <DesktopSidebar />
       </div>

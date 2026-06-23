@@ -20,21 +20,21 @@ export type DashboardMetrics = {
 }
 
 const STATUS_COLORS: Record<CrmStatus, string> = {
-  NEW: '#A78BFA',
-  ENRICHED: '#38BDF8',
-  CONTACTED: '#FACC15',
-  IN_CONVERSATION: '#FB923C',
-  CLOSED: '#22C55E',
+  NEW: '#00d4d4',
+  ENRICHED: '#a78bfa',
+  CONTACTED: '#f0197d',
+  IN_CONVERSATION: '#8b5cf6',
+  CLOSED: '#22c55e',
 }
 
 export function getStatusColor(status: CrmStatus | null | undefined) {
   return STATUS_COLORS[status || 'NEW'] || '#A78BFA'
 }
 
-export function getScoreTier(score: number): { tier: ScoreTier; label: string; bg: string } {
-  if (score >= 71) return { tier: 'hot', label: 'Hot', bg: '#16a34a' }
-  if (score >= 41) return { tier: 'warm', label: 'Warm', bg: '#ca8a04' }
-  return { tier: 'cold', label: 'Cold', bg: '#dc2626' }
+export function getScoreTier(score: number): { tier: ScoreTier; label: string; bg: string; className: string } {
+  if (score >= 70) return { tier: 'hot', label: 'Hot', bg: 'linear-gradient(135deg, #f0197d, #ef4444)', className: 'score-badge-hot' }
+  if (score >= 41) return { tier: 'warm', label: 'Warm', bg: 'linear-gradient(135deg, #f59e0b, #d97706)', className: 'score-badge-warm' }
+  return { tier: 'cold', label: 'Cold', bg: '#4a5168', className: 'score-badge-cold' }
 }
 
 export function daysSinceActivity(contact: ScannedContact): number {
@@ -192,10 +192,10 @@ export function actionButtonStyle(
   color: ActionColor,
   urgent: boolean
 ): { background: string; color: string } {
-  if (urgent || color === 'red') return { background: '#dc2626', color: '#fff' }
-  if (color === 'orange') return { background: '#ea580c', color: '#fff' }
-  if (color === 'blue') return { background: '#6366f1', color: '#fff' }
-  return { background: '#374151', color: '#fff' }
+  if (urgent || color === 'red') return { background: 'linear-gradient(135deg, #f0197d, #ef4444)', color: '#fff' }
+  if (color === 'orange') return { background: 'linear-gradient(135deg, #f0197d, #8b5cf6)', color: '#fff' }
+  if (color === 'blue') return { background: 'linear-gradient(135deg, #00d4d4, #8b5cf6)', color: '#fff' }
+  return { background: '#4a5168', color: '#f0f0ff' }
 }
 
 export function formatPipelineValue(value: number) {

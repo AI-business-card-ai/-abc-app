@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#07050E',
+  themeColor: '#0d0f1a',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
@@ -21,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-[#0a0a0f] text-[#F0EAFF]">
+      <body className="bg-[#0d0f1a] text-[#f0f0ff]">
         <AppShell>{children}</AppShell>
       </body>
     </html>
