@@ -1,212 +1,215 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
-import { IconMail, IconPhone } from '@tabler/icons-react'
+import { motion } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
 import BottomNav from '@/components/ui/BottomNav'
-import { PIPELINE_STAGES, daysSinceScan, isActionOverdue } from '@/lib/pipeline'
 import { logCrmActivity } from '@/lib/crm-client'
-import type { CrmStatus, PipelineStageId, ScannedContact } from '@/lib/types'
+import {
+  computeDashboardMetrics,
+  filterContacts,
+  sortContacts,
+  getAiNextStep,
+  getScoreTier,
+  getStatusColor,
+  daysSinceActivity,
+  actionButtonStyle,
+  formatPipelineValue,
+  type FilterTab,
+} from '@/lib/pipeline-ai'
+import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
-const EMPTY_HINTS: Record<PipelineStageId, string> = {
-  new: 'New scans land here',
-  'follow-up': 'Drag contacts needing follow-up',
-  meeting: 'Schedule meetings here',
-  deal: 'Active deals in progress',
-  won: 'Closed-won contacts',
-}
+const FILTER_TABS: { id: FilterTab; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'hot', label: '🔥 Hot Leads' },
+  { id: 'action', label: '⚡ Action Needed' },
+  { id: 'week', label: '📅 This Week' },
+  { id: 'closed', label: '✓ Closed' },
+]
 
-const CRM_STATUS_COLORS: Record<CrmStatus, string> = {
-  NEW: '#A78BFA',
-  ENRICHED: '#38BDF8',
-  CONTACTED: '#FACC15',
-  IN_CONVERSATION: '#FB923C',
-  CLOSED: '#22C55E',
-}
+function ContactAvatar({ contact }: { contact: ScannedContact }) {
+  const initials =
+    contact.name
+      ?.split(' ')
+      .map((n) => n[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase() || '?'
 
-function leadScoreStyle(score: number) {
-  if (score <= 40) return { color: '#EF4444', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.35)' }
-  if (score <= 70) return { color: '#FACC15', bg: 'rgba(250,204,21,0.12)', border: 'rgba(250,204,21,0.35)' }
-  return { color: '#22C55E', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.35)' }
-}
-
-function resolveDropStage(x: number, y: number, columnRefs: Record<string, HTMLDivElement | null>) {
-  for (const stage of PIPELINE_STAGES) {
-    const el = columnRefs[stage.id]
-    if (!el) continue
-    const rect = el.getBoundingClientRect()
-    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-      return stage.id
-    }
+  if (contact.photo_url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={contact.photo_url}
+        alt=""
+        className="w-10 h-10 rounded-full object-cover shrink-0"
+        style={{ border: '1px solid rgba(255,255,255,0.12)' }}
+      />
+    )
   }
-  const hit = document.elementFromPoint(x, y)?.closest('[data-pipeline-stage]') as HTMLElement | null
-  return (hit?.dataset.pipelineStage as PipelineStageId) || null
-}
-
-function PipelineCard({
-  contact,
-  stageColor,
-  stageBorder,
-  onNavigate,
-  onDragStart,
-  onDragEnd,
-  onQuickAction,
-}: {
-  contact: ScannedContact
-  stageColor: string
-  stageBorder: string
-  onNavigate: () => void
-  onDragStart: (x: number, y: number) => void
-  onDragEnd: (contactId: string, x: number, y: number) => void
-  onQuickAction: (type: 'chat' | 'email' | 'phone') => void
-}) {
-  const overdue = isActionOverdue(contact.next_action_date)
-  const days = daysSinceScan(contact.scanned_at)
-  const score = contact.ai_lead_score ?? contact.match_score ?? 0
-  const scoreVisual = leadScoreStyle(score)
-  const crmStatus = (contact.crm_status as CrmStatus) || 'NEW'
-  const crmColor = CRM_STATUS_COLORS[crmStatus] || '#A78BFA'
-  const contactLine = contact.email || contact.phone
 
   return (
-    <motion.div
-      layout
-      drag
-      dragElastic={0.12}
-      dragMomentum={false}
-      dragSnapToOrigin
-      whileDrag={{
-        scale: 1.04,
-        zIndex: 60,
-        boxShadow: `0 16px 48px ${stageColor}44`,
-        cursor: 'grabbing',
-      }}
-      onDragStart={(_, info) => onDragStart(info.point.x, info.point.y)}
-      onDragEnd={(_, info) => onDragEnd(contact.id, info.point.x, info.point.y)}
-      onClick={onNavigate}
-      className="rounded-2xl p-3.5 cursor-grab active:cursor-grabbing relative select-none"
+    <div
+      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
       style={{
-        background: 'linear-gradient(145deg, #0D0A18 0%, #080610 100%)',
-        border: `1px solid ${stageBorder}`,
-        boxShadow: `inset 0 1px 0 ${stageColor}18`,
-        touchAction: 'none',
+        background: 'linear-gradient(135deg, #1E0A3C, #0A1A2E)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        color: '#F0EAFF',
       }}
     >
-      {overdue && (
-        <span
-          className="absolute top-3 right-3 w-2 h-2 rounded-full"
-          style={{ background: '#EF4444', boxShadow: '0 0 8px #EF4444' }}
-          title="Action overdue"
-        />
-      )}
+      {initials}
+    </div>
+  )
+}
 
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="min-w-0 flex-1 pr-1">
-          <p className="font-bold text-[15px] leading-tight truncate" style={{ color: '#F0EAFF' }}>
-            {contact.name?.trim() || 'Unknown contact'}
-          </p>
-          <p className="text-xs truncate mt-1" style={{ color: '#8B7AA8' }}>
-            {contact.company?.trim() || 'No company'}
-          </p>
-          {contact.role && (
-            <p className="text-[11px] truncate mt-0.5" style={{ color: '#5A3A8A' }}>
-              {contact.role}
-            </p>
-          )}
-        </div>
-        <span
-          className="shrink-0 rounded-full px-2 py-1 text-[11px] font-bold tabular-nums"
-          style={{
-            background: scoreVisual.bg,
-            color: scoreVisual.color,
-            border: `1px solid ${scoreVisual.border}`,
-          }}
-        >
-          {score}
-        </span>
-      </div>
+function ContactRow({
+  contact,
+  onAction,
+}: {
+  contact: ScannedContact
+  onAction: (contact: ScannedContact, step: ReturnType<typeof getAiNextStep>) => void
+}) {
+  const score = contact.ai_lead_score ?? contact.match_score ?? 0
+  const scoreTier = getScoreTier(score)
+  const status = contact.crm_status || 'NEW'
+  const statusColor = getStatusColor(contact.crm_status)
+  const days = daysSinceActivity(contact)
+  const step = getAiNextStep(contact)
+  const btnStyle = actionButtonStyle(step.color, step.urgent)
 
-      {contactLine && (
-        <div className="flex items-center gap-1.5 mb-2 min-w-0">
-          {contact.email ? (
-            <IconMail size={13} style={{ color: '#3A2060', flexShrink: 0 }} />
-          ) : (
-            <IconPhone size={13} style={{ color: '#3A2060', flexShrink: 0 }} />
-          )}
-          <span className="text-[11px] truncate" style={{ color: '#8B7AA8' }}>
-            {contact.email || contact.phone}
-          </span>
-        </div>
-      )}
-
-      <div className="flex items-center gap-1.5 flex-wrap mb-2">
-        <span
-          className="rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wide"
-          style={{
-            background: `${crmColor}18`,
-            color: crmColor,
-            border: `1px solid ${crmColor}44`,
-          }}
-        >
-          {crmStatus.replace(/_/g, ' ')}
-        </span>
-        <span className="text-[10px]" style={{ color: '#3A2060' }}>
-          {days === 0 ? 'Scanned today' : `${days}d ago`}
-        </span>
-      </div>
-
-      {contact.next_action && (
-        <p
-          className="text-[10px] mb-2 truncate"
-          style={{ color: overdue ? '#FCA5A5' : '#6B5A8A' }}
-          title={overdue ? 'Action overdue' : contact.next_action}
-        >
-          → {contact.next_action}
-        </p>
-      )}
-
+  return (
+    <>
+      {/* Desktop row */}
       <div
-        className="flex items-center gap-1 pt-2 border-t"
-        style={{ borderColor: '#1A0E30' }}
-        onPointerDown={(e) => e.stopPropagation()}
+        className="hidden md:grid md:grid-cols-[minmax(220px,1.2fr)_minmax(280px,1fr)_minmax(320px,1.2fr)] md:items-center md:gap-6 px-5 py-4 rounded-xl transition-colors cursor-default"
+        style={{
+          background: '#12121a',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = '#1a1a2e'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = '#12121a'
+        }}
       >
-        {[
-          { key: 'chat' as const, label: '💬 Chat' },
-          { key: 'email' as const, label: '✉ Email' },
-          { key: 'phone' as const, label: '📱 Phone' },
-        ].map((action) => (
-          <button
-            key={action.key}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onQuickAction(action.key)
-            }}
-            className="flex-1 rounded-lg py-1.5 text-[10px] font-semibold transition-colors"
+        <div className="flex items-center gap-3 min-w-0">
+          <ContactAvatar contact={contact} />
+          <div className="min-w-0">
+            <p className="font-bold text-base truncate" style={{ color: '#F0EAFF' }}>
+              {contact.name?.trim() || 'Unknown contact'}
+            </p>
+            <p className="text-sm truncate" style={{ color: '#8B7AA8' }}>
+              {[contact.company, contact.role].filter(Boolean).join(' · ') || 'No company'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className="rounded-lg px-3 py-1.5 text-sm font-bold text-white min-w-[72px] text-center"
+            style={{ background: scoreTier.bg }}
+          >
+            {score} {scoreTier.label}
+          </span>
+          <span
+            className="rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wide uppercase"
             style={{
-              background: '#0A0812',
-              border: '0.5px solid #1A0E30',
-              color: '#A78BFA',
+              background: `${statusColor}18`,
+              color: statusColor,
+              border: `1px solid ${statusColor}44`,
             }}
           >
-            {action.label}
+            {status.replace(/_/g, ' ')}
+          </span>
+          <span className="text-xs" style={{ color: '#6B7280' }}>
+            {days === 0 ? 'Today' : `${days}d ago`}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-4 min-w-0">
+          <p className="flex-1 text-sm leading-snug min-w-0" style={{ color: '#a78bfa' }}>
+            <span className="mr-1.5">⚡</span>
+            {step.text}
+          </p>
+          <button
+            type="button"
+            onClick={() => onAction(contact, step)}
+            className="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold whitespace-nowrap transition-opacity hover:opacity-90"
+            style={btnStyle}
+          >
+            {step.action}
           </button>
-        ))}
+        </div>
       </div>
-    </motion.div>
+
+      {/* Mobile card */}
+      <div
+        className="md:hidden rounded-xl p-4 flex flex-col gap-3"
+        style={{
+          background: '#12121a',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <ContactAvatar contact={contact} />
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-base truncate" style={{ color: '#F0EAFF' }}>
+              {contact.name?.trim() || 'Unknown contact'}
+            </p>
+            <p className="text-sm truncate" style={{ color: '#8B7AA8' }}>
+              {[contact.company, contact.role].filter(Boolean).join(' · ') || 'No company'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className="rounded-lg px-2.5 py-1 text-xs font-bold text-white"
+            style={{ background: scoreTier.bg }}
+          >
+            {score} {scoreTier.label}
+          </span>
+          <span
+            className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+            style={{
+              background: `${statusColor}18`,
+              color: statusColor,
+              border: `1px solid ${statusColor}44`,
+            }}
+          >
+            {status.replace(/_/g, ' ')}
+          </span>
+          <span className="text-xs" style={{ color: '#6B7280' }}>
+            {days === 0 ? 'Today' : `${days} days ago`}
+          </span>
+        </div>
+
+        <p className="text-sm leading-snug" style={{ color: '#a78bfa' }}>
+          <span className="mr-1">⚡</span>
+          {step.text}
+        </p>
+
+        <button
+          type="button"
+          onClick={() => onAction(contact, step)}
+          className="w-full rounded-lg py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
+          style={btnStyle}
+        >
+          {step.action}
+        </button>
+      </div>
+    </>
   )
 }
 
 export default function PipelinePage() {
   const router = useRouter()
   const supabase = createClientComponent()
-  const columnRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [contacts, setContacts] = useState<ScannedContact[]>([])
   const [loading, setLoading] = useState(true)
-  const dragMoved = useRef(false)
-  const dragStartPos = useRef({ x: 0, y: 0 })
+  const [filter, setFilter] = useState<FilterTab>('all')
 
   const loadContacts = useCallback(async () => {
     setLoading(true)
@@ -237,195 +240,128 @@ export default function PipelinePage() {
     loadContacts()
   }, [loadContacts])
 
-  const updateStage = useCallback(async (contactId: string, stage: PipelineStageId) => {
-    setContacts((prev) =>
-      prev.map((c) => (c.id === contactId ? { ...c, pipeline_stage: stage } : c))
-    )
+  const metrics = useMemo(() => computeDashboardMetrics(contacts), [contacts])
 
-    try {
-      const res = await fetch('/api/pipeline/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId, stage }),
-      })
-      if (!res.ok) loadContacts()
-    } catch {
-      loadContacts()
-    }
-  }, [loadContacts])
+  const visibleContacts = useMemo(() => {
+    const filtered = filterContacts(contacts, filter)
+    return sortContacts(filtered)
+  }, [contacts, filter])
 
-  const handleDragEnd = useCallback(
-    (contactId: string, x: number, y: number) => {
-      const dx = Math.abs(x - dragStartPos.current.x)
-      const dy = Math.abs(y - dragStartPos.current.y)
-      if (dx > 8 || dy > 8) dragMoved.current = true
-
-      window.setTimeout(() => {
-        dragMoved.current = false
-      }, 200)
-
-      const targetStage = resolveDropStage(x, y, columnRefs.current)
-      if (!targetStage) return
-
-      const contact = contacts.find((c) => c.id === contactId)
-      if (contact && contact.pipeline_stage !== targetStage) {
-        updateStage(contactId, targetStage)
-      }
-    },
-    [contacts, updateStage]
-  )
-
-  const handleQuickAction = useCallback(
-    (contact: ScannedContact, type: 'chat' | 'email' | 'phone') => {
-      if (type === 'chat') {
-        router.push('/chat/' + contact.id)
-        return
-      }
-      if (type === 'email') {
-        if (contact.email) {
-          window.open(`mailto:${contact.email}`, '_self')
-        }
-        logCrmActivity({
-          contactId: contact.id,
-          activityType: 'EMAIL_SENT',
-          activityDetail: `Email opened from pipeline for ${contact.name}`,
-          metadata: { email: contact.email },
-        })
-        return
-      }
-      if (contact.phone) {
-        window.open(`tel:${contact.phone}`, '_self')
-      } else {
-        window.open(`/api/contact/vcard/${contact.id}`, '_self')
-      }
+  const handleAction = useCallback(
+    (contact: ScannedContact, step: ReturnType<typeof getAiNextStep>) => {
       logCrmActivity({
         contactId: contact.id,
-        activityType: contact.phone ? 'WHATSAPP_OPENED' : 'VCARD_SAVED',
-        activityDetail: contact.phone
-          ? `Phone action from pipeline for ${contact.name}`
-          : `vCard saved from pipeline for ${contact.name}`,
-        metadata: { phone: contact.phone },
+        activityType: 'MESSAGE_GENERATED',
+        activityDetail: `Pipeline: ${step.action} — ${contact.name}`,
+        metadata: { nextStep: step.text, action: step.action, urgent: step.urgent },
       })
+      router.push('/contact/' + contact.id)
     },
     [router]
   )
 
-  const grouped = PIPELINE_STAGES.map((stage) => ({
-    ...stage,
-    items: contacts.filter((c) => (c.pipeline_stage || 'new') === stage.id),
-  }))
-
-  const total = contacts.length
+  const metricCards = [
+    { label: 'Contacts', value: String(metrics.total), filter: 'all' as FilterTab },
+    { label: 'Hot Leads', value: String(metrics.hotLeads), filter: 'hot' as FilterTab },
+    { label: 'Need Follow-up', value: String(metrics.needFollowUp), filter: 'action' as FilterTab },
+    { label: 'Avg Score', value: String(metrics.avgScore), filter: 'all' as FilterTab },
+    { label: 'Pipeline', value: formatPipelineValue(metrics.pipelineValue), filter: 'all' as FilterTab },
+  ]
 
   return (
-    <div className="min-h-screen pb-28" style={{ background: '#07050E' }}>
+    <div className="min-h-screen pb-28" style={{ background: '#0a0a0f' }}>
       <div className="px-4 pt-6 pb-4">
         <h1 className="gradient-text text-xl font-black tracking-wide">PIPELINE</h1>
-        <p className="text-xs mt-1.5" style={{ color: '#5A3A8A' }}>
-          {total} contact{total !== 1 ? 's' : ''} · drag cards between stages
+        <p className="text-xs mt-1" style={{ color: '#6B7280' }}>
+          AI-powered sales intelligence
         </p>
       </div>
 
-      {loading ? (
-        <div className="py-20 flex justify-center">
-          <div
-            className="w-7 h-7 rounded-full border-2 border-transparent animate-spin"
-            style={{ borderTopColor: '#7C3AED', borderRightColor: '#0EA5E9' }}
-          />
-        </div>
-      ) : total === 0 ? (
-        <div className="flex flex-col items-center gap-4 py-16 px-6 text-center">
-          <p className="text-sm" style={{ color: '#3A2060' }}>No contacts in pipeline yet</p>
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => router.push('/scan')}
-            className="glow-btn rounded-xl text-white px-5 py-2.5"
-          >
-            📷 Scan a card
-          </motion.button>
-        </div>
-      ) : (
+      {/* AI Summary Dashboard */}
+      <div className="mx-4 mb-4 rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
         <div
-          className="flex gap-3 px-4 pb-6 overflow-x-auto snap-x snap-mandatory md:grid md:grid-cols-5 md:overflow-visible md:snap-none"
-          style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+          className="px-4 py-5"
+          style={{
+            background: 'linear-gradient(135deg, #1a0a2e 0%, #0a1628 50%, #0a0a0f 100%)',
+          }}
         >
-          {grouped.map((column) => (
-            <div
-              key={column.id}
-              data-pipeline-stage={column.id}
-              ref={(el) => {
-                columnRefs.current[column.id] = el
-              }}
-              className="snap-center shrink-0 w-[85vw] md:w-auto flex flex-col rounded-2xl overflow-hidden"
-              style={{
-                background: '#06040C',
-                border: `1px solid ${column.border}`,
-                minHeight: 460,
-                boxShadow: `0 4px 24px ${column.color}0A`,
-              }}
-            >
-              <div
-                className="px-4 py-3.5 flex items-center justify-between shrink-0"
+          <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: '#a78bfa' }}>
+            AI Summary
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {metricCards.map((m) => (
+              <button
+                key={m.label}
+                type="button"
+                onClick={() => setFilter(m.filter)}
+                className="text-left rounded-xl px-3 py-2.5 transition-colors"
                 style={{
-                  background: `linear-gradient(135deg, ${column.bg} 0%, #06040C 100%)`,
-                  borderBottom: `1px solid ${column.border}`,
+                  background: filter === m.filter && m.filter !== 'all' ? 'rgba(167,139,250,0.12)' : 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.06)',
                 }}
               >
-                <span
-                  className="text-xs font-black tracking-widest uppercase"
-                  style={{ color: column.color }}
-                >
-                  {column.label}
-                </span>
-                <span
-                  className="text-xs font-bold tabular-nums rounded-full min-w-[26px] h-[26px] flex items-center justify-center px-2"
-                  style={{ background: `${column.color}22`, color: column.color, border: `1px solid ${column.border}` }}
-                >
-                  {column.items.length}
-                </span>
-              </div>
-
-              <div className="flex-1 p-2.5 flex flex-col gap-2.5 overflow-y-auto max-h-[calc(100vh-240px)]">
-                <AnimatePresence mode="popLayout">
-                  {column.items.map((contact) => (
-                    <PipelineCard
-                      key={contact.id}
-                      contact={contact}
-                      stageColor={column.color}
-                      stageBorder={column.border}
-                      onNavigate={() => {
-                        if (dragMoved.current) return
-                        router.push('/contact/' + contact.id)
-                      }}
-                      onDragStart={(x, y) => {
-                        dragMoved.current = false
-                        dragStartPos.current = { x, y }
-                      }}
-                      onDragEnd={handleDragEnd}
-                      onQuickAction={(type) => handleQuickAction(contact, type)}
-                    />
-                  ))}
-                </AnimatePresence>
-
-                {column.items.length === 0 && (
-                  <div
-                    className="flex flex-col items-center justify-center py-10 px-4 text-center rounded-xl mx-1"
-                    style={{
-                      border: `1px dashed ${column.border}`,
-                      background: `${column.color}08`,
-                    }}
-                  >
-                    <span className="text-2xl mb-2 opacity-40">◎</span>
-                    <p className="text-[11px] leading-relaxed" style={{ color: '#4A3868' }}>
-                      {EMPTY_HINTS[column.id]}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+                <p className="text-xl font-black tabular-nums" style={{ color: '#F0EAFF' }}>
+                  {m.value}
+                </p>
+                <p className="text-[10px] mt-0.5 uppercase tracking-wide" style={{ color: '#8B7AA8' }}>
+                  {m.label}
+                </p>
+              </button>
+            ))}
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Filter tabs */}
+      <div className="px-4 mb-4 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        {FILTER_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setFilter(tab.id)}
+            className="shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors"
+            style={
+              filter === tab.id
+                ? { background: '#6366f1', color: '#fff', border: '1px solid #6366f1' }
+                : { background: '#12121a', color: '#8B7AA8', border: '1px solid rgba(255,255,255,0.08)' }
+            }
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Contact list */}
+      <div className="px-4 flex flex-col gap-2">
+        {loading ? (
+          <div className="py-20 flex justify-center">
+            <div
+              className="w-7 h-7 rounded-full border-2 border-transparent animate-spin"
+              style={{ borderTopColor: '#6366f1', borderRightColor: '#a78bfa' }}
+            />
+          </div>
+        ) : contacts.length === 0 ? (
+          <div className="py-16 text-center">
+            <p className="text-sm mb-4" style={{ color: '#6B7280' }}>No contacts yet</p>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => router.push('/scan')}
+              className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
+              style={{ background: '#6366f1' }}
+            >
+              Scan your first card
+            </motion.button>
+          </div>
+        ) : visibleContacts.length === 0 ? (
+          <p className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+            No contacts match this filter.
+          </p>
+        ) : (
+          visibleContacts.map((contact) => (
+            <ContactRow key={contact.id} contact={contact} onAction={handleAction} />
+          ))
+        )}
+      </div>
 
       <BottomNav />
     </div>
