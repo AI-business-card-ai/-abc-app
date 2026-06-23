@@ -68,9 +68,6 @@ export default function SettingsPage() {
   const [salesforceConnected, setSalesforceConnected] = useState(false)
   const [salesforceSaving, setSalesforceSaving] = useState(false)
   const [salesforceError, setSalesforceError] = useState<string | null>(null)
-  const [webhookUrl, setWebhookUrl] = useState('')
-  const [webhookSending, setWebhookSending] = useState(false)
-  const [webhookError, setWebhookError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -93,7 +90,6 @@ export default function SettingsPage() {
         })
         setHubspotConnected(!!rest.hubspot_access_token)
         setSalesforceConnected(!!rest.salesforce_access_token)
-        setWebhookUrl(rest.webhook_url ?? '')
       } else {
         setProfile((p) => ({ ...p, email: user.email ?? '' }))
       }
@@ -189,7 +185,6 @@ export default function SettingsPage() {
         scans_limit: profile.scans_limit,
         research_preferences: profile.research_preferences ?? [...DEFAULT_RESEARCH_PREFERENCES],
         custom_questions: profile.custom_questions || null,
-        webhook_url: webhookUrl || null,
       }
       const { error: e } = await supabase
         .from('abc_profiles')
@@ -234,32 +229,6 @@ export default function SettingsPage() {
       setSalesforceError(err instanceof Error ? err.message : 'Failed to disconnect')
     } finally {
       setSalesforceSaving(false)
-    }
-  }
-
-  async function sendWebhookExport() {
-    if (!webhookUrl.trim()) {
-      setWebhookError('Enter a webhook URL first')
-      return
-    }
-    setWebhookSending(true)
-    setWebhookError(null)
-    try {
-      const res = await fetch('/api/export/webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ webhookUrl: webhookUrl.trim() }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.error || json.details || 'Webhook failed')
-      if (userId) {
-        await supabase.from('abc_profiles').update({ webhook_url: webhookUrl.trim() }).eq('id', userId)
-      }
-      showToast()
-    } catch (err) {
-      setWebhookError(err instanceof Error ? err.message : 'Webhook failed')
-    } finally {
-      setWebhookSending(false)
     }
   }
 
@@ -529,9 +498,12 @@ export default function SettingsPage() {
         className="mx-4 mt-3 p-4 rounded-xl"
         style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
       >
-        <span className="gradient-text font-bold tracking-widest uppercase block mb-3" style={{ fontSize: '9px' }}>
+        <span className="gradient-text font-bold tracking-widest uppercase block mb-2" style={{ fontSize: '9px' }}>
           EXPORT CONTACTS
         </span>
+        <p className="text-xs mb-4 leading-relaxed" style={{ color: '#5A3A8A' }}>
+          Your contacts are ready to export. Download CSV and import directly into Salesforce or HubSpot.
+        </p>
 
         <div className="mb-4">
           <p className="text-sm font-medium mb-1" style={{ color: '#F0EAFF' }}>Export for Salesforce</p>
@@ -555,31 +527,6 @@ export default function SettingsPage() {
           >
             ⬇ Download CSV
           </a>
-        </div>
-
-        <div>
-          <p className="text-sm font-medium mb-1" style={{ color: '#F0EAFF' }}>Webhook URL (Make.com / Zapier)</p>
-          <p className="text-xs mb-2" style={{ color: '#5A3A8A' }}>
-            Sends all contacts as JSON to your automation
-          </p>
-          <input
-            value={webhookUrl}
-            onChange={(e) => setWebhookUrl(e.target.value)}
-            placeholder="https://hook.make.com/..."
-            className="w-full rounded-lg px-3 py-2.5 text-sm outline-none mb-2"
-            style={{ background: '#111', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
-          />
-          {webhookError && (
-            <p className="text-xs mb-2 text-red-300">{webhookError}</p>
-          )}
-          <button
-            onClick={sendWebhookExport}
-            disabled={webhookSending}
-            className="w-full rounded-lg py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-            style={{ background: 'linear-gradient(135deg, #7C3AED, #0EA5E9)' }}
-          >
-            {webhookSending ? 'Sending...' : 'Send All Contacts'}
-          </button>
         </div>
       </div>
 

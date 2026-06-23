@@ -184,8 +184,24 @@ export default function ContactsPage() {
 
   return (
     <div className="min-h-screen pb-28" style={{ background: '#07050E' }}>
-      <div className="flex items-center justify-between px-4 pt-6 pb-2">
-        <h1 className="gradient-text text-xl font-black tracking-wide">CONTACTS</h1>
+      <div className="flex items-center justify-between px-4 pt-6 pb-1">
+        <div>
+          <h1 className="gradient-text text-xl font-black tracking-wide">CONTACTS</h1>
+          {crmStats && (
+            <p
+              className="text-[10px] mt-1 whitespace-nowrap overflow-x-auto"
+              style={{ color: '#3A2060' }}
+            >
+              Total: {crmStats.total}
+              {' | '}
+              New: {crmStats.byStatus.NEW ?? 0}
+              {' | '}
+              Contacted: {crmStats.byStatus.CONTACTED ?? 0}
+              {' | '}
+              Avg Score: {crmStats.avgLeadScore}
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {contacts.length > 0 && (
             <button
@@ -212,29 +228,6 @@ export default function ContactsPage() {
           </button>
         </div>
       </div>
-
-      {crmStats && contacts.length > 0 && (
-        <div
-          className="mx-4 mb-2 rounded-xl px-3 py-2.5 overflow-x-auto"
-          style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
-        >
-          <p className="text-[10px] leading-relaxed whitespace-nowrap" style={{ color: '#8B7AA8' }}>
-            <span style={{ color: '#F0EAFF', fontWeight: 600 }}>Total: {crmStats.total}</span>
-            {' · '}
-            New: {crmStats.byStatus.NEW ?? 0}
-            {' · '}
-            Contacted: {crmStats.byStatus.CONTACTED ?? 0}
-            {' · '}
-            In Conversation: {crmStats.byStatus.IN_CONVERSATION ?? 0}
-            {' · '}
-            Closed: {crmStats.byStatus.CLOSED ?? 0}
-            {' · '}
-            <span style={{ color: '#A78BFA' }}>Avg Score: {crmStats.avgLeadScore}</span>
-            {' · '}
-            This Week: +{crmStats.thisWeek}
-          </p>
-        </div>
-      )}
 
       <div className="grid grid-cols-3 gap-2 px-4 py-3">
         {[
