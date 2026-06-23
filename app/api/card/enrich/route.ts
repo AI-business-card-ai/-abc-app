@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase'
 import { enrichContact } from '@/lib/perplexity'
+import { logActivity } from '@/lib/crm'
 import { ABCProfile } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
@@ -48,6 +49,13 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error) throw error
+
+    logActivity({
+      contactId,
+      userId,
+      activityType: 'AI_ENRICHED',
+      activityDetail: `Additional research completed for ${contact.name || 'contact'}`,
+    }).catch(console.error)
 
     return NextResponse.json({ success: true, contact: data })
   } catch (err: unknown) {

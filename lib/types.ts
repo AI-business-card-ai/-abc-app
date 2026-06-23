@@ -37,6 +37,25 @@ export interface ScannedContact {
   next_action: string | null
   next_action_date: string | null
   deal_value: number | null
+  crm_status: CrmStatus | null
+  ai_lead_score: number | null
+  last_activity_at: string | null
+  last_activity_type: string | null
+  contact_count: number | null
+  tags: string[] | null
+  whatsapp_number: string | null
+}
+
+export type CrmStatus = 'NEW' | 'ENRICHED' | 'CONTACTED' | 'IN_CONVERSATION' | 'CLOSED'
+
+export interface CrmActivity {
+  id: string
+  contact_id: string
+  user_id: string
+  activity_type: string
+  activity_detail: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string
 }
 
 export interface FollowupSequence {
@@ -78,6 +97,7 @@ export interface ABCProfile {
   salesforce_refresh_token: string | null
   salesforce_instance_url: string | null
   salesforce_connected_at: string | null
+  webhook_url: string | null
 }
 
 export interface ScanResult {

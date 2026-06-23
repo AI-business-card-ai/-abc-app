@@ -16,6 +16,8 @@ import {
 import { createClientComponent } from '@/lib/supabase'
 import MatchScore, { scoreColors } from '@/components/ui/MatchScore'
 import { parseEnrichedContext, splitContentWithUrls } from '@/lib/research'
+import { logCrmActivity } from '@/lib/crm-client'
+import ActivityTimeline from '@/components/crm/ActivityTimeline'
 import type { ScannedContact } from '@/lib/types'
 
 type Tab = 'linkedin' | 'email' | 'whatsapp'
@@ -149,6 +151,11 @@ export default function ContactResultPage() {
       navigator.clipboard.writeText(messages.linkedin || '')
       toast('✓ LinkedIn message copied!')
     }
+    logCrmActivity({
+      contactId: contact.id,
+      activityType: 'LINKEDIN_COPIED',
+      activityDetail: `LinkedIn message copied for ${contact.name}`,
+    })
   }
 
   const openEmail = () => {
@@ -156,6 +163,12 @@ export default function ContactResultPage() {
     const s = encodeURIComponent(subject || 'Hello')
     const body = encodeURIComponent(messages.email || '')
     window.open(`mailto:${contact.email ?? ''}?subject=${s}&body=${body}`)
+    logCrmActivity({
+      contactId: contact.id,
+      activityType: 'EMAIL_SENT',
+      activityDetail: `Email draft opened for ${contact.name}`,
+      metadata: { email: contact.email },
+    })
   }
 
   const openWhatsApp = () => {
@@ -167,11 +180,24 @@ export default function ContactResultPage() {
       navigator.clipboard.writeText(messages.whatsapp || '')
       toast('✓ WhatsApp message copied!')
     }
+    logCrmActivity({
+      contactId: contact.id,
+      activityType: 'WHATSAPP_OPENED',
+      activityDetail: `WhatsApp draft opened for ${contact.name}`,
+      metadata: { phone: contact.phone },
+    })
   }
 
   const copyCurrentMessage = () => {
     navigator.clipboard.writeText(messages[tab] || '')
     toast('✓ Message copied!')
+    if (contact && tab === 'linkedin') {
+      logCrmActivity({
+        contactId: contact.id,
+        activityType: 'LINKEDIN_COPIED',
+        activityDetail: `LinkedIn message copied for ${contact.name}`,
+      })
+    }
   }
 
   async function handleEnrichMore() {
@@ -222,6 +248,11 @@ export default function ContactResultPage() {
       const json = await res.json()
       if (!res.ok || !json.success) throw new Error(json.error || 'Sending failed.')
       if (json.contact) setContact(json.contact as ScannedContact)
+      logCrmActivity({
+        contactId: contact.id,
+        activityType: 'MESSAGE_GENERATED',
+        activityDetail: `Outreach approved for ${contact.name}`,
+      })
       setShowFollowup(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
@@ -584,6 +615,12 @@ export default function ContactResultPage() {
               {enriching ? 'Researching...' : '🔍 Research more info'}
             </button>
           )}
+        </motion.div>
+
+        {/* SECTION — ACTIVITY TIMELINE */}
+        <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">
+          <span className="abc-label">Activity Timeline</span>
+          <ActivityTimeline contactId={contact.id} />
         </motion.div>
 
         {/* SECTION 5 — MESSAGES */}

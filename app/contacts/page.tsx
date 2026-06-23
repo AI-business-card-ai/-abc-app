@@ -27,6 +27,12 @@ export default function ContactsPage() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [showExportModal, setShowExportModal] = useState(false)
+  const [crmStats, setCrmStats] = useState<{
+    total: number
+    byStatus: Record<string, number>
+    avgLeadScore: number
+    thisWeek: number
+  } | null>(null)
 
   const toast = useCallback((msg: string) => {
     setToastMsg(msg)
@@ -53,6 +59,15 @@ export default function ContactsPage() {
   useEffect(() => {
     loadContacts()
   }, [loadContacts, refreshKey])
+
+  useEffect(() => {
+    fetch('/api/crm/stats')
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.total !== undefined) setCrmStats(json)
+      })
+      .catch(() => {})
+  }, [refreshKey, contacts.length])
 
   const stats = useMemo(() => ({
     total: contacts.length,
@@ -197,6 +212,29 @@ export default function ContactsPage() {
           </button>
         </div>
       </div>
+
+      {crmStats && contacts.length > 0 && (
+        <div
+          className="mx-4 mb-2 rounded-xl px-3 py-2.5 overflow-x-auto"
+          style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
+        >
+          <p className="text-[10px] leading-relaxed whitespace-nowrap" style={{ color: '#8B7AA8' }}>
+            <span style={{ color: '#F0EAFF', fontWeight: 600 }}>Total: {crmStats.total}</span>
+            {' · '}
+            New: {crmStats.byStatus.NEW ?? 0}
+            {' · '}
+            Contacted: {crmStats.byStatus.CONTACTED ?? 0}
+            {' · '}
+            In Conversation: {crmStats.byStatus.IN_CONVERSATION ?? 0}
+            {' · '}
+            Closed: {crmStats.byStatus.CLOSED ?? 0}
+            {' · '}
+            <span style={{ color: '#A78BFA' }}>Avg Score: {crmStats.avgLeadScore}</span>
+            {' · '}
+            This Week: +{crmStats.thisWeek}
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2 px-4 py-3">
         {[

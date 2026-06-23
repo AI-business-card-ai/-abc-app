@@ -9,6 +9,7 @@ import { enrichContact } from '@/lib/perplexity'
 import { enrichWithApollo } from '@/lib/apollo'
 import { createHubSpotContact } from '@/lib/hubspot'
 import { createSalesforceContact } from '@/lib/salesforce'
+import { logActivity } from '@/lib/crm'
 import { ABCProfile } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
@@ -170,6 +171,30 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error('Salesforce sync error:', e)
+    }
+
+    // 7. CRM activity log (non-blocking)
+    try {
+      if (data) {
+        for (const c of data) {
+          logActivity({
+            contactId: c.id,
+            userId,
+            activityType: 'CARD_SCANNED',
+            activityDetail: `Business card scanned: ${c.name || 'Unknown'}`,
+            metadata: { eventName, company: c.company },
+          }).catch(console.error)
+
+          logActivity({
+            contactId: c.id,
+            userId,
+            activityType: 'AI_ENRICHED',
+            activityDetail: `AI enrichment completed for ${c.name || 'Unknown'}`,
+          }).catch(console.error)
+        }
+      }
+    } catch (e) {
+      console.error('CRM activity log error:', e)
     }
 
     return NextResponse.json({

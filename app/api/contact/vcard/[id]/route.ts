@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServerSupabase } from '@/lib/supabase'
+import { logActivity } from '@/lib/crm'
 
 export async function GET(
   request: NextRequest,
@@ -44,6 +45,13 @@ export async function GET(
   ].join('\r\n')
 
   const filename = (contact.name || 'contact').replace(/[^\w\s-]/g, '').trim() || 'contact'
+
+  logActivity({
+    contactId: contact.id,
+    userId: user.id,
+    activityType: 'VCARD_SAVED',
+    activityDetail: `Contact saved to phone: ${contact.name || 'contact'}`,
+  }).catch(console.error)
 
   return new Response(vcard, {
     headers: {
