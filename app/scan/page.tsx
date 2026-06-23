@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { IconX, IconCreditCard, IconMicrophone } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import LoadingMatrix from '@/components/ui/LoadingMatrix'
-import BottomNav from '@/components/ui/BottomNav'
 import type { ABCProfile } from '@/lib/types'
 
 const EVENTS = ['Medica', 'Heim Textile', 'Web Summit', 'Personal']
@@ -207,7 +206,7 @@ export default function ScanPage() {
     )}&body=${encodeURIComponent(`Hi, I would like to upgrade my ABC account to ${plan} plan.`)}`
 
   return (
-    <div className="min-h-screen pb-32" style={{ background: '#07050E' }}>
+    <div className="min-h-screen pb-8 page-shell lg:max-w-[500px] lg:mx-auto w-full">
       <LoadingMatrix isVisible={isLoading} />
 
       {/* 1. TOP BAR */}
@@ -493,8 +492,6 @@ export default function ScanPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <BottomNav />
     </div>
   )
 }

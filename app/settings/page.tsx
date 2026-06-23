@@ -12,7 +12,6 @@ import {
   IconCamera,
 } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
-import BottomNav from '@/components/ui/BottomNav'
 import {
   DEFAULT_RESEARCH_PREFERENCES,
   RESEARCH_PREFERENCE_OPTIONS,
@@ -249,7 +248,7 @@ export default function SettingsPage() {
   const subtitle = [profile.company, profile.role].filter(Boolean).join(' · ') || 'Company · Role'
 
   return (
-    <div className="min-h-screen pb-28" style={{ background: '#07050E' }}>
+    <div className="min-h-screen pb-8 page-shell pt-6 lg:max-w-[600px] lg:mx-auto w-full">
       {/* 1. HERO */}
       <div
         className="relative overflow-hidden flex flex-col items-center"
@@ -671,8 +670,6 @@ export default function SettingsPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <BottomNav />
     </div>
   )
 }

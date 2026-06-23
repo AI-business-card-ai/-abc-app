@@ -26,12 +26,55 @@ html {
 }
 
 body {
-  background: #07050E;
+  background: #0a0a0f;
   color: #F0EAFF;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   overscroll-behavior-y: none;
+}
+
+@media (max-width: 767px) {
+  html { font-size: 14px; }
+  .page-heading { font-size: 20px; }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  html { font-size: 15px; }
+  .page-heading { font-size: 22px; }
+}
+
+@media (min-width: 1024px) {
+  html { font-size: 15px; }
+  .page-heading { font-size: 28px; }
+}
+
+.page-shell {
+  width: 100%;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+@media (min-width: 768px) {
+  .page-shell {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-shell {
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
 }
 
 /* Mobile: prevent iOS auto-zoom on focus by keeping inputs >= 16px */

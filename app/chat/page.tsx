@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { IconChevronRight, IconCamera } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
-import BottomNav from '@/components/ui/BottomNav'
 import GradientAvatar from '@/components/ui/GradientAvatar'
 import type { ScannedContact } from '@/lib/types'
 
@@ -37,9 +36,9 @@ export default function ChatListPage() {
   }, [router, supabase])
 
   return (
-    <div className="min-h-screen bg-bg pb-28">
-      <div className="hero-radial px-4 pt-6 pb-4">
-        <h1 className="gradient-text text-2xl font-black tracking-wide relative">CHAT</h1>
+    <div className="min-h-screen pb-8 page-shell pt-6">
+      <div className="hero-radial pb-4">
+        <h1 className="gradient-text page-heading font-black tracking-wide relative">CHAT</h1>
         <p className="text-xs text-text-secondary mt-0.5 relative">Konverzace s kontakty</p>
       </div>
 
@@ -96,8 +95,6 @@ export default function ChatListPage() {
           })
         )}
       </div>
-
-      <BottomNav />
     </div>
   )
 }

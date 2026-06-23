@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { IconSearch, IconCreditCard, IconBrandLinkedin, IconMail, IconPhone, IconDeviceMobile } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
-import BottomNav from '@/components/ui/BottomNav'
+import { useDevice } from '@/lib/hooks/useDevice'
 import CardStack from '@/components/ui/CardStack'
 import PipelineStageBadge from '@/components/ui/PipelineStageBadge'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
@@ -17,6 +17,7 @@ const chipStyle = (active: boolean): React.CSSProperties =>
 
 export default function ContactsPage() {
   const router = useRouter()
+  const device = useDevice()
   const supabase = createClientComponent()
 
   const [contacts, setContacts] = useState<ScannedContact[]>([])
@@ -183,10 +184,10 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="min-h-screen pb-28" style={{ background: '#07050E' }}>
-      <div className="flex items-center justify-between px-4 pt-6 pb-1">
+    <div className="min-h-screen pb-8 page-shell pt-6">
+      <div className="flex items-center justify-between pb-1">
         <div>
-          <h1 className="gradient-text text-xl font-black tracking-wide">CONTACTS</h1>
+          <h1 className="gradient-text page-heading font-black tracking-wide">CONTACTS</h1>
           {crmStats && (
             <p
               className="text-[10px] mt-1 whitespace-nowrap overflow-x-auto"
@@ -229,7 +230,7 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 px-4 py-3">
+      <div className="grid grid-cols-3 gap-2 py-3 md:grid-cols-3 lg:grid-cols-3">
         {[
           { value: stats.total, label: 'Scanned', gradient: false },
           { value: stats.sent, label: 'Sent', gradient: false },
@@ -253,7 +254,7 @@ export default function ContactsPage() {
         ))}
       </div>
 
-      <div className="px-4 pb-3 flex gap-2 flex-wrap">
+      <div className="pb-3 flex gap-2 flex-wrap">
         {events.map((ev) => (
           <button
             key={ev}
@@ -290,6 +291,8 @@ export default function ContactsPage() {
         </div>
       ) : (
         <>
+          {device === 'mobile' ? (
+            <>
           <CardStack
             contacts={filtered}
             cur={cur}
@@ -412,6 +415,38 @@ export default function ContactsPage() {
               </motion.div>
             )}
           </AnimatePresence>
+            </>
+          ) : (
+            <div className={`grid gap-3 ${device === 'tablet' ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              {filtered.map((c) => {
+                const score = c.ai_lead_score ?? c.match_score ?? 0
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => router.push('/contact/' + c.id)}
+                    className="text-left rounded-2xl p-4 transition-colors hover:bg-[#1a1a2e]"
+                    style={{ background: '#12121a', border: '1px solid rgba(255,255,255,0.08)' }}
+                  >
+                    <p className="font-bold truncate" style={{ color: '#F0EAFF' }}>
+                      {c.name || 'Unknown'}
+                    </p>
+                    <p className="text-sm truncate mt-1" style={{ color: '#8B7AA8' }}>
+                      {[c.company, c.role].filter(Boolean).join(' · ') || 'No company'}
+                    </p>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-[10px] uppercase font-bold" style={{ color: '#A78BFA' }}>
+                        {c.crm_status || 'NEW'}
+                      </span>
+                      <span className="text-xs font-bold tabular-nums" style={{ color: '#F0EAFF' }}>
+                        {score}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </>
       )}
 
@@ -507,8 +542,6 @@ export default function ContactsPage() {
           </div>
         </div>
       )}
-
-      <BottomNav />
 
       <AnimatePresence>
         {toastMsg && (

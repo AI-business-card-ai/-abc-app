@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import AppShell from '@/components/layout/AppShell'
 
 export const metadata: Metadata = {
   title: 'ABC — Scan. Know. Connect.',
@@ -20,10 +21,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-[#07050E] text-[#F0EAFF]">
-        <div className="max-w-[430px] mx-auto min-h-screen relative">
-          {children}
-        </div>
+      <body className="bg-[#0a0a0f] text-[#F0EAFF]">
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   )
