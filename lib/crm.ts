@@ -114,6 +114,12 @@ export function calculateLeadScore(contact: {
   phone?: string | null
   company?: string | null
   linkedin_url?: string | null
+  linkedin_headline?: string | null
+  linkedin_posts?: { text: string; date: string }[] | null | string
+  linkedin_skills?: string[] | null
+  industry?: string | null
+  role?: string | null
+  company_summary?: string | null
   match_score?: number | null
   contact_count?: number | null
   crm_status?: string | null
@@ -124,6 +130,42 @@ export function calculateLeadScore(contact: {
   if (contact.phone) score += 10
   if (contact.company) score += 10
   if (contact.linkedin_url) score += 10
+
+  if (contact.linkedin_headline) score += 15
+
+  const posts = parsePosts(contact.linkedin_posts)
+  if (posts.length > 0) score += 10
+
+  const skills = contact.linkedin_skills || []
+  const relevanceContext = [
+    contact.industry,
+    contact.role,
+    contact.company,
+    contact.company_summary,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  let relevantSkillPoints = 0
+  for (const skill of skills) {
+    if (relevantSkillPoints >= 15) break
+    const normalized = skill.toLowerCase()
+    if (relevanceContext && relevanceContext.includes(normalized)) {
+      relevantSkillPoints += 5
+    } else if (!relevanceContext) {
+      relevantSkillPoints += 5
+    }
+  }
+  score += relevantSkillPoints
+
+  const weekAgo = Date.now() - 7 * 86400000
+  const hasFreshPost = posts.some((post) => {
+    if (!post.date) return false
+    const parsed = Date.parse(post.date)
+    return !Number.isNaN(parsed) && parsed >= weekAgo
+  })
+  if (hasFreshPost) score += 5
 
   if (contact.match_score) {
     score += Math.round((contact.match_score / 100) * 30)
@@ -142,4 +184,20 @@ export function calculateLeadScore(contact: {
   score += statusBonus[contact.crm_status || 'NEW'] || 0
 
   return Math.min(score, 100)
+}
+
+function parsePosts(
+  value: { text: string; date: string }[] | string | null | undefined
+): { text: string; date: string }[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
 }

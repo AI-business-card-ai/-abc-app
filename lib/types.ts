@@ -12,6 +12,12 @@ export interface ScannedContact {
   phone: string | null
   website: string | null
   linkedin_url: string | null
+  linkedin_headline: string | null
+  linkedin_summary: string | null
+  linkedin_experience: { title: string; company: string; duration: string }[] | null
+  linkedin_skills: string[] | null
+  linkedin_posts: { text: string; date: string }[] | null
+  linkedin_education: { school: string; degree: string }[] | null
   match_score: number | null
   company_summary: string | null
   industry: string | null

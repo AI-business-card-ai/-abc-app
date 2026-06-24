@@ -137,6 +137,30 @@ export default function ContactResultPage() {
     [contact?.enriched_context]
   )
 
+  const linkedinIntel = useMemo(() => {
+    if (!contact) return null
+
+    const posts = Array.isArray(contact.linkedin_posts) ? contact.linkedin_posts : []
+    const skills = Array.isArray(contact.linkedin_skills) ? contact.linkedin_skills : []
+    const experience = Array.isArray(contact.linkedin_experience) ? contact.linkedin_experience : []
+
+    const hasData =
+      contact.linkedin_headline ||
+      contact.linkedin_summary ||
+      posts.length > 0 ||
+      skills.length > 0 ||
+      experience.length > 0
+
+    if (!hasData) return null
+
+    return {
+      headline: contact.linkedin_headline,
+      posts: posts.slice(0, 3),
+      skills: skills.slice(0, 5),
+      experience: experience.slice(0, 2),
+    }
+  }, [contact])
+
   useEffect(() => {
     if (enrichedSections.length > 0) setOpenSection(enrichedSections[0].title)
   }, [enrichedSections])
@@ -528,6 +552,112 @@ export default function ContactResultPage() {
                     >
                       {tech}
                     </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* SECTION 3b — LINKEDIN INTELLIGENCE */}
+        {linkedinIntel && (
+          <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="abc-label">LinkedIn Intelligence</span>
+              <span
+                className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                style={{ border: '1px solid rgba(0,212,212,0.4)', color: '#00d4d4' }}
+              >
+                Source: Enrich Layer
+              </span>
+            </div>
+
+            {linkedinIntel.headline && (
+              <div
+                className="rounded-xl px-3 py-2 text-sm font-medium"
+                style={{
+                  background: 'rgba(0,212,212,0.08)',
+                  border: '1px solid rgba(0,212,212,0.25)',
+                  color: '#00d4d4',
+                }}
+              >
+                {linkedinIntel.headline}
+              </div>
+            )}
+
+            {linkedinIntel.posts.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-[11px] uppercase tracking-wide" style={{ color: '#4a5168' }}>
+                  Recent posts
+                </p>
+                {linkedinIntel.posts.map((post, idx) => (
+                  <div
+                    key={`${post.date}-${idx}`}
+                    className="rounded-lg px-3 py-2"
+                    style={{ background: '#1c1f35', border: '1px solid rgba(139,92,246,0.12)' }}
+                  >
+                    <p className="text-sm leading-snug" style={{ color: '#8892b0' }}>
+                      {post.text}
+                    </p>
+                    {post.date && !Number.isNaN(Date.parse(post.date)) && (
+                      <p className="text-[10px] mt-1" style={{ color: '#4a5168' }}>
+                        {new Date(post.date).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {linkedinIntel.skills.length > 0 && (
+              <div>
+                <p className="text-[11px] uppercase tracking-wide mb-2" style={{ color: '#4a5168' }}>
+                  Top skills
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {linkedinIntel.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="px-2 py-0.5 rounded-full text-xs"
+                      style={{
+                        background: 'rgba(139,92,246,0.12)',
+                        border: '1px solid rgba(139,92,246,0.25)',
+                        color: '#a78bfa',
+                      }}
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {linkedinIntel.experience.length > 0 && (
+              <div>
+                <p className="text-[11px] uppercase tracking-wide mb-2" style={{ color: '#4a5168' }}>
+                  Career timeline
+                </p>
+                <div className="flex flex-col gap-2">
+                  {linkedinIntel.experience.map((exp, idx) => (
+                    <div key={`${exp.company}-${exp.title}-${idx}`} className="flex gap-2">
+                      <div
+                        className="w-0.5 shrink-0 rounded-full"
+                        style={{ background: 'linear-gradient(180deg, #00d4d4, #8b5cf6)' }}
+                      />
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: '#f0f0ff' }}>
+                          {exp.title}
+                        </p>
+                        <p className="text-xs" style={{ color: '#8892b0' }}>
+                          {exp.company}
+                          {exp.duration ? ` · ${exp.duration}` : ''}
+                        </p>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

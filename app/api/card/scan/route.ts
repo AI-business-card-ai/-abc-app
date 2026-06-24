@@ -7,9 +7,11 @@ import {
 } from '@/lib/claude'
 import { enrichContact } from '@/lib/perplexity'
 import { enrichWithApollo } from '@/lib/apollo'
+import { enrichLinkedIn, findWorkEmail } from '@/lib/enrichlayer'
+import { generatePersonalizedMessages } from '@/lib/ai-messages'
 import { createHubSpotContact } from '@/lib/hubspot'
 import { createSalesforceContact } from '@/lib/salesforce'
-import { logActivity } from '@/lib/crm'
+import { calculateLeadScore, logActivity } from '@/lib/crm'
 import { ABCProfile } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
     )
     console.log(`Detected ${contacts.length} business card(s)`)
 
-    // 2. Pro každý kontakt spusť Apollo + Perplexity paralelně (odolné proti chybám)
+    // 2. Pro každý kontakt spusť Apollo + Perplexity + Enrich Layer (odolné proti chybám)
     const enrichedContacts = await Promise.all(
       contacts.map(async (contact) => {
         const [apolloData, perplexityContext] = await Promise.all([
@@ -100,18 +102,70 @@ export async function POST(req: NextRequest) {
           }),
         ])
 
-        return {
+        const linkedinUrl = apolloData?.linkedin_url || contact.linkedin_url
+        let linkedinData = null
+        if (linkedinUrl) {
+          linkedinData = await enrichLinkedIn(linkedinUrl).catch((err) => {
+            console.error('EnrichLayer LinkedIn skipped:', err)
+            return null
+          })
+        }
+
+        let resolvedEmail = contact.email
+        if (!resolvedEmail && contact.name && contact.company) {
+          const emailData = await findWorkEmail(contact.name, contact.company).catch((err) => {
+            console.error('EnrichLayer email lookup skipped:', err)
+            return null
+          })
+          if (emailData && emailData.confidence > 0.7) {
+            resolvedEmail = emailData.email
+          }
+        }
+
+        const baseRecord = {
           ...contact,
+          email: resolvedEmail,
           photo_url: apolloData?.photo_url || null,
-          linkedin_url: apolloData?.linkedin_url || contact.linkedin_url,
+          linkedin_url: linkedinUrl || null,
           company_size: apolloData?.company_size || contact.company_size,
           company_revenue: apolloData?.company_revenue || null,
           technologies: apolloData?.technologies || null,
           enriched_context: perplexityContext || '',
+          linkedin_headline: linkedinData?.headline || null,
+          linkedin_summary: linkedinData?.summary || null,
+          linkedin_experience: linkedinData?.experiences || null,
+          linkedin_skills: linkedinData?.skills || null,
+          linkedin_posts: linkedinData?.recentPosts || null,
+          linkedin_education: linkedinData?.education || null,
           user_id: userId,
-          status: 'pending',
+          status: 'pending' as const,
           event_name: eventName || null,
           notes: note || null,
+        }
+
+        const aiMessages = await generatePersonalizedMessages(
+          {
+            ...baseRecord,
+            meeting_context: eventName || note,
+          },
+          profile,
+          linkedinData
+        ).catch((err) => {
+          console.error('AI message regeneration skipped:', err)
+          return null
+        })
+
+        const withMessages = {
+          ...baseRecord,
+          message_linkedin: aiMessages?.message_linkedin || contact.message_linkedin,
+          message_email: aiMessages?.message_email || contact.message_email,
+          email_subject: aiMessages?.email_subject || contact.email_subject,
+          message_whatsapp: aiMessages?.message_whatsapp || contact.message_whatsapp,
+        }
+
+        return {
+          ...withMessages,
+          ai_lead_score: calculateLeadScore(withMessages),
         }
       })
     )
