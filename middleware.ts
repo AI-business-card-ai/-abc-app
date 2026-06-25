@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const ONBOARDING_EXEMPT = ['/onboarding', '/login', '/register', '/']
+const ONBOARDING_EXEMPT = ['/onboarding', '/login', '/register', '/', '/settings', '/profile']
 
 export async function middleware(req: NextRequest) {
   let response = NextResponse.next({ request: req })
@@ -29,7 +29,7 @@ export async function middleware(req: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession()
   const pathname = req.nextUrl.pathname
 
-  const protectedRoutes = ['/scan', '/contacts', '/contact', '/chat', '/settings', '/pipeline', '/onboarding']
+  const protectedRoutes = ['/scan', '/contacts', '/contact', '/chat', '/settings', '/profile', '/pipeline', '/onboarding']
   const isProtected = protectedRoutes.some((r) => pathname.startsWith(r))
 
   if (isProtected && !session) {

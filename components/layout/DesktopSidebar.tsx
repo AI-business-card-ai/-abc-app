@@ -17,7 +17,7 @@ const NAV = [
   { icon: IconCards, label: 'Contacts', path: '/contacts' },
   { icon: IconLayoutKanban, label: 'Pipeline', path: '/pipeline' },
   { icon: IconMessage, label: 'Chat', path: '/chat' },
-  { icon: IconUser, label: 'Profile', path: '/settings' },
+  { icon: IconUser, label: 'Profile', path: '/profile' },
 ]
 
 export default function DesktopSidebar() {
@@ -103,7 +103,7 @@ export default function DesktopSidebar() {
       </nav>
 
       <div className="px-4 py-5 border-t" style={{ borderColor: 'rgba(0, 212, 212, 0.1)' }}>
-        <Link href="/settings" className="flex items-center gap-3 group">
+        <Link href="/profile" className="flex items-center gap-3 group">
           {avatar ? (
             <div className="gradient-ring shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { getLanguageLabel } from '@/lib/ai-messages'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -43,11 +43,12 @@ export default function SettingsPage() {
 
 function SettingsContent() {
   const router = useRouter()
-  const supabase = createClientComponent()
+  const supabase = useMemo(() => createClientComponent(), [])
   const photoInputRef = useRef<HTMLInputElement>(null)
 
   const [userId, setUserId] = useState<string | null>(null)
   const [profile, setProfile] = useState<Omit<ABCProfile, 'id'>>(EMPTY_ABC_PROFILE)
+  const [hasProfileRow, setHasProfileRow] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -63,10 +64,10 @@ function SettingsContent() {
   const [salesforceError, setSalesforceError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
-  function showToast() {
+  const showToast = useCallback(() => {
     setToast(true)
     setTimeout(() => setToast(false), 3000)
-  }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -75,7 +76,10 @@ function SettingsContent() {
       setLoadError(null)
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser()
-        if (authError) throw authError
+        if (authError) {
+          console.error('[profile] auth error:', authError.message)
+          throw authError
+        }
         if (!user) {
           router.push('/login')
           return
@@ -92,8 +96,11 @@ function SettingsContent() {
         if (!active) return
 
         if (profileError) {
-          console.warn('[settings] profile load:', profileError.message)
-          setLoadError('Could not load full profile — showing defaults. You can still edit and save.')
+          console.error('[profile] abc_profiles query failed:', profileError.message, profileError)
+          setLoadError('Could not load your profile — you can still edit and save below.')
+          setHasProfileRow(false)
+        } else {
+          setHasProfileRow(!!data)
         }
 
         const normalized = normalizeAbcProfile(data as Partial<ABCProfile> | null, user.email)
@@ -102,7 +109,9 @@ function SettingsContent() {
         setSalesforceConnected(!!normalized.salesforce_access_token)
       } catch (err) {
         if (!active) return
-        setLoadError(err instanceof Error ? err.message : 'Failed to load settings.')
+        console.error('[profile] load failed:', err)
+        setLoadError(err instanceof Error ? err.message : 'Failed to load profile.')
+        setHasProfileRow(false)
         setProfile(normalizeAbcProfile(null))
       } finally {
         if (active) setLoading(false)
@@ -114,22 +123,23 @@ function SettingsContent() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const crm = params.get('crm')
+    const profilePath = window.location.pathname.startsWith('/profile') ? '/profile' : '/settings'
     if (crm === 'hubspot-connected') {
       setHubspotConnected(true)
       showToast()
-      router.replace('/settings')
+      router.replace(profilePath)
     } else if (crm === 'hubspot-error') {
       setHubspotError('HubSpot connection failed. Please try again.')
-      router.replace('/settings')
+      router.replace(profilePath)
     } else if (crm === 'salesforce-connected') {
       setSalesforceConnected(true)
       showToast()
-      router.replace('/settings')
+      router.replace(profilePath)
     } else if (crm === 'salesforce-error') {
       setSalesforceError('Salesforce connection failed. Please try again.')
-      router.replace('/settings')
+      router.replace(profilePath)
     }
-  }, [router])
+  }, [router, showToast])
 
   function update<K extends keyof typeof profile>(key: K, value: (typeof profile)[K]) {
     setProfile((p) => ({ ...p, [key]: value }))
@@ -270,8 +280,9 @@ function SettingsContent() {
       {loadError && (
         <div
           className="mx-4 mt-4 rounded-xl px-4 py-3 flex flex-col gap-2"
-          style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}
+          style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}
         >
+          <p className="text-sm font-semibold" style={{ color: '#fca5a5' }}>Could not load profile</p>
           <p className="text-sm" style={{ color: '#fbbf24' }}>{loadError}</p>
           <button
             type="button"
@@ -283,10 +294,30 @@ function SettingsContent() {
           </button>
         </div>
       )}
+
+      {!hasProfileRow && !loadError && (
+        <div
+          className="mx-4 mt-4 rounded-xl px-4 py-4 flex flex-col gap-3"
+          style={{ background: 'rgba(0,212,212,0.08)', border: '1px solid rgba(0,212,212,0.25)' }}
+        >
+          <p className="text-sm font-semibold" style={{ color: '#00d4d4' }}>Complete your profile</p>
+          <p className="text-sm leading-relaxed" style={{ color: '#8892b0' }}>
+            No profile saved yet. Fill in your details below or complete AI onboarding for personalized messages.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push('/onboarding')}
+            className="self-start text-xs font-semibold px-4 py-2.5 rounded-lg min-h-[44px]"
+            style={{ border: '1px solid rgba(0,212,212,0.4)', color: '#00d4d4' }}
+          >
+            Start onboarding →
+          </button>
+        </div>
+      )}
       {/* 1. HERO */}
       <div
-        className="relative overflow-hidden flex flex-col items-center"
-        style={{ background: '#07050E', padding: '24px' }}
+        className="relative overflow-hidden flex flex-col items-center rounded-b-2xl mx-4 mt-4"
+        style={{ background: '#141628', padding: '24px', border: '1px solid rgba(139, 92, 246, 0.12)' }}
       >
         <div
           className="absolute inset-0 pointer-events-none"
@@ -421,16 +452,16 @@ function SettingsContent() {
               <p style={{ color: '#f0f0ff' }}>{profile.user_style || profile.communication_style || '—'}</p>
             </div>
           </div>
-          {profile.user_prompt && (
+          {profile.user_prompt ? (
             <div
               className="rounded-lg px-3 py-2 text-xs leading-relaxed"
               style={{ background: '#1c1f35', color: '#8892b0', border: '1px solid rgba(0,212,212,0.15)' }}
             >
-              {profile.user_prompt.length > 150
-                ? `${profile.user_prompt.slice(0, 150)}...`
+              {(profile.user_prompt || '').length > 150
+                ? `${(profile.user_prompt || '').slice(0, 150)}...`
                 : profile.user_prompt}
             </div>
-          )}
+          ) : null}
         </div>
       )}
 

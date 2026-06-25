@@ -12,7 +12,7 @@ const tabs = [
   { icon: IconCards, label: 'Contacts', path: '/contacts', badgeKey: 'new' as const },
   { icon: IconLayoutKanban, label: 'Pipeline', path: '/pipeline', badgeKey: 'action' as const },
   { icon: IconMessage, label: 'Chat', path: '/chat', badgeKey: null },
-  { icon: IconUser, label: 'Profile', path: '/settings', badgeKey: null },
+  { icon: IconUser, label: 'Profile', path: '/profile', badgeKey: null },
 ]
 
 export default function BottomNav() {
@@ -88,8 +88,8 @@ export default function BottomNav() {
         <NavItem
           icon={IconUser}
           label="Profile"
-          active={pathname.startsWith('/settings')}
-          onClick={() => router.push('/settings')}
+          active={pathname.startsWith('/profile') || pathname.startsWith('/settings')}
+          onClick={() => router.push('/profile')}
         />
       </div>
     </nav>
