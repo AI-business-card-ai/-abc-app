@@ -1,14 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { logActivity } from '@/lib/crm'
+import {
+  hubspotCsvHeaders,
+  mapToHubSpot,
+  mapToSalesforce,
+  mapToUniversalRow,
+  salesforceCsvHeaders,
+  UNIVERSAL_CSV_HEADERS,
+} from '@/lib/salesforce-mapper'
+import type { ScannedContact } from '@/lib/types'
 
-function csvEscape(value: string) {
+function csvEscape(value: string | number) {
   return `"${String(value).replace(/"/g, '""')}"`
+}
+
+function rowToCsv(values: (string | number)[]) {
+  return values.map(csvEscape).join(',')
 }
 
 export async function GET(req: NextRequest) {
   const supabase = createRouteHandlerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -30,70 +45,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No contacts to export' }, { status: 404 })
   }
 
+  const rows = contacts as ScannedContact[]
   const csvRows: string[] = []
   const filename = `abc-contacts-${format}-${new Date().toISOString().split('T')[0]}.csv`
 
   if (format === 'hubspot') {
-    csvRows.push(
-      'First Name,Last Name,Company Name,Job Title,Email Address,Phone Number,Website URL,Notes,Lead Score'
-    )
-    for (const c of contacts) {
-      const nameParts = (c.name || '').split(' ')
-      const firstName = nameParts[0] || ''
-      const lastName = nameParts.slice(1).join(' ') || ''
-      csvRows.push(
-        [
-          csvEscape(firstName),
-          csvEscape(lastName),
-          csvEscape(c.company || ''),
-          csvEscape(c.role || ''),
-          csvEscape(c.email || ''),
-          csvEscape(c.phone || ''),
-          csvEscape(c.website || ''),
-          csvEscape((c.company_summary || c.notes || '').replace(/"/g, "'")),
-          csvEscape(String(c.ai_lead_score || 0)),
-        ].join(',')
-      )
+    csvRows.push(hubspotCsvHeaders().join(','))
+    for (const c of rows) {
+      const mapped = mapToHubSpot(c)
+      csvRows.push(rowToCsv(hubspotCsvHeaders().map((h) => mapped[h as keyof typeof mapped] ?? '')))
+    }
+  } else if (format === 'universal') {
+    csvRows.push(UNIVERSAL_CSV_HEADERS.join(','))
+    for (const c of rows) {
+      const mapped = mapToUniversalRow(c)
+      csvRows.push(rowToCsv(UNIVERSAL_CSV_HEADERS.map((h) => mapped[h] ?? '')))
     }
   } else {
-    csvRows.push(
-      'First Name,Last Name,Company,Title,Email,Phone,Mobile,Website,Description,Lead Score,Status,Pipeline Stage,Last Activity,Deal Value,Currency,Expected Close Date,Tags,Lead Source,Messages Sent,Last Message Type,Response Received,Meeting Event,CRM Status'
-    )
-    for (const c of contacts) {
-      const nameParts = (c.name || '').split(' ')
-      const firstName = nameParts[0] || ''
-      const lastName = nameParts.slice(1).join(' ') || ''
-      csvRows.push(
-        [
-          csvEscape(firstName),
-          csvEscape(lastName),
-          csvEscape(c.company || ''),
-          csvEscape(c.role || ''),
-          csvEscape(c.email || ''),
-          csvEscape(c.phone || ''),
-          csvEscape(c.phone || ''),
-          csvEscape(c.website || ''),
-          csvEscape((c.company_summary || c.notes || '').replace(/"/g, "'")),
-          csvEscape(String(c.ai_lead_score || 0)),
-          csvEscape(c.crm_status || 'NEW'),
-          csvEscape(c.pipeline_stage || 'new'),
-          csvEscape(c.last_activity_at || ''),
-          csvEscape(String(c.deal_value || 0)),
-          csvEscape(c.deal_currency || 'USD'),
-          csvEscape(c.expected_close_date || ''),
-          csvEscape((c.tags || []).join('; ')),
-          csvEscape(c.lead_source || 'ABC AI Business Card'),
-          csvEscape(String(c.messages_sent || 0)),
-          csvEscape(c.last_message_type || ''),
-          csvEscape(c.response_received ? 'Yes' : 'No'),
-          csvEscape(c.meeting_event_name || c.event_name || ''),
-          csvEscape(c.crm_status || 'NEW'),
-        ].join(',')
-      )
+    csvRows.push(salesforceCsvHeaders().join(','))
+    for (const c of rows) {
+      const mapped = mapToSalesforce(c)
+      csvRows.push(rowToCsv(salesforceCsvHeaders().map((h) => mapped[h as keyof typeof mapped] ?? '')))
     }
   }
 
-  for (const c of contacts.slice(0, 10)) {
+  for (const c of rows.slice(0, 10)) {
     logActivity({
       contactId: c.id,
       userId: user.id,

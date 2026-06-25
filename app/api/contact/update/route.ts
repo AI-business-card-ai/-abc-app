@@ -12,6 +12,11 @@ type UpdateBody = {
   tags?: string[]
   response_received?: boolean
   pipeline_notes?: string
+  lead_status?: string
+  rating?: string
+  opportunity_stage?: string
+  close_probability?: number
+  next_step?: string
 }
 
 export async function POST(req: NextRequest) {
@@ -51,6 +56,11 @@ export async function POST(req: NextRequest) {
     if (body.expected_close_date !== undefined) update.expected_close_date = body.expected_close_date || null
     if (body.tags !== undefined) update.tags = body.tags
     if (body.pipeline_notes !== undefined) update.pipeline_notes = body.pipeline_notes
+    if (body.lead_status !== undefined) update.lead_status = body.lead_status
+    if (body.rating !== undefined) update.rating = body.rating
+    if (body.opportunity_stage !== undefined) update.opportunity_stage = body.opportunity_stage
+    if (body.close_probability !== undefined) update.close_probability = body.close_probability
+    if (body.next_step !== undefined) update.next_step = body.next_step
 
     if (body.response_received !== undefined) {
       update.response_received = body.response_received

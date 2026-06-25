@@ -595,6 +595,18 @@ export default function SettingsPage() {
         </div>
 
         <div className="mb-4">
+          <p className="text-sm font-medium mb-1" style={{ color: '#F0EAFF' }}>Universal ABC Export</p>
+          <p className="text-xs mb-2" style={{ color: '#5A3A8A' }}>All ABC + CRM + intelligence fields</p>
+          <a
+            href="/api/export/csv?format=universal"
+            className="block w-full rounded-lg py-2.5 text-sm font-semibold text-white text-center"
+            style={{ background: 'linear-gradient(135deg, #00d4d4, #8b5cf6)' }}
+          >
+            ⬇ Download CSV
+          </a>
+        </div>
+
+        <div className="mb-4">
           <p className="text-sm font-medium mb-1" style={{ color: '#F0EAFF' }}>Export for HubSpot</p>
           <p className="text-xs mb-2" style={{ color: '#5A3A8A' }}>Compatible with HubSpot Contact Import</p>
           <a

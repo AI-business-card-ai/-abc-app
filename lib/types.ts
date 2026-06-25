@@ -68,6 +68,42 @@ export interface ScannedContact {
   person_bio: string | null
   person_quotes: PersonQuote[] | null
   recent_news: NewsItem[] | null
+  first_name: string | null
+  last_name: string | null
+  mobile_phone: string | null
+  billing_city: string | null
+  billing_country: string | null
+  lead_status: string | null
+  sic_code: string | null
+  no_of_employees: number | null
+  annual_revenue: number | null
+  rating: string | null
+  opportunity_name: string | null
+  opportunity_stage: string | null
+  close_probability: number | null
+  next_step: string | null
+  opportunity_type: string | null
+  last_activity_channel: string | null
+  last_activity_description: string | null
+  last_contacted_date: string | null
+  reply_received: boolean | null
+  reply_date: string | null
+  total_activities: number | null
+  ai_summary: string | null
+  enrichment_source: string | null
+  meeting_location: string | null
+  meeting_date: string | null
+  company_funding_stage: string | null
+  company_technologies: string[] | null
+  company_news_summary: string | null
+  company_competitors: string[] | null
+  linkedin_connections: number | null
+  linkedin_followers: number | null
+  linkedin_activity_level: string | null
+  last_event_attended: string | null
+  last_event_date: string | null
+  next_event_attending: string | null
+  next_event_date: string | null
 }
 
 export type ContactEvent = {

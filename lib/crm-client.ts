@@ -23,6 +23,11 @@ export async function updateContact(payload: {
   tags?: string[]
   response_received?: boolean
   pipeline_notes?: string
+  lead_status?: string
+  rating?: string
+  opportunity_stage?: string
+  close_probability?: number
+  next_step?: string
 }) {
   const res = await fetch('/api/contact/update', {
     method: 'POST',

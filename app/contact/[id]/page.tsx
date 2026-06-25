@@ -18,6 +18,7 @@ import IntelligencePanel from '@/components/contact/IntelligencePanel'
 import { hasDisplayValue } from '@/lib/research'
 import { logCrmActivity } from '@/lib/crm-client'
 import DealInformation from '@/components/crm/DealInformation'
+import SalesforceFields from '@/components/crm/SalesforceFields'
 import CommunicationHistory from '@/components/crm/CommunicationHistory'
 import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
 import EnrichmentProgress from '@/components/ui/EnrichmentProgress'
@@ -848,28 +849,18 @@ export default function ContactResultPage() {
           </motion.div>
         )}
 
-        {/* SECTION 4 — INTELLIGENCE */}
-        <motion.div variants={item}>
-          <IntelligencePanel
-            contact={contact}
-            onStarterClick={handleStarterClick}
-            onResearchMore={handleEnrichMore}
-            researching={enriching}
-          />
-        </motion.div>
+        {/* SECTION 4 — INTELLIGENCE + CRM SIDEBAR */}
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-4 items-start">
+          <motion.div variants={item} className="flex flex-col gap-4 min-w-0">
+            <IntelligencePanel
+              contact={contact}
+              onStarterClick={handleStarterClick}
+              onResearchMore={handleEnrichMore}
+              researching={enriching}
+            />
 
-        {/* SECTION — DEAL INFORMATION */}
-        <motion.div variants={item}>
-          <DealInformation contact={contact} onUpdated={applyContactUpdate} />
-        </motion.div>
-
-        {/* SECTION — COMMUNICATION HISTORY */}
-        <motion.div variants={item}>
-          <CommunicationHistory contact={contact} onUpdated={applyContactUpdate} />
-        </motion.div>
-
-        {/* SECTION 5 — MESSAGES */}
-        <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">
+            {/* SECTION 5 — MESSAGES */}
+            <div className="abc-card p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
             <span className="abc-label">Messages</span>
             <button
@@ -932,10 +923,10 @@ export default function ContactResultPage() {
               </div>
             )}
           </div>
-        </motion.div>
+            </div>
 
-        {/* SECTION 6 — ACTIONS */}
-        <motion.div variants={item} className="flex flex-col gap-2">
+            {/* SECTION 6 — ACTIONS */}
+            <div className="flex flex-col gap-2">
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={handleSend}
@@ -975,7 +966,15 @@ export default function ContactResultPage() {
           >
             Skip
           </button>
-        </motion.div>
+            </div>
+          </motion.div>
+
+          <motion.div variants={item} className="flex flex-col gap-4 xl:sticky xl:top-4">
+            <DealInformation contact={contact} onUpdated={applyContactUpdate} />
+            <SalesforceFields contact={contact} onUpdated={applyContactUpdate} />
+            <CommunicationHistory contact={contact} onUpdated={applyContactUpdate} />
+          </motion.div>
+        </div>
           </>
         )}
 

@@ -7,6 +7,7 @@ import { createHubSpotContact } from '@/lib/hubspot'
 import { createSalesforceContact } from '@/lib/salesforce'
 import { calculateLeadScore, logActivity } from '@/lib/crm'
 import { runIntelligenceResearch } from '@/lib/research'
+import { buildPostEnrichmentMapping } from '@/lib/data-model'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
 import type { EnrichmentStepId } from '@/lib/enrichment-steps'
 
@@ -157,6 +158,17 @@ export async function runContactEnrichment(contactId: string, userId: string): P
       .update(withMessages)
       .eq('id', contactId)
       .eq('user_id', userId)
+
+    const { data: enrichedRow } = await supabase
+      .from('scanned_contacts')
+      .select('*')
+      .eq('id', contactId)
+      .single()
+
+    if (enrichedRow) {
+      const sfMapping = buildPostEnrichmentMapping(enrichedRow, true)
+      await supabase.from('scanned_contacts').update(sfMapping).eq('id', contactId)
+    }
 
     await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'syncing')
 
