@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSPropertie
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
-import HeroDemo from '@/components/landing/HeroDemo'
+import HeroPhone from '@/components/landing/HeroPhone'
 
 const COLORS = {
   bg: '#0d0f1a',
@@ -283,7 +283,7 @@ export default function HomePage() {
             alignItems: 'center',
           }}
         >
-          <div>
+          <div style={{ order: 1 }}>
             <span
               style={{
                 display: 'inline-block',
@@ -345,9 +345,17 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* Hero animated demo */}
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <HeroDemo />
+          {/* Hero phone mockup */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              order: 2,
+              width: '100%',
+            }}
+          >
+            <HeroPhone />
           </div>
         </div>
       </section>
