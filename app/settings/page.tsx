@@ -41,6 +41,17 @@ const EMPTY: Omit<ABCProfile, 'id'> = {
   salesforce_instance_url: null,
   salesforce_connected_at: null,
   webhook_url: null,
+  user_name: null,
+  user_company: null,
+  user_role: null,
+  user_product: null,
+  user_goal: null,
+  user_icp: null,
+  user_style: null,
+  user_language: null,
+  user_message_length: null,
+  user_prompt: null,
+  onboarding_completed: false,
 }
 
 const chipStyle = (active: boolean): React.CSSProperties =>
@@ -333,6 +344,60 @@ export default function SettingsPage() {
           />
         </div>
       </div>
+
+      {/* AI PROFILE */}
+      {(profile.onboarding_completed || profile.user_prompt) && (
+        <div
+          className="mx-4 mt-4 rounded-xl p-4 flex flex-col gap-3"
+          style={{ background: '#141628', border: '1px solid rgba(139, 92, 246, 0.12)' }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="gradient-text font-bold tracking-widest uppercase" style={{ fontSize: '9px' }}>
+              Your AI Profile
+            </span>
+            <button
+              type="button"
+              onClick={() => router.push('/onboarding')}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+              style={{ border: '1px solid rgba(0,212,212,0.4)', color: '#00d4d4' }}
+            >
+              Edit Profile
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Name</p>
+              <p style={{ color: '#f0f0ff' }}>{profile.user_name || profile.full_name || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Company</p>
+              <p style={{ color: '#f0f0ff' }}>{profile.user_company || profile.company || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Role</p>
+              <p style={{ color: '#f0f0ff' }}>{profile.user_role || profile.role || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Style</p>
+              <p style={{ color: '#f0f0ff' }}>{profile.user_style || profile.communication_style || '—'}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Language</p>
+              <p style={{ color: '#f0f0ff' }}>{profile.user_language || profile.outreach_language || '—'}</p>
+            </div>
+          </div>
+          {profile.user_prompt && (
+            <div
+              className="rounded-lg px-3 py-2 text-xs leading-relaxed"
+              style={{ background: '#1c1f35', color: '#8892b0', border: '1px solid rgba(0,212,212,0.15)' }}
+            >
+              {profile.user_prompt.length > 150
+                ? `${profile.user_prompt.slice(0, 150)}...`
+                : profile.user_prompt}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 2. YOUR CARD */}
       <div

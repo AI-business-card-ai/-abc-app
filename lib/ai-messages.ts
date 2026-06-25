@@ -13,24 +13,17 @@ export type GeneratedMessages = {
   message_whatsapp: string
 }
 
-function formatJsonField(value: unknown): string {
-  if (!value) return '—'
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      return JSON.stringify(parsed, null, 2)
-    } catch {
-      return value
-    }
-  }
-  return JSON.stringify(value, null, 2)
-}
-
 function buildSystemPrompt(
   userProfile: ABCProfile,
   contact: Partial<ScannedContact> & { meeting_context?: string | null },
   linkedin?: EnrichedLinkedInProfile | null
 ): string {
+  const userPrompt =
+    userProfile.user_prompt ||
+    'You are a professional B2B networking assistant.'
+  const userName = userProfile.user_name || userProfile.full_name || 'the user'
+  const userLanguage = userProfile.user_language || userProfile.outreach_language || 'EN'
+
   const posts = linkedin?.recentPosts?.length
     ? linkedin.recentPosts
     : contact.linkedin_posts
@@ -41,33 +34,31 @@ function buildSystemPrompt(
 
   const skills = linkedin?.skills?.length ? linkedin.skills : contact.linkedin_skills
 
-  return `Jsi expert na personalizovanou B2B komunikaci.
-Píšeš jménem: ${userProfile.full_name || 'Unknown'} z ${userProfile.company || 'Unknown'}
-Cíl: ${userProfile.goals || 'Build meaningful business relationships'}
-Styl: ${userProfile.communication_style || 'direct'}
+  return `${userPrompt}
 
-O příjemci víš:
-- Jméno: ${contact.name || '—'}
-- Firma: ${contact.company || '—'}
-- Pozice: ${contact.role || '—'}
-- LinkedIn headline: ${contact.linkedin_headline || linkedin?.headline || '—'}
-- Co dělá: ${contact.linkedin_summary || linkedin?.summary || contact.company_summary || '—'}
-- Poslední posty: ${formatJsonField(posts)}
-- Dovednosti: ${Array.isArray(skills) ? skills.join(', ') : formatJsonField(skills)}
-- Kariéra: ${formatJsonField(experiences)}
-- Kde jsme se potkali: ${contact.meeting_context || contact.event_name || '—'}
-- Poznámka: ${contact.notes || '—'}
-- Perplexity research: ${contact.enriched_context ? contact.enriched_context.slice(0, 1500) : '—'}
+You are writing on behalf of ${userName}.
+Language preference: ${userLanguage}
 
-Napiš 3 varianty zprávy:
-1. LinkedIn (max 300 znaků, přátelská, zmiň konkrétní detail z jeho profilu)
-2. Email (s předmětem, profesionální, 3-4 věty)
-3. WhatsApp (krátká, neformální, max 2 věty)
+Contact you are writing to:
+- Name: ${contact.name || 'N/A'}
+- Company: ${contact.company || 'N/A'}
+- Position: ${contact.role || 'N/A'}
+- LinkedIn headline: ${contact.linkedin_headline || linkedin?.headline || 'N/A'}
+- Recent LinkedIn posts: ${posts ? JSON.stringify(posts) : 'N/A'}
+- Top skills: ${Array.isArray(skills) && skills.length ? skills.join(', ') : 'N/A'}
+- Career history: ${experiences ? JSON.stringify(experiences) : 'N/A'}
+- Company summary: ${contact.linkedin_summary || linkedin?.summary || contact.company_summary || 'N/A'}
+- Where we met: ${contact.meeting_context || contact.event_name || 'N/A'}
+- Notes: ${contact.notes || 'N/A'}
+- Research context: ${contact.enriched_context ? contact.enriched_context.slice(0, 1200) : 'N/A'}
 
-Pro každou zprávu uveď [ZDROJ] odkud data pochází.
-Zprávy musí být tak relevantní že příjemce žasne.
+Write exactly 3 message variants:
+1. LinkedIn (max 300 chars, reference specific detail from their profile or posts)
+2. Email (subject line + 3-4 sentences, professional)
+3. WhatsApp (max 2 sentences, friendly)
 
-Write ALL messages in ${userProfile.outreach_language || 'English'}.
+After each message add one line: [SOURCE: what specific data point made this message personal]
+Messages must be so relevant the recipient is genuinely impressed.
 
 Return ONLY valid JSON:
 {
@@ -102,7 +93,7 @@ export async function generatePersonalizedMessages(
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1200,
       messages: [
         {
