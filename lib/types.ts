@@ -50,6 +50,8 @@ export interface ScannedContact {
   contact_count: number | null
   tags: string[] | null
   whatsapp_number: string | null
+  enrichment_status: 'PENDING' | 'ENRICHING' | 'DONE' | 'ERROR' | null
+  enrichment_step: string | null
 }
 
 export type CrmStatus = 'NEW' | 'ENRICHED' | 'CONTACTED' | 'IN_CONVERSATION' | 'CLOSED'

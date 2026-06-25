@@ -8,6 +8,7 @@ import { createClientComponent } from '@/lib/supabase'
 import { useDevice } from '@/lib/hooks/useDevice'
 import CardStack from '@/components/ui/CardStack'
 import PipelineStageBadge from '@/components/ui/PipelineStageBadge'
+import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
 const chipStyle = (active: boolean): React.CSSProperties =>
@@ -60,6 +61,56 @@ export default function ContactsPage() {
   useEffect(() => {
     loadContacts()
   }, [loadContacts, refreshKey])
+
+  useEffect(() => {
+    let mounted = true
+
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !mounted) return
+
+      const channel = supabase
+        .channel('contacts-enrichment')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'scanned_contacts',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const updated = payload.new as ScannedContact
+            setContacts((prev) =>
+              prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+            )
+          }
+        )
+        .subscribe()
+
+      return channel
+    }
+
+    let channelPromise = setupRealtime()
+
+    return () => {
+      mounted = false
+      channelPromise.then((channel) => {
+        if (channel) supabase.removeChannel(channel)
+      })
+    }
+  }, [supabase, refreshKey])
+
+  const handleRetryEnrichment = async (contactId: string) => {
+    try {
+      const res = await fetch(`/api/enrich/retry/${contactId}`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Retry failed')
+      toast('Retrying enrichment…')
+    } catch {
+      toast('Retry failed')
+    }
+  }
 
   useEffect(() => {
     fetch('/api/crm/stats')
@@ -329,11 +380,12 @@ export default function ContactsPage() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ background: '#A78BFA', boxShadow: '0 0 6px #A78BFA' }}
+                    <EnrichmentIndicator
+                      contact={active}
+                      compact
+                      onRetry={() => handleRetryEnrichment(active.id)}
                     />
-                    <span className="text-xs font-medium truncate" style={{ color: '#A78BFA' }}>
+                    <span className="text-xs font-medium truncate" style={{ color: '#00d4d4' }}>
                       {active.event_name ?? 'No event'}
                     </span>
                   </div>
@@ -434,11 +486,18 @@ export default function ContactsPage() {
                     <p className="text-sm truncate mt-1" style={{ color: '#8B7AA8' }}>
                       {[c.company, c.role].filter(Boolean).join(' · ') || 'No company'}
                     </p>
-                    <div className="flex items-center justify-between mt-3">
-                      <span className="text-[10px] uppercase font-bold" style={{ color: '#A78BFA' }}>
-                        {c.crm_status || 'NEW'}
-                      </span>
-                      <span className="text-xs font-bold tabular-nums" style={{ color: '#F0EAFF' }}>
+                    <div className="flex items-center justify-between mt-3 gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <EnrichmentIndicator
+                          contact={c}
+                          compact
+                          onRetry={() => handleRetryEnrichment(c.id)}
+                        />
+                        <span className="text-[10px] uppercase font-bold truncate" style={{ color: '#a78bfa' }}>
+                          {c.crm_status || 'NEW'}
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold tabular-nums shrink-0" style={{ color: '#f0f0ff' }}>
                         {score}
                       </span>
                     </div>

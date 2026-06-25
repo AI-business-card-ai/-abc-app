@@ -18,6 +18,8 @@ import MatchScore, { scoreColors } from '@/components/ui/MatchScore'
 import { parseEnrichedContext, splitContentWithUrls } from '@/lib/research'
 import { logCrmActivity } from '@/lib/crm-client'
 import ActivityTimeline from '@/components/crm/ActivityTimeline'
+import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
+import EnrichmentProgress from '@/components/ui/EnrichmentProgress'
 import type { ScannedContact } from '@/lib/types'
 
 type Tab = 'linkedin' | 'email' | 'whatsapp'
@@ -78,10 +80,23 @@ export default function ContactResultPage() {
   const [enriching, setEnriching] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [openSection, setOpenSection] = useState<string | null>(null)
+  const [showDoneBanner, setShowDoneBanner] = useState(false)
+  const [showFullDetail, setShowFullDetail] = useState(false)
+  const [retryingEnrichment, setRetryingEnrichment] = useState(false)
 
   const toast = useCallback((msg: string) => {
     setToastMsg(msg)
     setTimeout(() => setToastMsg(null), 2500)
+  }, [])
+
+  const applyContactUpdate = useCallback((c: ScannedContact) => {
+    setContact(c)
+    setMessages({
+      linkedin: c.message_linkedin ? cleanText(c.message_linkedin) : '',
+      email: c.message_email ? cleanText(c.message_email) : '',
+      whatsapp: c.message_whatsapp ? cleanText(c.message_whatsapp) : '',
+    })
+    setSubject(c.email_subject ? cleanText(c.email_subject) : '')
   }, [])
 
   const loadContact = useCallback(async () => {
@@ -111,21 +126,75 @@ export default function ContactResultPage() {
       setContact(null)
     } else {
       const c = data as ScannedContact
-      setContact(c)
-      setMessages({
-        linkedin: c.message_linkedin ? cleanText(c.message_linkedin) : '',
-        email: c.message_email ? cleanText(c.message_email) : '',
-        whatsapp: c.message_whatsapp ? cleanText(c.message_whatsapp) : '',
-      })
-      setSubject(c.email_subject ? cleanText(c.email_subject) : '')
+      applyContactUpdate(c)
+      const status = c.enrichment_status || 'DONE'
+      setShowFullDetail(status === 'DONE' || !c.enrichment_status)
+      setShowDoneBanner(false)
       setError(null)
     }
     setLoading(false)
-  }, [id, router, supabase])
+  }, [id, router, supabase, applyContactUpdate])
 
   useEffect(() => {
     loadContact()
   }, [loadContact, retryKey])
+
+  useEffect(() => {
+    if (!id) return
+
+    const channel = supabase
+      .channel(`contact-enrichment-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'scanned_contacts',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          const updated = payload.new as ScannedContact
+          setContact((prev) => {
+            const prevStatus = prev?.enrichment_status || 'DONE'
+            if (updated.enrichment_status === 'DONE' && prevStatus !== 'DONE') {
+              setShowDoneBanner(true)
+              setShowFullDetail(false)
+              window.setTimeout(() => {
+                setShowDoneBanner(false)
+                setShowFullDetail(true)
+              }, 3000)
+            }
+            return updated
+          })
+          setMessages({
+            linkedin: updated.message_linkedin ? cleanText(updated.message_linkedin) : '',
+            email: updated.message_email ? cleanText(updated.message_email) : '',
+            whatsapp: updated.message_whatsapp ? cleanText(updated.message_whatsapp) : '',
+          })
+          setSubject(updated.email_subject ? cleanText(updated.email_subject) : '')
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [id, supabase])
+
+  async function handleRetryEnrichment() {
+    setRetryingEnrichment(true)
+    try {
+      const res = await fetch(`/api/enrich/retry/${id}`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Retry failed')
+      setShowFullDetail(false)
+      toast('Retrying enrichment…')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Retry failed')
+    } finally {
+      setRetryingEnrichment(false)
+    }
+  }
 
   const enrichedSections = useMemo(
     () => parseEnrichedContext(contact?.enriched_context),
@@ -422,6 +491,10 @@ export default function ContactResultPage() {
     contact.industry ? { icon: '🏭', label: 'Industry', value: contact.industry } : null,
   ].filter(Boolean) as { icon: string; label: string; value: string }[]
 
+  const enrichmentStatus = contact.enrichment_status || 'DONE'
+  const isEnriching = enrichmentStatus === 'PENDING' || enrichmentStatus === 'ENRICHING'
+  const showDetailSections = showFullDetail && !showDoneBanner && !isEnriching
+
   return (
     <motion.div className="min-h-screen bg-bg pb-44">
       {/* TOP BAR */}
@@ -510,6 +583,39 @@ export default function ContactResultPage() {
           </div>
         </motion.div>
 
+        <AnimatePresence>
+          {isEnriching && (
+            <motion.div variants={item} key="enrichment-progress">
+              <EnrichmentProgress step={contact.enrichment_step} status={contact.enrichment_status} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showDoneBanner && (
+            <motion.div
+              key="enrichment-done"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="abc-card p-4 text-center"
+              style={{ border: '1px solid rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.08)' }}
+            >
+              <p className="text-sm font-semibold" style={{ color: '#22c55e' }}>
+                ✓ Contact fully enriched
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {enrichmentStatus === 'ERROR' && (
+          <motion.div variants={item} className="abc-card p-4 flex items-center justify-between gap-3">
+            <EnrichmentIndicator contact={contact} onRetry={handleRetryEnrichment} retrying={retryingEnrichment} />
+          </motion.div>
+        )}
+
+        {showDetailSections && (
+          <>
         {/* SECTION 2 — MATCH SCORE */}
         <motion.div
           variants={item}
@@ -848,6 +954,8 @@ export default function ContactResultPage() {
             Skip
           </button>
         </motion.div>
+          </>
+        )}
 
         {error && (
           <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
