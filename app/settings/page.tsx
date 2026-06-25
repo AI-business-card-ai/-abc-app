@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { getLanguageLabel } from '@/lib/ai-messages'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   IconMail,
@@ -364,6 +365,22 @@ export default function SettingsPage() {
               Edit Profile
             </button>
           </div>
+          <div
+            className="rounded-lg px-3 py-2.5 flex items-center justify-between gap-2"
+            style={{ background: 'rgba(0,212,212,0.08)', border: '1px solid rgba(0,212,212,0.25)' }}
+          >
+            <span className="text-sm font-semibold" style={{ color: '#00d4d4' }}>
+              ✓ Messages language: {getLanguageLabel(profile.user_language ?? 'EN')}
+            </span>
+            <button
+              type="button"
+              onClick={() => router.push('/onboarding?step=4')}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
+              style={{ border: '1px solid rgba(0,212,212,0.4)', color: '#00d4d4' }}
+            >
+              Change
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
               <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Name</p>
@@ -380,10 +397,6 @@ export default function SettingsPage() {
             <div>
               <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Style</p>
               <p style={{ color: '#f0f0ff' }}>{profile.user_style || profile.communication_style || '—'}</p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Language</p>
-              <p style={{ color: '#f0f0ff' }}>{profile.user_language || profile.outreach_language || '—'}</p>
             </div>
           </div>
           {profile.user_prompt && (

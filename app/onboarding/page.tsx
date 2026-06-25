@@ -91,13 +91,23 @@ export default function OnboardingPage() {
         setProduct(profile.user_product || '')
         setIcp(profile.user_icp || '')
         setTone(profile.user_style || TONE_OPTIONS[0])
-        setLanguage(profile.user_language || profile.outreach_language || 'EN')
+        setLanguage(profile.user_language ?? 'EN')
         setMessageLength(profile.user_message_length || LENGTH_OPTIONS[1])
         setGoal(profile.user_goal || profile.goals || GOAL_OPTIONS[0])
       }
       setLoading(false)
     })()
   }, [router, supabase])
+
+  useEffect(() => {
+    const stepParam = new URLSearchParams(window.location.search).get('step')
+    if (!stepParam) return
+    const parsed = parseInt(stepParam, 10)
+    if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 5) {
+      setStep(parsed as Step)
+      if (parsed >= 1) setIsEditing(true)
+    }
+  }, [])
 
   const goNext = useCallback(() => {
     setDirection(1)
@@ -276,7 +286,7 @@ export default function OnboardingPage() {
               <>
                 <h2 className="font-bold" style={{ fontSize: 28 }}>How do you like to communicate?</h2>
                 <SelectCards label="Tone" options={TONE_OPTIONS} value={tone} onChange={setTone} />
-                <SelectCards label="Language" options={LANGUAGE_OPTIONS} value={language} onChange={setLanguage} compact />
+                <LanguageSelector value={language} onChange={setLanguage} />
                 <SelectCards label="Length" options={LENGTH_OPTIONS} value={messageLength} onChange={setMessageLength} />
                 <SelectCards label="Goal" options={GOAL_OPTIONS} value={goal} onChange={setGoal} />
                 {error && <p className="text-sm text-red-300">{error}</p>}
@@ -397,6 +407,45 @@ function ChipGroup({
           </button>
         ))}
       </div>
+    </div>
+  )
+}
+
+function LanguageSelector({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: '#4a5168' }}>
+        Language
+      </p>
+      <div className="grid grid-cols-4 gap-2">
+        {LANGUAGE_OPTIONS.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className={`onboarding-card ${value === option ? 'onboarding-card-active' : ''}`}
+            style={
+              option === 'EN'
+                ? {
+                    borderColor: value === 'EN' ? '#00d4d4' : 'rgba(0, 212, 212, 0.35)',
+                    background: value === 'EN' ? 'rgba(0, 212, 212, 0.1)' : '#1c1f35',
+                  }
+                : undefined
+            }
+          >
+            {option === 'EN' ? 'EN (Default)' : option}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs mt-2 leading-relaxed" style={{ color: '#8892b0' }}>
+        Default is English. Change only if you want messages in a different language.
+      </p>
     </div>
   )
 }

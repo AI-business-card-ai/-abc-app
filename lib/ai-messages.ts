@@ -15,24 +15,44 @@ export type GeneratedMessages = {
 }
 
 export function getUserLanguage(profile: ABCProfile | null | undefined): string {
-  return profile?.user_language || profile?.outreach_language || 'EN'
+  return profile?.user_language ?? 'EN'
 }
 
-export function getLanguageInstruction(userLanguage: string): string {
-  const lang = userLanguage || 'EN'
+export function getLanguageInstruction(userLang: string): string {
+  const lang = userLang ?? 'EN'
   if (lang === 'CZ') {
-    return 'IMPORTANT: Write ALL messages in Czech language only.'
+    return 'CRITICAL: You MUST write ALL messages in Czech language only. Never use English.'
   }
   if (lang === 'DE') {
-    return 'IMPORTANT: Write ALL messages in German language only.'
+    return 'CRITICAL: You MUST write ALL messages in German language only. Never use English.'
   }
   if (lang === 'Mix') {
-    return 'IMPORTANT: Write messages mixing Czech and English naturally.'
+    return 'CRITICAL: Write messages mixing Czech and English naturally. Start in English.'
   }
-  return 'IMPORTANT: Write ALL messages in English language only. Do not use any other language.'
+  return 'CRITICAL: You MUST write ALL messages in English only. NEVER use Czech, Slovak, or any other language. Even if the contact has Czech name, write in English.'
 }
 
-function buildSystemPrompt(
+export function buildLanguagePromptPrefix(profile: ABCProfile | null | undefined): string {
+  const userLang = getUserLanguage(profile)
+  const LANGUAGE_INSTRUCTION = getLanguageInstruction(userLang)
+  return `${LANGUAGE_INSTRUCTION}
+
+Language rule: ${LANGUAGE_INSTRUCTION}
+This is the most important instruction. Override any other language tendencies.`
+}
+
+export function getLanguageLabel(code: string | null | undefined): string {
+  const lang = code ?? 'EN'
+  const labels: Record<string, string> = {
+    EN: 'English',
+    CZ: 'Czech',
+    DE: 'German',
+    Mix: 'Czech + English mix',
+  }
+  return labels[lang] || lang
+}
+
+function buildMessagePrompt(
   userProfile: ABCProfile,
   contact: Partial<ScannedContact> & { meeting_context?: string | null },
   linkedin?: EnrichedLinkedInProfile | null
@@ -41,15 +61,14 @@ function buildSystemPrompt(
     userProfile.user_prompt ||
     'You are a professional B2B networking assistant.'
   const userName = userProfile.user_name || userProfile.full_name || 'the user'
-  const lang = getUserLanguage(userProfile)
-  const languageInstruction = getLanguageInstruction(lang)
+  const userLang = getUserLanguage(userProfile)
 
   const profileBlock = `The user's name is ${userName}.
 Their company is ${userProfile.user_company || userProfile.company || ''}.
 Their role is ${userProfile.user_role || userProfile.role || ''}.
 They offer: ${userProfile.user_product || ''}.
 Their goal: ${userProfile.user_goal || userProfile.goals || ''}.
-Language: ${languageInstruction}`
+Messages language code: ${userLang}`
 
   const posts = linkedin?.recentPosts?.length
     ? linkedin.recentPosts
@@ -72,14 +91,11 @@ Language: ${languageInstruction}`
     : '[]'
   const personBio = hasDisplayValue(contact.person_bio) ? contact.person_bio : ''
 
-  return `${languageInstruction}
-
-${profileBlock}
+  return `${profileBlock}
 
 ${userPrompt}
 
 You are writing on behalf of ${userName}.
-Language preference: ${lang}
 
 Contact you are writing to:
 - Name: ${contact.name || 'N/A'}
@@ -146,10 +162,11 @@ export async function generatePersonalizedMessages(
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1200,
+      system: buildLanguagePromptPrefix(userProfile),
       messages: [
         {
           role: 'user',
-          content: buildSystemPrompt(userProfile, contact, linkedin),
+          content: buildMessagePrompt(userProfile, contact, linkedin),
         },
       ],
     })

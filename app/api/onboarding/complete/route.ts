@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { getLanguageInstruction } from '@/lib/ai-messages'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -24,11 +25,18 @@ async function generateUserPrompt(input: {
   messageLength?: string
 }): Promise<string> {
   const lengthLine = input.messageLength ? `Message length preference: ${input.messageLength}.` : ''
+  const userLang = input.language ?? 'EN'
+  const LANGUAGE_INSTRUCTION = getLanguageInstruction(userLang)
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 400,
-    system: 'You create concise AI assistant profiles for B2B sales professionals.',
+    system: `${LANGUAGE_INSTRUCTION}
+
+Language rule: ${LANGUAGE_INSTRUCTION}
+This is the most important instruction. Override any other language tendencies.
+
+You create concise AI assistant profiles for B2B sales professionals.`,
     messages: [
       {
         role: 'user',
@@ -36,15 +44,27 @@ async function generateUserPrompt(input: {
 User: ${input.name} from ${input.company}, role: ${input.role}
 Product/service: ${input.product}
 Ideal client: ${input.icp}
-Style: ${input.style}, Language: ${input.language}, Goal: ${input.goal}
+Style: ${input.style}, Language: ${userLang}, Goal: ${input.goal}
 ${lengthLine}
+The generated context must instruct the AI to write outreach messages in the language specified above.
 Output ONLY the context text, no labels or formatting.`,
       },
     ],
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-  return text || `You write personalized B2B outreach for ${input.name} at ${input.company}. Focus on ${input.goal.toLowerCase()} with a ${input.style.toLowerCase()} tone in ${input.language}.`
+  const langPhrase =
+    userLang === 'CZ'
+      ? 'in Czech'
+      : userLang === 'DE'
+        ? 'in German'
+        : userLang === 'Mix'
+          ? 'mixing Czech and English'
+          : 'in English only'
+  return (
+    text ||
+    `You write personalized B2B outreach for ${input.name} at ${input.company}. Focus on ${input.goal.toLowerCase()} with a ${input.style.toLowerCase()} tone ${langPhrase}.`
+  )
 }
 
 export async function POST(req: NextRequest) {
@@ -73,7 +93,7 @@ export async function POST(req: NextRequest) {
     const product = body.product?.trim()
     const icp = body.icp?.trim()
     const style = body.style?.trim()
-    const language = body.language?.trim()
+    const language = body.language?.trim() || 'EN'
     const goal = body.goal?.trim()
 
     if (!name || !company || !role || !product || !icp || !style || !language || !goal) {
@@ -94,7 +114,16 @@ export async function POST(req: NextRequest) {
         messageLength: body.messageLength,
       })
     } else {
-      userPrompt = `You write personalized B2B outreach for ${name} at ${company}. Target ideal clients matching: ${icp}. Communicate in a ${style} tone using ${language}, with the goal to ${goal.toLowerCase()}.`
+      const userLang = language ?? 'EN'
+      const langPhrase =
+        userLang === 'CZ'
+          ? 'in Czech'
+          : userLang === 'DE'
+            ? 'in German'
+            : userLang === 'Mix'
+              ? 'mixing Czech and English'
+              : 'in English only'
+      userPrompt = `You write personalized B2B outreach for ${name} at ${company}. Target ideal clients matching: ${icp}. Communicate in a ${style} tone ${langPhrase}, with the goal to ${goal.toLowerCase()}.`
     }
 
     const communicationStyle = mapStyleToCommunication(style)

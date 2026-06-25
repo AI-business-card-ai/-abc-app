@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { ABCProfile, ScanResult } from './types'
+import { buildLanguagePromptPrefix, getLanguageInstruction, getUserLanguage } from './ai-messages'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -183,7 +184,13 @@ Use this context to personalize messages:
 `
     : ''
 
-  const prompt = `You are analyzing a photo that may contain ONE or MULTIPLE business cards.
+  const languagePrefix = buildLanguagePromptPrefix(userProfile)
+  const userLang = getUserLanguage(userProfile)
+  const LANGUAGE_INSTRUCTION = getLanguageInstruction(userLang)
+
+  const prompt = `${languagePrefix}
+
+You are analyzing a photo that may contain ONE or MULTIPLE business cards.
 
 If you see multiple business cards:
 - Analyze each card separately
@@ -204,7 +211,7 @@ User context:
 - Role: ${userProfile.role}
 - Goals: ${userProfile.goals}
 - Style: ${userProfile.communication_style}
-- Language: ${userProfile.outreach_language}
+- Message language: ${userLang}
 
 ${researchBlock}
 
@@ -224,11 +231,8 @@ Generate personalized messages for each contact:
 - message_email: 3-4 sentences + email_subject line
 - message_whatsapp: max 160 chars, friendly
 
-IMPORTANT: Write ALL messages in English only.
-LinkedIn message in English.
-Email in English.
-WhatsApp in English.
-All analysis in English.
+Language rule: ${LANGUAGE_INSTRUCTION}
+This is the most important instruction. Override any other language tendencies.
 
 IMPORTANT: Return a JSON array, always (one object per card):
 [
