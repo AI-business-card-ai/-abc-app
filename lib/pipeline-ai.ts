@@ -2,7 +2,7 @@ import type { CrmStatus, ScannedContact } from '@/lib/types'
 
 export type ScoreTier = 'cold' | 'warm' | 'hot'
 export type ActionColor = 'red' | 'blue' | 'gray' | 'orange'
-export type FilterTab = 'all' | 'hot' | 'action' | 'week' | 'closed'
+export type FilterTab = 'all' | 'hot' | 'action' | 'week' | 'closed' | 'won'
 
 export type AiNextStep = {
   text: string
@@ -17,6 +17,8 @@ export type DashboardMetrics = {
   needFollowUp: number
   avgScore: number
   pipelineValue: number
+  expectedThisMonth: number
+  wonThisMonth: number
 }
 
 const STATUS_COLORS: Record<CrmStatus, string> = {
@@ -129,12 +131,36 @@ export function computeDashboardMetrics(contacts: ScannedContact[]): DashboardMe
   let needFollowUp = 0
   let scoreSum = 0
   let pipelineValue = 0
+  let expectedThisMonth = 0
+  let wonThisMonth = 0
+
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
 
   for (const c of contacts) {
     const score = c.ai_lead_score ?? c.match_score ?? 0
     if (score >= 70) hotLeads += 1
     scoreSum += score
-    pipelineValue += Number(c.deal_value) || 0
+    const dealVal = Number(c.deal_value) || 0
+    if (c.pipeline_stage !== 'won' && c.pipeline_stage !== 'lost') {
+      pipelineValue += dealVal
+    }
+
+    if (c.expected_close_date) {
+      const close = new Date(c.expected_close_date)
+      if (close >= monthStart && close <= monthEnd && c.pipeline_stage !== 'won' && c.pipeline_stage !== 'lost') {
+        expectedThisMonth += dealVal
+      }
+    }
+
+    if (c.pipeline_stage === 'won') {
+      const ref = c.expected_close_date || c.response_date || c.last_activity_at || c.scanned_at
+      const d = new Date(ref || '')
+      if (!Number.isNaN(d.getTime()) && d >= monthStart && d <= monthEnd) {
+        wonThisMonth += dealVal
+      }
+    }
 
     const days = daysSinceActivity(c)
     const status = c.crm_status || 'NEW'
@@ -147,6 +173,8 @@ export function computeDashboardMetrics(contacts: ScannedContact[]): DashboardMe
     needFollowUp,
     avgScore: total > 0 ? Math.round(scoreSum / total) : 0,
     pipelineValue,
+    expectedThisMonth,
+    wonThisMonth,
   }
 }
 
@@ -171,6 +199,8 @@ export function filterContacts(
         return scannedAt >= weekAgo
       case 'closed':
         return c.crm_status === 'CLOSED'
+      case 'won':
+        return c.pipeline_stage === 'won'
       default:
         return true
     }

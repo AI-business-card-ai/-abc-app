@@ -12,6 +12,7 @@ export type ActivityType =
   | 'EXPORTED_CSV'
   | 'WEBHOOK_SENT'
   | 'MESSAGE_GENERATED'
+  | 'RESPONSE_RECEIVED'
 
 export type CrmStatus =
   | 'NEW'
@@ -26,6 +27,12 @@ const STATUS_TRANSITIONS: Partial<Record<ActivityType, CrmStatus>> = {
   EMAIL_SENT: 'CONTACTED',
   WHATSAPP_OPENED: 'CONTACTED',
   LINKEDIN_COPIED: 'CONTACTED',
+}
+
+const MESSAGE_TYPE_MAP: Partial<Record<ActivityType, string>> = {
+  LINKEDIN_COPIED: 'LinkedIn',
+  EMAIL_SENT: 'Email',
+  WHATSAPP_OPENED: 'WhatsApp',
 }
 
 const CONTACT_ACTIVITIES: ActivityType[] = [
@@ -67,7 +74,7 @@ export async function logActivity({
 
   const { data: contact } = await supabase
     .from('scanned_contacts')
-    .select('crm_status, contact_count')
+    .select('crm_status, contact_count, messages_sent')
     .eq('id', contactId)
     .eq('user_id', userId)
     .single()
@@ -88,6 +95,9 @@ export async function logActivity({
 
   if (CONTACT_ACTIVITIES.includes(activityType) && contact) {
     update.contact_count = (contact.contact_count || 0) + 1
+    update.messages_sent = (contact.messages_sent || 0) + 1
+    update.last_message_type = MESSAGE_TYPE_MAP[activityType] || activityType
+    update.last_message_date = new Date().toISOString()
   }
 
   await supabase.from('scanned_contacts').update(update).eq('id', contactId).eq('user_id', userId)

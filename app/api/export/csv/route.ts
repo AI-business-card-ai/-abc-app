@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     }
   } else {
     csvRows.push(
-      'First Name,Last Name,Company,Title,Email,Phone,Mobile,Website,Description,Lead Score,Status,Pipeline Stage,Last Activity'
+      'First Name,Last Name,Company,Title,Email,Phone,Mobile,Website,Description,Lead Score,Status,Pipeline Stage,Last Activity,Deal Value,Currency,Expected Close Date,Tags,Lead Source,Messages Sent,Last Message Type,Response Received,Meeting Event,CRM Status'
     )
     for (const c of contacts) {
       const nameParts = (c.name || '').split(' ')
@@ -78,6 +78,16 @@ export async function GET(req: NextRequest) {
           csvEscape(c.crm_status || 'NEW'),
           csvEscape(c.pipeline_stage || 'new'),
           csvEscape(c.last_activity_at || ''),
+          csvEscape(String(c.deal_value || 0)),
+          csvEscape(c.deal_currency || 'USD'),
+          csvEscape(c.expected_close_date || ''),
+          csvEscape((c.tags || []).join('; ')),
+          csvEscape(c.lead_source || 'ABC AI Business Card'),
+          csvEscape(String(c.messages_sent || 0)),
+          csvEscape(c.last_message_type || ''),
+          csvEscape(c.response_received ? 'Yes' : 'No'),
+          csvEscape(c.meeting_event_name || c.event_name || ''),
+          csvEscape(c.crm_status || 'NEW'),
         ].join(',')
       )
     }

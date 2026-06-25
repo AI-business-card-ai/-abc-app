@@ -22,6 +22,7 @@ const ACTIVITY_ICONS: Record<ActivityType, string> = {
   EXPORTED_CSV: '⬇️',
   WEBHOOK_SENT: '🔌',
   MESSAGE_GENERATED: '💡',
+  RESPONSE_RECEIVED: '✅',
 }
 
 function formatWhen(iso: string) {

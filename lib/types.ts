@@ -43,6 +43,16 @@ export interface ScannedContact {
   next_action: string | null
   next_action_date: string | null
   deal_value: number | null
+  deal_currency: string | null
+  expected_close_date: string | null
+  lead_source: string | null
+  last_message_type: string | null
+  last_message_date: string | null
+  response_received: boolean | null
+  response_date: string | null
+  messages_sent: number | null
+  meeting_event_name: string | null
+  meeting_event_date: string | null
   crm_status: CrmStatus | null
   ai_lead_score: number | null
   last_activity_at: string | null

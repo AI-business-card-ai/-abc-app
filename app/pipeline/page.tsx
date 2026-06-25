@@ -6,6 +6,9 @@ import { motion } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
 import { useDevice } from '@/lib/hooks/useDevice'
 import { logCrmActivity } from '@/lib/crm-client'
+import PipelineTable from '@/components/pipeline/PipelineTable'
+import TagPills from '@/components/crm/TagPills'
+import { formatDealValue } from '@/lib/tags'
 import {
   computeDashboardMetrics,
   filterContacts,
@@ -25,6 +28,7 @@ const FILTER_TABS: { id: FilterTab; label: string }[] = [
   { id: 'hot', label: '🔥 Hot Leads' },
   { id: 'action', label: '⚡ Action Needed' },
   { id: 'week', label: '📅 This Week' },
+  { id: 'won', label: '✓ Won' },
   { id: 'closed', label: '✓ Closed' },
 ]
 
@@ -103,6 +107,14 @@ function MobilePipelineCard({
         {[contact.company, contact.role].filter(Boolean).join(' · ') || 'No company'}
       </p>
 
+      <TagPills tags={contact.tags || []} compact />
+
+      {(Number(contact.deal_value) || 0) > 0 && (
+        <p className="text-xs font-semibold" style={{ color: '#f59e0b' }}>
+          💰 {formatDealValue(contact.deal_value, contact.deal_currency || 'USD')}
+        </p>
+      )}
+
       <div className="flex items-center gap-2 flex-wrap">
         <span
           className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
@@ -138,92 +150,21 @@ function MobilePipelineCard({
 function DesktopPipelineTable({
   contacts,
   onAction,
+  onUpdate,
+  showWonBadge,
 }: {
   contacts: ScannedContact[]
   onAction: (contact: ScannedContact, step: ReturnType<typeof getAiNextStep>) => void
+  onUpdate: (contact: ScannedContact) => void
+  showWonBadge?: boolean
 }) {
   return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{ border: '1px solid rgba(139, 92, 246, 0.12)' }}
-    >
-      <div
-        className="grid grid-cols-[1.4fr_1fr_0.7fr_0.8fr_0.7fr_1.4fr_0.9fr] gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-wider"
-        style={{ background: '#141628', color: '#8892b0', borderBottom: '1px solid rgba(139, 92, 246, 0.12)' }}
-      >
-        <span>Contact</span>
-        <span>Company</span>
-        <span>Score</span>
-        <span>Status</span>
-        <span>Last Activity</span>
-        <span>AI Next Step</span>
-        <span>Action</span>
-      </div>
-
-      {contacts.map((contact) => {
-        const score = contact.ai_lead_score ?? contact.match_score ?? 0
-        const scoreTier = getScoreTier(score)
-        const status = contact.crm_status || 'NEW'
-        const statusColor = getStatusColor(contact.crm_status)
-        const days = daysSinceActivity(contact)
-        const step = getAiNextStep(contact)
-        const btnStyle = actionButtonStyle(step.color, step.urgent)
-
-        return (
-          <div
-            key={contact.id}
-            className="grid grid-cols-[1.4fr_1fr_0.7fr_0.8fr_0.7fr_1.4fr_0.9fr] gap-3 items-center px-4 h-14 transition-colors"
-            style={{ borderBottom: '1px solid rgba(139, 92, 246, 0.08)', background: '#141628' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#1c1f35'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#141628'
-            }}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <ContactAvatar contact={contact} size={32} />
-              <span className="text-sm font-semibold truncate" style={{ color: '#f0f0ff' }}>
-                {contact.name?.trim() || 'Unknown'}
-              </span>
-            </div>
-            <span className="text-xs truncate" style={{ color: '#8892b0' }}>
-              {[contact.company, contact.role].filter(Boolean).join(' · ') || '—'}
-            </span>
-            <span
-              className="inline-flex w-fit rounded-md px-2 py-0.5 text-xs font-bold text-white"
-              style={{ background: scoreTier.bg }}
-            >
-              {score}
-            </span>
-            <span
-              className="inline-flex w-fit rounded-full px-2 py-0.5 text-[9px] font-bold uppercase"
-              style={{
-                background: 'transparent',
-                color: statusColor,
-                border: `1px solid ${statusColor}`,
-              }}
-            >
-              {status.replace(/_/g, ' ')}
-            </span>
-            <span className="text-xs" style={{ color: '#4a5168' }}>
-              {days === 0 ? 'Today' : `${days}d`}
-            </span>
-            <span className="text-xs truncate italic" style={{ color: '#8b5cf6' }}>
-              ⚡ {step.text}
-            </span>
-            <button
-              type="button"
-              onClick={() => onAction(contact, step)}
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap hover:opacity-90"
-              style={btnStyle}
-            >
-              {step.action}
-            </button>
-          </div>
-        )
-      })}
-    </div>
+    <PipelineTable
+      contacts={contacts}
+      onAction={onAction}
+      onUpdate={onUpdate}
+      showWonBadge={showWonBadge}
+    />
   )
 }
 
@@ -280,12 +221,18 @@ export default function PipelinePage() {
     [router]
   )
 
+  const handleContactUpdate = useCallback((updated: ScannedContact) => {
+    setContacts((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)))
+  }, [])
+
   const metricCards = [
     { label: 'Contacts', value: String(metrics.total), filter: 'all' as FilterTab },
     { label: 'Hot Leads', value: String(metrics.hotLeads), filter: 'hot' as FilterTab },
     { label: 'Need Follow-up', value: String(metrics.needFollowUp), filter: 'action' as FilterTab },
     { label: 'Avg Score', value: String(metrics.avgScore), filter: 'all' as FilterTab },
-    { label: 'Pipeline', value: formatPipelineValue(metrics.pipelineValue), filter: 'all' as FilterTab },
+    { label: 'Pipeline Value', value: formatPipelineValue(metrics.pipelineValue), filter: 'all' as FilterTab },
+    { label: 'Expected This Month', value: formatPipelineValue(metrics.expectedThisMonth), filter: 'all' as FilterTab },
+    { label: 'Won This Month', value: formatPipelineValue(metrics.wonThisMonth), filter: 'won' as FilterTab },
   ]
 
   const metricsGridClass =
@@ -293,7 +240,7 @@ export default function PipelinePage() {
       ? 'grid grid-cols-2 gap-3'
       : device === 'tablet'
         ? 'grid grid-cols-3 gap-3'
-        : 'grid grid-cols-5 gap-3'
+        : 'grid grid-cols-4 lg:grid-cols-7 gap-3'
 
   return (
     <div className="min-h-screen page-shell page-shell--wide pb-8">
@@ -386,8 +333,42 @@ export default function PipelinePage() {
         <p className="py-12 text-center text-sm" style={{ color: '#8892b0' }}>
           No contacts match this filter.
         </p>
+      ) : filter === 'won' && visibleContacts.length > 0 ? (
+        <>
+          <div
+            className="mb-4 rounded-xl px-4 py-3 flex items-center justify-between"
+            style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}
+          >
+            <span className="text-sm font-semibold" style={{ color: '#f59e0b' }}>
+              🏆 Won Deals — {formatPipelineValue(
+                visibleContacts.reduce((sum, c) => sum + (Number(c.deal_value) || 0), 0)
+              )}
+            </span>
+            <span className="text-xs" style={{ color: '#8892b0' }}>
+              {visibleContacts.length} deal{visibleContacts.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          {device === 'desktop' ? (
+            <DesktopPipelineTable
+              contacts={visibleContacts}
+              onAction={handleAction}
+              onUpdate={handleContactUpdate}
+              showWonBadge
+            />
+          ) : (
+            <div className={device === 'tablet' ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'}>
+              {visibleContacts.map((contact) => (
+                <MobilePipelineCard key={contact.id} contact={contact} onAction={handleAction} />
+              ))}
+            </div>
+          )}
+        </>
       ) : device === 'desktop' ? (
-        <DesktopPipelineTable contacts={visibleContacts} onAction={handleAction} />
+        <DesktopPipelineTable
+          contacts={visibleContacts}
+          onAction={handleAction}
+          onUpdate={handleContactUpdate}
+        />
       ) : (
         <div className={device === 'tablet' ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'}>
           {visibleContacts.map((contact) => (

@@ -1,4 +1,4 @@
-export type PipelineStageId = 'new' | 'follow-up' | 'meeting' | 'deal' | 'won'
+export type PipelineStageId = 'new' | 'follow-up' | 'meeting' | 'deal' | 'won' | 'lost'
 
 export const PIPELINE_STAGES: {
   id: PipelineStageId
@@ -12,6 +12,7 @@ export const PIPELINE_STAGES: {
   { id: 'meeting', label: 'MEETING', color: '#FACC15', border: '#EAB30866', bg: '#1A180A' },
   { id: 'deal', label: 'DEAL', color: '#FB923C', border: '#F9731666', bg: '#1A100A' },
   { id: 'won', label: 'WON ✓', color: '#22C55E', border: '#16A34A66', bg: '#0A1A0E' },
+  { id: 'lost', label: 'LOST', color: '#EF4444', border: '#DC262666', bg: '#1A0A0A' },
 ]
 
 export const PIPELINE_STAGE_IDS = PIPELINE_STAGES.map((s) => s.id)

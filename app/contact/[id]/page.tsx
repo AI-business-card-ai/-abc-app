@@ -17,10 +17,12 @@ import MatchScore, { scoreColors } from '@/components/ui/MatchScore'
 import IntelligencePanel from '@/components/contact/IntelligencePanel'
 import { hasDisplayValue } from '@/lib/research'
 import { logCrmActivity } from '@/lib/crm-client'
-import ActivityTimeline from '@/components/crm/ActivityTimeline'
+import DealInformation from '@/components/crm/DealInformation'
+import CommunicationHistory from '@/components/crm/CommunicationHistory'
 import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
 import EnrichmentProgress from '@/components/ui/EnrichmentProgress'
 import type { ScannedContact } from '@/lib/types'
+import type { ActivityType } from '@/lib/crm'
 
 type Tab = 'linkedin' | 'email' | 'whatsapp'
 
@@ -227,6 +229,29 @@ export default function ContactResultPage() {
     }
   }, [contact])
 
+  const trackOutboundMessage = useCallback(
+    (channel: 'LinkedIn' | 'Email' | 'WhatsApp', activityType: ActivityType) => {
+      if (!contact || contact.status !== 'sent') return
+      logCrmActivity({
+        contactId: contact.id,
+        activityType,
+        activityDetail: `Message sent via ${channel} to ${contact.name}`,
+      })
+      setContact((prev) => {
+        if (!prev) return prev
+        const crm = prev.crm_status || 'NEW'
+        return {
+          ...prev,
+          messages_sent: (prev.messages_sent || 0) + 1,
+          last_message_type: channel,
+          last_message_date: new Date().toISOString(),
+          crm_status: crm === 'NEW' || crm === 'ENRICHED' ? 'CONTACTED' : crm,
+        }
+      })
+    },
+    [contact]
+  )
+
   const openLinkedIn = () => {
     if (!contact) return
     if (contact.linkedin_url) {
@@ -237,11 +262,15 @@ export default function ContactResultPage() {
       navigator.clipboard.writeText(messages.linkedin || '')
       toast('✓ LinkedIn message copied!')
     }
-    logCrmActivity({
-      contactId: contact.id,
-      activityType: 'LINKEDIN_COPIED',
-      activityDetail: `LinkedIn message copied for ${contact.name}`,
-    })
+    if (contact.status === 'sent') {
+      trackOutboundMessage('LinkedIn', 'LINKEDIN_COPIED')
+    } else {
+      logCrmActivity({
+        contactId: contact.id,
+        activityType: 'LINKEDIN_COPIED',
+        activityDetail: `LinkedIn message copied for ${contact.name}`,
+      })
+    }
   }
 
   const openEmail = () => {
@@ -249,12 +278,16 @@ export default function ContactResultPage() {
     const s = encodeURIComponent(subject || 'Hello')
     const body = encodeURIComponent(messages.email || '')
     window.open(`mailto:${contact.email ?? ''}?subject=${s}&body=${body}`)
-    logCrmActivity({
-      contactId: contact.id,
-      activityType: 'EMAIL_SENT',
-      activityDetail: `Email draft opened for ${contact.name}`,
-      metadata: { email: contact.email },
-    })
+    if (contact.status === 'sent') {
+      trackOutboundMessage('Email', 'EMAIL_SENT')
+    } else {
+      logCrmActivity({
+        contactId: contact.id,
+        activityType: 'EMAIL_SENT',
+        activityDetail: `Email draft opened for ${contact.name}`,
+        metadata: { email: contact.email },
+      })
+    }
   }
 
   const openWhatsApp = () => {
@@ -266,12 +299,16 @@ export default function ContactResultPage() {
       navigator.clipboard.writeText(messages.whatsapp || '')
       toast('✓ WhatsApp message copied!')
     }
-    logCrmActivity({
-      contactId: contact.id,
-      activityType: 'WHATSAPP_OPENED',
-      activityDetail: `WhatsApp draft opened for ${contact.name}`,
-      metadata: { phone: contact.phone },
-    })
+    if (contact.status === 'sent') {
+      trackOutboundMessage('WhatsApp', 'WHATSAPP_OPENED')
+    } else {
+      logCrmActivity({
+        contactId: contact.id,
+        activityType: 'WHATSAPP_OPENED',
+        activityDetail: `WhatsApp draft opened for ${contact.name}`,
+        metadata: { phone: contact.phone },
+      })
+    }
   }
 
   const copyCurrentMessage = () => {
@@ -821,10 +858,14 @@ export default function ContactResultPage() {
           />
         </motion.div>
 
-        {/* SECTION — ACTIVITY TIMELINE */}
-        <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">
-          <span className="abc-label">Activity Timeline</span>
-          <ActivityTimeline contactId={contact.id} />
+        {/* SECTION — DEAL INFORMATION */}
+        <motion.div variants={item}>
+          <DealInformation contact={contact} onUpdated={applyContactUpdate} />
+        </motion.div>
+
+        {/* SECTION — COMMUNICATION HISTORY */}
+        <motion.div variants={item}>
+          <CommunicationHistory contact={contact} onUpdated={applyContactUpdate} />
         </motion.div>
 
         {/* SECTION 5 — MESSAGES */}
