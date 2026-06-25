@@ -17,6 +17,8 @@ import {
   DEFAULT_RESEARCH_PREFERENCES,
   RESEARCH_PREFERENCE_OPTIONS,
 } from '@/lib/research'
+import { EMPTY_ABC_PROFILE, normalizeAbcProfile } from '@/lib/profile-defaults'
+import ErrorBoundary from '@/components/ui/ErrorBoundary'
 import type { ABCProfile } from '@/lib/types'
 
 const STYLES: { key: ABCProfile['communication_style']; label: string }[] = [
@@ -26,48 +28,28 @@ const STYLES: { key: ABCProfile['communication_style']; label: string }[] = [
 ]
 const LANGUAGES = ['EN', 'CZ', 'DE', 'Mix']
 
-const EMPTY: Omit<ABCProfile, 'id'> = {
-  full_name: '', company: '', role: '', email: '', phone: '', linkedin_url: '', website: '',
-  avatar_url: '',
-  communication_style: 'direct', outreach_language: 'EN', goals: '', plan: 'free', scans_used: 0, scans_limit: 30,
-  research_preferences: [...DEFAULT_RESEARCH_PREFERENCES],
-  custom_questions: '',
-  hubspot_api_key: null,
-  hubspot_access_token: null,
-  hubspot_refresh_token: null,
-  hubspot_portal_id: null,
-  hubspot_connected_at: null,
-  salesforce_access_token: null,
-  salesforce_refresh_token: null,
-  salesforce_instance_url: null,
-  salesforce_connected_at: null,
-  webhook_url: null,
-  user_name: null,
-  user_company: null,
-  user_role: null,
-  user_product: null,
-  user_goal: null,
-  user_icp: null,
-  user_style: null,
-  user_language: null,
-  user_message_length: null,
-  user_prompt: null,
-  onboarding_completed: false,
-}
-
 const chipStyle = (active: boolean): React.CSSProperties =>
   active
     ? { border: '0.5px solid #7C3AED', color: '#A78BFA', background: '#1A0A2E' }
     : { border: '0.5px solid #1A0E30', color: '#3A2060', background: 'transparent' }
 
 export default function SettingsPage() {
+  return (
+    <ErrorBoundary>
+      <SettingsContent />
+    </ErrorBoundary>
+  )
+}
+
+function SettingsContent() {
   const router = useRouter()
   const supabase = createClientComponent()
   const photoInputRef = useRef<HTMLInputElement>(null)
 
   const [userId, setUserId] = useState<string | null>(null)
-  const [profile, setProfile] = useState<Omit<ABCProfile, 'id'>>(EMPTY)
+  const [profile, setProfile] = useState<Omit<ABCProfile, 'id'>>(EMPTY_ABC_PROFILE)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -79,35 +61,55 @@ export default function SettingsPage() {
   const [salesforceConnected, setSalesforceConnected] = useState(false)
   const [salesforceSaving, setSalesforceSaving] = useState(false)
   const [salesforceError, setSalesforceError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
+  function showToast() {
+    setToast(true)
+    setTimeout(() => setToast(false), 3000)
+  }
 
   useEffect(() => {
     let active = true
     ;(async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      if (!active) return
-      setUserId(user.id)
-      const { data } = await supabase.from('abc_profiles').select('*').eq('id', user.id).maybeSingle()
-      if (!active) return
-      if (data) {
-        const { id: _id, ...rest } = data as ABCProfile
-        setProfile({
-          ...EMPTY,
-          ...rest,
-          research_preferences: rest.research_preferences?.length
-            ? rest.research_preferences
-            : [...DEFAULT_RESEARCH_PREFERENCES],
-          custom_questions: rest.custom_questions ?? '',
-        })
-        setHubspotConnected(!!rest.hubspot_access_token)
-        setSalesforceConnected(!!rest.salesforce_access_token)
-      } else {
-        setProfile((p) => ({ ...p, email: user.email ?? '' }))
+      setLoading(true)
+      setLoadError(null)
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError) throw authError
+        if (!user) {
+          router.push('/login')
+          return
+        }
+        if (!active) return
+
+        setUserId(user.id)
+        const { data, error: profileError } = await supabase
+          .from('abc_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (!active) return
+
+        if (profileError) {
+          console.warn('[settings] profile load:', profileError.message)
+          setLoadError('Could not load full profile — showing defaults. You can still edit and save.')
+        }
+
+        const normalized = normalizeAbcProfile(data as Partial<ABCProfile> | null, user.email)
+        setProfile(normalized)
+        setHubspotConnected(!!normalized.hubspot_access_token)
+        setSalesforceConnected(!!normalized.salesforce_access_token)
+      } catch (err) {
+        if (!active) return
+        setLoadError(err instanceof Error ? err.message : 'Failed to load settings.')
+        setProfile(normalizeAbcProfile(null))
+      } finally {
+        if (active) setLoading(false)
       }
-      setLoading(false)
     })()
     return () => { active = false }
-  }, [router, supabase])
+  }, [router, supabase, reloadKey])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -135,17 +137,14 @@ export default function SettingsPage() {
 
   function toggleResearchPreference(key: string) {
     setProfile((p) => {
-      const current = p.research_preferences ?? [...DEFAULT_RESEARCH_PREFERENCES]
+      const current = Array.isArray(p.research_preferences)
+        ? p.research_preferences
+        : [...DEFAULT_RESEARCH_PREFERENCES]
       const next = current.includes(key)
         ? current.filter((k) => k !== key)
         : [...current, key]
       return { ...p, research_preferences: next }
     })
-  }
-
-  function showToast() {
-    setToast(true)
-    setTimeout(() => setToast(false), 3000)
   }
 
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -250,17 +249,40 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#07050E' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#7C3AED', borderRightColor: '#0EA5E9' }} />
+      <div
+        className="min-h-screen flex flex-col items-center justify-center gap-3"
+        style={{ background: '#0d0f1a', color: '#8892b0' }}
+      >
+        <div
+          className="w-8 h-8 rounded-full border-2 border-transparent animate-spin"
+          style={{ borderTopColor: '#00d4d4', borderRightColor: '#8b5cf6' }}
+        />
+        <p className="text-sm">Loading profile…</p>
       </div>
     )
   }
 
-  const initials = profile.full_name?.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase() || '?'
+  const initials = (profile.full_name || '?').split(' ').map((p) => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'
   const subtitle = [profile.company, profile.role].filter(Boolean).join(' · ') || 'Company · Role'
 
   return (
-    <div className="min-h-screen pb-8 page-shell page-shell--narrow">
+    <div className="min-h-screen pb-8 page-shell page-shell--narrow" style={{ background: '#0d0f1a' }}>
+      {loadError && (
+        <div
+          className="mx-4 mt-4 rounded-xl px-4 py-3 flex flex-col gap-2"
+          style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}
+        >
+          <p className="text-sm" style={{ color: '#fbbf24' }}>{loadError}</p>
+          <button
+            type="button"
+            onClick={() => setReloadKey((k) => k + 1)}
+            className="text-xs font-semibold self-start px-3 py-1.5 rounded-lg min-h-[44px]"
+            style={{ border: '1px solid rgba(245,158,11,0.4)', color: '#fbbf24' }}
+          >
+            Retry load
+          </button>
+        </div>
+      )}
       {/* 1. HERO */}
       <div
         className="relative overflow-hidden flex flex-col items-center"
@@ -494,7 +516,10 @@ export default function SettingsPage() {
         </span>
         <div className="flex flex-col gap-2.5 mb-4">
           {RESEARCH_PREFERENCE_OPTIONS.map((opt) => {
-            const checked = (profile.research_preferences ?? DEFAULT_RESEARCH_PREFERENCES).includes(opt.key)
+            const prefs = Array.isArray(profile.research_preferences)
+              ? profile.research_preferences
+              : [...DEFAULT_RESEARCH_PREFERENCES]
+            const checked = prefs.includes(opt.key)
             return (
               <label
                 key={opt.key}
