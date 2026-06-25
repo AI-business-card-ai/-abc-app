@@ -9,13 +9,18 @@ const AUTH_PATHS = ['/login', '/register', '/', '/onboarding']
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isAuthShell = AUTH_PATHS.includes(pathname)
+  const isLanding = pathname === '/'
 
   if (isAuthShell) {
     return (
       <div className="min-h-screen flex justify-center" style={{ background: '#0d0f1a' }}>
         <div
           className={`w-full min-h-screen relative ${
-            pathname === '/onboarding' ? 'max-w-[600px]' : 'max-w-[430px]'
+            isLanding
+              ? ''
+              : pathname === '/onboarding'
+                ? 'max-w-[600px]'
+                : 'max-w-[430px]'
           }`}
         >
           {children}
