@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSPropertie
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
+import HeroDemo from '@/components/landing/HeroDemo'
 
 const COLORS = {
   bg: '#0d0f1a',
@@ -344,84 +345,9 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* Hero visual mockup */}
-          <div
-            aria-hidden
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 12,
-              padding: '24px 0',
-              minHeight: 280,
-            }}
-          >
-            {/* Business card */}
-            <div
-              className="landing-hero-card"
-              style={{
-                width: 100,
-                height: 64,
-                borderRadius: 8,
-                background: 'linear-gradient(145deg, #1c1f35, #141628)',
-                border: '1px solid rgba(0, 212, 212, 0.35)',
-                boxShadow: '0 8px 32px rgba(0, 212, 212, 0.15)',
-                padding: 10,
-                flexShrink: 0,
-              }}
-            >
-              <div style={{ width: '60%', height: 6, borderRadius: 3, background: 'rgba(240,240,255,0.5)', marginBottom: 6 }} />
-              <div style={{ width: '80%', height: 4, borderRadius: 2, background: 'rgba(136,146,176,0.5)', marginBottom: 4 }} />
-              <div style={{ width: '50%', height: 4, borderRadius: 2, background: 'rgba(136,146,176,0.35)' }} />
-            </div>
-
-            {/* Glow pulse + beam */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <div
-                className="landing-hero-glow landing-hero-beam"
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: '50%',
-                  background: 'radial-gradient(circle, rgba(0,212,212,0.6) 0%, rgba(139,92,246,0.2) 50%, transparent 70%)',
-                  boxShadow: '0 0 40px rgba(0, 212, 212, 0.5)',
-                }}
-              />
-              <div
-                className="landing-hero-beam"
-                style={{
-                  width: 40,
-                  height: 2,
-                  background: 'linear-gradient(90deg, transparent, #00d4d4, #f0197d, transparent)',
-                  borderRadius: 2,
-                }}
-              />
-            </div>
-
-            {/* Messages */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, maxWidth: 200 }}>
-              {[
-                { label: 'LinkedIn', color: '#0A66C2', text: 'Hi Martin — loved our chat at SaaStr…' },
-                { label: 'Email', color: COLORS.purple, text: 'Following up on our conversation…' },
-                { label: 'WhatsApp', color: '#25D366', text: 'Great meeting you! Here\'s the deck…' },
-              ].map((msg) => (
-                <div
-                  key={msg.label}
-                  className="landing-hero-msg"
-                  style={{
-                    padding: '10px 12px',
-                    borderRadius: 10,
-                    background: COLORS.surface,
-                    border: '1px solid rgba(139, 92, 246, 0.2)',
-                    fontSize: 11,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  <span style={{ color: msg.color, fontWeight: 700, fontSize: 10 }}>{msg.label}</span>
-                  <p style={{ margin: '4px 0 0', color: COLORS.muted }}>{msg.text}</p>
-                </div>
-              ))}
-            </div>
+          {/* Hero animated demo */}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <HeroDemo />
           </div>
         </div>
       </section>
