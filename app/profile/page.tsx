@@ -4,9 +4,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
 import ErrorBoundary from '@/components/ui/ErrorBoundary'
-import SettingsPage from '@/app/settings/page'
+import SettingsContent from '@/components/settings/SettingsContent'
 import type { ABCProfile } from '@/lib/types'
 import type { User } from '@supabase/supabase-js'
+
+const profileErrorFallback = (
+  <div style={{ color: '#f0197d', padding: '20px', background: '#0d0f1a' }}>
+    Profile error — check console
+  </div>
+)
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -141,9 +147,8 @@ export default function ProfilePage() {
     )
   }
 
-  // profile is null for new users — full form still renders via SettingsContent
   return (
-    <ErrorBoundary>
+    <ErrorBoundary fallback={profileErrorFallback}>
       {!profile && (
         <div
           className="mx-4 mt-4 rounded-xl px-4 py-3 text-sm"
@@ -152,7 +157,7 @@ export default function ProfilePage() {
           Welcome! Set up your profile below — all fields are optional until you save.
         </div>
       )}
-      <SettingsPage />
+      <SettingsContent />
     </ErrorBoundary>
   )
 }

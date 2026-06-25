@@ -31,7 +31,24 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) return this.props.fallback
+      if (this.props.fallback) {
+        return (
+          <div style={{ background: '#0d0f1a', minHeight: '100vh' }}>
+            {this.props.fallback}
+            <pre
+              style={{
+                color: '#f0197d',
+                fontSize: '12px',
+                padding: '0 20px 20px',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {this.state.message}
+            </pre>
+          </div>
+        )
+      }
 
       return (
         <div
