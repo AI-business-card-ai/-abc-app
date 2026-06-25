@@ -13,6 +13,7 @@ export type ActivityType =
   | 'WEBHOOK_SENT'
   | 'MESSAGE_GENERATED'
   | 'RESPONSE_RECEIVED'
+  | 'DEAL_WON'
 
 export type CrmStatus =
   | 'NEW'
@@ -27,6 +28,8 @@ const STATUS_TRANSITIONS: Partial<Record<ActivityType, CrmStatus>> = {
   EMAIL_SENT: 'CONTACTED',
   WHATSAPP_OPENED: 'CONTACTED',
   LINKEDIN_COPIED: 'CONTACTED',
+  RESPONSE_RECEIVED: 'IN_CONVERSATION',
+  DEAL_WON: 'CLOSED',
 }
 
 const MESSAGE_TYPE_MAP: Partial<Record<ActivityType, string>> = {

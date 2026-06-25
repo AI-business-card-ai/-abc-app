@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
-import { logActivity } from '@/lib/crm'
+import { onExported } from '@/lib/crm-engine'
 import {
   hubspotCsvHeaders,
   mapToHubSpot,
@@ -70,13 +70,7 @@ export async function GET(req: NextRequest) {
   }
 
   for (const c of rows.slice(0, 10)) {
-    logActivity({
-      contactId: c.id,
-      userId: user.id,
-      activityType: 'EXPORTED_CSV',
-      activityDetail: `Exported to ${format} CSV`,
-      metadata: { format, filename },
-    }).catch(console.error)
+    onExported(c.id, user.id, format).catch(console.error)
   }
 
   const csv = '\uFEFF' + csvRows.join('\n')

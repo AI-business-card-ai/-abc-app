@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import DealOutcomeModal from '@/components/crm/DealOutcomeModal'
 import TagPills from '@/components/crm/TagPills'
 import TagSelector from '@/components/crm/TagSelector'
-import { updateContact } from '@/lib/crm-client'
+import { updateContact, logReplyReceived } from '@/lib/crm-client'
 import { formatDealValue } from '@/lib/tags'
 import {
   actionButtonStyle,
@@ -56,9 +57,10 @@ type RowProps = {
   onAction: (contact: ScannedContact, step: ReturnType<typeof getAiNextStep>) => void
   onUpdate: (contact: ScannedContact) => void
   showWonBadge?: boolean
+  onDealOutcome: (contact: ScannedContact, mode: 'won' | 'lost') => void
 }
 
-function PipelineRow({ contact, onAction, onUpdate, showWonBadge }: RowProps) {
+function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome }: RowProps) {
   const [hovered, setHovered] = useState(false)
   const [editingDeal, setEditingDeal] = useState(false)
   const [dealValue, setDealValue] = useState(String(contact.deal_value || ''))
@@ -129,11 +131,16 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge }: RowProps) {
   async function toggleResponse() {
     setSaving(true)
     try {
-      const { contact: updated } = await updateContact({
-        contactId: contact.id,
-        response_received: !contact.response_received,
-      })
-      onUpdate(updated as ScannedContact)
+      if (contact.response_received) {
+        const { contact: updated } = await updateContact({
+          contactId: contact.id,
+          response_received: false,
+        })
+        onUpdate(updated as ScannedContact)
+      } else {
+        const { contact: updated } = await logReplyReceived(contact.id)
+        onUpdate(updated as ScannedContact)
+      }
     } catch (err) {
       console.error(err)
     } finally {
@@ -239,6 +246,26 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge }: RowProps) {
               {dealNum > 0 ? `💰 ${formatDealValue(dealNum, currency)}` : '💰 Add deal value'}
             </button>
           )}
+          {contact.pipeline_stage === 'deal' && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              <button
+                type="button"
+                onClick={() => onDealOutcome(contact, 'won')}
+                className="text-[10px] px-2 py-1 rounded font-semibold min-h-[32px]"
+                style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}
+              >
+                🏆 Won
+              </button>
+              <button
+                type="button"
+                onClick={() => onDealOutcome(contact, 'lost')}
+                className="text-[10px] px-2 py-1 rounded font-semibold min-h-[32px]"
+                style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}
+              >
+                ✗ Lost
+              </button>
+            </div>
+          )}
           {hovered && (
             <div className="flex flex-wrap gap-1">
               <button type="button" onClick={() => setShowNote(true)} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>📝 Note</button>
@@ -294,8 +321,14 @@ export default function PipelineTable({
   onUpdate: (contact: ScannedContact) => void
   showWonBadge?: boolean
 }) {
+  const [dealModal, setDealModal] = useState<{
+    contact: ScannedContact
+    mode: 'won' | 'lost'
+  } | null>(null)
+
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(139, 92, 246, 0.12)' }}>
+    <>
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(139, 92, 246, 0.12)' }}>
       <div
         className="grid grid-cols-[1.4fr_1fr_0.7fr_0.8fr_0.7fr_1.4fr_1fr] gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-wider"
         style={{ background: '#141628', color: '#8892b0', borderBottom: '1px solid rgba(139, 92, 246, 0.12)' }}
@@ -315,8 +348,19 @@ export default function PipelineTable({
           onAction={onAction}
           onUpdate={onUpdate}
           showWonBadge={showWonBadge}
+          onDealOutcome={(c, mode) => setDealModal({ contact: c, mode })}
         />
       ))}
-    </div>
+      </div>
+      <DealOutcomeModal
+        contact={dealModal?.contact ?? null}
+        mode={dealModal?.mode ?? null}
+        onClose={() => setDealModal(null)}
+        onUpdated={(c) => {
+          onUpdate(c)
+          setDealModal(null)
+        }}
+      />
+    </>
   )
 }

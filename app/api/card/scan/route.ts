@@ -6,7 +6,7 @@ import {
   ClaudeVisionError,
   ClaudeAnalysisError,
 } from '@/lib/claude'
-import { logActivity } from '@/lib/crm'
+import { onCardScanned } from '@/lib/crm-engine'
 import { triggerBackgroundEnrichment } from '@/lib/enrichment'
 import { ABCProfile } from '@/lib/types'
 
@@ -126,14 +126,7 @@ export async function POST(req: NextRequest) {
 
     if (data) {
       for (const c of data) {
-        logActivity({
-          contactId: c.id,
-          userId,
-          activityType: 'CARD_SCANNED',
-          activityDetail: `Business card scanned: ${c.name || 'Unknown'}`,
-          metadata: { eventName, company: c.company },
-        }).catch(console.error)
-
+        onCardScanned(c.id, userId).catch(console.error)
         triggerBackgroundEnrichment(c.id, userId)
       }
     }

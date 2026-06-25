@@ -10,6 +10,7 @@ import CardStack from '@/components/ui/CardStack'
 import PipelineStageBadge from '@/components/ui/PipelineStageBadge'
 import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
 import MobileContactsList from '@/components/mobile/MobileContactsList'
+import ReminderSidebar from '@/components/crm/ReminderSidebar'
 import { filterContacts, type FilterTab } from '@/lib/pipeline-ai'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
@@ -238,6 +239,9 @@ export default function ContactsPage() {
 
   return (
     <div className="min-h-screen pb-8 page-shell">
+      <div className="flex gap-6 items-start">
+        <div className="flex-1 min-w-0">
+      <ReminderSidebar variant="banner" />
       <div className="flex items-center justify-between pb-1">
         <div>
           <h1 className="gradient-text page-heading font-black tracking-wide">CONTACTS</h1>
@@ -484,6 +488,10 @@ export default function ContactsPage() {
           </div>
         </div>
       )}
+
+        </div>
+        <ReminderSidebar variant="sidebar" />
+      </div>
 
       <AnimatePresence>
         {toastMsg && (

@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildPostEnrichmentMapping } from '@/lib/data-model'
 import { runIntelligenceResearch } from '@/lib/research'
+import { onEnrichmentCompleted } from '@/lib/crm-engine'
 
 export async function POST(req: NextRequest) {
   try {
@@ -50,7 +51,17 @@ export async function POST(req: NextRequest) {
       .eq('id', contactId)
       .single()
 
-    return NextResponse.json({ success: true, contact: updated })
+    const matchScore =
+      updated?.ai_lead_score ?? updated?.match_score ?? contact.match_score ?? 50
+    await onEnrichmentCompleted(contactId, user.id, Number(matchScore) || 50)
+
+    const { data: refreshed } = await supabase
+      .from('scanned_contacts')
+      .select('*')
+      .eq('id', contactId)
+      .single()
+
+    return NextResponse.json({ success: true, contact: refreshed ?? updated })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Intelligence research failed'
     return NextResponse.json({ error: message }, { status: 500 })

@@ -5,7 +5,8 @@ import { enrichLinkedIn, findWorkEmail } from '@/lib/enrichlayer'
 import { generatePersonalizedMessages } from '@/lib/ai-messages'
 import { createHubSpotContact } from '@/lib/hubspot'
 import { createSalesforceContact } from '@/lib/salesforce'
-import { calculateLeadScore, logActivity } from '@/lib/crm'
+import { calculateLeadScore } from '@/lib/crm'
+import { onEnrichmentCompleted } from '@/lib/crm-engine'
 import { runIntelligenceResearch } from '@/lib/research'
 import { buildPostEnrichmentMapping } from '@/lib/data-model'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
@@ -211,12 +212,16 @@ export async function runContactEnrichment(contactId: string, userId: string): P
 
     await updateEnrichmentStep(contactId, userId, 'DONE', 'done')
 
-    logActivity({
-      contactId,
-      userId,
-      activityType: 'AI_ENRICHED',
-      activityDetail: `AI enrichment completed for ${c.name || 'Unknown'}`,
-    }).catch(console.error)
+    const { data: finalRow } = await supabase
+      .from('scanned_contacts')
+      .select('match_score, ai_lead_score')
+      .eq('id', contactId)
+      .single()
+
+    const matchScore =
+      finalRow?.ai_lead_score ?? finalRow?.match_score ?? withMessages.ai_lead_score ?? c.match_score ?? 50
+
+    await onEnrichmentCompleted(contactId, userId, Number(matchScore) || 50)
   } catch (error) {
     console.error('runContactEnrichment error:', error)
     await updateEnrichmentStep(contactId, userId, 'ERROR', 'queued')

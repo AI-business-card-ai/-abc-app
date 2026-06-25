@@ -2,25 +2,28 @@
 
 import { useState } from 'react'
 import { PIPELINE_STAGES } from '@/lib/pipeline'
-import { updateContact } from '@/lib/crm-client'
+import { updateContact, logReplyReceived } from '@/lib/crm-client'
 import { hapticLight } from '@/lib/hooks/useHaptic'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
 type Props = {
   contact: ScannedContact
   onUpdated: (c: ScannedContact) => void
+  onNotify?: (msg: string) => void
 }
 
-export default function QuickCrmPanel({ contact, onUpdated }: Props) {
+export default function QuickCrmPanel({ contact, onUpdated, onNotify }: Props) {
   const [dealValue, setDealValue] = useState(String(contact.deal_value || ''))
   const [saving, setSaving] = useState(false)
 
   async function setStage(stage: PipelineStageId) {
+    if (contact.pipeline_stage === stage) return
     hapticLight()
     setSaving(true)
     try {
       const { contact: updated } = await updateContact({ contactId: contact.id, pipeline_stage: stage })
       onUpdated(updated)
+      onNotify?.('✓ CRM updated automatically')
     } finally {
       setSaving(false)
     }
@@ -30,11 +33,17 @@ export default function QuickCrmPanel({ contact, onUpdated }: Props) {
     hapticLight()
     setSaving(true)
     try {
-      const { contact: updated } = await updateContact({
-        contactId: contact.id,
-        response_received: !contact.response_received,
-      })
-      onUpdated(updated)
+      if (contact.response_received) {
+        const { contact: updated } = await updateContact({
+          contactId: contact.id,
+          response_received: false,
+        })
+        onUpdated(updated)
+      } else {
+        const { contact: updated } = await logReplyReceived(contact.id)
+        onUpdated(updated)
+        onNotify?.('🎉 Great! Schedule a meeting now')
+      }
     } finally {
       setSaving(false)
     }
@@ -51,6 +60,9 @@ export default function QuickCrmPanel({ contact, onUpdated }: Props) {
   return (
     <div className="abc-card p-4 flex flex-col gap-4">
       <span className="abc-label">Quick CRM</span>
+      <p className="text-[11px]" style={{ color: '#4a5168' }}>
+        Status updates automatically when you send messages or mark replies.
+      </p>
 
       <div className="flex flex-wrap gap-2">
         {PIPELINE_STAGES.filter((s) => s.id !== 'lost').map((s) => (
@@ -70,6 +82,17 @@ export default function QuickCrmPanel({ contact, onUpdated }: Props) {
           </button>
         ))}
       </div>
+
+      {contact.pipeline_stage === 'meeting' && contact.response_received && (
+        <button
+          type="button"
+          onClick={() => onNotify?.('Open calendar to schedule a meeting')}
+          className="w-full rounded-xl py-3 text-sm font-semibold min-h-[44px]"
+          style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.3)' }}
+        >
+          📅 Schedule Meeting
+        </button>
+      )}
 
       <div className="flex gap-2 items-center">
         <span className="text-xs shrink-0" style={{ color: '#8892b0' }}>

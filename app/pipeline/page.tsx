@@ -8,6 +8,8 @@ import { useDevice } from '@/lib/hooks/useDevice'
 import { logCrmActivity } from '@/lib/crm-client'
 import PipelineTable from '@/components/pipeline/PipelineTable'
 import PipelineMobileStages from '@/components/mobile/PipelineMobileStages'
+import PipelineInsights from '@/components/crm/PipelineInsights'
+import ReminderSidebar from '@/components/crm/ReminderSidebar'
 import TagPills from '@/components/crm/TagPills'
 import { formatDealValue } from '@/lib/tags'
 import {
@@ -290,6 +292,11 @@ export default function PipelinePage() {
         </div>
       </div>
 
+      <div className="flex gap-6 items-start">
+        <div className="flex-1 min-w-0">
+          <ReminderSidebar variant="banner" />
+          <PipelineInsights />
+
       <div
         className="mb-5 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1"
         style={{ scrollbarWidth: 'none' }}
@@ -383,6 +390,9 @@ export default function PipelinePage() {
           onUpdate={handleContactUpdate}
         />
       )}
+        </div>
+        <ReminderSidebar variant="sidebar" />
+      </div>
     </div>
   )
 }

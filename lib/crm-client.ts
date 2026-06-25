@@ -38,3 +38,45 @@ export async function updateContact(payload: {
   if (!res.ok) throw new Error(json.error || 'Update failed')
   return json as { success: boolean; contact: ScannedContact }
 }
+
+export async function logMessageSent(payload: {
+  contactId: string
+  channel: 'LinkedIn' | 'Email' | 'WhatsApp'
+  messageText: string
+}) {
+  const res = await fetch('/api/contact/message-sent', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const json = await res.json()
+  if (!res.ok) throw new Error(json.error || 'Failed to log message')
+  return json as { success: boolean; contact: ScannedContact }
+}
+
+export async function logReplyReceived(contactId: string) {
+  const res = await fetch('/api/contact/reply-received', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contactId }),
+  })
+  const json = await res.json()
+  if (!res.ok) throw new Error(json.error || 'Failed to log reply')
+  return json as { success: boolean; contact: ScannedContact }
+}
+
+export async function logDealOutcome(payload: {
+  contactId: string
+  outcome: 'won' | 'lost'
+  dealValue?: number
+  reason?: string
+}) {
+  const res = await fetch('/api/contact/deal-outcome', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const json = await res.json()
+  if (!res.ok) throw new Error(json.error || 'Failed to update deal')
+  return json as { success: boolean; contact: ScannedContact }
+}

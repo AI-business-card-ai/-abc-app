@@ -16,7 +16,7 @@ import { createClientComponent } from '@/lib/supabase'
 import MatchScore, { scoreColors } from '@/components/ui/MatchScore'
 import IntelligencePanel from '@/components/contact/IntelligencePanel'
 import { hasDisplayValue } from '@/lib/research'
-import { logCrmActivity } from '@/lib/crm-client'
+import { logCrmActivity, logMessageSent } from '@/lib/crm-client'
 import DealInformation from '@/components/crm/DealInformation'
 import SalesforceFields from '@/components/crm/SalesforceFields'
 import CommunicationHistory from '@/components/crm/CommunicationHistory'
@@ -26,7 +26,6 @@ import QuickCrmPanel from '@/components/mobile/QuickCrmPanel'
 import CollapsibleSection from '@/components/mobile/CollapsibleSection'
 import { useDevice } from '@/lib/hooks/useDevice'
 import type { ScannedContact } from '@/lib/types'
-import type { ActivityType } from '@/lib/crm'
 
 type Tab = 'linkedin' | 'email' | 'whatsapp'
 
@@ -235,30 +234,25 @@ export default function ContactResultPage() {
     }
   }, [contact])
 
-  const trackOutboundMessage = useCallback(
-    (channel: 'LinkedIn' | 'Email' | 'WhatsApp', activityType: ActivityType) => {
-      if (!contact || contact.status !== 'sent') return
-      logCrmActivity({
-        contactId: contact.id,
-        activityType,
-        activityDetail: `Message sent via ${channel} to ${contact.name}`,
-      })
-      setContact((prev) => {
-        if (!prev) return prev
-        const crm = prev.crm_status || 'NEW'
-        return {
-          ...prev,
-          messages_sent: (prev.messages_sent || 0) + 1,
-          last_message_type: channel,
-          last_message_date: new Date().toISOString(),
-          crm_status: crm === 'NEW' || crm === 'ENRICHED' ? 'CONTACTED' : crm,
-        }
-      })
+  const crmLogMessage = useCallback(
+    async (channel: 'LinkedIn' | 'Email' | 'WhatsApp', messageText: string) => {
+      if (!contact) return
+      try {
+        const { contact: updated } = await logMessageSent({
+          contactId: contact.id,
+          channel,
+          messageText,
+        })
+        applyContactUpdate(updated)
+        toast('✓ Logged to CRM')
+      } catch (err) {
+        console.error(err)
+      }
     },
-    [contact]
+    [contact, applyContactUpdate, toast]
   )
 
-  const openLinkedIn = () => {
+  const openLinkedIn = async () => {
     if (!contact) return
     if (contact.linkedin_url) {
       navigator.clipboard.writeText(messages.linkedin || '')
@@ -269,7 +263,7 @@ export default function ContactResultPage() {
       toast('✓ LinkedIn message copied!')
     }
     if (contact.status === 'sent') {
-      trackOutboundMessage('LinkedIn', 'LINKEDIN_COPIED')
+      await crmLogMessage('LinkedIn', messages.linkedin || '')
     } else {
       logCrmActivity({
         contactId: contact.id,
@@ -279,13 +273,13 @@ export default function ContactResultPage() {
     }
   }
 
-  const openEmail = () => {
+  const openEmail = async () => {
     if (!contact) return
     const s = encodeURIComponent(subject || 'Hello')
     const body = encodeURIComponent(messages.email || '')
     window.open(`mailto:${contact.email ?? ''}?subject=${s}&body=${body}`)
     if (contact.status === 'sent') {
-      trackOutboundMessage('Email', 'EMAIL_SENT')
+      await crmLogMessage('Email', messages.email || '')
     } else {
       logCrmActivity({
         contactId: contact.id,
@@ -296,7 +290,7 @@ export default function ContactResultPage() {
     }
   }
 
-  const openWhatsApp = () => {
+  const openWhatsApp = async () => {
     if (!contact) return
     const phone = contact.phone?.replace(/\D/g, '')
     const text = encodeURIComponent(messages.whatsapp || '')
@@ -306,7 +300,7 @@ export default function ContactResultPage() {
       toast('✓ WhatsApp message copied!')
     }
     if (contact.status === 'sent') {
-      trackOutboundMessage('WhatsApp', 'WHATSAPP_OPENED')
+      await crmLogMessage('WhatsApp', messages.whatsapp || '')
     } else {
       logCrmActivity({
         contactId: contact.id,
@@ -988,7 +982,7 @@ export default function ContactResultPage() {
           <motion.div variants={item} className={`flex flex-col gap-4 xl:sticky xl:top-4 ${isMobile ? 'order-2' : ''}`}>
             {isMobile && (
               <>
-                <QuickCrmPanel contact={contact} onUpdated={applyContactUpdate} />
+                <QuickCrmPanel contact={contact} onUpdated={applyContactUpdate} onNotify={toast} />
               </>
             )}
             <DealInformation contact={contact} onUpdated={applyContactUpdate} />
