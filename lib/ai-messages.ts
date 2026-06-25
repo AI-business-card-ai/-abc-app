@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ABCProfile, ScannedContact } from './types'
 import type { EnrichedLinkedInProfile } from './enrichlayer'
+import { hasDisplayValue } from './research'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -34,6 +35,17 @@ function buildSystemPrompt(
 
   const skills = linkedin?.skills?.length ? linkedin.skills : contact.linkedin_skills
 
+  const upcomingEvents = hasDisplayValue(contact.events_upcoming)
+    ? JSON.stringify(contact.events_upcoming)
+    : '[]'
+  const pastEvents = hasDisplayValue(contact.events_past)
+    ? JSON.stringify(contact.events_past)
+    : '[]'
+  const speaking = hasDisplayValue(contact.speaking_engagements)
+    ? JSON.stringify(contact.speaking_engagements)
+    : '[]'
+  const personBio = hasDisplayValue(contact.person_bio) ? contact.person_bio : ''
+
   return `${userPrompt}
 
 You are writing on behalf of ${userName}.
@@ -51,6 +63,15 @@ Contact you are writing to:
 - Where we met: ${contact.meeting_context || contact.event_name || 'N/A'}
 - Notes: ${contact.notes || 'N/A'}
 - Research context: ${contact.enriched_context ? contact.enriched_context.slice(0, 1200) : 'N/A'}
+
+Upcoming events: ${upcomingEvents}
+Past events: ${pastEvents}
+Speaking engagements: ${speaking}
+Person bio: ${personBio || 'N/A'}
+
+IMPORTANT: If there are upcoming events, ALWAYS mention one naturally in the message.
+Example opener: 'Are you heading to IBC 2026? Would love to connect there.'
+If they spoke at an event: 'Saw your presentation at {event} — really interesting perspective on {topic}.'
 
 Write exactly 3 message variants:
 1. LinkedIn (max 300 chars, reference specific detail from their profile or posts)

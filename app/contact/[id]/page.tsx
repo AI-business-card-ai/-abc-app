@@ -10,12 +10,12 @@ import {
   IconPhone,
   IconBrandLinkedin,
   IconCopy,
-  IconChevronDown,
   IconDeviceMobile,
 } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import MatchScore, { scoreColors } from '@/components/ui/MatchScore'
-import { parseEnrichedContext, splitContentWithUrls } from '@/lib/research'
+import IntelligencePanel from '@/components/contact/IntelligencePanel'
+import { hasDisplayValue } from '@/lib/research'
 import { logCrmActivity } from '@/lib/crm-client'
 import ActivityTimeline from '@/components/crm/ActivityTimeline'
 import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
@@ -55,7 +55,7 @@ function extractLocation(text: string | null | undefined): string | null {
     .split('\n')
     .map((l) => cleanText(l.replace(/^[-•]\s*/, '')))
     .filter(Boolean)[0]
-  return firstLine && !/not found/i.test(firstLine) ? firstLine : null
+  return firstLine && hasDisplayValue(firstLine) ? firstLine : null
 }
 
 export default function ContactResultPage() {
@@ -79,7 +79,6 @@ export default function ContactResultPage() {
   const [retryKey, setRetryKey] = useState(0)
   const [enriching, setEnriching] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
-  const [openSection, setOpenSection] = useState<string | null>(null)
   const [showDoneBanner, setShowDoneBanner] = useState(false)
   const [showFullDetail, setShowFullDetail] = useState(false)
   const [retryingEnrichment, setRetryingEnrichment] = useState(false)
@@ -196,11 +195,6 @@ export default function ContactResultPage() {
     }
   }
 
-  const enrichedSections = useMemo(
-    () => parseEnrichedContext(contact?.enriched_context),
-    [contact?.enriched_context]
-  )
-
   const location = useMemo(
     () => extractLocation(contact?.enriched_context),
     [contact?.enriched_context]
@@ -214,25 +208,23 @@ export default function ContactResultPage() {
     const experience = Array.isArray(contact.linkedin_experience) ? contact.linkedin_experience : []
 
     const hasData =
-      contact.linkedin_headline ||
-      contact.linkedin_summary ||
-      posts.length > 0 ||
-      skills.length > 0 ||
-      experience.length > 0
+      hasDisplayValue(contact.linkedin_headline) ||
+      hasDisplayValue(contact.linkedin_summary) ||
+      posts.some((p) => hasDisplayValue(p.text)) ||
+      skills.some((s) => hasDisplayValue(s)) ||
+      experience.some((e) => hasDisplayValue(e.title) || hasDisplayValue(e.company))
 
     if (!hasData) return null
 
     return {
-      headline: contact.linkedin_headline,
-      posts: posts.slice(0, 3),
-      skills: skills.slice(0, 5),
-      experience: experience.slice(0, 2),
+      headline: hasDisplayValue(contact.linkedin_headline) ? contact.linkedin_headline : null,
+      posts: posts.filter((p) => hasDisplayValue(p.text)).slice(0, 3),
+      skills: skills.filter((s) => hasDisplayValue(s)).slice(0, 5),
+      experience: experience
+        .filter((e) => hasDisplayValue(e.title) || hasDisplayValue(e.company))
+        .slice(0, 2),
     }
   }, [contact])
-
-  useEffect(() => {
-    if (enrichedSections.length > 0) setOpenSection(enrichedSections[0].title)
-  }, [enrichedSections])
 
   const openLinkedIn = () => {
     if (!contact) return
@@ -301,19 +293,43 @@ export default function ContactResultPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const res = await fetch('/api/card/enrich', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId: contact.id, userId: user.id }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.error || 'Research failed.')
-      if (json.contact) setContact(json.contact as ScannedContact)
+      const [enrichRes, queueRes] = await Promise.all([
+        fetch('/api/card/enrich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contactId: contact.id, userId: user.id }),
+        }),
+        fetch('/api/enrich/queue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contactId: contact.id }),
+        }),
+      ])
+
+      const enrichJson = await enrichRes.json()
+      const queueJson = await queueRes.json()
+
+      if (!enrichRes.ok && !queueRes.ok) {
+        throw new Error(enrichJson.error || queueJson.error || 'Research failed.')
+      }
+
+      const updated = queueJson.contact || enrichJson.contact
+      if (updated) applyContactUpdate(updated as ScannedContact)
+      else setRetryKey((k) => k + 1)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Research failed.')
     } finally {
       setEnriching(false)
     }
+  }
+
+  const handleStarterClick = (text: string) => {
+    setMessages((prev) => {
+      const current = prev[tab]?.trim()
+      const next = current ? `${current}\n\n${text}` : text
+      return { ...prev, [tab]: next }
+    })
+    toast('✓ Added to message')
   }
 
   async function handleSend() {
@@ -484,11 +500,19 @@ export default function ContactResultPage() {
   const sc = scoreColors(score)
 
   const snapshot: { icon: string; label: string; value: string }[] = [
-    contact.company_summary ? { icon: '🏢', label: 'What they do', value: cleanText(contact.company_summary) } : null,
+    hasDisplayValue(contact.company_summary)
+      ? { icon: '🏢', label: 'What they do', value: cleanText(contact.company_summary!) }
+      : null,
     location ? { icon: '📍', label: 'Location', value: location } : null,
-    contact.company_size ? { icon: '👥', label: 'Employees', value: contact.company_size } : null,
-    contact.company_revenue ? { icon: '💰', label: 'Revenue', value: contact.company_revenue } : null,
-    contact.industry ? { icon: '🏭', label: 'Industry', value: contact.industry } : null,
+    hasDisplayValue(contact.company_size)
+      ? { icon: '👥', label: 'Employees', value: contact.company_size! }
+      : null,
+    hasDisplayValue(contact.company_revenue)
+      ? { icon: '💰', label: 'Revenue', value: contact.company_revenue! }
+      : null,
+    hasDisplayValue(contact.industry)
+      ? { icon: '🏭', label: 'Industry', value: contact.industry! }
+      : null,
   ].filter(Boolean) as { icon: string; label: string; value: string }[]
 
   const enrichmentStatus = contact.enrichment_status || 'DONE'
@@ -771,86 +795,14 @@ export default function ContactResultPage() {
           </motion.div>
         )}
 
-        {/* SECTION 4 — INTELLIGENCE (accordion) */}
-        <motion.div variants={item} className="flex flex-col">
-          <span className="abc-label mb-2">Intelligence</span>
-
-          {enrichedSections.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {enrichedSections.map((section) => {
-                const isOpen = openSection === section.title
-                return (
-                  <div
-                    key={section.title}
-                    className="rounded-xl overflow-hidden"
-                    style={{
-                      background: '#0D0A18',
-                      border: section.isRisk ? '0.5px solid #EF4444' : '0.5px solid #1A0E30',
-                    }}
-                  >
-                    <button
-                      onClick={() => setOpenSection(isOpen ? null : section.title)}
-                      className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left"
-                    >
-                      <span className="text-sm font-semibold flex items-center gap-2">
-                        <span>{section.icon}</span>
-                        <span className="gradient-text">{section.label}</span>
-                      </span>
-                      <motion.span animate={{ rotate: isOpen ? 180 : 0 }} style={{ color: '#5A3A8A' }}>
-                        <IconChevronDown size={16} />
-                      </motion.span>
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {isOpen && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden"
-                        >
-                          <p
-                            className="text-sm whitespace-pre-wrap px-4 pb-4"
-                            style={{ color: '#9090A0', lineHeight: 1.6 }}
-                          >
-                            {splitContentWithUrls(
-                              section.content
-                                .split('\n')
-                                .map((line) => cleanText(line))
-                                .join('\n')
-                            ).map((seg, i) =>
-                              seg.isUrl ? (
-                                <a
-                                  key={i}
-                                  href={seg.text.startsWith('http') ? seg.text : `https://${seg.text}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-[#A78BFA] underline break-all"
-                                >
-                                  {seg.text}
-                                </a>
-                              ) : (
-                                <span key={i}>{seg.text}</span>
-                              )
-                            )}
-                          </p>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <button
-              onClick={handleEnrichMore}
-              disabled={enriching}
-              className="w-full rounded-xl py-3 text-sm font-medium disabled:opacity-40"
-              style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#A78BFA' }}
-            >
-              {enriching ? 'Researching...' : '🔍 Research more info'}
-            </button>
-          )}
+        {/* SECTION 4 — INTELLIGENCE */}
+        <motion.div variants={item}>
+          <IntelligencePanel
+            contact={contact}
+            onStarterClick={handleStarterClick}
+            onResearchMore={handleEnrichMore}
+            researching={enriching}
+          />
         </motion.div>
 
         {/* SECTION — ACTIVITY TIMELINE */}

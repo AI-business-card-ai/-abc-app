@@ -126,7 +126,7 @@ MY COMPANY: ${userProfile?.company || ''}
 MY ROLE: ${userProfile?.role || ''}
 
 Research and return ONLY the sections below. Use ## headers exactly as shown.
-Be factual. If not found say "Not found".
+Only include a section if you found real, verifiable data. Omit any section entirely if you have no data — never write "Not found", "N/A", or placeholder text.
 
 ${dynamicSections}
 

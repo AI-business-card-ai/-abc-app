@@ -6,6 +6,7 @@ import { generatePersonalizedMessages } from '@/lib/ai-messages'
 import { createHubSpotContact } from '@/lib/hubspot'
 import { createSalesforceContact } from '@/lib/salesforce'
 import { calculateLeadScore, logActivity } from '@/lib/crm'
+import { runIntelligenceResearch } from '@/lib/research'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
 import type { EnrichmentStepId } from '@/lib/enrichment-steps'
 
@@ -64,6 +65,27 @@ export async function runContactEnrichment(contactId: string, userId: string): P
       return ''
     })
 
+    await runIntelligenceResearch(
+      {
+        id: contactId,
+        name: c.name,
+        company: c.company,
+        role: c.role,
+        industry: c.industry,
+      },
+      supabase
+    ).catch((err) => {
+      console.error('Intelligence research skipped:', err)
+    })
+
+    const { data: refreshedContact } = await supabase
+      .from('scanned_contacts')
+      .select('*')
+      .eq('id', contactId)
+      .single()
+
+    const latest = (refreshedContact as ScannedContact | null) ?? c
+
     const linkedinUrl = apolloData?.linkedin_url || c.linkedin_url
     let linkedinData = null
 
@@ -107,9 +129,9 @@ export async function runContactEnrichment(contactId: string, userId: string): P
 
     const aiMessages = await generatePersonalizedMessages(
       {
-        ...c,
+        ...latest,
         ...baseRecord,
-        meeting_context: c.event_name || c.notes,
+        meeting_context: latest.event_name || latest.notes,
       },
       profile,
       linkedinData

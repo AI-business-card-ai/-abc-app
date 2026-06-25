@@ -52,6 +52,40 @@ export interface ScannedContact {
   whatsapp_number: string | null
   enrichment_status: 'PENDING' | 'ENRICHING' | 'DONE' | 'ERROR' | null
   enrichment_step: string | null
+  events_past: ContactEvent[] | null
+  events_upcoming: ContactEvent[] | null
+  speaking_engagements: SpeakingEngagement[] | null
+  person_bio: string | null
+  person_quotes: PersonQuote[] | null
+  recent_news: NewsItem[] | null
+}
+
+export type ContactEvent = {
+  name: string
+  location?: string
+  date?: string
+  role?: string
+  description?: string
+}
+
+export type SpeakingEngagement = {
+  event: string
+  title?: string
+  date?: string
+}
+
+export type NewsItem = {
+  title: string
+  summary?: string
+  date?: string
+  url?: string
+  source?: string
+}
+
+export type PersonQuote = {
+  text: string
+  source?: string
+  date?: string
 }
 
 export type CrmStatus = 'NEW' | 'ENRICHED' | 'CONTACTED' | 'IN_CONVERSATION' | 'CLOSED'
