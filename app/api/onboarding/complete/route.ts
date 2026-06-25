@@ -99,6 +99,8 @@ export async function POST(req: NextRequest) {
 
     const communicationStyle = mapStyleToCommunication(style)
 
+    console.log('Saving language:', language)
+
     const { error } = await supabase
       .from('abc_profiles')
       .upsert({

@@ -14,6 +14,24 @@ export type GeneratedMessages = {
   message_whatsapp: string
 }
 
+export function getUserLanguage(profile: ABCProfile | null | undefined): string {
+  return profile?.user_language || profile?.outreach_language || 'EN'
+}
+
+export function getLanguageInstruction(userLanguage: string): string {
+  const lang = userLanguage || 'EN'
+  if (lang === 'CZ') {
+    return 'IMPORTANT: Write ALL messages in Czech language only.'
+  }
+  if (lang === 'DE') {
+    return 'IMPORTANT: Write ALL messages in German language only.'
+  }
+  if (lang === 'Mix') {
+    return 'IMPORTANT: Write messages mixing Czech and English naturally.'
+  }
+  return 'IMPORTANT: Write ALL messages in English language only. Do not use any other language.'
+}
+
 function buildSystemPrompt(
   userProfile: ABCProfile,
   contact: Partial<ScannedContact> & { meeting_context?: string | null },
@@ -23,7 +41,15 @@ function buildSystemPrompt(
     userProfile.user_prompt ||
     'You are a professional B2B networking assistant.'
   const userName = userProfile.user_name || userProfile.full_name || 'the user'
-  const userLanguage = userProfile.user_language || userProfile.outreach_language || 'EN'
+  const lang = getUserLanguage(userProfile)
+  const languageInstruction = getLanguageInstruction(lang)
+
+  const profileBlock = `The user's name is ${userName}.
+Their company is ${userProfile.user_company || userProfile.company || ''}.
+Their role is ${userProfile.user_role || userProfile.role || ''}.
+They offer: ${userProfile.user_product || ''}.
+Their goal: ${userProfile.user_goal || userProfile.goals || ''}.
+Language: ${languageInstruction}`
 
   const posts = linkedin?.recentPosts?.length
     ? linkedin.recentPosts
@@ -46,10 +72,14 @@ function buildSystemPrompt(
     : '[]'
   const personBio = hasDisplayValue(contact.person_bio) ? contact.person_bio : ''
 
-  return `${userPrompt}
+  return `${languageInstruction}
+
+${profileBlock}
+
+${userPrompt}
 
 You are writing on behalf of ${userName}.
-Language preference: ${userLanguage}
+Language preference: ${lang}
 
 Contact you are writing to:
 - Name: ${contact.name || 'N/A'}

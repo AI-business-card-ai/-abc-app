@@ -82,6 +82,7 @@ export default function ContactResultPage() {
   const [showDoneBanner, setShowDoneBanner] = useState(false)
   const [showFullDetail, setShowFullDetail] = useState(false)
   const [retryingEnrichment, setRetryingEnrichment] = useState(false)
+  const [regeneratingMessages, setRegeneratingMessages] = useState(false)
 
   const toast = useCallback((msg: string) => {
     setToastMsg(msg)
@@ -282,6 +283,21 @@ export default function ContactResultPage() {
         activityType: 'LINKEDIN_COPIED',
         activityDetail: `LinkedIn message copied for ${contact.name}`,
       })
+    }
+  }
+
+  async function handleRegenerateMessages() {
+    setRegeneratingMessages(true)
+    try {
+      const res = await fetch(`/api/enrich/messages/${id}`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to regenerate messages')
+      if (json.contact) applyContactUpdate(json.contact as ScannedContact)
+      toast('Messages regenerated')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Regeneration failed')
+    } finally {
+      setRegeneratingMessages(false)
     }
   }
 
@@ -813,6 +829,19 @@ export default function ContactResultPage() {
 
         {/* SECTION 5 — MESSAGES */}
         <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="abc-label">Messages</span>
+            <button
+              type="button"
+              onClick={handleRegenerateMessages}
+              disabled={regeneratingMessages}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium transition-opacity disabled:opacity-40"
+              style={{ border: '0.5px solid #1A0E30', color: '#A78BFA' }}
+            >
+              {regeneratingMessages ? 'Regenerating…' : '🔄 Regenerate messages'}
+            </button>
+          </div>
+
           <div className="flex border-b border-abc-border">
             {TABS.map((t) => (
               <button
