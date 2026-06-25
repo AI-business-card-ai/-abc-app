@@ -1,0 +1,24 @@
+{
+  "name": "ABC — AI Business Card",
+  "short_name": "ABC",
+  "description": "Scan business cards. AI enriches. You sell.",
+  "start_url": "/scan",
+  "display": "standalone",
+  "background_color": "#0d0f1a",
+  "theme_color": "#0d0f1a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -9,6 +9,8 @@ import { useDevice } from '@/lib/hooks/useDevice'
 import CardStack from '@/components/ui/CardStack'
 import PipelineStageBadge from '@/components/ui/PipelineStageBadge'
 import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
+import MobileContactsList from '@/components/mobile/MobileContactsList'
+import { filterContacts, type FilterTab } from '@/lib/pipeline-ai'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
 const chipStyle = (active: boolean): React.CSSProperties =>
@@ -343,131 +345,12 @@ export default function ContactsPage() {
       ) : (
         <>
           {device === 'mobile' ? (
-            <>
-          <CardStack
-            contacts={filtered}
-            cur={cur}
-            onCurChange={setCur}
-            onSelect={(id) => router.push('/contact/' + id)}
-          />
-
-          <div className="flex justify-center gap-1 py-2">
-            {filtered.map((c, i) => (
-              <button
-                key={c.id}
-                onClick={() => setCur(i)}
-                aria-label={`Karta ${i + 1}`}
-                className="rounded-full transition-all"
-                style={
-                  i === cur
-                    ? { width: 14, height: 4, background: '#A78BFA' }
-                    : { width: 4, height: 4, background: '#1A0E30' }
-                }
-              />
-            ))}
-          </div>
-
-          <AnimatePresence mode="wait">
-            {active && (
-              <motion.div
-                key={active.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25 }}
-                className="mx-4 rounded-xl p-3 mt-1 flex flex-col gap-2.5"
-                style={{ background: '#06040C', border: '0.5px solid #1A0E30' }}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <EnrichmentIndicator
-                      contact={active}
-                      compact
-                      onRetry={() => handleRetryEnrichment(active.id)}
-                    />
-                    <span className="text-xs font-medium truncate" style={{ color: '#00d4d4' }}>
-                      {active.event_name ?? 'No event'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <PipelineStageBadge
-                      stage={active.pipeline_stage}
-                      onChange={(stage) => updatePipelineStage(active.id, stage)}
-                    />
-                    <span className="text-xs" style={{ color: '#3A2060' }}>
-                      {new Date(active.scanned_at).toLocaleDateString('en-US')}
-                    </span>
-                  </div>
-                </div>
-
-                {active.notes ? (
-                  <p className="text-sm italic leading-relaxed" style={{ color: '#3A2060' }}>
-                    {active.notes}
-                  </p>
-                ) : (
-                  <p className="text-sm italic" style={{ color: '#2A1A4A' }}>
-                    No notes
-                  </p>
-                )}
-
-                <div className="flex gap-1.5">
-                  {active.linkedin_url && (
-                    <a href={active.linkedin_url} target="_blank" rel="noreferrer" className="icon-btn w-9 h-9">
-                      <IconBrandLinkedin size={17} />
-                    </a>
-                  )}
-                  {active.email && (
-                    <a href={`mailto:${active.email}`} className="icon-btn w-9 h-9">
-                      <IconMail size={17} />
-                    </a>
-                  )}
-                  {active.phone && (
-                    <a href={`tel:${active.phone}`} className="icon-btn w-9 h-9">
-                      <IconPhone size={17} />
-                    </a>
-                  )}
-                  <a
-                    href={`/api/contact/vcard/${active.id}`}
-                    className="icon-btn w-9 h-9"
-                    aria-label="Save to Phone"
-                  >
-                    <IconDeviceMobile size={17} />
-                  </a>
-                </div>
-
-                <div className="flex gap-1.5 items-stretch flex-wrap">
-                  <button
-                    onClick={() => router.push('/chat/' + active.id)}
-                    className="flex-1 min-w-[72px] py-2 text-xs rounded-lg"
-                    style={{ border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
-                  >
-                    💬 Chat
-                  </button>
-                  <button
-                    onClick={() => router.push('/contact/' + active.id)}
-                    className="flex-1 min-w-[72px] py-2 text-xs rounded-lg"
-                    style={{ border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
-                  >
-                    ✉ Message
-                  </button>
-                  <button
-                    onClick={() => router.push('/contact/' + active.id)}
-                    className="flex-1 min-w-[72px] py-2 text-xs rounded-lg glow-btn text-white font-medium"
-                  >
-                    ✦ Detail
-                  </button>
-                  <button
-                    onClick={() => handleDelete(active.id)}
-                    className="flex-1 min-w-[72px] py-2 text-xs rounded-lg font-medium"
-                    style={{ border: '0.5px solid rgba(239,68,68,0.35)', color: '#EF4444' }}
-                  >
-                    🗑 Delete
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-            </>
+            <MobileContactsList
+              contacts={contacts}
+              onRefresh={() => setRefreshKey((k) => k + 1)}
+              toast={toast}
+              onContactsChange={setContacts}
+            />
           ) : (
             <div className={`grid gap-3 ${device === 'tablet' ? 'grid-cols-2' : 'grid-cols-3'}`}>
               {filtered.map((c) => {

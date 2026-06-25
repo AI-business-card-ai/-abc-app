@@ -22,6 +22,9 @@ import SalesforceFields from '@/components/crm/SalesforceFields'
 import CommunicationHistory from '@/components/crm/CommunicationHistory'
 import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
 import EnrichmentProgress from '@/components/ui/EnrichmentProgress'
+import QuickCrmPanel from '@/components/mobile/QuickCrmPanel'
+import CollapsibleSection from '@/components/mobile/CollapsibleSection'
+import { useDevice } from '@/lib/hooks/useDevice'
 import type { ScannedContact } from '@/lib/types'
 import type { ActivityType } from '@/lib/crm'
 
@@ -66,6 +69,8 @@ export default function ContactResultPage() {
   const router = useRouter()
   const supabase = createClientComponent()
   const id = String(params?.id ?? '')
+  const device = useDevice()
+  const isMobile = device === 'mobile'
 
   const [contact, setContact] = useState<ScannedContact | null>(null)
   const [loading, setLoading] = useState(true)
@@ -576,7 +581,7 @@ export default function ContactResultPage() {
   return (
     <motion.div className="min-h-screen bg-bg pb-44">
       {/* TOP BAR */}
-      <div className="hero-radial flex items-center justify-between px-4 pt-6 pb-4 relative">
+      <div className="hero-radial flex items-center justify-between px-4 pt-6 pb-4 relative sticky top-0 z-30 backdrop-blur-md" style={{ background: 'rgba(13,15,26,0.92)' }}>
         <button onClick={() => router.push('/contacts')} className="icon-btn">
           <IconArrowLeft size={18} />
         </button>
@@ -850,14 +855,25 @@ export default function ContactResultPage() {
         )}
 
         {/* SECTION 4 — INTELLIGENCE + CRM SIDEBAR */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-4 items-start">
-          <motion.div variants={item} className="flex flex-col gap-4 min-w-0">
-            <IntelligencePanel
-              contact={contact}
-              onStarterClick={handleStarterClick}
-              onResearchMore={handleEnrichMore}
-              researching={enriching}
-            />
+        <div className={`gap-4 items-start ${isMobile ? 'flex flex-col' : 'grid grid-cols-1 xl:grid-cols-[1fr_340px]'}`}>
+          <motion.div variants={item} className={`flex flex-col gap-4 min-w-0 ${isMobile ? 'order-1' : ''}`}>
+            {isMobile ? (
+              <CollapsibleSection title="Intelligence" icon="✨" defaultOpen={false}>
+                <IntelligencePanel
+                  contact={contact}
+                  onStarterClick={handleStarterClick}
+                  onResearchMore={handleEnrichMore}
+                  researching={enriching}
+                />
+              </CollapsibleSection>
+            ) : (
+              <IntelligencePanel
+                contact={contact}
+                onStarterClick={handleStarterClick}
+                onResearchMore={handleEnrichMore}
+                researching={enriching}
+              />
+            )}
 
             {/* SECTION 5 — MESSAGES */}
             <div className="abc-card p-4 flex flex-col gap-3">
@@ -969,7 +985,12 @@ export default function ContactResultPage() {
             </div>
           </motion.div>
 
-          <motion.div variants={item} className="flex flex-col gap-4 xl:sticky xl:top-4">
+          <motion.div variants={item} className={`flex flex-col gap-4 xl:sticky xl:top-4 ${isMobile ? 'order-2' : ''}`}>
+            {isMobile && (
+              <>
+                <QuickCrmPanel contact={contact} onUpdated={applyContactUpdate} />
+              </>
+            )}
             <DealInformation contact={contact} onUpdated={applyContactUpdate} />
             <SalesforceFields contact={contact} onUpdated={applyContactUpdate} />
             <CommunicationHistory contact={contact} onUpdated={applyContactUpdate} />

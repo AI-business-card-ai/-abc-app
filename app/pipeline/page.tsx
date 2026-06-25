@@ -7,6 +7,7 @@ import { createClientComponent } from '@/lib/supabase'
 import { useDevice } from '@/lib/hooks/useDevice'
 import { logCrmActivity } from '@/lib/crm-client'
 import PipelineTable from '@/components/pipeline/PipelineTable'
+import PipelineMobileStages from '@/components/mobile/PipelineMobileStages'
 import TagPills from '@/components/crm/TagPills'
 import { formatDealValue } from '@/lib/tags'
 import {
@@ -333,6 +334,12 @@ export default function PipelinePage() {
         <p className="py-12 text-center text-sm" style={{ color: '#8892b0' }}>
           No contacts match this filter.
         </p>
+      ) : device !== 'desktop' ? (
+        <PipelineMobileStages
+          contacts={visibleContacts}
+          onAction={(c) => handleAction(c, getAiNextStep(c))}
+          onUpdate={handleContactUpdate}
+        />
       ) : filter === 'won' && visibleContacts.length > 0 ? (
         <>
           <div
@@ -356,11 +363,11 @@ export default function PipelinePage() {
               showWonBadge
             />
           ) : (
-            <div className={device === 'tablet' ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'}>
-              {visibleContacts.map((contact) => (
-                <MobilePipelineCard key={contact.id} contact={contact} onAction={handleAction} />
-              ))}
-            </div>
+            <PipelineMobileStages
+              contacts={visibleContacts}
+              onAction={(c) => handleAction(c, getAiNextStep(c))}
+              onUpdate={handleContactUpdate}
+            />
           )}
         </>
       ) : device === 'desktop' ? (
@@ -370,11 +377,11 @@ export default function PipelinePage() {
           onUpdate={handleContactUpdate}
         />
       ) : (
-        <div className={device === 'tablet' ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'}>
-          {visibleContacts.map((contact) => (
-            <MobilePipelineCard key={contact.id} contact={contact} onAction={handleAction} />
-          ))}
-        </div>
+        <PipelineMobileStages
+          contacts={visibleContacts}
+          onAction={(c) => handleAction(c, getAiNextStep(c))}
+          onUpdate={handleContactUpdate}
+        />
       )}
     </div>
   )

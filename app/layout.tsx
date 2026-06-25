@@ -5,6 +5,12 @@ import AppShell from '@/components/layout/AppShell'
 export const metadata: Metadata = {
   title: 'ABC — Scan. Know. Connect.',
   description: 'AI Business Card — from card scan to a sent message in 10 seconds.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'ABC',
+  },
 }
 
 export const viewport: Viewport = {

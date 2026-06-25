@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
@@ -49,13 +49,8 @@ export default function OnboardingPage() {
   const [messageLength, setMessageLength] = useState(LENGTH_OPTIONS[1])
   const [goal, setGoal] = useState(GOAL_OPTIONS[0])
 
-  const progressPercent = useMemo(() => {
-    if (step <= 0) return 0
-    if (step >= 5) return 100
-    return Math.round((step / 5) * 100)
-  }, [step])
-
   const stepLabel = step >= 1 && step <= 4 ? (step === 4 ? 5 : step) : null
+  const swipeStart = useRef<{ x: number; y: number } | null>(null)
 
   const combinedIcp = useMemo(() => {
     const parts = [icp.trim()]
@@ -173,22 +168,42 @@ export default function OnboardingPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col px-6 py-8"
+      className="min-h-[100dvh] flex flex-col px-5 py-6 safe-top safe-bottom"
       style={{ background: '#0d0f1a', color: '#f0f0ff' }}
+      onTouchStart={(e) => {
+        swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      }}
+      onTouchEnd={(e) => {
+        if (!swipeStart.current || step === 0 || step === 5) return
+        const dx = e.changedTouches[0].clientX - swipeStart.current.x
+        const dy = Math.abs(e.changedTouches[0].clientY - swipeStart.current.y)
+        if (dy > 60) return
+        if (dx < -60 && step < 5) {
+          if (step === 1 && !canContinueStep2) return
+          if (step === 2 && !canContinueStep3) return
+          if (step === 3 && !canContinueStep4) return
+          goNext()
+        } else if (dx > 60) {
+          goBack()
+        }
+        swipeStart.current = null
+      }}
     >
-      {step > 0 && step < 5 && stepLabel && (
-        <div className="mb-8">
-          <p className="text-xs font-semibold mb-2" style={{ color: '#00d4d4', letterSpacing: '0.08em' }}>
-            Step {stepLabel} of 5
-          </p>
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(139, 92, 246, 0.15)' }}>
-            <motion.div
-              className="h-full rounded-full"
-              style={{ background: 'linear-gradient(135deg, #00d4d4, #8b5cf6)' }}
-              animate={{ width: `${progressPercent}%` }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
+      {step > 0 && step < 5 && (
+        <div className="flex justify-center gap-2 mb-6 pt-2">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <span
+              key={n}
+              className="rounded-full transition-all duration-300"
+              style={{
+                width: stepLabel === n ? 24 : 8,
+                height: 8,
+                background: stepLabel !== null && n <= stepLabel
+                  ? 'linear-gradient(135deg, #00d4d4, #8b5cf6)'
+                  : 'rgba(139, 92, 246, 0.2)',
+              }}
             />
-          </div>
+          ))}
         </div>
       )}
 
@@ -217,7 +232,7 @@ export default function OnboardingPage() {
                       : 'Answer 5 quick questions so ABC can write perfect messages for every contact you meet.'}
                   </p>
                 </div>
-                <button type="button" onClick={goNext} className="glow-btn w-full rounded-xl font-bold" style={{ height: 52 }}>
+                <button type="button" onClick={goNext} className="glow-btn w-full rounded-xl font-bold text-lg" style={{ height: 64 }}>
                   {isEditing ? 'Continue →' : 'Get Started →'}
                 </button>
               </>
@@ -232,10 +247,10 @@ export default function OnboardingPage() {
                   <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Your role" className="onboarding-input" />
                 </div>
                 <div className="flex gap-3">
-                  <button type="button" onClick={goBack} className="ghost-btn flex-1 rounded-xl font-medium" style={{ height: 52 }}>
+                  <button type="button" onClick={goBack} className="ghost-btn flex-1 rounded-xl font-medium" style={{ height: 64 }}>
                     Back
                   </button>
-                  <button type="button" onClick={goNext} disabled={!canContinueStep2} className="glow-btn flex-[2] rounded-xl font-bold disabled:opacity-40" style={{ height: 52 }}>
+                  <button type="button" onClick={goNext} disabled={!canContinueStep2} className="glow-btn flex-[2] rounded-xl font-bold disabled:opacity-40" style={{ height: 64 }}>
                     Continue →
                   </button>
                 </div>
@@ -252,8 +267,8 @@ export default function OnboardingPage() {
                   className="onboarding-input min-h-[140px] py-4 resize-none"
                 />
                 <div className="flex gap-3">
-                  <button type="button" onClick={goBack} className="ghost-btn flex-1 rounded-xl font-medium" style={{ height: 52 }}>Back</button>
-                  <button type="button" onClick={goNext} disabled={!canContinueStep3} className="glow-btn flex-[2] rounded-xl font-bold disabled:opacity-40" style={{ height: 52 }}>
+                  <button type="button" onClick={goBack} className="ghost-btn flex-1 rounded-xl font-medium" style={{ height: 64 }}>Back</button>
+                  <button type="button" onClick={goNext} disabled={!canContinueStep3} className="glow-btn flex-[2] rounded-xl font-bold disabled:opacity-40" style={{ height: 64 }}>
                     Continue →
                   </button>
                 </div>
@@ -274,8 +289,8 @@ export default function OnboardingPage() {
                 <ChipGroup label="Size" options={SIZE_CHIPS} selected={selectedSizes} onToggle={(v) => toggleChip(v, selectedSizes, setSelectedSizes)} />
                 <ChipGroup label="Region" options={REGION_CHIPS} selected={selectedRegions} onToggle={(v) => toggleChip(v, selectedRegions, setSelectedRegions)} />
                 <div className="flex gap-3">
-                  <button type="button" onClick={goBack} className="ghost-btn flex-1 rounded-xl font-medium" style={{ height: 52 }}>Back</button>
-                  <button type="button" onClick={goNext} disabled={!canContinueStep4} className="glow-btn flex-[2] rounded-xl font-bold disabled:opacity-40" style={{ height: 52 }}>
+                  <button type="button" onClick={goBack} className="ghost-btn flex-1 rounded-xl font-medium" style={{ height: 64 }}>Back</button>
+                  <button type="button" onClick={goNext} disabled={!canContinueStep4} className="glow-btn flex-[2] rounded-xl font-bold disabled:opacity-40" style={{ height: 64 }}>
                     Continue →
                   </button>
                 </div>
@@ -291,8 +306,8 @@ export default function OnboardingPage() {
                 <SelectCards label="Goal" options={GOAL_OPTIONS} value={goal} onChange={setGoal} />
                 {error && <p className="text-sm text-red-300">{error}</p>}
                 <div className="flex gap-3">
-                  <button type="button" onClick={goBack} className="ghost-btn flex-1 rounded-xl font-medium" style={{ height: 52 }}>Back</button>
-                  <button type="button" onClick={handleComplete} disabled={submitting} className="glow-btn flex-[2] rounded-xl font-bold disabled:opacity-40" style={{ height: 52 }}>
+                  <button type="button" onClick={goBack} className="ghost-btn flex-1 rounded-xl font-medium" style={{ height: 64 }}>Back</button>
+                  <button type="button" onClick={handleComplete} disabled={submitting} className="glow-btn flex-[2] rounded-xl font-bold disabled:opacity-40" style={{ height: 64 }}>
                     {submitting ? 'Saving…' : isEditing ? 'Save changes' : 'Complete Setup →'}
                   </button>
                 </div>
@@ -316,7 +331,7 @@ export default function OnboardingPage() {
                     ABC now knows your style and goals. Every contact you scan will get a perfectly personalized message.
                   </p>
                 </div>
-                <button type="button" onClick={() => router.push('/scan')} className="glow-btn w-full rounded-xl font-bold" style={{ height: 52 }}>
+                <button type="button" onClick={() => router.push('/scan')} className="glow-btn w-full rounded-xl font-bold" style={{ height: 64 }}>
                   Start Scanning →
                 </button>
               </>
@@ -333,7 +348,7 @@ export default function OnboardingPage() {
           border-radius: 12px;
           color: #f0f0ff;
           padding: 0 16px;
-          height: 52px;
+          height: 64px;
           font-size: 16px;
           outline: none;
           transition: border-color 0.2s ease, box-shadow 0.2s ease;

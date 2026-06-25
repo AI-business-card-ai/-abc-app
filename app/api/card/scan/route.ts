@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase'
 import {
   analyzeBusinessCard,
+  extractBusinessCardFromImage,
   ClaudeVisionError,
   ClaudeAnalysisError,
 } from '@/lib/claude'
@@ -69,14 +70,36 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const contacts = await analyzeBusinessCard(
-      base64,
-      profile,
-      '',
-      claudeMediaType,
-      note,
-      eventName
-    )
+    const useFastScan = formData.get('fastScan') !== 'false'
+
+    let contacts: Awaited<ReturnType<typeof analyzeBusinessCard>>
+
+    if (useFastScan) {
+      const extracted = await extractBusinessCardFromImage(base64, claudeMediaType)
+      contacts = [
+        {
+          ...extracted,
+          industry: null,
+          company_size: null,
+          company_summary: extracted.company ? `${extracted.company} contact` : null,
+          match_score: 50,
+          match_reason: 'Scanned via ABC — enrichment in progress.',
+          message_linkedin: '',
+          message_email: '',
+          email_subject: '',
+          message_whatsapp: '',
+        },
+      ]
+    } else {
+      contacts = await analyzeBusinessCard(
+        base64,
+        profile,
+        '',
+        claudeMediaType,
+        note,
+        eventName
+      )
+    }
     console.log(`Detected ${contacts.length} business card(s)`)
 
     const pendingContacts = contacts.map((contact) => ({

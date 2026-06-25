@@ -294,6 +294,19 @@ a,
   .scan-corner-bl { bottom: 0; left: 0; border-left: 2px solid; border-bottom: 2px solid; border-radius: 0 0 0 4px; }
   .scan-corner-br { bottom: 0; right: 0; border-right: 2px solid; border-bottom: 2px solid; border-radius: 0 0 4px 0; }
 
+  .scan-frame-mobile {
+    position: relative;
+    border-radius: 12px;
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    .glow-btn:hover:not(:disabled),
+    .btn-outline-cyan:hover,
+    .btn-scan:hover:not(:disabled) {
+      transform: none;
+    }
+  }
+
   .ghost-btn {
     background: transparent;
     border: 1px solid rgba(139, 92, 246, 0.15);
