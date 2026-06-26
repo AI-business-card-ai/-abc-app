@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const ONBOARDING_EXEMPT = ['/onboarding', '/login', '/register', '/', '/settings', '/profile']
+const ONBOARDING_EXEMPT = ['/onboarding', '/login', '/register', '/', '/settings', '/profile', '/pricing']
 
 export async function middleware(req: NextRequest) {
   let response = NextResponse.next({ request: req })

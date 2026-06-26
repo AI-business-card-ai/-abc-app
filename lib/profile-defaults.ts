@@ -14,6 +14,9 @@ export const EMPTY_ABC_PROFILE: Omit<ABCProfile, 'id'> = {
   outreach_language: 'EN',
   goals: '',
   plan: 'free',
+  plan_activated_at: null,
+  stripe_customer_id: null,
+  stripe_subscription_id: null,
   scans_used: 0,
   scans_limit: 30,
   research_preferences: [...DEFAULT_RESEARCH_PREFERENCES],
@@ -42,7 +45,7 @@ export const EMPTY_ABC_PROFILE: Omit<ABCProfile, 'id'> = {
 }
 
 const STYLE_VALUES = new Set<ABCProfile['communication_style']>(['direct', 'formal', 'casual'])
-const PLAN_VALUES = new Set<ABCProfile['plan']>(['free', 'pro', 'team'])
+const PLAN_VALUES = new Set<ABCProfile['plan']>(['free', 'starter', 'pro', 'team'])
 
 function parseResearchPreferences(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -103,6 +106,9 @@ export function normalizeAbcProfile(
     outreach_language: asString(data.outreach_language || data.user_language, 'EN'),
     goals: asString(data.goals || data.user_goal, ''),
     plan,
+    plan_activated_at: asNullableString(data.plan_activated_at),
+    stripe_customer_id: asNullableString(data.stripe_customer_id),
+    stripe_subscription_id: asNullableString(data.stripe_subscription_id),
     scans_used: asNumber(data.scans_used, 0),
     scans_limit: asNumber(data.scans_limit, 30),
     research_preferences: researchPreferences.length ? researchPreferences : [...DEFAULT_RESEARCH_PREFERENCES],

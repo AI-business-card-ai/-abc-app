@@ -171,7 +171,10 @@ export interface ABCProfile {
   communication_style: 'direct' | 'formal' | 'casual'
   outreach_language: string
   goals: string | null
-  plan: 'free' | 'pro' | 'team'
+  plan: 'free' | 'starter' | 'pro' | 'team'
+  plan_activated_at: string | null
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
   scans_used: number
   scans_limit: number
   research_preferences: string[] | null

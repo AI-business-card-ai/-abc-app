@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
 
     const limits: Record<string, number> = {
       free: 3,
+      starter: 50,
       basic: 20,
       pro: 100,
       team: 500,
