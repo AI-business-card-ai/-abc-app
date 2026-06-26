@@ -9,6 +9,7 @@ import TagPills from '@/components/crm/TagPills'
 import { PIPELINE_STAGES } from '@/lib/pipeline'
 import { getStatusColor } from '@/lib/pipeline-ai'
 import { logCrmActivity, logDealOutcome, logMessageSent, updateContact } from '@/lib/crm-client'
+import { exportToHubSpot, exportToSalesforce } from '@/lib/crm-export'
 import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/types'
 
 const CARD = { background: '#141628', borderRadius: '12px', border: '1px solid #2a2d3e', padding: '20px' } as const
@@ -487,8 +488,8 @@ export default function ContactCrmDetailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button type="button" onClick={() => router.push(`/contact/${contact.id}`)} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#00d4d4', color: '#0d0f1a', fontWeight: 700, cursor: 'pointer' }}>Send Follow-up</button>
               <button type="button" onClick={() => showToast('Meeting scheduler coming soon')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2d3e', background: '#1a1d2e', color: '#f0f0ff', cursor: 'pointer' }}>Schedule Meeting</button>
-              <a href="/api/export/csv?format=salesforce" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2d3e', background: '#1a1d2e', color: '#f0f0ff', textAlign: 'center', textDecoration: 'none', fontSize: '13px' }}>Export to Salesforce</a>
-              <a href="/api/export/csv?format=hubspot" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2d3e', background: '#1a1d2e', color: '#f0f0ff', textAlign: 'center', textDecoration: 'none', fontSize: '13px' }}>Export to HubSpot</a>
+              <button type="button" onClick={() => exportToSalesforce(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2d3e', background: '#1a1d2e', color: '#f0f0ff', cursor: 'pointer', fontSize: '13px' }}>Export to Salesforce</button>
+              <button type="button" onClick={() => exportToHubSpot(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2d3e', background: '#1a1d2e', color: '#f0f0ff', cursor: 'pointer', fontSize: '13px' }}>Export to HubSpot</button>
               <button type="button" disabled={saving} onClick={() => markOutcome('won')} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#22c55e', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Mark as Won</button>
               <button type="button" disabled={saving} onClick={() => markOutcome('lost')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 700, cursor: 'pointer' }}>Mark as Lost</button>
             </div>

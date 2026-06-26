@@ -1,101 +1,48 @@
 import type { ABCContact } from './data-model'
-import { scoreToRating, toABCContact } from './data-model'
+import { toABCContact } from './data-model'
+import {
+  buildHubSpotExportRows,
+  buildSalesforceExportRows,
+  hubspotCsvHeaders as hubspotCsvHeadersFromExport,
+  mapToHubSpot as mapToHubSpotExport,
+  mapToSalesforce as mapToSalesforceExport,
+  salesforceCsvHeaders as salesforceCsvHeadersFromExport,
+} from './crm-export'
 import type { ScannedContact } from './types'
 
-export type SalesforceLead = {
-  FirstName: string
-  LastName: string
-  Email: string
-  Phone: string
-  MobilePhone: string
-  Title: string
-  Company: string
-  Website: string
-  Industry: string
-  NumberOfEmployees: number
-  AnnualRevenue: number
-  LeadSource: string
-  Status: string
-  Rating: string
-  Description: string
-  LinkedIn_URL__c: string
-  AI_Score__c: number
-  Where_Met__c: string
-  Next_Event__c: string
-  Tags__c: string
-  Opportunity_Stage__c: string
-  Close_Probability__c: number
-  Deal_Amount__c: number
-  Next_Step__c: string
-}
+export type SalesforceLead = Record<string, string | number>
+export type HubSpotContact = Record<string, string | number>
 
-export type HubSpotContact = {
-  firstname: string
-  lastname: string
-  email: string
-  phone: string
-  company: string
-  jobtitle: string
-  website: string
-  industry: string
-  numberofemployees: number
-  annualrevenue: number
-  hs_lead_status: string
-  lifecyclestage: string
-  notes_last_updated: string
-  linkedin_bio: string
-}
+export {
+  exportToHubSpot,
+  exportToSalesforce,
+  contactsToCsv,
+  buildHubSpotExportRows,
+  buildSalesforceExportRows,
+} from './crm-export'
 
 export function mapToSalesforce(input: ScannedContact | ABCContact): SalesforceLead {
-  const contact = 'full_name' in input ? input : toABCContact(input)
-
-  return {
-    FirstName: contact.first_name,
-    LastName: contact.last_name || contact.full_name,
-    Email: contact.email,
-    Phone: contact.phone,
-    MobilePhone: contact.mobile_phone || contact.phone,
-    Title: contact.position,
-    Company: contact.company,
-    Website: contact.website,
-    Industry: contact.industry,
-    NumberOfEmployees: contact.no_of_employees,
-    AnnualRevenue: contact.annual_revenue,
-    LeadSource: contact.lead_source || 'ABC AI Business Card',
-    Status: contact.lead_status || 'New',
-    Rating: contact.rating || scoreToRating(contact.match_score),
-    Description: contact.ai_summary,
-    LinkedIn_URL__c: contact.linkedin_url,
-    AI_Score__c: contact.match_score,
-    Where_Met__c: contact.meeting_location,
-    Next_Event__c: contact.next_event_attending,
-    Tags__c: contact.tags?.join(', ') || '',
-    Opportunity_Stage__c: contact.opportunity_stage,
-    Close_Probability__c: contact.close_probability,
-    Deal_Amount__c: contact.deal_value,
-    Next_Step__c: contact.next_step,
-  }
+  const contact: ScannedContact =
+    'user_id' in input
+      ? (input as ScannedContact)
+      : ({
+          ...(input as ABCContact),
+          name: (input as ABCContact).full_name,
+          role: (input as ABCContact).position,
+        } as unknown as ScannedContact)
+  return mapToSalesforceExport(contact)
 }
 
 export function mapToHubSpot(input: ScannedContact | ABCContact): HubSpotContact {
-  const contact = 'full_name' in input ? input : toABCContact(input)
-
-  return {
-    firstname: contact.first_name,
-    lastname: contact.last_name,
-    email: contact.email,
-    phone: contact.phone,
-    company: contact.company,
-    jobtitle: contact.position,
-    website: contact.website,
-    industry: contact.industry,
-    numberofemployees: contact.no_of_employees,
-    annualrevenue: contact.annual_revenue,
-    hs_lead_status: (contact.lead_status || 'NEW').toUpperCase(),
-    lifecyclestage: 'lead',
-    notes_last_updated: contact.ai_summary,
-    linkedin_bio: contact.linkedin_headline,
-  }
+  const contact: ScannedContact =
+    'user_id' in input
+      ? (input as ScannedContact)
+      : ({
+          ...(input as ABCContact),
+          name: (input as ABCContact).full_name,
+          role: (input as ABCContact).position,
+        } as unknown as ScannedContact)
+  return mapToHubSpotExport(contact)
 }
 
 export const UNIVERSAL_CSV_HEADERS = [
@@ -142,7 +89,7 @@ export const UNIVERSAL_CSV_HEADERS = [
 ] as const
 
 export function mapToUniversalRow(input: ScannedContact | ABCContact): Record<string, string | number> {
-  const c = 'full_name' in input ? input : toABCContact(input)
+  const c = 'full_name' in input && !('user_id' in input) ? input : toABCContact(input as ScannedContact)
   return {
     id: c.id,
     first_name: c.first_name,
@@ -188,49 +135,9 @@ export function mapToUniversalRow(input: ScannedContact | ABCContact): Record<st
 }
 
 export function salesforceCsvHeaders(): string[] {
-  return [
-    'FirstName',
-    'LastName',
-    'Email',
-    'Phone',
-    'MobilePhone',
-    'Title',
-    'Company',
-    'Website',
-    'Industry',
-    'NumberOfEmployees',
-    'AnnualRevenue',
-    'LeadSource',
-    'Status',
-    'Rating',
-    'Description',
-    'LinkedIn_URL__c',
-    'AI_Score__c',
-    'Where_Met__c',
-    'Next_Event__c',
-    'Tags__c',
-    'Opportunity_Stage__c',
-    'Close_Probability__c',
-    'Deal_Amount__c',
-    'Next_Step__c',
-  ]
+  return salesforceCsvHeadersFromExport()
 }
 
 export function hubspotCsvHeaders(): string[] {
-  return [
-    'firstname',
-    'lastname',
-    'email',
-    'phone',
-    'company',
-    'jobtitle',
-    'website',
-    'industry',
-    'numberofemployees',
-    'annualrevenue',
-    'hs_lead_status',
-    'lifecyclestage',
-    'notes_last_updated',
-    'linkedin_bio',
-  ]
+  return hubspotCsvHeadersFromExport()
 }

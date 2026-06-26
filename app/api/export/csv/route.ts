@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { onExported } from '@/lib/crm-engine'
+import { contactsToCsv } from '@/lib/crm-export'
 import {
-  hubspotCsvHeaders,
-  mapToHubSpot,
-  mapToSalesforce,
   mapToUniversalRow,
-  salesforceCsvHeaders,
   UNIVERSAL_CSV_HEADERS,
 } from '@/lib/salesforce-mapper'
 import type { ScannedContact } from '@/lib/types'
@@ -49,33 +46,27 @@ export async function GET(req: NextRequest) {
   const csvRows: string[] = []
   const filename = `abc-contacts-${format}-${new Date().toISOString().split('T')[0]}.csv`
 
+  let csv: string
   if (format === 'hubspot') {
-    csvRows.push(hubspotCsvHeaders().join(','))
-    for (const c of rows) {
-      const mapped = mapToHubSpot(c)
-      csvRows.push(rowToCsv(hubspotCsvHeaders().map((h) => mapped[h as keyof typeof mapped] ?? '')))
-    }
+    csv = contactsToCsv(rows, 'hubspot')
   } else if (format === 'universal') {
     csvRows.push(UNIVERSAL_CSV_HEADERS.join(','))
     for (const c of rows) {
       const mapped = mapToUniversalRow(c)
       csvRows.push(rowToCsv(UNIVERSAL_CSV_HEADERS.map((h) => mapped[h] ?? '')))
     }
+    csv = csvRows.join('\n')
   } else {
-    csvRows.push(salesforceCsvHeaders().join(','))
-    for (const c of rows) {
-      const mapped = mapToSalesforce(c)
-      csvRows.push(rowToCsv(salesforceCsvHeaders().map((h) => mapped[h as keyof typeof mapped] ?? '')))
-    }
+    csv = contactsToCsv(rows, 'salesforce')
   }
 
   for (const c of rows.slice(0, 10)) {
     onExported(c.id, user.id, format).catch(console.error)
   }
 
-  const csv = '\uFEFF' + csvRows.join('\n')
+  const csvContent = '\uFEFF' + csv
 
-  return new Response(csv, {
+  return new Response(csvContent, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="${filename}"`,
