@@ -137,18 +137,19 @@ export default function SettingsContent() {
   }, [router, showToast])
 
   function update<K extends keyof typeof profile>(key: K, value: (typeof profile)[K]) {
-    setProfile((p) => ({ ...p, [key]: value }))
+    setProfile((p) => ({ ...(p ?? EMPTY_ABC_PROFILE), [key]: value }))
   }
 
   function toggleResearchPreference(key: string) {
     setProfile((p) => {
-      const current = Array.isArray(p.research_preferences)
-        ? p.research_preferences
+      const base = p ?? EMPTY_ABC_PROFILE
+      const current = Array.isArray(base.research_preferences)
+        ? base.research_preferences
         : [...DEFAULT_RESEARCH_PREFERENCES]
       const next = current.includes(key)
         ? current.filter((k) => k !== key)
         : [...current, key]
-      return { ...p, research_preferences: next }
+      return { ...base, research_preferences: next }
     })
   }
 
@@ -192,13 +193,15 @@ export default function SettingsContent() {
         phone: profile.phone || null,
         linkedin_url: profile.linkedin_url || null,
         website: profile.website || null,
-        communication_style: profile.communication_style,
-        outreach_language: profile.outreach_language,
+        communication_style: profile.communication_style || 'direct',
+        outreach_language: profile.outreach_language || 'EN',
         goals: profile.goals || null,
         plan: profile.plan,
         scans_used: profile.scans_used,
         scans_limit: profile.scans_limit,
-        research_preferences: profile.research_preferences ?? [...DEFAULT_RESEARCH_PREFERENCES],
+        research_preferences: Array.isArray(profile.research_preferences)
+          ? profile.research_preferences
+          : [...DEFAULT_RESEARCH_PREFERENCES],
         custom_questions: profile.custom_questions || null,
       }
       const { error: e } = await supabase
@@ -219,7 +222,12 @@ export default function SettingsContent() {
     setHubspotError(null)
     try {
       const res = await fetch('/api/auth/hubspot/disconnect', { method: 'DELETE' })
-      const json = await res.json()
+      let json: { success?: boolean; error?: string } = {}
+      try {
+        json = await res.json()
+      } catch {
+        throw new Error('Invalid response from server')
+      }
       if (!res.ok || !json.success) throw new Error(json.error || 'Failed to disconnect')
       setHubspotConnected(false)
       showToast()
@@ -236,7 +244,12 @@ export default function SettingsContent() {
     setSalesforceError(null)
     try {
       const res = await fetch('/api/auth/salesforce/disconnect', { method: 'DELETE' })
-      const json = await res.json()
+      let json: { success?: boolean; error?: string } = {}
+      try {
+        json = await res.json()
+      } catch {
+        throw new Error('Invalid response from server')
+      }
       if (!res.ok || !json.success) throw new Error(json.error || 'Failed to disconnect')
       setSalesforceConnected(false)
       showToast()
@@ -257,9 +270,11 @@ export default function SettingsContent() {
     }
   }
 
-  const researchPrefs = Array.isArray(profile.research_preferences)
-    ? profile.research_preferences
+  const safeProfile = profile ?? EMPTY_ABC_PROFILE
+  const researchPrefs = Array.isArray(safeProfile.research_preferences)
+    ? safeProfile.research_preferences
     : [...DEFAULT_RESEARCH_PREFERENCES]
+  const researchOptions = Array.isArray(RESEARCH_PREFERENCE_OPTIONS) ? RESEARCH_PREFERENCE_OPTIONS : []
 
   if (loading) {
     return (
@@ -276,8 +291,22 @@ export default function SettingsContent() {
     )
   }
 
-  const initials = (profile.full_name || '?').split(' ').map((p) => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'
-  const subtitle = [profile.company, profile.role].filter(Boolean).join(' · ') || 'Company · Role'
+  const initials = (() => {
+    const name = typeof safeProfile.full_name === 'string' ? safeProfile.full_name : ''
+    return name
+      .split(' ')
+      .map((part) => (typeof part === 'string' ? part[0] : ''))
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || '?'
+  })()
+  const subtitle = [safeProfile.company, safeProfile.role]
+    .filter((v): v is string => typeof v === 'string' && v.length > 0)
+    .join(' · ') || 'Company · Role'
+  const userPromptText = typeof safeProfile.user_prompt === 'string' ? safeProfile.user_prompt : ''
+  const commStyle = safeProfile.communication_style || 'direct'
+  const outreachLang = safeProfile.outreach_language || 'EN'
 
   return (
     <div className="min-h-screen pb-8 page-shell page-shell--narrow" style={{ background: '#0d0f1a' }}>
@@ -342,10 +371,10 @@ export default function SettingsContent() {
           className="relative rounded-full p-[2px]"
           style={{ background: 'linear-gradient(135deg, #A78BFA, #38BDF8)' }}
         >
-          {profile.avatar_url ? (
+          {safeProfile.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={profile.avatar_url}
+              src={safeProfile.avatar_url}
               alt=""
               className="w-16 h-16 rounded-full object-cover block"
             />
@@ -376,7 +405,7 @@ export default function SettingsContent() {
         )}
 
         <input
-          value={profile.full_name ?? ''}
+          value={safeProfile.full_name ?? ''}
           onChange={(e) => update('full_name', e.target.value)}
           placeholder="Your name"
           className="relative mt-3 bg-transparent text-center font-bold outline-none w-full"
@@ -387,14 +416,14 @@ export default function SettingsContent() {
         </p>
         <div className="relative flex gap-2 mt-2">
           <input
-            value={profile.company ?? ''}
+            value={safeProfile.company ?? ''}
             onChange={(e) => update('company', e.target.value)}
             placeholder="Company"
             className="w-28 text-center text-xs outline-none rounded-lg px-2 py-1"
             style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#5A3A8A' }}
           />
           <input
-            value={profile.role ?? ''}
+            value={safeProfile.role ?? ''}
             onChange={(e) => update('role', e.target.value)}
             placeholder="Role"
             className="w-28 text-center text-xs outline-none rounded-lg px-2 py-1"
@@ -404,7 +433,7 @@ export default function SettingsContent() {
       </div>
 
       {/* AI PROFILE */}
-      {(profile.onboarding_completed || profile.user_prompt) && (
+      {(safeProfile.onboarding_completed || userPromptText) && (
         <div
           className="mx-4 mt-4 rounded-xl p-4 flex flex-col gap-3"
           style={{ background: '#141628', border: '1px solid rgba(139, 92, 246, 0.12)' }}
@@ -427,7 +456,7 @@ export default function SettingsContent() {
             style={{ background: 'rgba(0,212,212,0.08)', border: '1px solid rgba(0,212,212,0.25)' }}
           >
             <span className="text-sm font-semibold" style={{ color: '#00d4d4' }}>
-              ✓ Messages language: {getLanguageLabel(profile.user_language ?? 'EN')}
+              ✓ Messages language: {getLanguageLabel(safeProfile.user_language ?? 'EN')}
             </span>
             <button
               type="button"
@@ -441,29 +470,29 @@ export default function SettingsContent() {
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
               <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Name</p>
-              <p style={{ color: '#f0f0ff' }}>{profile.user_name || profile.full_name || '—'}</p>
+              <p style={{ color: '#f0f0ff' }}>{safeProfile.user_name || safeProfile.full_name || '—'}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Company</p>
-              <p style={{ color: '#f0f0ff' }}>{profile.user_company || profile.company || '—'}</p>
+              <p style={{ color: '#f0f0ff' }}>{safeProfile.user_company || safeProfile.company || '—'}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Role</p>
-              <p style={{ color: '#f0f0ff' }}>{profile.user_role || profile.role || '—'}</p>
+              <p style={{ color: '#f0f0ff' }}>{safeProfile.user_role || safeProfile.role || '—'}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Style</p>
-              <p style={{ color: '#f0f0ff' }}>{profile.user_style || profile.communication_style || '—'}</p>
+              <p style={{ color: '#f0f0ff' }}>{safeProfile.user_style || commStyle || '—'}</p>
             </div>
           </div>
-          {profile.user_prompt ? (
+          {userPromptText ? (
             <div
               className="rounded-lg px-3 py-2 text-xs leading-relaxed"
               style={{ background: '#1c1f35', color: '#8892b0', border: '1px solid rgba(0,212,212,0.15)' }}
             >
-              {(profile.user_prompt || '').length > 150
-                ? `${(profile.user_prompt || '').slice(0, 150)}...`
-                : profile.user_prompt}
+              {userPromptText.length > 150
+                ? `${userPromptText.slice(0, 150)}...`
+                : userPromptText}
             </div>
           ) : null}
         </div>
@@ -482,7 +511,7 @@ export default function SettingsContent() {
         <VizitkaRow
           icon={<IconMail size={16} />}
           label="Email"
-          value={profile.email ?? ''}
+          value={safeProfile.email ?? ''}
           fieldKey="email"
           editing={editingField}
           onEdit={setEditingField}
@@ -492,7 +521,7 @@ export default function SettingsContent() {
         <VizitkaRow
           icon={<IconPhone size={16} />}
           label="Phone"
-          value={profile.phone ?? ''}
+          value={safeProfile.phone ?? ''}
           fieldKey="phone"
           editing={editingField}
           onEdit={setEditingField}
@@ -502,7 +531,7 @@ export default function SettingsContent() {
         <VizitkaRow
           icon={<IconWorld size={16} />}
           label="Web"
-          value={profile.website ?? ''}
+          value={safeProfile.website ?? ''}
           fieldKey="website"
           editing={editingField}
           onEdit={setEditingField}
@@ -512,7 +541,7 @@ export default function SettingsContent() {
         <VizitkaRow
           icon={<IconBrandLinkedin size={16} />}
           label="LinkedIn"
-          value={profile.linkedin_url ?? ''}
+          value={safeProfile.linkedin_url ?? ''}
           fieldKey="linkedin"
           editing={editingField}
           onEdit={setEditingField}
@@ -531,7 +560,7 @@ export default function SettingsContent() {
           GOALS
         </span>
         <textarea
-          value={profile.goals ?? ''}
+          value={safeProfile.goals ?? ''}
           onChange={(e) => update('goals', e.target.value)}
           placeholder="B2B SaaS partners, seed-stage investors in the EU..."
           className="w-full min-h-[80px] resize-none rounded-lg px-3 py-2 text-base outline-none"
@@ -550,7 +579,8 @@ export default function SettingsContent() {
           WHAT TO ALWAYS RESEARCH
         </span>
         <div className="flex flex-col gap-2.5 mb-4">
-          {RESEARCH_PREFERENCE_OPTIONS.map((opt) => {
+          {researchOptions.map((opt) => {
+            if (!opt?.key) return null
             const checked = researchPrefs.includes(opt.key)
             return (
               <label
@@ -573,7 +603,7 @@ export default function SettingsContent() {
           Custom questions (one per line):
         </span>
         <textarea
-          value={profile.custom_questions ?? ''}
+          value={safeProfile.custom_questions ?? ''}
           onChange={(e) => update('custom_questions', e.target.value)}
           placeholder={'Are they raising funding?\nDo they have an office in the EU?\n...'}
           className="w-full min-h-[80px] resize-none rounded-lg px-3 py-2 text-base outline-none"
@@ -597,7 +627,7 @@ export default function SettingsContent() {
               key={s.key}
               onClick={() => update('communication_style', s.key)}
               className="px-4 py-2 rounded-full text-xs"
-              style={chipStyle((profile.communication_style || 'direct') === s.key)}
+              style={chipStyle(commStyle === s.key)}
             >
               {s.label}
             </button>
@@ -619,7 +649,7 @@ export default function SettingsContent() {
               key={l}
               onClick={() => update('outreach_language', l)}
               className="px-4 py-2 rounded-full text-xs"
-              style={chipStyle((profile.outreach_language || 'EN') === l)}
+              style={chipStyle(outreachLang === l)}
             >
               {l}
             </button>
