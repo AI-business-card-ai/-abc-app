@@ -106,7 +106,7 @@ export default function SettingsContent() {
         {field('Target Customer (ICP)', 'user_icp', 'Sales Directors, Founders, B2B tech companies EU/US')}
       </div>
 
-      <div style={{ background: '#141628', borderRadius: '12px', border: '1px solid #2a2d3e', padding: '20px', marginBottom: '24px' }}>
+      <div style={{ background: '#141628', borderRadius: '12px', border: '1px solid #2a2d3e', padding: '20px', marginBottom: '16px' }}>
         <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '16px' }}>COMMUNICATION STYLE</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
           {['Direct', 'Friendly', 'Formal', 'Casual'].map((style) => (
@@ -135,6 +135,135 @@ export default function SettingsContent() {
               {lang}
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* AI MESSAGE SETTINGS */}
+      <div style={{ background: '#141628', borderRadius: '12px', border: '1px solid #2a2d3e', padding: '20px', marginBottom: '16px' }}>
+        <div style={{ fontSize: '11px', color: '#f0197d', letterSpacing: '0.08em', marginBottom: '4px' }}>AI MESSAGE SETTINGS</div>
+        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '16px' }}>How AI writes messages on your behalf</div>
+
+        <label style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginBottom: '6px' }}>Message goal</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+          {['Schedule a meeting', 'Get on a call', 'Send our deck', 'Start a conversation'].map((goal) => (
+            <div
+              key={goal}
+              role="button"
+              tabIndex={0}
+              onClick={() => setProfile({ ...profile, message_goal: goal })}
+              onKeyDown={(e) => e.key === 'Enter' && setProfile({ ...profile, message_goal: goal })}
+              style={{
+                padding: '10px',
+                borderRadius: '8px',
+                border: `1px solid ${profile.message_goal === goal ? '#f0197d' : '#2a2d3e'}`,
+                background: profile.message_goal === goal ? 'rgba(240,25,125,0.08)' : '#1a1d2e',
+                color: profile.message_goal === goal ? '#f0197d' : '#6b7280',
+                fontSize: '12px',
+                textAlign: 'center' as const,
+                cursor: 'pointer',
+              }}
+            >
+              {goal}
+            </div>
+          ))}
+        </div>
+
+        <label style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginBottom: '6px' }}>Message length</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+          {['Short', 'Medium', 'Long'].map((len) => (
+            <div
+              key={len}
+              role="button"
+              tabIndex={0}
+              onClick={() => setProfile({ ...profile, message_length: len.toLowerCase() })}
+              onKeyDown={(e) => e.key === 'Enter' && setProfile({ ...profile, message_length: len.toLowerCase() })}
+              style={{
+                padding: '10px',
+                borderRadius: '8px',
+                border: `1px solid ${profile.message_length === len.toLowerCase() ? '#8b5cf6' : '#2a2d3e'}`,
+                background: profile.message_length === len.toLowerCase() ? 'rgba(139,92,246,0.08)' : '#1a1d2e',
+                color: profile.message_length === len.toLowerCase() ? '#8b5cf6' : '#6b7280',
+                fontSize: '12px',
+                textAlign: 'center' as const,
+                cursor: 'pointer',
+              }}
+            >
+              {len}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* WHAT TO RESEARCH */}
+      <div style={{ background: '#141628', borderRadius: '12px', border: '1px solid #2a2d3e', padding: '20px', marginBottom: '16px' }}>
+        <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '4px' }}>WHAT TO RESEARCH</div>
+        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '16px' }}>AI will automatically find this about every contact you scan</div>
+
+        {[
+          { key: 'research_company_size', label: '👥 Company size & headcount' },
+          { key: 'research_revenue', label: '💰 Revenue & financials' },
+          { key: 'research_location', label: '📍 HQ location & offices' },
+          { key: 'research_news', label: '📰 Latest news & press releases' },
+          { key: 'research_events', label: '🎪 Trade shows & conferences they attend' },
+          { key: 'research_linkedin', label: '💼 LinkedIn activity & recent posts' },
+          { key: 'research_funding', label: '🚀 Funding rounds & investors' },
+          { key: 'research_competitors', label: '⚔️ Competitors & market position' },
+          { key: 'research_tech', label: '🔧 Technology stack they use' },
+          { key: 'research_hiring', label: '📋 Current job openings & hiring plans' },
+          { key: 'research_products', label: '📦 Products & services they offer' },
+          { key: 'research_pain_points', label: '🎯 Pain points & challenges' },
+        ].map((item) => (
+          <div
+            key={item.key}
+            role="button"
+            tabIndex={0}
+            onClick={() => setProfile({ ...profile, [item.key]: !profile[item.key] })}
+            onKeyDown={(e) => e.key === 'Enter' && setProfile({ ...profile, [item.key]: !profile[item.key] })}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '12px',
+              marginBottom: '8px',
+              borderRadius: '8px',
+              border: `1px solid ${profile[item.key] ? '#00d4d4' : '#2a2d3e'}`,
+              background: profile[item.key] ? 'rgba(0,212,212,0.06)' : '#1a1d2e',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            <div
+              style={{
+                width: '20px',
+                height: '20px',
+                borderRadius: '5px',
+                border: `2px solid ${profile[item.key] ? '#00d4d4' : '#3a3d4e'}`,
+                background: profile[item.key] ? '#00d4d4' : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                fontSize: '12px',
+              }}
+            >
+              {profile[item.key] ? '✓' : ''}
+            </div>
+            <span style={{ fontSize: '13px', color: profile[item.key] ? '#f0f0ff' : '#6b7280' }}>
+              {item.label}
+            </span>
+          </div>
+        ))}
+
+        <div style={{ marginTop: '8px' }}>
+          <label style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginBottom: '6px' }}>
+            + Custom research request
+          </label>
+          <input
+            value={profile.research_custom || ''}
+            onChange={(e) => setProfile({ ...profile, research_custom: e.target.value })}
+            placeholder="e.g. Find their booth number at Medica, check if they won any awards..."
+            style={{ width: '100%', background: '#1a1d2e', border: '1px solid #2a2d3e', borderRadius: '8px', padding: '10px 14px', color: '#f0f0ff', fontSize: '13px', outline: 'none' }}
+          />
         </div>
       </div>
 
