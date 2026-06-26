@@ -22,7 +22,7 @@ export default function MobilePipelineCard({ contact, onAction, onUpdate }: Prop
     <div
       className="rounded-2xl p-4 flex flex-col gap-2"
       style={{ background: '#141628', border: '1px solid rgba(139, 92, 246, 0.12)' }}
-      onClick={() => router.push('/contact/' + contact.id)}
+      onClick={() => router.push('/contacts/' + contact.id)}
       role="button"
       tabIndex={0}
     >

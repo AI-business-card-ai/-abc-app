@@ -219,7 +219,7 @@ export default function PipelinePage() {
         activityDetail: `Pipeline: ${step.action} — ${contact.name}`,
         metadata: { nextStep: step.text, action: step.action, urgent: step.urgent },
       })
-      router.push('/contact/' + contact.id)
+      router.push('/contacts/' + contact.id)
     },
     [router]
   )

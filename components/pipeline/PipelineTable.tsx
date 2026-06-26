@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import DealOutcomeModal from '@/components/crm/DealOutcomeModal'
 import TagPills from '@/components/crm/TagPills'
 import TagSelector from '@/components/crm/TagSelector'
@@ -61,7 +62,7 @@ type RowProps = {
 }
 
 function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome }: RowProps) {
-  const [hovered, setHovered] = useState(false)
+  const router = useRouter()
   const [editingDeal, setEditingDeal] = useState(false)
   const [dealValue, setDealValue] = useState(String(contact.deal_value || ''))
   const [closeDate, setCloseDate] = useState(contact.expected_close_date || '')
@@ -151,10 +152,12 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
   return (
     <>
       <div
-        className="grid grid-cols-[1.4fr_1fr_0.7fr_0.8fr_0.7fr_1.4fr_1fr] gap-3 items-start px-4 py-3 transition-colors relative"
-        style={{ borderBottom: '1px solid rgba(139, 92, 246, 0.08)', background: hovered ? '#1c1f35' : '#141628' }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        className="grid grid-cols-[1.4fr_1fr_0.7fr_0.8fr_0.7fr_1.4fr_1fr] gap-3 items-start px-4 py-3 transition-colors relative cursor-pointer"
+        style={{ borderBottom: '1px solid rgba(139, 92, 246, 0.08)', background: '#141628' }}
+        onClick={() => router.push(`/contacts/${contact.id}`)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && router.push(`/contacts/${contact.id}`)}
       >
         <div className="flex items-start gap-2 min-w-0 pt-0.5">
           <ContactAvatar contact={contact} />
@@ -198,10 +201,13 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
         <span className="text-xs truncate italic pt-1" style={{ color: '#8b5cf6' }}>
           ⚡ {step.text}
         </span>
-        <div className="flex flex-col gap-1.5 items-start">
+        <div className="flex flex-col gap-1.5 items-start" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            onClick={() => onAction(contact, step)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onAction(contact, step)
+            }}
             className="rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap hover:opacity-90"
             style={btnStyle}
           >
@@ -225,7 +231,10 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
               <button
                 type="button"
                 disabled={saving}
-                onClick={saveDeal}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  saveDeal()
+                }}
                 className="text-[10px] font-semibold"
                 style={{ color: '#00d4d4' }}
               >
@@ -235,7 +244,8 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
           ) : (
             <button
               type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation()
                 setDealValue(String(contact.deal_value || ''))
                 setCloseDate(contact.expected_close_date || '')
                 setEditingDeal(true)
@@ -250,7 +260,10 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
             <div className="flex flex-wrap gap-1 mt-1">
               <button
                 type="button"
-                onClick={() => onDealOutcome(contact, 'won')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDealOutcome(contact, 'won')
+                }}
                 className="text-[10px] px-2 py-1 rounded font-semibold min-h-[32px]"
                 style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}
               >
@@ -258,7 +271,10 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
               </button>
               <button
                 type="button"
-                onClick={() => onDealOutcome(contact, 'lost')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDealOutcome(contact, 'lost')
+                }}
                 className="text-[10px] px-2 py-1 rounded font-semibold min-h-[32px]"
                 style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}
               >
@@ -266,14 +282,12 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
               </button>
             </div>
           )}
-          {hovered && (
-            <div className="flex flex-wrap gap-1">
-              <button type="button" onClick={() => setShowNote(true)} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>📝 Note</button>
-              <button type="button" onClick={() => setShowDealPanel(true)} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>💰 Deal</button>
-              <button type="button" onClick={() => setShowTags(true)} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,212,212,0.12)', color: '#00d4d4' }}>🏷 Tag</button>
-              <button type="button" disabled={saving} onClick={toggleResponse} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>✓ Response</button>
+          <div className="flex flex-wrap gap-1">
+              <button type="button" onClick={(e) => { e.stopPropagation(); setShowNote(true) }} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>📝 Note</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); setShowDealPanel(true) }} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>💰 Deal</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); setShowTags(true) }} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,212,212,0.12)', color: '#00d4d4' }}>🏷 Tag</button>
+              <button type="button" disabled={saving} onClick={(e) => { e.stopPropagation(); toggleResponse() }} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>✓ Response</button>
             </div>
-          )}
         </div>
       </div>
 
