@@ -108,12 +108,13 @@ export default function HeroGlobe() {
           atmosphereColor="rgba(0,180,255,0.4)"
           atmosphereAltitude={0.15}
           arcsData={arcsData}
-          arcColor="color"
-          arcDashLength={0.4}
-          arcDashGap={0.2}
+          arcColor={(d: { color: string }) => [d.color, d.color]}
+          arcDashLength={0.3}
+          arcDashGap={0.15}
           arcDashAnimateTime={2000}
-          arcStroke={1.5}
+          arcStroke={0.5}
           arcAltitude={0.3}
+          arcAltitudeAutoScale={0.3}
           pointsData={pointsData}
           pointColor="color"
           pointAltitude={0.01}
