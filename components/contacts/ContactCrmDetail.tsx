@@ -41,10 +41,50 @@ function formatDate(value: string | null | undefined) {
 }
 
 function openWhatsApp(phone: string, message: string) {
-  const cleanPhone = phone.replace(/[^0-9+]/g, '')
-  const encodedMessage = encodeURIComponent(message)
-  const url = `https://wa.me/${cleanPhone}?text=${encodedMessage}`
-  window.open(url, '_blank')
+  const clean = (phone || '').replace(/[^0-9+]/g, '')
+  window.open(`https://wa.me/${clean}?text=${encodeURIComponent(message)}`, '_blank')
+}
+
+function sendLinkedIn(linkedinUrl: string, message: string) {
+  navigator.clipboard.writeText(message)
+  window.open(linkedinUrl, '_blank')
+}
+
+function sendEmail(email: string, subject: string, body: string) {
+  window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
+}
+
+const OUTLINE_BTN: React.CSSProperties = {
+  background: 'transparent',
+  borderRadius: '8px',
+  padding: '8px 14px',
+  fontSize: '12px',
+  cursor: 'pointer',
+  fontWeight: 600,
+}
+
+function Toast({ message }: { message: string }) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '24px',
+        right: '24px',
+        padding: '14px 20px',
+        borderRadius: '10px',
+        background: '#141628',
+        border: '1px solid #2a2d3e',
+        color: '#f0f0ff',
+        fontSize: '13px',
+        zIndex: 100,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+        maxWidth: '360px',
+        lineHeight: 1.5,
+      }}
+    >
+      {message}
+    </div>
+  )
 }
 
 function InfoRow({ icon, label, href, children }: { icon: string; label: string; href?: string; children: ReactNode }) {
@@ -80,7 +120,7 @@ export default function ContactCrmDetailPage() {
   const [activityKey, setActivityKey] = useState(0)
   const [noteText, setNoteText] = useState('')
   const [toast, setToast] = useState<string | null>(null)
-  const [whatsappCopied, setWhatsappCopied] = useState(false)
+  const [copiedChannel, setCopiedChannel] = useState<'linkedin' | 'email' | 'whatsapp' | null>(null)
 
   const [dealValue, setDealValue] = useState('')
   const [closeDate, setCloseDate] = useState('')
@@ -92,8 +132,15 @@ export default function ContactCrmDetailPage() {
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
-    setTimeout(() => setToast(null), 2200)
+    setTimeout(() => setToast(null), 3000)
   }, [])
+
+  const copyMessage = useCallback((channel: 'linkedin' | 'email' | 'whatsapp', text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedChannel(channel)
+      setTimeout(() => setCopiedChannel(null), 2000)
+    }).catch(() => showToast('Copy failed'))
+  }, [showToast])
 
   const syncDealForm = useCallback((c: ScannedContact) => {
     setDealValue(c.deal_value != null ? String(c.deal_value) : '')
@@ -215,15 +262,6 @@ export default function ContactCrmDetailPage() {
       console.error(e)
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function copyText(text: string) {
-    try {
-      await navigator.clipboard.writeText(text)
-      showToast('Copied')
-    } catch {
-      showToast('Copy failed')
     }
   }
 
@@ -360,24 +398,19 @@ export default function ContactCrmDetailPage() {
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>AI MESSAGES</div>
 
-            <div style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: '#1a1d2e', borderLeft: '3px solid #00d4d4' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#00d4d4', marginBottom: '8px' }}>LinkedIn</div>
+            <div style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: '#1a1d2e', borderLeft: '3px solid #0077B5' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#0077B5', marginBottom: '8px' }}>LinkedIn</div>
               <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: 1.5, color: '#f0f0ff', whiteSpace: 'pre-wrap' }}>{linkedinMessage || '—'}</p>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   type="button"
-                  disabled={!linkedinMessage}
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(linkedinMessage)
-                      showToast('Message copied — paste in LinkedIn')
-                      if (contact.linkedin_url) window.open(contact.linkedin_url, '_blank')
-                    } catch {
-                      showToast('Copy failed')
-                    }
+                  disabled={!linkedinMessage || !contact.linkedin_url}
+                  onClick={() => {
+                    sendLinkedIn(contact.linkedin_url!, linkedinMessage)
+                    showToast('✓ Message copied — click Message on LinkedIn and paste')
                   }}
                   style={{
-                    background: 'linear-gradient(135deg,#00d4d4,#8b5cf6)',
+                    background: '#0077B5',
                     border: 'none',
                     borderRadius: '8px',
                     padding: '8px 16px',
@@ -390,7 +423,15 @@ export default function ContactCrmDetailPage() {
                     gap: '6px',
                   }}
                 >
-                  Copy + Open LinkedIn →
+                  💼 Copy & Open LinkedIn →
+                </button>
+                <button
+                  type="button"
+                  disabled={!linkedinMessage}
+                  onClick={() => copyMessage('linkedin', linkedinMessage)}
+                  style={{ ...OUTLINE_BTN, border: '1px solid #0077B5', color: '#0077B5' }}
+                >
+                  {copiedChannel === 'linkedin' ? 'Copied!' : 'Copy'}
                 </button>
               </div>
             </div>
@@ -399,15 +440,11 @@ export default function ContactCrmDetailPage() {
               <div style={{ fontSize: '11px', fontWeight: 700, color: '#f0197d', marginBottom: '8px' }}>Email</div>
               {emailSubject && <div style={{ fontSize: '12px', color: '#8892b0', marginBottom: '6px' }}>Subject: {emailSubject}</div>}
               <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: 1.5, color: '#f0f0ff', whiteSpace: 'pre-wrap' }}>{emailMessage || '—'}</p>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   type="button"
                   disabled={!emailMessage || !contact.email}
-                  onClick={() => {
-                    const subject = encodeURIComponent(emailSubject || 'Following up')
-                    const body = encodeURIComponent(emailMessage)
-                    window.location.href = `mailto:${contact.email}?subject=${subject}&body=${body}`
-                  }}
+                  onClick={() => sendEmail(contact.email!, emailSubject || 'Following up', emailMessage)}
                   style={{
                     background: 'linear-gradient(135deg,#f0197d,#8b5cf6)',
                     border: 'none',
@@ -422,15 +459,15 @@ export default function ContactCrmDetailPage() {
                     gap: '6px',
                   }}
                 >
-                  Send Email →
+                  📧 Open Email →
                 </button>
                 <button
                   type="button"
                   disabled={!emailMessage}
-                  onClick={() => copyText(emailSubject ? `Subject: ${emailSubject}\n\n${emailMessage}` : emailMessage)}
-                  style={{ background: 'transparent', border: '1px solid #f0197d', borderRadius: '8px', padding: '8px 16px', color: '#f0197d', fontSize: '13px', cursor: 'pointer' }}
+                  onClick={() => copyMessage('email', emailMessage)}
+                  style={{ ...OUTLINE_BTN, border: '1px solid #f0197d', color: '#f0197d' }}
                 >
-                  Copy
+                  {copiedChannel === 'email' ? 'Copied!' : 'Copy'}
                 </button>
               </div>
             </div>
@@ -438,7 +475,7 @@ export default function ContactCrmDetailPage() {
             <div style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: '#1a1d2e', borderLeft: '3px solid #25D366' }}>
               <div style={{ fontSize: '11px', fontWeight: 700, color: '#25D366', marginBottom: '8px' }}>WhatsApp</div>
               <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: 1.5, color: '#f0f0ff', whiteSpace: 'pre-wrap' }}>{whatsappMessage || '—'}</p>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   type="button"
                   disabled={!whatsappMessage || !whatsappPhone}
@@ -457,19 +494,15 @@ export default function ContactCrmDetailPage() {
                     gap: '6px',
                   }}
                 >
-                  <span>💬</span> Open WhatsApp →
+                  💬 Open WhatsApp →
                 </button>
                 <button
                   type="button"
                   disabled={!whatsappMessage}
-                  onClick={() => {
-                    navigator.clipboard.writeText(whatsappMessage)
-                    setWhatsappCopied(true)
-                    setTimeout(() => setWhatsappCopied(false), 2000)
-                  }}
-                  style={{ background: 'transparent', border: '1px solid #25D366', borderRadius: '8px', padding: '8px 16px', color: '#25D366', fontSize: '13px', cursor: 'pointer' }}
+                  onClick={() => copyMessage('whatsapp', whatsappMessage)}
+                  style={{ ...OUTLINE_BTN, border: '1px solid #25D366', color: '#25D366' }}
                 >
-                  {whatsappCopied ? 'Copied!' : 'Copy'}
+                  {copiedChannel === 'whatsapp' ? 'Copied!' : 'Copy'}
                 </button>
               </div>
             </div>
@@ -595,11 +628,7 @@ export default function ContactCrmDetailPage() {
         </div>
       </div>
 
-      {toast && (
-        <div style={{ position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)', padding: '12px 20px', borderRadius: '999px', background: '#141628', border: '1px solid #00d4d4', color: '#00d4d4', fontSize: '13px', zIndex: 100 }}>
-          {toast}
-        </div>
-      )}
+      {toast && <Toast message={toast} />}
     </div>
   )
 }
