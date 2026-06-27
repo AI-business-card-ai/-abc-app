@@ -287,7 +287,7 @@ export default function HomePage() {
             position: 'relative',
             zIndex: 10,
             maxWidth: 550,
-            paddingLeft: 'max(20px, calc((100vw - 1200px) / 2 + 20px))',
+            paddingLeft: 80,
             paddingRight: 20,
           }}
         >
@@ -355,7 +355,7 @@ export default function HomePage() {
         <div
           style={{
             position: 'absolute',
-            right: 80,
+            right: 40,
             top: '50%',
             transform: 'translateY(-50%)',
             zIndex: 20,
