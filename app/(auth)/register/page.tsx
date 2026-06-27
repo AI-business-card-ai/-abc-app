@@ -29,6 +29,17 @@ export default function RegisterPage() {
         options: { data: { full_name: name } },
       })
       if (e2) throw new Error(e2.message)
+
+      fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'welcome',
+          to: email,
+          name: name || data.user?.user_metadata?.full_name || 'there',
+        }),
+      }).catch(() => {})
+
       if (data.session) {
         router.push('/scan')
         router.refresh()
