@@ -8,7 +8,7 @@ import ActivityTimeline from '@/components/crm/ActivityTimeline'
 import TagPills from '@/components/crm/TagPills'
 import { PIPELINE_STAGES } from '@/lib/pipeline'
 import { getStatusColor } from '@/lib/pipeline-ai'
-import { logCrmActivity, logDealOutcome, logMessageSent, updateContact } from '@/lib/crm-client'
+import { logCrmActivity, logDealOutcome, updateContact } from '@/lib/crm-client'
 import { exportToHubSpot, exportToSalesforce } from '@/lib/crm-export'
 import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/types'
 
@@ -38,6 +38,13 @@ function formatDate(value: string | null | undefined) {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function openWhatsApp(phone: string, message: string) {
+  const cleanPhone = phone.replace(/[^0-9+]/g, '')
+  const encodedMessage = encodeURIComponent(message)
+  const url = `https://wa.me/${cleanPhone}?text=${encodedMessage}`
+  window.open(url, '_blank')
 }
 
 function InfoRow({ icon, label, href, children }: { icon: string; label: string; href?: string; children: ReactNode }) {
@@ -73,6 +80,7 @@ export default function ContactCrmDetailPage() {
   const [activityKey, setActivityKey] = useState(0)
   const [noteText, setNoteText] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+  const [whatsappCopied, setWhatsappCopied] = useState(false)
 
   const [dealValue, setDealValue] = useState('')
   const [closeDate, setCloseDate] = useState('')
@@ -219,21 +227,6 @@ export default function ContactCrmDetailPage() {
     }
   }
 
-  async function markSent(channel: 'LinkedIn' | 'Email' | 'WhatsApp', text: string) {
-    if (!contact || !text) return
-    setSaving(true)
-    try {
-      const { contact: updated } = await logMessageSent({ contactId: contact.id, channel, messageText: text })
-      applyContact(updated)
-      setActivityKey((k) => k + 1)
-      showToast(`Marked as sent (${channel})`)
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   async function markOutcome(outcome: 'won' | 'lost') {
     if (!contact) return
     setSaving(true)
@@ -275,6 +268,12 @@ export default function ContactCrmDetailPage() {
   const upcoming = Array.isArray(contact.events_upcoming) ? contact.events_upcoming : []
   const past = Array.isArray(contact.events_past) ? contact.events_past : []
   const speaking = Array.isArray(contact.speaking_engagements) ? contact.speaking_engagements : []
+
+  const whatsappMessage = contact.message_whatsapp || ''
+  const linkedinMessage = contact.message_linkedin || ''
+  const emailMessage = contact.message_email || ''
+  const emailSubject = contact.email_subject || ''
+  const whatsappPhone = contact.phone || contact.mobile_phone || contact.whatsapp_number || ''
 
   return (
     <div style={{ background: '#0d0f1a', minHeight: '100vh', padding: '16px 16px 100px' }}>
@@ -360,21 +359,120 @@ export default function ContactCrmDetailPage() {
 
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>AI MESSAGES</div>
-            {[
-              { label: 'LinkedIn', color: '#00d4d4', text: contact.message_linkedin, channel: 'LinkedIn' as const },
-              { label: 'Email', color: '#f0197d', text: contact.message_email, subject: contact.email_subject, channel: 'Email' as const },
-              { label: 'WhatsApp', color: '#25D366', text: contact.message_whatsapp, channel: 'WhatsApp' as const },
-            ].map((msg) => (
-              <div key={msg.label} style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: '#1a1d2e', borderLeft: `3px solid ${msg.color}` }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: msg.color, marginBottom: '8px' }}>{msg.label}</div>
-                {msg.subject && <div style={{ fontSize: '12px', color: '#8892b0', marginBottom: '6px' }}>Subject: {msg.subject}</div>}
-                <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: 1.5, color: '#f0f0ff', whiteSpace: 'pre-wrap' }}>{msg.text || '—'}</p>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button type="button" disabled={!msg.text} onClick={() => copyText(msg.subject ? `Subject: ${msg.subject}\n\n${msg.text}` : msg.text || '')} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #2a2d3e', background: 'transparent', color: '#8892b0', fontSize: '12px', cursor: 'pointer' }}>Copy</button>
-                  <button type="button" disabled={!msg.text || saving} onClick={() => markSent(msg.channel, msg.text || '')} style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', background: msg.color, color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Mark as Sent</button>
-                </div>
+
+            <div style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: '#1a1d2e', borderLeft: '3px solid #00d4d4' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#00d4d4', marginBottom: '8px' }}>LinkedIn</div>
+              <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: 1.5, color: '#f0f0ff', whiteSpace: 'pre-wrap' }}>{linkedinMessage || '—'}</p>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  disabled={!linkedinMessage}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(linkedinMessage)
+                      showToast('Message copied — paste in LinkedIn')
+                      if (contact.linkedin_url) window.open(contact.linkedin_url, '_blank')
+                    } catch {
+                      showToast('Copy failed')
+                    }
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg,#00d4d4,#8b5cf6)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  Copy + Open LinkedIn →
+                </button>
               </div>
-            ))}
+            </div>
+
+            <div style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: '#1a1d2e', borderLeft: '3px solid #f0197d' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#f0197d', marginBottom: '8px' }}>Email</div>
+              {emailSubject && <div style={{ fontSize: '12px', color: '#8892b0', marginBottom: '6px' }}>Subject: {emailSubject}</div>}
+              <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: 1.5, color: '#f0f0ff', whiteSpace: 'pre-wrap' }}>{emailMessage || '—'}</p>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  disabled={!emailMessage || !contact.email}
+                  onClick={() => {
+                    const subject = encodeURIComponent(emailSubject || 'Following up')
+                    const body = encodeURIComponent(emailMessage)
+                    window.location.href = `mailto:${contact.email}?subject=${subject}&body=${body}`
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg,#f0197d,#8b5cf6)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  Send Email →
+                </button>
+                <button
+                  type="button"
+                  disabled={!emailMessage}
+                  onClick={() => copyText(emailSubject ? `Subject: ${emailSubject}\n\n${emailMessage}` : emailMessage)}
+                  style={{ background: 'transparent', border: '1px solid #f0197d', borderRadius: '8px', padding: '8px 16px', color: '#f0197d', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: '#1a1d2e', borderLeft: '3px solid #25D366' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#25D366', marginBottom: '8px' }}>WhatsApp</div>
+              <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: 1.5, color: '#f0f0ff', whiteSpace: 'pre-wrap' }}>{whatsappMessage || '—'}</p>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  disabled={!whatsappMessage || !whatsappPhone}
+                  onClick={() => openWhatsApp(whatsappPhone, whatsappMessage)}
+                  style={{
+                    background: 'linear-gradient(135deg,#25D366,#128C7E)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>💬</span> Open WhatsApp →
+                </button>
+                <button
+                  type="button"
+                  disabled={!whatsappMessage}
+                  onClick={() => {
+                    navigator.clipboard.writeText(whatsappMessage)
+                    setWhatsappCopied(true)
+                    setTimeout(() => setWhatsappCopied(false), 2000)
+                  }}
+                  style={{ background: 'transparent', border: '1px solid #25D366', borderRadius: '8px', padding: '8px 16px', color: '#25D366', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  {whatsappCopied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
           </div>
 
           {(contact.linkedin_headline || contact.linkedin_summary || posts.length > 0 || skills.length > 0) && (
