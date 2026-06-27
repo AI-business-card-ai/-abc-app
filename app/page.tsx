@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
 import HeroPhone from '@/components/landing/HeroPhone'
+import HeroGlobe from '@/components/landing/HeroGlobe'
 
 const COLORS = {
   bg: '#0d0f1a',
@@ -267,16 +268,19 @@ export default function HomePage() {
       {/* HERO */}
       <section
         id="hero"
-        className="hero-radial"
         style={{
           position: 'relative',
+          overflow: 'hidden',
           maxWidth: 1200,
           margin: '0 auto',
           padding: '48px 20px 64px',
         }}
       >
+        <HeroGlobe />
         <div
           style={{
+            position: 'relative',
+            zIndex: 10,
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
             gap: 48,
