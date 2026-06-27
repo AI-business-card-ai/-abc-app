@@ -271,96 +271,98 @@ export default function HomePage() {
         style={{
           position: 'relative',
           overflow: 'hidden',
-          maxWidth: 1200,
-          margin: '0 auto',
-          padding: '48px 20px 64px',
+          minHeight: '100vh',
+          width: '100%',
+          maxWidth: '100%',
+          margin: 0,
+          padding: '48px 20px',
+          display: 'flex',
+          alignItems: 'center',
         }}
       >
         <HeroGlobe />
+
         <div
           style={{
             position: 'relative',
             zIndex: 10,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
-            gap: 48,
-            alignItems: 'center',
+            maxWidth: 550,
+            paddingLeft: 'max(20px, calc((100vw - 1200px) / 2 + 20px))',
+            paddingRight: 20,
           }}
         >
-          <div style={{ order: 1 }}>
-            <span
-              style={{
-                display: 'inline-block',
-                fontSize: 12,
-                fontWeight: 600,
-                padding: '6px 14px',
-                borderRadius: 999,
-                marginBottom: 20,
-                background: 'rgba(0, 212, 212, 0.1)',
-                border: '1px solid rgba(0, 212, 212, 0.3)',
-                color: COLORS.cyan,
-              }}
-            >
-              🚀 Beta launch — 30. června 2026
-            </span>
-            <h1
-              style={{
-                fontSize: 'clamp(2rem, 5vw, 3.25rem)',
-                fontWeight: 800,
-                lineHeight: 1.1,
-                letterSpacing: '-0.03em',
-                margin: '0 0 20px',
-              }}
-            >
-              From business card to sent message in{' '}
-              <span
-                style={{
-                  background: 'linear-gradient(135deg, #00d4d4, #f0197d)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                10 seconds
-              </span>
-              .
-            </h1>
-            <p
-              style={{
-                fontSize: 'clamp(1rem, 2.5vw, 1.125rem)',
-                lineHeight: 1.65,
-                color: COLORS.muted,
-                margin: '0 0 32px',
-                maxWidth: 520,
-              }}
-            >
-              AI scans the card, researches the contact, writes personalized LinkedIn/Email/WhatsApp message. You just approve.
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-              <Link href="/register" style={btnPink}>
-                Start for free →
-              </Link>
-              <button type="button" onClick={() => scrollTo('how-it-works')} style={btnOutline}>
-                See how it works
-              </button>
-            </div>
-            <p style={{ fontSize: 13, color: COLORS.muted, margin: 0 }}>
-              3 scans free • No credit card • 10 second setup
-            </p>
-          </div>
-
-          {/* Hero phone mockup */}
-          <div
+          <span
             style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              order: 2,
-              width: '100%',
+              display: 'inline-block',
+              fontSize: 12,
+              fontWeight: 600,
+              padding: '6px 14px',
+              borderRadius: 999,
+              marginBottom: 20,
+              background: 'rgba(0, 212, 212, 0.1)',
+              border: '1px solid rgba(0, 212, 212, 0.3)',
+              color: COLORS.cyan,
             }}
           >
-            <HeroPhone />
+            🚀 Beta launch — 30. června 2026
+          </span>
+          <h1
+            style={{
+              fontSize: 'clamp(2rem, 5vw, 3.25rem)',
+              fontWeight: 800,
+              lineHeight: 1.1,
+              letterSpacing: '-0.03em',
+              margin: '0 0 20px',
+            }}
+          >
+            From business card to sent message in{' '}
+            <span
+              style={{
+                background: 'linear-gradient(135deg, #00d4d4, #f0197d)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+            >
+              10 seconds
+            </span>
+            .
+          </h1>
+          <p
+            style={{
+              fontSize: 'clamp(1rem, 2.5vw, 1.125rem)',
+              lineHeight: 1.65,
+              color: COLORS.muted,
+              margin: '0 0 32px',
+              maxWidth: 520,
+            }}
+          >
+            AI scans the card, researches the contact, writes personalized LinkedIn/Email/WhatsApp message. You just approve.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+            <Link href="/register" style={btnPink}>
+              Start for free →
+            </Link>
+            <button type="button" onClick={() => scrollTo('how-it-works')} style={btnOutline}>
+              See how it works
+            </button>
           </div>
+          <p style={{ fontSize: 13, color: COLORS.muted, margin: 0 }}>
+            3 scans free • No credit card • 10 second setup
+          </p>
+        </div>
+
+        <div
+          style={{
+            position: 'absolute',
+            right: 80,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            zIndex: 20,
+            filter: 'drop-shadow(0 0 60px rgba(0,212,212,0.3))',
+          }}
+        >
+          <HeroPhone />
         </div>
       </section>
 
