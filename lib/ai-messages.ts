@@ -14,30 +14,30 @@ export type GeneratedMessages = {
   message_whatsapp: string
 }
 
+export const CRITICAL_LANGUAGE_RULE =
+  "CRITICAL: Always write messages in ENGLISH unless the user's outreach_language is explicitly set to 'CZ', 'SK', or 'DE'. Default language is ENGLISH. Never switch to Czech or Slovak unless explicitly instructed."
+
 export function getUserLanguage(profile: ABCProfile | null | undefined): string {
-  return profile?.user_language ?? 'EN'
+  return profile?.outreach_language || 'EN'
 }
 
-export function getLanguageInstruction(userLang: string): string {
-  const lang = userLang ?? 'EN'
-  if (lang === 'CZ') {
-    return 'CRITICAL: You MUST write ALL messages in Czech language only. Never use English.'
-  }
-  if (lang === 'DE') {
-    return 'CRITICAL: You MUST write ALL messages in German language only. Never use English.'
-  }
-  if (lang === 'Mix') {
-    return 'CRITICAL: Write messages mixing Czech and English naturally. Start in English.'
-  }
-  return 'CRITICAL: You MUST write ALL messages in English only. NEVER use Czech, Slovak, or any other language. Even if the contact has Czech name, write in English.'
+export function getLanguageInstruction(language: string): string {
+  const lang = language || 'EN'
+  if (lang === 'EN') return 'Write in English.'
+  if (lang === 'CZ') return 'Write in Czech.'
+  if (lang === 'DE') return 'Write in German.'
+  if (lang === 'SK') return 'Write in Slovak.'
+  return 'Write in English.'
 }
 
 export function buildLanguagePromptPrefix(profile: ABCProfile | null | undefined): string {
-  const userLang = getUserLanguage(profile)
-  const LANGUAGE_INSTRUCTION = getLanguageInstruction(userLang)
-  return `${LANGUAGE_INSTRUCTION}
+  const language = profile?.outreach_language || 'EN'
+  const languageInstruction = getLanguageInstruction(language)
+  return `${CRITICAL_LANGUAGE_RULE}
 
-Language rule: ${LANGUAGE_INSTRUCTION}
+${languageInstruction}
+
+Outreach language setting: ${language}
 This is the most important instruction. Override any other language tendencies.`
 }
 
@@ -47,6 +47,7 @@ export function getLanguageLabel(code: string | null | undefined): string {
     EN: 'English',
     CZ: 'Czech',
     DE: 'German',
+    SK: 'Slovak',
     Mix: 'Czech + English mix',
   }
   return labels[lang] || lang
@@ -57,18 +58,23 @@ function buildMessagePrompt(
   contact: Partial<ScannedContact> & { meeting_context?: string | null },
   linkedin?: EnrichedLinkedInProfile | null
 ): string {
+  const language = userProfile.outreach_language || 'EN'
+  const languageInstruction = getLanguageInstruction(language)
   const userPrompt =
     userProfile.user_prompt ||
     'You are a professional B2B networking assistant.'
   const userName = userProfile.user_name || userProfile.full_name || 'the user'
-  const userLang = getUserLanguage(userProfile)
 
-  const profileBlock = `The user's name is ${userName}.
+  const profileBlock = `${CRITICAL_LANGUAGE_RULE}
+
+${languageInstruction}
+
+The user's name is ${userName}.
 Their company is ${userProfile.user_company || userProfile.company || ''}.
 Their role is ${userProfile.user_role || userProfile.role || ''}.
 They offer: ${userProfile.user_product || ''}.
 Their goal: ${userProfile.user_goal || userProfile.goals || ''}.
-Messages language code: ${userLang}`
+Outreach language setting: ${language}`
 
   const posts = linkedin?.recentPosts?.length
     ? linkedin.recentPosts

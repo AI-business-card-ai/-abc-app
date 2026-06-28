@@ -86,7 +86,7 @@ export default function OnboardingPage() {
         setProduct(profile.user_product || '')
         setIcp(profile.user_icp || '')
         setTone(profile.user_style || TONE_OPTIONS[0])
-        setLanguage(profile.user_language ?? 'EN')
+        setLanguage(profile.outreach_language || profile.user_language || 'EN')
         setMessageLength(profile.user_message_length || LENGTH_OPTIONS[1])
         setGoal(profile.user_goal || profile.goals || GOAL_OPTIONS[0])
       }

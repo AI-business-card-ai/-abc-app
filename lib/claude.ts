@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { ABCProfile, ScanResult } from './types'
-import { buildLanguagePromptPrefix, getLanguageInstruction, getUserLanguage } from './ai-messages'
+import { buildLanguagePromptPrefix, getLanguageInstruction } from './ai-messages'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -185,8 +185,8 @@ Use this context to personalize messages:
     : ''
 
   const languagePrefix = buildLanguagePromptPrefix(userProfile)
-  const userLang = getUserLanguage(userProfile)
-  const LANGUAGE_INSTRUCTION = getLanguageInstruction(userLang)
+  const language = userProfile.outreach_language || 'EN'
+  const languageInstruction = getLanguageInstruction(language)
 
   const prompt = `${languagePrefix}
 
@@ -211,7 +211,7 @@ User context:
 - Role: ${userProfile.role}
 - Goals: ${userProfile.goals}
 - Style: ${userProfile.communication_style}
-- Message language: ${userLang}
+- Outreach language: ${language}
 
 ${researchBlock}
 
@@ -231,7 +231,7 @@ Generate personalized messages for each contact:
 - message_email: 3-4 sentences + email_subject line
 - message_whatsapp: max 160 chars, friendly
 
-Language rule: ${LANGUAGE_INSTRUCTION}
+${languageInstruction}
 This is the most important instruction. Override any other language tendencies.
 
 IMPORTANT: Return a JSON array, always (one object per card):
