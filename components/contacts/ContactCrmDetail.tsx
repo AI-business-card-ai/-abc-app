@@ -54,14 +54,47 @@ function sendEmail(email: string, subject: string, body: string) {
   window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
 }
 
-const OUTLINE_BTN: React.CSSProperties = {
-  background: 'transparent',
-  borderRadius: '8px',
-  padding: '8px 14px',
-  fontSize: '12px',
-  cursor: 'pointer',
-  fontWeight: 600,
+const VARIANT_STYLES = ['Direct', 'Professional', 'Casual'] as const
+type Platform = 'linkedin' | 'email' | 'whatsapp'
+
+type MessageVariant = {
+  id: number
+  style: (typeof VARIANT_STYLES)[number]
+  text: string
+  platforms: Record<Platform, boolean>
 }
+
+function buildVariantsFromContact(contact: ScannedContact): MessageVariant[] {
+  const texts = [
+    contact.message_linkedin || '',
+    contact.message_email || '',
+    contact.message_whatsapp || '',
+  ]
+  const fallback = texts.find((t) => t.trim()) || ''
+
+  return VARIANT_STYLES.map((style, index) => ({
+    id: index + 1,
+    style,
+    text: texts[index]?.trim() ? texts[index] : fallback,
+    platforms: {
+      linkedin: index === 0,
+      email: index === 1,
+      whatsapp: index === 2,
+    },
+  }))
+}
+
+function autoResizeTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
+const PLATFORM_META: { key: Platform; label: string; color: string }[] = [
+  { key: 'linkedin', label: 'LinkedIn', color: '#0077B5' },
+  { key: 'email', label: 'Email', color: '#f0197d' },
+  { key: 'whatsapp', label: 'WhatsApp', color: '#25D366' },
+]
 
 function Toast({ message }: { message: string }) {
   return (
@@ -120,7 +153,7 @@ export default function ContactCrmDetailPage() {
   const [activityKey, setActivityKey] = useState(0)
   const [noteText, setNoteText] = useState('')
   const [toast, setToast] = useState<string | null>(null)
-  const [copiedChannel, setCopiedChannel] = useState<'linkedin' | 'email' | 'whatsapp' | null>(null)
+  const [variants, setVariants] = useState<MessageVariant[]>([])
 
   const [dealValue, setDealValue] = useState('')
   const [closeDate, setCloseDate] = useState('')
@@ -135,12 +168,14 @@ export default function ContactCrmDetailPage() {
     setTimeout(() => setToast(null), 3000)
   }, [])
 
-  const copyMessage = useCallback((channel: 'linkedin' | 'email' | 'whatsapp', text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedChannel(channel)
-      setTimeout(() => setCopiedChannel(null), 2000)
-    }).catch(() => showToast('Copy failed'))
-  }, [showToast])
+  const showToastSequence = useCallback((messages: string[]) => {
+    messages.forEach((msg, index) => {
+      setTimeout(() => {
+        setToast(msg)
+        setTimeout(() => setToast(null), 2800)
+      }, index * 3000)
+    })
+  }, [])
 
   const syncDealForm = useCallback((c: ScannedContact) => {
     setDealValue(c.deal_value != null ? String(c.deal_value) : '')
@@ -189,6 +224,83 @@ export default function ContactCrmDetailPage() {
     })()
     return () => { active = false }
   }, [id, router, supabase, syncDealForm])
+
+  useEffect(() => {
+    if (contact) setVariants(buildVariantsFromContact(contact))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-init when message fields change, not whole contact object
+  }, [contact?.id, contact?.message_linkedin, contact?.message_email, contact?.message_whatsapp])
+
+  const selectedSendCount = useMemo(
+    () => variants.reduce(
+      (count, variant) =>
+        count
+        + (variant.platforms.linkedin ? 1 : 0)
+        + (variant.platforms.email ? 1 : 0)
+        + (variant.platforms.whatsapp ? 1 : 0),
+      0
+    ),
+    [variants]
+  )
+
+  function updateVariantText(id: number, text: string) {
+    setVariants((prev) => prev.map((v) => (v.id === id ? { ...v, text } : v)))
+  }
+
+  function toggleVariantPlatform(id: number, platform: Platform) {
+    setVariants((prev) =>
+      prev.map((v) =>
+        v.id === id
+          ? { ...v, platforms: { ...v.platforms, [platform]: !v.platforms[platform] } }
+          : v
+      )
+    )
+  }
+
+  function handleSendSelected() {
+    if (!contact) return
+    const emailSubject = contact.email_subject || ''
+    const whatsappPhone = contact.phone || contact.mobile_phone || contact.whatsapp_number || ''
+    const toasts: string[] = []
+
+    for (const variant of variants) {
+      const text = variant.text.trim()
+      if (!text) continue
+
+      if (variant.platforms.linkedin) {
+        if (contact.linkedin_url) {
+          sendLinkedIn(contact.linkedin_url, text)
+          toasts.push('LinkedIn copied ✓')
+        } else {
+          toasts.push('LinkedIn URL missing')
+        }
+      }
+
+      if (variant.platforms.email) {
+        if (contact.email) {
+          sendEmail(contact.email, emailSubject || 'Following up', text)
+          toasts.push('Email opened ✓')
+        } else {
+          toasts.push('Email address missing')
+        }
+      }
+
+      if (variant.platforms.whatsapp) {
+        if (whatsappPhone) {
+          openWhatsApp(whatsappPhone, text)
+          toasts.push('WhatsApp opened ✓')
+        } else {
+          toasts.push('Phone number missing')
+        }
+      }
+    }
+
+    if (toasts.length === 0) {
+      showToast('Select at least one platform')
+      return
+    }
+
+    showToastSequence(toasts)
+  }
 
   const applyContact = (c: ScannedContact) => {
     setContact(c)
@@ -307,14 +419,10 @@ export default function ContactCrmDetailPage() {
   const past = Array.isArray(contact.events_past) ? contact.events_past : []
   const speaking = Array.isArray(contact.speaking_engagements) ? contact.speaking_engagements : []
 
-  const whatsappMessage = contact.message_whatsapp || ''
-  const linkedinMessage = contact.message_linkedin || ''
-  const emailMessage = contact.message_email || ''
   const emailSubject = contact.email_subject || ''
-  const whatsappPhone = contact.phone || contact.mobile_phone || contact.whatsapp_number || ''
 
   return (
-    <div style={{ background: '#0d0f1a', minHeight: '100vh', padding: '16px 16px 100px' }}>
+    <div style={{ background: '#0d0f1a', minHeight: '100vh', padding: '16px 16px 140px' }}>
       <Link href="/pipeline" style={{ display: 'inline-block', marginBottom: '20px', color: '#00d4d4', fontSize: '14px', textDecoration: 'none' }}>
         ← Pipeline
       </Link>
@@ -397,114 +505,119 @@ export default function ContactCrmDetailPage() {
 
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>AI MESSAGES</div>
-
-            <div style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: '#1a1d2e', borderLeft: '3px solid #0077B5' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#0077B5', marginBottom: '8px' }}>LinkedIn</div>
-              <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: 1.5, color: '#f0f0ff', whiteSpace: 'pre-wrap' }}>{linkedinMessage || '—'}</p>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  disabled={!linkedinMessage || !contact.linkedin_url}
-                  onClick={() => {
-                    sendLinkedIn(contact.linkedin_url!, linkedinMessage)
-                    showToast('✓ Message copied — click Message on LinkedIn and paste')
-                  }}
-                  style={{
-                    background: '#0077B5',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '8px 16px',
-                    color: '#fff',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  💼 Copy & Open LinkedIn →
-                </button>
-                <button
-                  type="button"
-                  disabled={!linkedinMessage}
-                  onClick={() => copyMessage('linkedin', linkedinMessage)}
-                  style={{ ...OUTLINE_BTN, border: '1px solid #0077B5', color: '#0077B5' }}
-                >
-                  {copiedChannel === 'linkedin' ? 'Copied!' : 'Copy'}
-                </button>
+            {emailSubject && (
+              <div style={{ fontSize: '12px', color: '#8892b0', marginBottom: '12px' }}>
+                Email subject: <span style={{ color: '#f0f0ff' }}>{emailSubject}</span>
               </div>
-            </div>
+            )}
 
-            <div style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: '#1a1d2e', borderLeft: '3px solid #f0197d' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#f0197d', marginBottom: '8px' }}>Email</div>
-              {emailSubject && <div style={{ fontSize: '12px', color: '#8892b0', marginBottom: '6px' }}>Subject: {emailSubject}</div>}
-              <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: 1.5, color: '#f0f0ff', whiteSpace: 'pre-wrap' }}>{emailMessage || '—'}</p>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  disabled={!emailMessage || !contact.email}
-                  onClick={() => sendEmail(contact.email!, emailSubject || 'Following up', emailMessage)}
-                  style={{
-                    background: 'linear-gradient(135deg,#f0197d,#8b5cf6)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '8px 16px',
-                    color: '#fff',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  📧 Open Email →
-                </button>
-                <button
-                  type="button"
-                  disabled={!emailMessage}
-                  onClick={() => copyMessage('email', emailMessage)}
-                  style={{ ...OUTLINE_BTN, border: '1px solid #f0197d', color: '#f0197d' }}
-                >
-                  {copiedChannel === 'email' ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
-            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {variants.map((variant) => {
+                const anyChecked = variant.platforms.linkedin || variant.platforms.email || variant.platforms.whatsapp
+                const linkedinLen = variant.text.length
+                const whatsappLen = variant.text.length
+                const linkedinOver = linkedinLen > 300
+                const whatsappOver = whatsappLen > 160
 
-            <div style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: '#1a1d2e', borderLeft: '3px solid #25D366' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#25D366', marginBottom: '8px' }}>WhatsApp</div>
-              <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: 1.5, color: '#f0f0ff', whiteSpace: 'pre-wrap' }}>{whatsappMessage || '—'}</p>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  disabled={!whatsappMessage || !whatsappPhone}
-                  onClick={() => openWhatsApp(whatsappPhone, whatsappMessage)}
-                  style={{
-                    background: 'linear-gradient(135deg,#25D366,#128C7E)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '8px 16px',
-                    color: '#fff',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  💬 Open WhatsApp →
-                </button>
-                <button
-                  type="button"
-                  disabled={!whatsappMessage}
-                  onClick={() => copyMessage('whatsapp', whatsappMessage)}
-                  style={{ ...OUTLINE_BTN, border: '1px solid #25D366', color: '#25D366' }}
-                >
-                  {copiedChannel === 'whatsapp' ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
+                return (
+                  <div
+                    key={variant.id}
+                    style={{
+                      background: '#141628',
+                      borderRadius: '12px',
+                      border: `1px solid ${anyChecked ? '#00d4d4' : '#2a2d3e'}`,
+                      padding: '16px',
+                      width: '100%',
+                    }}
+                  >
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#00d4d4', marginBottom: '10px' }}>
+                      Variant {variant.id} · {variant.style}
+                    </div>
+
+                    <textarea
+                      value={variant.text}
+                      onChange={(e) => {
+                        updateVariantText(variant.id, e.target.value)
+                        autoResizeTextarea(e.target)
+                      }}
+                      onFocus={(e) => autoResizeTextarea(e.target)}
+                      rows={3}
+                      placeholder="Edit your message…"
+                      style={{
+                        width: '100%',
+                        minHeight: '88px',
+                        resize: 'none',
+                        overflow: 'hidden',
+                        background: '#0d0f1a',
+                        border: '1px solid #2a2d3e',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        color: '#f0f0ff',
+                        fontSize: '14px',
+                        lineHeight: 1.5,
+                        fontFamily: 'inherit',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '10px', fontSize: '11px' }}>
+                      <span style={{ color: linkedinOver ? '#ef4444' : '#6b7280' }}>
+                        LinkedIn: {linkedinLen}/300
+                      </span>
+                      <span style={{ color: whatsappOver ? '#ef4444' : '#6b7280' }}>
+                        WhatsApp: {whatsappLen}/160
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '10px',
+                        marginTop: '14px',
+                      }}
+                    >
+                      {PLATFORM_META.map(({ key, label, color }) => {
+                        const checked = variant.platforms[key]
+                        return (
+                          <label
+                            key={key}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              minHeight: '44px',
+                              minWidth: '120px',
+                              padding: '8px 14px',
+                              borderRadius: '8px',
+                              border: `1px solid ${checked ? color : '#2a2d3e'}`,
+                              background: checked ? `${color}18` : 'transparent',
+                              color: checked ? color : '#8892b0',
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleVariantPlatform(variant.id, key)}
+                              style={{
+                                width: '18px',
+                                height: '18px',
+                                accentColor: color,
+                                cursor: 'pointer',
+                              }}
+                            />
+                            {label}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -626,6 +739,48 @@ export default function ContactCrmDetailPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px))',
+          background: 'linear-gradient(to top, #0d0f1a 75%, transparent)',
+          zIndex: 90,
+        }}
+      >
+        <button
+          type="button"
+          disabled={selectedSendCount === 0}
+          onClick={handleSendSelected}
+          style={{
+            width: '100%',
+            maxWidth: '640px',
+            margin: '0 auto',
+            display: 'block',
+            padding: '16px 24px',
+            borderRadius: '12px',
+            border: 'none',
+            background: selectedSendCount === 0
+              ? '#2a2d3e'
+              : 'linear-gradient(135deg,#00d4d4,#8b5cf6)',
+            color: selectedSendCount === 0 ? '#6b7280' : '#0d0f1a',
+            fontSize: '16px',
+            fontWeight: 800,
+            cursor: selectedSendCount === 0 ? 'not-allowed' : 'pointer',
+            boxShadow: selectedSendCount === 0 ? 'none' : '0 8px 32px rgba(0,212,212,0.25)',
+          }}
+        >
+          Send Selected →
+          {selectedSendCount > 0 && (
+            <span style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginTop: '2px', opacity: 0.85 }}>
+              Send {selectedSendCount} message{selectedSendCount === 1 ? '' : 's'}
+            </span>
+          )}
+        </button>
       </div>
 
       {toast && <Toast message={toast} />}
