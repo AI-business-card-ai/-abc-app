@@ -54,8 +54,7 @@ export default function DealOutcomeModal({ contact, mode, onClose, onUpdated }: 
   return (
     <AnimatePresence>
       <div
-        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-        style={{ background: 'rgba(10,12,20,0.75)' }}
+        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 frosted-overlay"
         onClick={onClose}
       >
         <motion.div
@@ -63,7 +62,7 @@ export default function DealOutcomeModal({ contact, mode, onClose, onUpdated }: 
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 24 }}
           className="w-full max-w-md rounded-2xl p-5 flex flex-col gap-4"
-          style={{ background: '#141628', border: '1px solid rgba(139,92,246,0.2)' }}
+          style={{ background: '#1a1a1a', border: '1px solid #2a2a2a' }}
           onClick={(e) => e.stopPropagation()}
         >
           {celebrate ? (

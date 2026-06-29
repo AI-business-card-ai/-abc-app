@@ -9,7 +9,7 @@ import type { ABCProfile } from '@/lib/types'
 import type { User } from '@supabase/supabase-js'
 
 const profileErrorFallback = (
-  <div style={{ color: '#f0197d', padding: '20px', background: '#0d0f1a' }}>
+  <div style={{ color: '#f0197d', padding: '20px', background: '#0f0f0f' }}>
     Profile error — check console
   </div>
 )
@@ -82,7 +82,7 @@ export default function ProfilePage() {
           alignItems: 'center',
           justifyContent: 'center',
           height: '100vh',
-          background: '#0d0f1a',
+          background: '#0f0f0f',
           color: '#00d4d4',
           fontSize: '14px',
         }}
@@ -102,7 +102,7 @@ export default function ProfilePage() {
           justifyContent: 'center',
           gap: '16px',
           height: '100vh',
-          background: '#0d0f1a',
+          background: '#0f0f0f',
           color: '#f0197d',
           fontSize: '14px',
           padding: '24px',
@@ -137,8 +137,8 @@ export default function ProfilePage() {
           alignItems: 'center',
           justifyContent: 'center',
           height: '100vh',
-          background: '#0d0f1a',
-          color: '#8892b0',
+          background: '#0f0f0f',
+          color: '#999999',
           fontSize: '14px',
         }}
       >
@@ -152,7 +152,7 @@ export default function ProfilePage() {
       {!profile && (
         <div
           className="mx-4 mt-4 rounded-xl px-4 py-3 text-sm"
-          style={{ background: 'rgba(0,212,212,0.08)', border: '1px solid rgba(0,212,212,0.2)', color: '#8892b0' }}
+          style={{ background: 'var(--bg-surface-2)', border: '1px solid var(--border)', color: '#999999' }}
         >
           Welcome! Set up your profile below — all fields are optional until you save.
         </div>

@@ -13,7 +13,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isAuthShell) {
     return (
-      <div className="min-h-screen flex justify-center" style={{ background: '#0d0f1a' }}>
+      <div className="min-h-screen flex justify-center" style={{ background: '#0f0f0f' }}>
         <div
           className={`w-full min-h-screen relative ${
             isLanding
@@ -30,7 +30,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#0d0f1a' }}>
+    <div className="flex min-h-screen" style={{ background: '#0f0f0f' }}>
       <div className="hidden lg:block shrink-0 w-[220px]" aria-hidden>
         <DesktopSidebar />
       </div>

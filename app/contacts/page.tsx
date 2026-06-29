@@ -16,8 +16,8 @@ import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
 const chipStyle = (active: boolean): React.CSSProperties =>
   active
-    ? { border: '1px solid rgba(0, 212, 212, 0.5)', color: '#00d4d4', background: 'rgba(0, 212, 212, 0.08)' }
-    : { border: '1px solid rgba(139, 92, 246, 0.15)', color: '#4a5168', background: 'transparent' }
+    ? { border: '1px solid #00d4d4', color: '#00d4d4', background: 'rgba(0, 212, 212, 0.08)' }
+    : { border: '1px solid #2a2a2a', color: '#555555', background: 'transparent' }
 
 export default function ContactsPage() {
   const router = useRouter()

@@ -39,7 +39,7 @@ export default function BottomNav() {
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 w-full z-30 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
-      style={{ background: 'rgba(13, 15, 26, 0.95)', borderTop: '1px solid rgba(0, 212, 212, 0.1)' }}
+      style={{ background: 'rgba(15, 15, 15, 0.92)', borderTop: '1px solid #2a2a2a' }}
     >
       <div className="flex items-end justify-around px-1" style={{ minHeight: 64 }}>
         <NavItem
@@ -67,13 +67,13 @@ export default function BottomNav() {
           <span
             className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
             style={{
-              background: isScan ? 'linear-gradient(135deg, #f0197d, #8b5cf6)' : 'linear-gradient(135deg, #00d4d4, #f0197d)',
+              background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
               boxShadow: '0 4px 20px rgba(0, 212, 212, 0.35)',
             }}
           >
             <IconCamera size={26} style={{ color: '#fff' }} />
           </span>
-          <span className="text-[10px] font-semibold mt-1" style={{ color: isScan ? '#00d4d4' : '#8892b0' }}>
+          <span className="text-[10px] font-semibold mt-1" style={{ color: isScan ? '#00d4d4' : '#999999' }}>
             Scan
           </span>
         </button>
@@ -128,7 +128,7 @@ function NavItem({
           style={
             active
               ? { color: '#00d4d4', filter: 'drop-shadow(0 0 4px rgba(0, 212, 212, 0.5))' }
-              : { color: '#4a5168' }
+              : { color: '#555555' }
           }
         />
         {badge != null && badge > 0 && (
@@ -140,7 +140,7 @@ function NavItem({
           </span>
         )}
       </span>
-      <span className="text-[10px] font-medium" style={{ color: active ? '#00d4d4' : '#4a5168' }}>
+      <span className="text-[10px] font-medium" style={{ color: active ? '#00d4d4' : '#555555' }}>
         {label}
       </span>
     </motion.button>

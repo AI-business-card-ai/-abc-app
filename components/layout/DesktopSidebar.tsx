@@ -46,15 +46,15 @@ export default function DesktopSidebar() {
     <aside
       className="fixed left-0 top-0 h-screen w-[220px] flex flex-col z-40"
       style={{
-        background: '#0d0f1a',
-        borderRight: '1px solid rgba(0, 212, 212, 0.1)',
+        background: 'var(--bg-surface)',
+        borderRight: '1px solid var(--border)',
       }}
     >
       <div className="px-5 pt-6 pb-8">
         <span className="gradient-logo text-lg font-black tracking-wide">ABC</span>
         <p
           className="text-[10px] mt-0.5 uppercase font-semibold"
-          style={{ color: '#00d4d4', letterSpacing: '2px' }}
+          style={{ color: 'var(--text-secondary)', letterSpacing: '2px' }}
         >
           AI Business Card
         </p>
@@ -71,38 +71,38 @@ export default function DesktopSidebar() {
               style={
                 active
                   ? {
-                      background: 'rgba(0, 212, 212, 0.1)',
-                      color: '#00d4d4',
-                      borderLeft: '3px solid #00d4d4',
+                      background: 'var(--bg-surface-2)',
+                      color: 'var(--accent-turquoise)',
+                      borderLeft: '3px solid var(--accent-turquoise)',
                       paddingLeft: '9px',
                     }
                   : {
-                      color: '#8892b0',
+                      color: 'var(--text-secondary)',
                       borderLeft: '3px solid transparent',
                       paddingLeft: '9px',
                     }
               }
               onMouseEnter={(e) => {
                 if (!active) {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
-                  e.currentTarget.style.color = '#f0f0ff'
+                  e.currentTarget.style.background = 'var(--bg-surface-2)'
+                  e.currentTarget.style.color = 'var(--text-primary)'
                 }
               }}
               onMouseLeave={(e) => {
                 if (!active) {
                   e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.color = '#8892b0'
+                  e.currentTarget.style.color = 'var(--text-secondary)'
                 }
               }}
             >
-              <item.icon size={18} style={{ color: active ? '#00d4d4' : 'inherit' }} />
+              <item.icon size={18} style={{ color: active ? 'var(--accent-turquoise)' : 'inherit' }} />
               {item.label}
             </Link>
           )
         })}
       </nav>
 
-      <div className="px-4 py-5 border-t" style={{ borderColor: 'rgba(0, 212, 212, 0.1)' }}>
+      <div className="px-4 py-5 border-t" style={{ borderColor: 'var(--border)' }}>
         <Link href="/profile" className="flex items-center gap-3 group">
           {avatar ? (
             <div className="gradient-ring shrink-0">
@@ -113,7 +113,7 @@ export default function DesktopSidebar() {
             <div
               className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
               style={{
-                background: 'linear-gradient(135deg, #00d4d4, #f0197d)',
+                background: 'var(--accent-gradient)',
                 color: '#fff',
               }}
             >
@@ -121,10 +121,10 @@ export default function DesktopSidebar() {
             </div>
           )}
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate" style={{ color: '#f0f0ff' }}>
+            <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
               {name}
             </p>
-            <p className="text-[10px] group-hover:opacity-80" style={{ color: '#00d4d4' }}>
+            <p className="text-[10px] group-hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
               Settings →
             </p>
           </div>

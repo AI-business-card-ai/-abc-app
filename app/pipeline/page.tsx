@@ -63,9 +63,9 @@ function ContactAvatar({ contact, size = 40 }: { contact: ScannedContact; size?:
         width: size,
         height: size,
         fontSize: size * 0.35,
-        background: 'linear-gradient(135deg, #00d4d4, #8b5cf6)',
+        background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
         border: '1px solid rgba(0, 212, 212, 0.2)',
-        color: '#f0f0ff',
+        color: '#ffffff',
       }}
     >
       {initials}
@@ -91,11 +91,11 @@ function MobilePipelineCard({
   return (
     <div
       className="rounded-2xl p-4 flex flex-col gap-2.5"
-      style={{ background: '#141628', border: '1px solid rgba(139, 92, 246, 0.12)' }}
+      style={{ background: '#1a1a1a', border: '1px solid #2a2a2a' }}
     >
       <div className="flex items-center gap-3">
         <ContactAvatar contact={contact} size={32} />
-        <p className="flex-1 font-bold text-base truncate" style={{ color: '#f0f0ff' }}>
+        <p className="flex-1 font-bold text-base truncate" style={{ color: '#ffffff' }}>
           {contact.name?.trim() || 'Unknown'}
         </p>
         <span
@@ -106,7 +106,7 @@ function MobilePipelineCard({
         </span>
       </div>
 
-      <p className="text-[13px] truncate" style={{ color: '#8892b0' }}>
+      <p className="text-[13px] truncate" style={{ color: '#999999' }}>
         {[contact.company, contact.role].filter(Boolean).join(' · ') || 'No company'}
       </p>
 
@@ -134,7 +134,7 @@ function MobilePipelineCard({
         </span>
       </div>
 
-      <p className="text-[13px] italic leading-snug" style={{ color: '#8b5cf6' }}>
+      <p className="text-[13px] italic leading-snug" style={{ color: '#999999' }}>
         ⚡ {step.text}
       </p>
 
@@ -249,7 +249,7 @@ export default function PipelinePage() {
     <div className="min-h-screen page-shell page-shell--wide pb-8">
       <div className="mb-5">
         <h1 className="gradient-text page-heading font-black tracking-wide">PIPELINE</h1>
-        <p className="text-xs mt-1" style={{ color: '#8892b0' }}>
+        <p className="text-xs mt-1" style={{ color: '#999999' }}>
           AI-powered sales intelligence
         </p>
       </div>
@@ -257,9 +257,9 @@ export default function PipelinePage() {
       <div className="mb-5 rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
         <div
           className="px-4 py-5"
-          style={{ background: 'linear-gradient(135deg, rgba(20,22,40,0.95) 0%, rgba(13,15,26,0.98) 50%, #0d0f1a 100%)' }}
+          style={{ background: 'linear-gradient(135deg, rgba(26,26,26,0.95) 0%, rgba(15,15,15,0.98) 50%, #0f0f0f 100%)' }}
         >
-          <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: '#8b5cf6' }}>
+          <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: '#999999' }}>
             AI Summary
           </p>
           <div className={metricsGridClass}>
@@ -274,16 +274,16 @@ export default function PipelinePage() {
                     filter === m.filter && m.filter !== 'all'
                       ? 'rgba(0, 212, 212, 0.1)'
                       : 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(139, 92, 246, 0.12)',
+                  border: '1px solid #2a2a2a',
                 }}
               >
                 <p
                   className={`font-black tabular-nums ${device === 'desktop' ? 'text-2xl' : device === 'tablet' ? 'text-xl' : 'text-lg'}`}
-                  style={{ color: '#f0f0ff' }}
+                  style={{ color: '#ffffff' }}
                 >
                   {m.value}
                 </p>
-                <p className="text-[10px] mt-0.5 uppercase tracking-wide" style={{ color: '#8892b0' }}>
+                <p className="text-[10px] mt-0.5 uppercase tracking-wide" style={{ color: '#999999' }}>
                   {m.label}
                 </p>
               </button>
@@ -309,8 +309,8 @@ export default function PipelinePage() {
             className="touch-target shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors"
             style={
               filter === tab.id
-                ? { background: 'linear-gradient(135deg, #00d4d4, #8b5cf6)', color: '#fff', border: '1px solid transparent' }
-                : { background: '#141628', color: '#8892b0', border: '1px solid rgba(139, 92, 246, 0.12)' }
+                ? { background: 'linear-gradient(135deg, #f0197d, #00d4d4)', color: '#fff', border: '1px solid transparent' }
+                : { background: '#1a1a1a', color: '#999999', border: '1px solid #2a2a2a' }
             }
           >
             {tab.label}
@@ -327,7 +327,7 @@ export default function PipelinePage() {
         </div>
       ) : contacts.length === 0 ? (
         <div className="py-16 text-center">
-          <p className="text-sm mb-4" style={{ color: '#8892b0' }}>No contacts yet</p>
+          <p className="text-sm mb-4" style={{ color: '#999999' }}>No contacts yet</p>
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => router.push('/scan')}
@@ -338,7 +338,7 @@ export default function PipelinePage() {
           </motion.button>
         </div>
       ) : visibleContacts.length === 0 ? (
-        <p className="py-12 text-center text-sm" style={{ color: '#8892b0' }}>
+        <p className="py-12 text-center text-sm" style={{ color: '#999999' }}>
           No contacts match this filter.
         </p>
       ) : device !== 'desktop' ? (
@@ -358,7 +358,7 @@ export default function PipelinePage() {
                 visibleContacts.reduce((sum, c) => sum + (Number(c.deal_value) || 0), 0)
               )}
             </span>
-            <span className="text-xs" style={{ color: '#8892b0' }}>
+            <span className="text-xs" style={{ color: '#999999' }}>
               {visibleContacts.length} deal{visibleContacts.length !== 1 ? 's' : ''}
             </span>
           </div>

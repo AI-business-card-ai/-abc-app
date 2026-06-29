@@ -12,7 +12,7 @@ import { logCrmActivity, logDealOutcome, updateContact } from '@/lib/crm-client'
 import { exportToHubSpot, exportToSalesforce } from '@/lib/crm-export'
 import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/types'
 
-const CARD = { background: '#141628', borderRadius: '12px', border: '1px solid #2a2d3e', padding: '20px' } as const
+const CARD = { background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px' } as const
 const LEAD_STATUSES = ['New', 'Working', 'Nurturing', 'Qualified', 'Converted']
 const RATINGS = [
   { id: 'Hot', label: '🔥 Hot' },
@@ -29,8 +29,8 @@ function dash(value: unknown) {
 
 function scoreColors(score: number) {
   if (score >= 70) return { bg: '#ef4444', text: '#fff' }
-  if (score >= 41) return { bg: '#eab308', text: '#0d0f1a' }
-  return { bg: '#6b7280', text: '#fff' }
+  if (score >= 41) return { bg: '#eab308', text: '#0f0f0f' }
+  return { bg: '#555555', text: '#fff' }
 }
 
 function formatDate(value: string | null | undefined) {
@@ -105,9 +105,9 @@ function Toast({ message }: { message: string }) {
         right: '24px',
         padding: '14px 20px',
         borderRadius: '10px',
-        background: '#141628',
-        border: '1px solid #2a2d3e',
-        color: '#f0f0ff',
+        background: '#1a1a1a',
+        border: '1px solid #2a2a2a',
+        color: '#ffffff',
         fontSize: '13px',
         zIndex: 100,
         boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
@@ -125,8 +125,8 @@ function InfoRow({ icon, label, href, children }: { icon: string; label: string;
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
       <span style={{ fontSize: '14px', width: '20px' }}>{icon}</span>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '2px' }}>{label}</div>
-        <div style={{ fontSize: '13px', color: '#f0f0ff', wordBreak: 'break-word' }}>{children}</div>
+        <div style={{ fontSize: '10px', color: '#555555', marginBottom: '2px' }}>{label}</div>
+        <div style={{ fontSize: '13px', color: '#ffffff', wordBreak: 'break-word' }}>{children}</div>
       </div>
     </div>
   )
@@ -422,14 +422,14 @@ export default function ContactCrmDetailPage() {
   if (loading) {
     return (
       <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00d4d4' }}>
-        <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#00d4d4', borderRightColor: '#8b5cf6' }} />
+        <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#00d4d4', borderRightColor: '#f0197d' }} />
       </div>
     )
   }
 
   if (notFound || !contact) {
     return (
-      <div style={{ padding: '40px', textAlign: 'center', color: '#8892b0' }}>
+      <div style={{ padding: '40px', textAlign: 'center', color: '#999999' }}>
         <p style={{ marginBottom: '16px' }}>Contact not found</p>
         <Link href="/pipeline" style={{ color: '#00d4d4' }}>← Back to Pipeline</Link>
       </div>
@@ -445,7 +445,7 @@ export default function ContactCrmDetailPage() {
   const emailSubject = contact.email_subject || ''
 
   return (
-    <div style={{ background: '#0d0f1a', minHeight: '100vh', padding: '16px 16px 140px' }}>
+    <div style={{ background: '#0f0f0f', minHeight: '100vh', padding: '16px 16px 140px' }}>
       <Link href="/pipeline" style={{ display: 'inline-block', marginBottom: '20px', color: '#00d4d4', fontSize: '14px', textDecoration: 'none' }}>
         ← Pipeline
       </Link>
@@ -465,12 +465,12 @@ export default function ContactCrmDetailPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={contact.photo_url} alt="" style={{ width: 88, height: 88, borderRadius: '50%', objectFit: 'cover', marginBottom: '12px', border: '2px solid rgba(0,212,212,0.3)' }} />
             ) : (
-              <div style={{ width: 88, height: 88, borderRadius: '50%', background: 'linear-gradient(135deg,#8b5cf6,#00d4d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: 800, color: '#fff', marginBottom: '12px' }}>
+              <div style={{ width: 88, height: 88, borderRadius: '50%', background: 'linear-gradient(135deg,#f0197d,#00d4d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: 800, color: '#fff', marginBottom: '12px' }}>
                 {initials}
               </div>
             )}
-            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#f0f0ff' }}>{dash(contact.name)}</h1>
-            <p style={{ margin: '6px 0 12px', fontSize: '13px', color: '#8892b0' }}>
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#ffffff' }}>{dash(contact.name)}</h1>
+            <p style={{ margin: '6px 0 12px', fontSize: '13px', color: '#999999' }}>
               {[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}
             </p>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -483,30 +483,30 @@ export default function ContactCrmDetailPage() {
             </div>
           </div>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #2a2d3e', margin: '16px 0' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid #2a2a2a', margin: '16px 0' }} />
 
           <InfoRow icon="✉️" label="Email" href={contact.email ? `mailto:${contact.email}` : undefined}>{dash(contact.email)}</InfoRow>
           <InfoRow icon="📞" label="Phone" href={contact.phone ? `tel:${contact.phone}` : undefined}>{dash(contact.phone)}</InfoRow>
           <InfoRow icon="💼" label="LinkedIn" href={contact.linkedin_url || undefined}>{dash(contact.linkedin_url)}</InfoRow>
           <InfoRow icon="🌐" label="Website" href={contact.website?.startsWith('http') ? contact.website : contact.website ? `https://${contact.website}` : undefined}>{dash(contact.website)}</InfoRow>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #2a2d3e', margin: '16px 0' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid #2a2a2a', margin: '16px 0' }} />
 
           <div style={{ fontSize: '10px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '10px' }}>COMPANY</div>
-          <div style={{ fontSize: '13px', color: '#8892b0', lineHeight: 1.6 }}>
-            <div><strong style={{ color: '#f0f0ff' }}>Industry:</strong> {dash(contact.industry)}</div>
-            <div><strong style={{ color: '#f0f0ff' }}>Size:</strong> {dash(contact.company_size || contact.no_of_employees)}</div>
-            <div><strong style={{ color: '#f0f0ff' }}>Revenue:</strong> {dash(contact.company_revenue || contact.annual_revenue)}</div>
-            <div><strong style={{ color: '#f0f0ff' }}>HQ:</strong> {dash(hqLocation)}</div>
-            <div><strong style={{ color: '#f0f0ff' }}>Funding:</strong> {dash(contact.company_funding_stage)}</div>
+          <div style={{ fontSize: '13px', color: '#999999', lineHeight: 1.6 }}>
+            <div><strong style={{ color: '#ffffff' }}>Industry:</strong> {dash(contact.industry)}</div>
+            <div><strong style={{ color: '#ffffff' }}>Size:</strong> {dash(contact.company_size || contact.no_of_employees)}</div>
+            <div><strong style={{ color: '#ffffff' }}>Revenue:</strong> {dash(contact.company_revenue || contact.annual_revenue)}</div>
+            <div><strong style={{ color: '#ffffff' }}>HQ:</strong> {dash(hqLocation)}</div>
+            <div><strong style={{ color: '#ffffff' }}>Funding:</strong> {dash(contact.company_funding_stage)}</div>
           </div>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #2a2d3e', margin: '16px 0' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid #2a2a2a', margin: '16px 0' }} />
 
           <TagPills tags={contact.tags || []} />
-          <div style={{ marginTop: '12px', fontSize: '13px', color: '#8892b0' }}>
-            <div><strong style={{ color: '#f0f0ff' }}>Event:</strong> {dash(contact.lead_source || contact.event_name)}</div>
-            <div style={{ marginTop: '6px' }}><strong style={{ color: '#f0f0ff' }}>Met:</strong> {formatDate(contact.meeting_date || contact.scanned_at)}</div>
+          <div style={{ marginTop: '12px', fontSize: '13px', color: '#999999' }}>
+            <div><strong style={{ color: '#ffffff' }}>Event:</strong> {dash(contact.lead_source || contact.event_name)}</div>
+            <div style={{ marginTop: '6px' }}><strong style={{ color: '#ffffff' }}>Met:</strong> {formatDate(contact.meeting_date || contact.scanned_at)}</div>
           </div>
         </div>
 
@@ -514,14 +514,14 @@ export default function ContactCrmDetailPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
           {(contact.ai_summary || contact.match_reason) && (
             <div style={CARD}>
-              <div style={{ fontSize: '11px', color: '#8b5cf6', letterSpacing: '0.08em', marginBottom: '12px' }}>AI SUMMARY</div>
+              <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>AI SUMMARY</div>
               {contact.ai_summary && (
-                <div style={{ padding: '14px', borderLeft: '3px solid #8b5cf6', background: 'rgba(139,92,246,0.08)', borderRadius: '0 8px 8px 0', fontSize: '14px', lineHeight: 1.6, color: '#f0f0ff', marginBottom: contact.match_reason ? '12px' : 0 }}>
+                <div style={{ padding: '14px', borderLeft: '3px solid #00d4d4', background: '#242424', borderRadius: '0 8px 8px 0', fontSize: '14px', lineHeight: 1.6, color: '#ffffff', marginBottom: contact.match_reason ? '12px' : 0 }}>
                   {contact.ai_summary}
                 </div>
               )}
               {contact.match_reason && (
-                <p style={{ margin: 0, fontSize: '13px', color: '#8892b0', fontStyle: 'italic' }}>{contact.match_reason}</p>
+                <p style={{ margin: 0, fontSize: '13px', color: '#999999', fontStyle: 'italic' }}>{contact.match_reason}</p>
               )}
             </div>
           )}
@@ -529,8 +529,8 @@ export default function ContactCrmDetailPage() {
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>AI MESSAGES</div>
             {emailSubject && (
-              <div style={{ fontSize: '12px', color: '#8892b0', marginBottom: '12px' }}>
-                Email subject: <span style={{ color: '#f0f0ff' }}>{emailSubject}</span>
+              <div style={{ fontSize: '12px', color: '#999999', marginBottom: '12px' }}>
+                Email subject: <span style={{ color: '#ffffff' }}>{emailSubject}</span>
               </div>
             )}
 
@@ -546,9 +546,9 @@ export default function ContactCrmDetailPage() {
                   <div
                     key={variant.id}
                     style={{
-                      background: '#141628',
+                      background: '#1a1a1a',
                       borderRadius: '12px',
-                      border: `1px solid ${anyChecked ? '#00d4d4' : '#2a2d3e'}`,
+                      border: `1px solid ${anyChecked ? '#00d4d4' : '#2a2a2a'}`,
                       padding: '16px',
                       width: '100%',
                     }}
@@ -571,11 +571,11 @@ export default function ContactCrmDetailPage() {
                         minHeight: '88px',
                         resize: 'none',
                         overflow: 'hidden',
-                        background: '#0d0f1a',
-                        border: '1px solid #2a2d3e',
+                        background: '#0f0f0f',
+                        border: '1px solid #2a2a2a',
                         borderRadius: '8px',
                         padding: '12px',
-                        color: '#f0f0ff',
+                        color: '#ffffff',
                         fontSize: '14px',
                         lineHeight: 1.5,
                         fontFamily: 'inherit',
@@ -584,10 +584,10 @@ export default function ContactCrmDetailPage() {
                     />
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '10px', fontSize: '11px' }}>
-                      <span style={{ color: linkedinOver ? '#ef4444' : '#6b7280' }}>
+                      <span style={{ color: linkedinOver ? '#ef4444' : '#555555' }}>
                         LinkedIn: {linkedinLen}/300
                       </span>
-                      <span style={{ color: whatsappOver ? '#ef4444' : '#6b7280' }}>
+                      <span style={{ color: whatsappOver ? '#ef4444' : '#555555' }}>
                         WhatsApp: {whatsappLen}/160
                       </span>
                     </div>
@@ -613,9 +613,9 @@ export default function ContactCrmDetailPage() {
                               minWidth: '120px',
                               padding: '8px 14px',
                               borderRadius: '8px',
-                              border: `1px solid ${checked ? color : '#2a2d3e'}`,
+                              border: `1px solid ${checked ? color : '#2a2a2a'}`,
                               background: checked ? `${color}18` : 'transparent',
-                              color: checked ? color : '#8892b0',
+                              color: checked ? color : '#999999',
                               fontSize: '14px',
                               fontWeight: 600,
                               cursor: 'pointer',
@@ -646,13 +646,13 @@ export default function ContactCrmDetailPage() {
 
           {(contact.linkedin_headline || contact.linkedin_summary || posts.length > 0 || skills.length > 0) && (
             <div style={CARD}>
-              <div style={{ fontSize: '11px', color: '#8b5cf6', letterSpacing: '0.08em', marginBottom: '12px' }}>LINKEDIN INTELLIGENCE</div>
-              {contact.linkedin_headline && <p style={{ margin: '0 0 8px', fontWeight: 600, color: '#f0f0ff' }}>{contact.linkedin_headline}</p>}
-              {contact.linkedin_summary && <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#8892b0', lineHeight: 1.5 }}>{contact.linkedin_summary}</p>}
+              <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>LINKEDIN INTELLIGENCE</div>
+              {contact.linkedin_headline && <p style={{ margin: '0 0 8px', fontWeight: 600, color: '#ffffff' }}>{contact.linkedin_headline}</p>}
+              {contact.linkedin_summary && <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#999999', lineHeight: 1.5 }}>{contact.linkedin_summary}</p>}
               {posts.map((post, i) => (
-                <div key={i} style={{ marginBottom: '10px', padding: '10px', background: '#1a1d2e', borderRadius: '8px' }}>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#f0f0ff' }}>{post.text}</p>
-                  {post.date && <p style={{ margin: '4px 0 0', fontSize: '10px', color: '#6b7280' }}>{formatDate(post.date)}</p>}
+                <div key={i} style={{ marginBottom: '10px', padding: '10px', background: '#242424', borderRadius: '8px' }}>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#ffffff' }}>{post.text}</p>
+                  {post.date && <p style={{ margin: '4px 0 0', fontSize: '10px', color: '#555555' }}>{formatDate(post.date)}</p>}
                 </div>
               ))}
               {skills.length > 0 && (
@@ -669,12 +669,12 @@ export default function ContactCrmDetailPage() {
             <div style={CARD}>
               <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>NEWS & EVENTS</div>
               {[...upcoming.map((e: ContactEvent) => ({ ...e, kind: 'Upcoming' })), ...past.map((e: ContactEvent) => ({ ...e, kind: 'Past' })), ...speaking.map((e: SpeakingEngagement) => ({ name: e.event, date: e.date, kind: 'Speaking', title: e.title }))].map((ev, i) => (
-                <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '12px', paddingBottom: '12px', borderBottom: i < upcoming.length + past.length + speaking.length - 1 ? '1px solid #2a2d3e' : 'none' }}>
-                  <div style={{ fontSize: '11px', color: '#6b7280', minWidth: '72px' }}>{formatDate(ev.date)}</div>
+                <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '12px', paddingBottom: '12px', borderBottom: i < upcoming.length + past.length + speaking.length - 1 ? '1px solid #2a2a2a' : 'none' }}>
+                  <div style={{ fontSize: '11px', color: '#555555', minWidth: '72px' }}>{formatDate(ev.date)}</div>
                   <div>
-                    <div style={{ fontSize: '10px', color: '#8b5cf6', marginBottom: '2px' }}>{ev.kind}</div>
-                    <div style={{ fontSize: '13px', color: '#f0f0ff' }}>{ev.name}</div>
-                    {'title' in ev && ev.title && <div style={{ fontSize: '12px', color: '#8892b0' }}>{ev.title}</div>}
+                    <div style={{ fontSize: '10px', color: '#555555', marginBottom: '2px' }}>{ev.kind}</div>
+                    <div style={{ fontSize: '13px', color: '#ffffff' }}>{ev.name}</div>
+                    {'title' in ev && ev.title && <div style={{ fontSize: '12px', color: '#999999' }}>{ev.title}</div>}
                   </div>
                 </div>
               ))}
@@ -700,9 +700,9 @@ export default function ContactCrmDetailPage() {
                     fontSize: '9px',
                     fontWeight: 700,
                     borderRadius: '6px',
-                    border: stage === s.id ? `1px solid ${s.color}` : '1px solid #2a2d3e',
-                    background: stage === s.id ? `${s.color}22` : '#1a1d2e',
-                    color: stage === s.id ? s.color : '#6b7280',
+                    border: stage === s.id ? `1px solid ${s.color}` : '1px solid #2a2a2a',
+                    background: stage === s.id ? `${s.color}22` : '#242424',
+                    color: stage === s.id ? s.color : '#555555',
                     cursor: 'pointer',
                   }}
                 >
@@ -711,52 +711,52 @@ export default function ContactCrmDetailPage() {
               ))}
             </div>
 
-            <label style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginBottom: '6px' }}>Lead status</label>
+            <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '6px' }}>Lead status</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
               {LEAD_STATUSES.map((s) => (
-                <button key={s} type="button" onClick={() => setLeadStatus(s)} style={{ padding: '6px 10px', borderRadius: '999px', fontSize: '11px', border: leadStatus === s ? '1px solid #00d4d4' : '1px solid #2a2d3e', background: leadStatus === s ? 'rgba(0,212,212,0.1)' : 'transparent', color: leadStatus === s ? '#00d4d4' : '#6b7280', cursor: 'pointer' }}>{s}</button>
+                <button key={s} type="button" onClick={() => setLeadStatus(s)} style={{ padding: '6px 10px', borderRadius: '999px', fontSize: '11px', border: leadStatus === s ? '1px solid #00d4d4' : '1px solid #2a2a2a', background: leadStatus === s ? 'rgba(0,212,212,0.1)' : 'transparent', color: leadStatus === s ? '#00d4d4' : '#555555', cursor: 'pointer' }}>{s}</button>
               ))}
             </div>
 
-            <label style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginBottom: '6px' }}>Rating</label>
+            <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '6px' }}>Rating</label>
             <div style={{ display: 'flex', gap: '6px' }}>
               {RATINGS.map((r) => (
-                <button key={r.id} type="button" onClick={() => setRating(r.id)} style={{ flex: 1, padding: '8px', borderRadius: '8px', fontSize: '11px', border: rating === r.id ? '1px solid #f0197d' : '1px solid #2a2d3e', background: rating === r.id ? 'rgba(240,25,125,0.1)' : 'transparent', color: rating === r.id ? '#f0197d' : '#6b7280', cursor: 'pointer' }}>{r.label}</button>
+                <button key={r.id} type="button" onClick={() => setRating(r.id)} style={{ flex: 1, padding: '8px', borderRadius: '8px', fontSize: '11px', border: rating === r.id ? '1px solid #f0197d' : '1px solid #2a2a2a', background: rating === r.id ? 'rgba(240,25,125,0.1)' : 'transparent', color: rating === r.id ? '#f0197d' : '#555555', cursor: 'pointer' }}>{r.label}</button>
               ))}
             </div>
           </div>
 
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#f0197d', letterSpacing: '0.08em', marginBottom: '12px' }}>DEAL INFORMATION</div>
-            <label style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Deal value ($)</label>
-            <input type="number" value={dealValue} onChange={(e) => setDealValue(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#1a1d2e', border: '1px solid #2a2d3e', borderRadius: '8px', padding: '8px 12px', color: '#f0f0ff', fontSize: '13px' }} />
-            <label style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Expected close date</label>
-            <input type="date" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#1a1d2e', border: '1px solid #2a2d3e', borderRadius: '8px', padding: '8px 12px', color: '#f0f0ff', fontSize: '13px' }} />
-            <label style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Close probability (%)</label>
-            <input type="number" value={closeProb} onChange={(e) => setCloseProb(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#1a1d2e', border: '1px solid #2a2d3e', borderRadius: '8px', padding: '8px 12px', color: '#f0f0ff', fontSize: '13px' }} />
-            <label style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Opportunity type</label>
-            <input value={oppType} onChange={(e) => setOppType(e.target.value)} placeholder="New Business, Renewal…" style={{ width: '100%', marginBottom: '10px', background: '#1a1d2e', border: '1px solid #2a2d3e', borderRadius: '8px', padding: '8px 12px', color: '#f0f0ff', fontSize: '13px' }} />
-            <label style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Next step</label>
-            <input value={nextStep} onChange={(e) => setNextStep(e.target.value)} style={{ width: '100%', marginBottom: '14px', background: '#1a1d2e', border: '1px solid #2a2d3e', borderRadius: '8px', padding: '8px 12px', color: '#f0f0ff', fontSize: '13px' }} />
-            <button type="button" disabled={saving} onClick={saveDeal} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg,#f0197d,#8b5cf6)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Update Deal</button>
+            <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '4px' }}>Deal value ($)</label>
+            <input type="number" value={dealValue} onChange={(e) => setDealValue(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+            <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '4px' }}>Expected close date</label>
+            <input type="date" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+            <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '4px' }}>Close probability (%)</label>
+            <input type="number" value={closeProb} onChange={(e) => setCloseProb(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+            <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '4px' }}>Opportunity type</label>
+            <input value={oppType} onChange={(e) => setOppType(e.target.value)} placeholder="New Business, Renewal…" style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+            <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '4px' }}>Next step</label>
+            <input value={nextStep} onChange={(e) => setNextStep(e.target.value)} style={{ width: '100%', marginBottom: '14px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+            <button type="button" disabled={saving} onClick={saveDeal} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg,#f0197d,#00d4d4)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Update Deal</button>
           </div>
 
           <div style={CARD}>
-            <div style={{ fontSize: '11px', color: '#8b5cf6', letterSpacing: '0.08em', marginBottom: '12px' }}>ACTIVITY TIMELINE</div>
+            <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>ACTIVITY TIMELINE</div>
             <ActivityTimeline key={activityKey} contactId={contact.id} />
             <div style={{ marginTop: '16px' }}>
-              <input value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Add a note…" style={{ width: '100%', marginBottom: '8px', background: '#1a1d2e', border: '1px solid #2a2d3e', borderRadius: '8px', padding: '8px 12px', color: '#f0f0ff', fontSize: '13px' }} />
-              <button type="button" disabled={saving || !noteText.trim()} onClick={addNote} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #2a2d3e', background: 'transparent', color: '#00d4d4', fontSize: '12px', cursor: 'pointer' }}>Add Note</button>
+              <input value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Add a note…" style={{ width: '100%', marginBottom: '8px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+              <button type="button" disabled={saving || !noteText.trim()} onClick={addNote} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #2a2a2a', background: 'transparent', color: '#00d4d4', fontSize: '12px', cursor: 'pointer' }}>Add Note</button>
             </div>
           </div>
 
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>QUICK ACTIONS</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <button type="button" onClick={() => router.push(`/contact/${contact.id}`)} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#00d4d4', color: '#0d0f1a', fontWeight: 700, cursor: 'pointer' }}>Send Follow-up</button>
-              <button type="button" onClick={() => showToast('Meeting scheduler coming soon')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2d3e', background: '#1a1d2e', color: '#f0f0ff', cursor: 'pointer' }}>Schedule Meeting</button>
-              <button type="button" onClick={() => exportToSalesforce(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2d3e', background: '#1a1d2e', color: '#f0f0ff', cursor: 'pointer', fontSize: '13px' }}>Export to Salesforce</button>
-              <button type="button" onClick={() => exportToHubSpot(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2d3e', background: '#1a1d2e', color: '#f0f0ff', cursor: 'pointer', fontSize: '13px' }}>Export to HubSpot</button>
+              <button type="button" onClick={() => router.push(`/contact/${contact.id}`)} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#00d4d4', color: '#0f0f0f', fontWeight: 700, cursor: 'pointer' }}>Send Follow-up</button>
+              <button type="button" onClick={() => showToast('Meeting scheduler coming soon')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer' }}>Schedule Meeting</button>
+              <button type="button" onClick={() => exportToSalesforce(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to Salesforce</button>
+              <button type="button" onClick={() => exportToHubSpot(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to HubSpot</button>
               <button type="button" disabled={saving} onClick={() => markOutcome('won')} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#22c55e', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Mark as Won</button>
               <button type="button" disabled={saving} onClick={() => markOutcome('lost')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 700, cursor: 'pointer' }}>Mark as Lost</button>
               <button
@@ -791,7 +791,7 @@ export default function ContactCrmDetailPage() {
           left: 0,
           right: 0,
           padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px))',
-          background: 'linear-gradient(to top, #0d0f1a 75%, transparent)',
+          background: 'linear-gradient(to top, #0f0f0f 75%, transparent)',
           zIndex: 90,
         }}
       >
@@ -808,9 +808,9 @@ export default function ContactCrmDetailPage() {
             borderRadius: '12px',
             border: 'none',
             background: selectedSendCount === 0
-              ? '#2a2d3e'
-              : 'linear-gradient(135deg,#00d4d4,#8b5cf6)',
-            color: selectedSendCount === 0 ? '#6b7280' : '#0d0f1a',
+              ? '#2a2a2a'
+              : 'linear-gradient(135deg,#f0197d,#00d4d4)',
+            color: selectedSendCount === 0 ? '#555555' : '#0f0f0f',
             fontSize: '16px',
             fontWeight: 800,
             cursor: selectedSendCount === 0 ? 'not-allowed' : 'pointer',

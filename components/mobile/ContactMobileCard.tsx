@@ -130,8 +130,8 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
       onTouchEnd={onTouchEnd}
       className="relative z-10 rounded-2xl p-4 flex flex-col gap-3 touch-pan-y transition-transform"
       style={{
-        background: '#141628',
-        border: '1px solid rgba(139, 92, 246, 0.15)',
+        background: '#1a1a1a',
+        border: '1px solid #2a2a2a',
         transform: `translateX(${cardOffset}px)`,
         transition: deleteRevealed ? 'transform 0.2s ease-out' : swiping ? 'none' : 'transform 0.2s ease-out',
       }}
@@ -162,9 +162,9 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
         <div
           className="shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
           style={{
-            background: 'linear-gradient(135deg, #141628, #141628) padding-box, linear-gradient(135deg, #00d4d4, #8b5cf6) border-box',
+            background: 'linear-gradient(135deg, #1a1a1a, #1a1a1a) padding-box, linear-gradient(135deg, #00d4d4, #8b5cf6) border-box',
             border: '2px solid transparent',
-            color: '#f0f0ff',
+            color: '#ffffff',
           }}
         >
           {contact.photo_url ? (
@@ -176,7 +176,7 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className="font-bold text-base truncate" style={{ color: '#f0f0ff' }}>
+            <p className="font-bold text-base truncate" style={{ color: '#ffffff' }}>
               {contact.name || 'Unknown'}
             </p>
             <span
@@ -187,15 +187,15 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
               {tier.tier === 'hot' ? ' 🔥' : ''}
             </span>
           </div>
-          <p className="text-[13px] truncate" style={{ color: '#8892b0' }}>
+          <p className="text-[13px] truncate" style={{ color: '#999999' }}>
             {[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}
           </p>
         </div>
       </div>
 
-      <div className="h-px" style={{ background: 'rgba(139, 92, 246, 0.12)' }} />
+      <div className="h-px" style={{ background: '#2a2a2a' }} />
 
-      <p className="text-[13px] italic" style={{ color: '#8b5cf6' }}>
+      <p className="text-[13px] italic" style={{ color: '#999999' }}>
         ⚡ {step.text}
       </p>
 
