@@ -51,6 +51,10 @@ async function refreshLeadScore(contactId: string, userId: string) {
 
   if (!contact) return
 
+  if (contact.icp_fit_score != null && contact.ai_lead_score != null) {
+    return
+  }
+
   const score = calculateLeadScore(contact)
   await supabase
     .from('scanned_contacts')

@@ -5,8 +5,9 @@ import { buildPostEnrichmentMapping } from '@/lib/data-model'
 import { runIntelligenceResearch } from '@/lib/research'
 import { enrichContact } from '@/lib/perplexity'
 import { generatePersonalizedMessages } from '@/lib/ai-messages'
+import { calculateAiMatchScore, aiScoreToDbFields } from '@/lib/ai-scoring'
 import { onEnrichmentCompleted } from '@/lib/crm-engine'
-import type { ABCProfile } from '@/lib/types'
+import type { ABCProfile, ScannedContact } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
   try {
@@ -103,6 +104,26 @@ export async function POST(req: NextRequest) {
           email_subject: aiMessages.email_subject,
           message_whatsapp: aiMessages.message_whatsapp,
         })
+        .eq('id', contactId)
+    }
+
+    const { data: forScoring } = await supabase
+      .from('scanned_contacts')
+      .select('*')
+      .eq('id', contactId)
+      .single()
+
+    const aiScoreResult = forScoring
+      ? await calculateAiMatchScore(forScoring as ScannedContact, profile).catch((err) => {
+          console.error('AI match scoring skipped:', err)
+          return null
+        })
+      : null
+
+    if (aiScoreResult) {
+      await supabase
+        .from('scanned_contacts')
+        .update(aiScoreToDbFields(aiScoreResult))
         .eq('id', contactId)
     }
 

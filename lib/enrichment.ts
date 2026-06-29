@@ -6,6 +6,7 @@ import { generatePersonalizedMessages } from '@/lib/ai-messages'
 import { createHubSpotContact } from '@/lib/hubspot'
 import { createSalesforceContact } from '@/lib/salesforce'
 import { calculateLeadScore } from '@/lib/crm'
+import { calculateAiMatchScore, aiScoreToDbFields } from '@/lib/ai-scoring'
 import { onEnrichmentCompleted } from '@/lib/crm-engine'
 import { runIntelligenceResearch } from '@/lib/research'
 import { buildPostEnrichmentMapping } from '@/lib/data-model'
@@ -130,6 +131,29 @@ export async function runContactEnrichment(contactId: string, userId: string): P
 
     await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'messages')
 
+    const { data: preScoreRow } = await supabase
+      .from('scanned_contacts')
+      .select('*')
+      .eq('id', contactId)
+      .single()
+
+    const contactForScoring = (preScoreRow as ScannedContact | null) ?? {
+      ...c,
+      ...baseRecord,
+    } as ScannedContact
+
+    const aiScoreResult = await calculateAiMatchScore(contactForScoring, profile).catch((err) => {
+      console.error('AI match scoring skipped:', err)
+      return null
+    })
+
+    const scoreFields = aiScoreResult
+      ? aiScoreToDbFields(aiScoreResult)
+      : {
+          ai_lead_score: calculateLeadScore({ ...c, ...baseRecord }),
+          match_score: calculateLeadScore({ ...c, ...baseRecord }),
+        }
+
     const aiMessages = await generatePersonalizedMessages(
       {
         ...latest,
@@ -145,14 +169,11 @@ export async function runContactEnrichment(contactId: string, userId: string): P
 
     const withMessages = {
       ...baseRecord,
+      ...scoreFields,
       message_linkedin: aiMessages?.message_linkedin || c.message_linkedin,
       message_email: aiMessages?.message_email || c.message_email,
       email_subject: aiMessages?.email_subject || c.email_subject,
       message_whatsapp: aiMessages?.message_whatsapp || c.message_whatsapp,
-      ai_lead_score: calculateLeadScore({
-        ...c,
-        ...baseRecord,
-      }),
     }
 
     await supabase

@@ -33,6 +33,93 @@ function scoreColors(score: number) {
   return { bg: '#555555', text: '#fff' }
 }
 
+function scoreRatingEmoji(rating: string | null | undefined, score: number) {
+  const r = rating?.toLowerCase() || (score >= 70 ? 'hot' : score >= 40 ? 'warm' : 'cold')
+  if (r.includes('hot')) return '🔥'
+  if (r.includes('warm')) return '⚡'
+  return '❄️'
+}
+
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  const pct = Math.max(0, Math.min(100, value))
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+        <span style={{ color: '#999999' }}>{label}</span>
+        <span style={{ color: '#ffffff', fontWeight: 600 }}>{pct}%</span>
+      </div>
+      <div style={{ height: '6px', background: '#2a2a2a', borderRadius: '3px', overflow: 'hidden' }}>
+        <div
+          style={{
+            width: `${pct}%`,
+            height: '100%',
+            background: 'linear-gradient(90deg, #f0197d, #00d4d4)',
+            borderRadius: '3px',
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function MatchScoreBreakdown({ contact, score }: { contact: ScannedContact; score: number }) {
+  const hasBreakdown =
+    contact.icp_fit_score != null ||
+    contact.intent_score != null ||
+    contact.timing_score != null ||
+    contact.accessibility_score != null
+
+  if (!hasBreakdown && score <= 0) return null
+
+  const starters = Array.isArray(contact.conversation_starters) ? contact.conversation_starters : []
+
+  return (
+    <div style={CARD}>
+      <div style={{ fontSize: '11px', color: '#f0197d', letterSpacing: '0.08em', marginBottom: '12px' }}>
+        MATCH SCORE BREAKDOWN
+      </div>
+      <div
+        style={{
+          background: '#242424',
+          borderRadius: '10px',
+          border: '1px solid #2a2a2a',
+          padding: '16px',
+        }}
+      >
+        <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff', marginBottom: '14px' }}>
+          Overall: {score} {scoreRatingEmoji(contact.rating, score)}
+          {contact.rating && (
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#999999', marginLeft: '8px' }}>
+              {contact.rating}
+            </span>
+          )}
+        </div>
+
+        {contact.icp_fit_score != null && <ScoreBar label="ICP Fit" value={contact.icp_fit_score} />}
+        {contact.intent_score != null && <ScoreBar label="Intent Signals" value={contact.intent_score} />}
+        {contact.timing_score != null && <ScoreBar label="Timing" value={contact.timing_score} />}
+        {contact.accessibility_score != null && <ScoreBar label="Accessibility" value={contact.accessibility_score} />}
+
+        {starters.length > 0 && (
+          <div style={{ marginTop: '12px', borderTop: '1px solid #2a2a2a', paddingTop: '12px' }}>
+            {starters.map((starter) => (
+              <p key={starter} style={{ margin: '0 0 6px', fontSize: '12px', color: '#00d4d4' }}>
+                ✓ &quot;{starter}&quot;
+              </p>
+            ))}
+          </div>
+        )}
+
+        {contact.red_flags && (
+          <p style={{ margin: starters.length ? '8px 0 0' : '12px 0 0', fontSize: '12px', color: '#f59e0b' }}>
+            ⚠ {contact.red_flags}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return '—'
   const d = new Date(value)
@@ -525,6 +612,8 @@ export default function ContactCrmDetailPage() {
               )}
             </div>
           )}
+
+          <MatchScoreBreakdown contact={contact} score={score} />
 
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>AI MESSAGES</div>

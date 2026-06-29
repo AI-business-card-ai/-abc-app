@@ -104,6 +104,12 @@ export interface ScannedContact {
   last_event_date: string | null
   next_event_attending: string | null
   next_event_date: string | null
+  icp_fit_score: number | null
+  intent_score: number | null
+  timing_score: number | null
+  accessibility_score: number | null
+  red_flags: string | null
+  conversation_starters: string[] | null
 }
 
 export type ContactEvent = {
