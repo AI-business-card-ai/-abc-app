@@ -200,6 +200,21 @@ export interface ABCProfile {
   user_message_length: string | null
   user_prompt: string | null
   onboarding_completed: boolean | null
+  message_goal: string | null
+  message_length: string | null
+  research_company_size: boolean | null
+  research_revenue: boolean | null
+  research_location: boolean | null
+  research_news: boolean | null
+  research_events: boolean | null
+  research_linkedin: boolean | null
+  research_funding: boolean | null
+  research_competitors: boolean | null
+  research_tech: boolean | null
+  research_hiring: boolean | null
+  research_products: boolean | null
+  research_pain_points: boolean | null
+  research_custom: string | null
 }
 
 export interface ScanResult {

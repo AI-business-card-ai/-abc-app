@@ -1,9 +1,10 @@
-import { DEFAULT_RESEARCH_PREFERENCES } from './research'
+import { buildResearchInstructions, type UserProfileResearch } from './research'
+import type { ABCProfile } from './types'
 
 export async function enrichContact(
   name: string | null,
   company: string | null,
-  userProfile: any
+  userProfile?: UserProfileResearch | ABCProfile | null
 ): Promise<string> {
   if (!name && !company) {
     console.log('=== PERPLEXITY SKIP === no name or company')
@@ -13,89 +14,26 @@ export async function enrichContact(
   console.log('=== PERPLEXITY START ===', name, company)
   console.log('PERPLEXITY_API_KEY exists:', !!process.env.PERPLEXITY_API_KEY)
 
-  const selectedTopics: string[] =
-    userProfile?.research_preferences || [...DEFAULT_RESEARCH_PREFERENCES]
-  const customQ: string = userProfile?.custom_questions || ''
+  const instructions = buildResearchInstructions(userProfile)
+  const firstName = name?.split(' ')[0] || name || ''
+  const lastName = name?.split(' ').slice(1).join(' ') || ''
+  const p = userProfile as ABCProfile | null | undefined
 
-  const dynamicSections = [
-    selectedTopics.includes('revenue')
-      ? `
-## COMPANY SIZE & REVENUE
-- Estimated annual revenue
-- Number of employees
-- Growth trajectory`
-      : '',
-    selectedTopics.includes('location')
-      ? `
-## LOCATION & OFFICES
-- Headquarters city and country
-- Other offices or branches`
-      : '',
-    selectedTopics.includes('news')
-      ? `
-## RECENT NEWS (last 6 months)
-- Latest announcements
-- New products or services
-- Partnerships or deals`
-      : '',
-    selectedTopics.includes('linkedin')
-      ? `
-## PERSON PROFILE
-- LinkedIn URL
-- Career history
-- Recent posts or activity`
-      : '',
-    selectedTopics.includes('reputation')
-      ? `
-## REPUTATION & RISKS
-- Negative news, lawsuits, controversies
-- Customer sentiment
-- Red flags`
-      : '',
-    selectedTopics.includes('events')
-      ? `
-## UPCOMING EVENTS
-- Trade shows they attend
-- Speaking engagements
-- Product launches`
-      : '',
-    selectedTopics.includes('competitors')
-      ? `
-## COMPETITORS
-- Main competitors in their market
-- How they differentiate
-- Market position`
-      : '',
-    selectedTopics.includes('technology')
-      ? `
-## TECHNOLOGY STACK
-- Tools and software they use
-- CRM, marketing tools, infrastructure
-- Tech partnerships`
-      : '',
-    selectedTopics.includes('decision_maker')
-      ? `
-## DECISION MAKING POWER
-- Is ${name} a decision maker?
-- Who else is involved in buying decisions?
-- Budget authority level`
-      : '',
-    selectedTopics.includes('pain_points')
-      ? `
-## CURRENT CHALLENGES
-- What problems is the company solving now?
-- Recent pain points from news or reviews
-- What they are hiring for (signals needs)`
-      : '',
-    customQ
-      ? `
-## CUSTOM QUESTIONS
-Answer these specific questions:
-${customQ}`
-      : '',
-  ]
-    .filter(Boolean)
-    .join('\n')
+  const perplexityPrompt = `Research this person and company for B2B sales intelligence.
+
+Person: ${firstName} ${lastName}
+Company: ${company || 'Unknown'}
+Position: ${p?.role || ''}
+
+Find the following information:
+${instructions.map((item, i) => `${i + 1}. ${item}`).join('\n')}
+
+Return structured data with all findings.
+Be specific, factual, and cite sources where possible.
+
+Use ## section headers for each topic. Only include sections with real, verifiable data.
+Never write "Not found", "N/A", or placeholder text.
+IMPORTANT: Answer ONLY in English.`
 
   try {
     console.log('PERPLEXITY KEY:', process.env.PERPLEXITY_API_KEY?.substring(0, 15))
@@ -117,21 +55,11 @@ ${customQ}`
           messages: [
             {
               role: 'user',
-              content: `Do thorough research on this person and company for B2B outreach:
+              content: `${perplexityPrompt}
 
-PERSON: ${name}
-COMPANY: ${company}
-MY GOALS: ${userProfile?.goals || 'B2B networking'}
-MY COMPANY: ${userProfile?.company || ''}
-MY ROLE: ${userProfile?.role || ''}
-
-Research and return ONLY the sections below. Use ## headers exactly as shown.
-Only include a section if you found real, verifiable data. Omit any section entirely if you have no data — never write "Not found", "N/A", or placeholder text.
-
-${dynamicSections}
-
-IMPORTANT: Answer ONLY in English.
-All sections, all text, everything in English.`,
+MY GOALS: ${p?.goals || 'B2B networking'}
+MY COMPANY: ${p?.company || ''}
+MY ROLE: ${p?.role || ''}`,
             },
           ],
           max_tokens: 800,

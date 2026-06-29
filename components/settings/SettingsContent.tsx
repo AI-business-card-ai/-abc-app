@@ -8,20 +8,31 @@ export default function SettingsContent() {
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<any>({})
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
-        const { data } = await supabase
+        const { data, error: loadError } = await supabase
           .from('abc_profiles')
           .select('*')
           .eq('id', user.id)
           .maybeSingle()
-        if (data) setProfile(data)
+        if (loadError) {
+          console.error('Profile load error:', loadError)
+          setError(loadError.message)
+        }
+        if (data) {
+          setProfile({
+            ...data,
+            message_goal: data.message_goal || data.user_goal || 'Schedule a meeting',
+            message_length: data.message_length || data.user_message_length || 'medium',
+          })
+        }
       } catch (e) {
-        console.error(e)
+        console.error('Profile load exception:', e)
       } finally {
         setLoading(false)
       }
@@ -31,13 +42,68 @@ export default function SettingsContent() {
 
   const save = async () => {
     try {
+      setError(null)
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      await supabase.from('abc_profiles').upsert({ ...profile, id: user.id })
+      if (!user) {
+        setError('Not logged in')
+        return
+      }
+
+      const rawStyle = profile.communication_style || 'direct'
+      const communicationStyle = ['direct', 'formal', 'casual'].includes(rawStyle)
+        ? rawStyle
+        : 'direct'
+
+      const dataToSave = {
+        id: user.id,
+        full_name: profile.full_name || null,
+        company: profile.company || null,
+        role: profile.role || null,
+        email: profile.email || null,
+        phone: profile.phone || null,
+        linkedin_url: profile.linkedin_url || null,
+        website: profile.website || null,
+        goals: profile.goals || null,
+        user_product: profile.user_product || null,
+        user_icp: profile.user_icp || null,
+        communication_style: communicationStyle,
+        outreach_language: profile.outreach_language || 'EN',
+        message_length: profile.message_length || 'medium',
+        message_goal: profile.message_goal || 'Schedule a meeting',
+        user_message_length: profile.message_length || 'medium',
+        user_goal: profile.message_goal || profile.goals || null,
+        research_company_size: profile.research_company_size || false,
+        research_revenue: profile.research_revenue || false,
+        research_location: profile.research_location || false,
+        research_news: profile.research_news || false,
+        research_events: profile.research_events || false,
+        research_linkedin: profile.research_linkedin || false,
+        research_funding: profile.research_funding || false,
+        research_competitors: profile.research_competitors || false,
+        research_tech: profile.research_tech || false,
+        research_hiring: profile.research_hiring || false,
+        research_products: profile.research_products || false,
+        research_pain_points: profile.research_pain_points || false,
+        research_custom: profile.research_custom || null,
+      }
+
+      console.log('Saving profile:', dataToSave)
+
+      const { error: saveError } = await supabase
+        .from('abc_profiles')
+        .upsert(dataToSave, { onConflict: 'id' })
+
+      if (saveError) {
+        console.error('Save error:', saveError)
+        setError(saveError.message)
+        return
+      }
+
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
-    } catch (e) {
-      console.error(e)
+    } catch (err: unknown) {
+      console.error('Save exception:', err)
+      setError(err instanceof Error ? err.message : 'Save failed')
     }
   }
 
@@ -274,6 +340,11 @@ export default function SettingsContent() {
       >
         {saved ? '✓ Saved!' : 'Save Profile'}
       </button>
+      {error && (
+        <p style={{ marginTop: '12px', fontSize: '13px', color: '#f87171', textAlign: 'center' }}>
+          {error}
+        </p>
+      )}
     </div>
   )
 }

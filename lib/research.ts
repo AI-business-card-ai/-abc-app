@@ -300,14 +300,100 @@ export function buildConversationStarters(contact: {
   return starters.slice(0, 4)
 }
 
+export type UserProfileResearch = {
+  research_news?: boolean | null
+  research_events?: boolean | null
+  research_linkedin?: boolean | null
+  research_funding?: boolean | null
+  research_competitors?: boolean | null
+  research_tech?: boolean | null
+  research_hiring?: boolean | null
+  research_products?: boolean | null
+  research_pain_points?: boolean | null
+  research_custom?: string | null
+  custom_questions?: string | null
+  research_preferences?: string[] | null
+}
+
+export function buildResearchInstructions(userProfile?: UserProfileResearch | null): string[] {
+  const instructions: string[] = [
+    'Company name, size, industry, HQ location',
+    'Annual revenue estimate',
+    'Person full name, title, email, phone',
+    'LinkedIn URL',
+  ]
+
+  const prefs = userProfile?.research_preferences
+
+  if (userProfile?.research_news || prefs?.includes('news')) {
+    instructions.push('Latest news and press releases about the company (last 6 months)')
+  }
+  if (userProfile?.research_events || prefs?.includes('events')) {
+    instructions.push('Trade shows, conferences, expos they attend or exhibit at')
+  }
+  if (userProfile?.research_funding) {
+    instructions.push('Funding rounds, investors, investment stage')
+  }
+  if (userProfile?.research_competitors || prefs?.includes('competitors')) {
+    instructions.push('Main competitors and market position')
+  }
+  if (userProfile?.research_tech || prefs?.includes('technology')) {
+    instructions.push('Technology stack and tools they use')
+  }
+  if (userProfile?.research_hiring) {
+    instructions.push('Current job openings and hiring plans')
+  }
+  if (userProfile?.research_products) {
+    instructions.push('Products and services they offer')
+  }
+  if (userProfile?.research_pain_points || prefs?.includes('pain_points')) {
+    instructions.push('Known pain points and business challenges')
+  }
+  if (userProfile?.research_linkedin || prefs?.includes('linkedin')) {
+    instructions.push('LinkedIn activity and recent posts')
+  }
+
+  const custom = userProfile?.research_custom?.trim() || userProfile?.custom_questions?.trim()
+  if (custom) instructions.push(custom)
+
+  return instructions
+}
+
+export function buildPerplexityResearchPrompt(
+  contact: ResearchContactInput & { first_name?: string | null; last_name?: string | null; position?: string | null },
+  userProfile?: UserProfileResearch | null
+): string {
+  const firstName = contact.first_name || contact.name?.split(' ')[0] || ''
+  const lastName = contact.last_name || contact.name?.split(' ').slice(1).join(' ') || ''
+  const position = contact.position || contact.role || ''
+  const instructions = buildResearchInstructions(userProfile)
+
+  return `Research this person and company for B2B sales intelligence.
+
+Person: ${firstName} ${lastName}
+Company: ${contact.company || 'Unknown'}
+Position: ${position}
+
+Find the following information:
+${instructions.map((item, i) => `${i + 1}. ${item}`).join('\n')}
+
+Return structured data with all findings.
+Be specific, factual, and cite sources where possible.`
+}
+
 export async function runIntelligenceResearch(
   contact: ResearchContactInput & { id: string },
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  userProfile?: UserProfileResearch | null
 ): Promise<void> {
+  const runEvents = Boolean(userProfile?.research_events || userProfile?.research_preferences?.includes('events'))
+  const runPerson = Boolean(userProfile?.research_linkedin || userProfile?.research_preferences?.includes('linkedin'))
+  const runNews = Boolean(userProfile?.research_news || userProfile?.research_preferences?.includes('news'))
+
   const [eventsData, personData, newsData] = await Promise.all([
-    searchEvents(contact).catch(() => null),
-    searchPersonProfile(contact).catch(() => null),
-    searchRecentNews(contact).catch(() => null),
+    runEvents ? searchEvents(contact).catch(() => null) : Promise.resolve(null),
+    runPerson ? searchPersonProfile(contact).catch(() => null) : Promise.resolve(null),
+    runNews ? searchRecentNews(contact).catch(() => null) : Promise.resolve(null),
   ])
 
   const updates: Record<string, unknown> = {}

@@ -75,7 +75,8 @@ export async function runContactEnrichment(contactId: string, userId: string): P
         role: c.role,
         industry: c.industry,
       },
-      supabase
+      supabase,
+      profile
     ).catch((err) => {
       console.error('Intelligence research skipped:', err)
     })
