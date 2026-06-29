@@ -1,8 +1,6 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
 import ContactMobileCard from '@/components/mobile/ContactMobileCard'
 import { updateContact } from '@/lib/crm-client'
 import { logCrmActivity } from '@/lib/crm-client'
@@ -25,7 +23,6 @@ type Props = {
 }
 
 export default function MobileContactsList({ contacts, onRefresh, toast, onContactsChange }: Props) {
-  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const [filter, setFilter] = useState<FilterTab>('all')
   const pullStart = useRef(0)
@@ -134,21 +131,6 @@ export default function MobileContactsList({ contacts, onRefresh, toast, onConta
           ))
         )}
       </div>
-
-      <motion.button
-        type="button"
-        whileTap={{ scale: 0.92 }}
-        onClick={() => router.push('/scan')}
-        className="fixed right-4 z-20 w-14 h-14 rounded-full flex items-center justify-center text-xl shadow-lg lg:hidden"
-        style={{
-          bottom: 'calc(env(safe-area-inset-bottom) + 80px)',
-          background: 'linear-gradient(135deg, #00d4d4, #f0197d)',
-          boxShadow: '0 4px 24px rgba(0, 212, 212, 0.35)',
-        }}
-        aria-label="Scan card"
-      >
-        📷
-      </motion.button>
     </div>
   )
 }
