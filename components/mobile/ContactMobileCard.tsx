@@ -10,15 +10,16 @@ type Props = {
   contact: ScannedContact
   onContacted?: () => void
   onFollowUp?: () => void
+  onDelete?: (contactId: string) => void
 }
 
-export default function ContactMobileCard({ contact, onContacted, onFollowUp }: Props) {
+export default function ContactMobileCard({ contact, onContacted, onFollowUp, onDelete }: Props) {
   const router = useRouter()
   const startX = useRef(0)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [offsetX, setOffsetX] = useState(0)
   const [swiping, setSwiping] = useState(false)
-  const [showQuickMenu, setShowQuickMenu] = useState(false)
+  const [deleteRevealed, setDeleteRevealed] = useState(false)
 
   const score = contact.ai_lead_score ?? contact.match_score ?? 0
   const tier = getScoreTier(score)
@@ -36,7 +37,8 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp }: 
     startX.current = e.touches[0].clientX
     setSwiping(true)
     longPressTimer.current = setTimeout(() => {
-      setShowQuickMenu(true)
+      setDeleteRevealed(true)
+      setOffsetX(0)
       if (navigator.vibrate) navigator.vibrate(20)
     }, 500)
   }
@@ -56,12 +58,24 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp }: 
 
   function onTouchEnd() {
     clearLongPress()
-    if (showQuickMenu) return
+    if (deleteRevealed) return
     if (offsetX > 80) onContacted?.()
     else if (offsetX < -80) onFollowUp?.()
     setOffsetX(0)
     setSwiping(false)
   }
+
+  function handleDeleteClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!window.confirm('Delete this contact? This cannot be undone.')) {
+      setDeleteRevealed(false)
+      return
+    }
+    onDelete?.(contact.id)
+    setDeleteRevealed(false)
+  }
+
+  const cardOffset = deleteRevealed ? -88 : offsetX
 
   function openChannel(channel: 'linkedin' | 'email' | 'whatsapp') {
     hapticAndOpen(channel)
@@ -99,17 +113,35 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp }: 
 
   return (
     <>
+    <div className="relative overflow-hidden rounded-2xl">
+      <button
+        type="button"
+        onClick={handleDeleteClick}
+        className="absolute inset-y-0 right-0 z-0 flex items-center justify-center font-bold text-sm min-w-[88px]"
+        style={{ background: '#ef4444', color: '#fff' }}
+        aria-label="Delete contact"
+      >
+        Delete
+      </button>
+
     <div
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      className="relative rounded-2xl p-4 flex flex-col gap-3 touch-pan-y transition-transform"
+      className="relative z-10 rounded-2xl p-4 flex flex-col gap-3 touch-pan-y transition-transform"
       style={{
         background: '#141628',
         border: '1px solid rgba(139, 92, 246, 0.15)',
-        transform: `translateX(${offsetX}px)`,
+        transform: `translateX(${cardOffset}px)`,
+        transition: deleteRevealed ? 'transform 0.2s ease-out' : swiping ? 'none' : 'transform 0.2s ease-out',
       }}
-      onClick={() => router.push('/contact/' + contact.id)}
+      onClick={() => {
+        if (deleteRevealed) {
+          setDeleteRevealed(false)
+          return
+        }
+        router.push('/contact/' + contact.id)
+      }}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && router.push('/contact/' + contact.id)}
@@ -187,37 +219,7 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp }: 
           ))}
       </div>
     </div>
-
-    {showQuickMenu && (
-      <div
-        className="fixed inset-0 z-50 flex items-end justify-center p-4"
-        style={{ background: 'rgba(10,12,20,0.7)' }}
-        onClick={() => setShowQuickMenu(false)}
-      >
-        <div
-          className="w-full max-w-md rounded-2xl p-4 flex flex-col gap-2"
-          style={{ background: '#141628', border: '1px solid rgba(139,92,246,0.2)' }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <p className="font-bold text-center mb-2" style={{ color: '#f0f0ff' }}>{contact.name}</p>
-          {[
-            { label: '✓ Mark contacted', action: () => { onContacted?.(); setShowQuickMenu(false) } },
-            { label: '→ Add follow-up', action: () => { onFollowUp?.(); setShowQuickMenu(false) } },
-            { label: '👤 Open dashboard', action: () => { setShowQuickMenu(false); router.push('/contact/' + contact.id) } },
-          ].map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={item.action}
-              className="w-full rounded-xl py-3 text-sm font-semibold min-h-[48px]"
-              style={{ background: 'rgba(0,212,212,0.1)', border: '1px solid rgba(0,212,212,0.25)', color: '#00d4d4' }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    )}
+    </div>
     </>
   )
 }

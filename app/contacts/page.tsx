@@ -213,15 +213,13 @@ export default function ContactsPage() {
   }
 
   const handleDelete = async (contactId: string) => {
-    if (!confirm('Delete this contact?')) return
+    if (!confirm('Delete this contact? This cannot be undone.')) return
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-
       const res = await fetch('/api/card/delete', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId, userId: user?.id }),
+        body: JSON.stringify({ contactId }),
       })
 
       if (res.ok) {

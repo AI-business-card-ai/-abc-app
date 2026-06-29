@@ -1,24 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabase } from '@/lib/supabase'
+import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { createServiceClient } from '@/lib/supabase/service'
 
-export async function DELETE(req: NextRequest) {
+async function deleteContact(req: NextRequest) {
   try {
-    const { contactId, userId } = (await req.json()) as {
-      contactId?: string
-      userId?: string
+    const authClient = createRouteHandlerClient()
+    const {
+      data: { user },
+    } = await authClient.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!contactId || !userId) {
-      return NextResponse.json({ error: 'Missing contactId or userId' }, { status: 400 })
+    const body = (await req.json()) as { contactId?: string }
+    const { contactId } = body
+
+    if (!contactId) {
+      return NextResponse.json({ error: 'Missing contactId' }, { status: 400 })
     }
 
-    const supabase = createServerSupabase()
-
+    const supabase = createServiceClient()
     const { error } = await supabase
       .from('scanned_contacts')
       .delete()
       .eq('id', contactId)
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
 
     if (error) throw error
 
@@ -27,4 +34,12 @@ export async function DELETE(req: NextRequest) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   }
+}
+
+export async function DELETE(req: NextRequest) {
+  return deleteContact(req)
+}
+
+export async function POST(req: NextRequest) {
+  return deleteContact(req)
 }

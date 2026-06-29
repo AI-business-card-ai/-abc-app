@@ -64,6 +64,22 @@ export default function MobileContactsList({ contacts, onRefresh, toast, onConta
     }
   }
 
+  async function handleDeleteContact(contactId: string) {
+    try {
+      const res = await fetch('/api/card/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId }),
+      })
+      const json = (await res.json()) as { success?: boolean; error?: string }
+      if (!res.ok || !json.success) throw new Error(json.error || 'Delete failed')
+      onContactsChange((prev) => prev.filter((c) => c.id !== contactId))
+      toast('Contact deleted')
+    } catch {
+      toast('Failed to delete')
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3 pb-24">
       <input
@@ -113,6 +129,7 @@ export default function MobileContactsList({ contacts, onRefresh, toast, onConta
               contact={c}
               onContacted={() => markContacted(c.id)}
               onFollowUp={() => markFollowUp(c.id)}
+              onDelete={handleDeleteContact}
             />
           ))
         )}

@@ -162,6 +162,7 @@ export default function ContactCrmDetailPage() {
   const [nextStep, setNextStep] = useState('')
   const [leadStatus, setLeadStatus] = useState('New')
   const [rating, setRating] = useState('Warm')
+  const [deleteHover, setDeleteHover] = useState(false)
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -391,6 +392,28 @@ export default function ContactCrmDetailPage() {
       showToast(outcome === 'won' ? 'Marked as Won' : 'Marked as Lost')
     } catch (e) {
       console.error(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteContact() {
+    if (!contact) return
+    if (!window.confirm('Delete this contact? This cannot be undone.')) return
+
+    setSaving(true)
+    try {
+      const res = await fetch('/api/card/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: contact.id }),
+      })
+      const json = (await res.json()) as { success?: boolean; error?: string }
+      if (!res.ok || !json.success) throw new Error(json.error || 'Delete failed')
+      router.push('/contacts')
+    } catch (e) {
+      console.error(e)
+      showToast('Failed to delete contact')
     } finally {
       setSaving(false)
     }
@@ -736,6 +759,26 @@ export default function ContactCrmDetailPage() {
               <button type="button" onClick={() => exportToHubSpot(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2d3e', background: '#1a1d2e', color: '#f0f0ff', cursor: 'pointer', fontSize: '13px' }}>Export to HubSpot</button>
               <button type="button" disabled={saving} onClick={() => markOutcome('won')} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#22c55e', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Mark as Won</button>
               <button type="button" disabled={saving} onClick={() => markOutcome('lost')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 700, cursor: 'pointer' }}>Mark as Lost</button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={deleteContact}
+                onMouseEnter={() => setDeleteHover(true)}
+                onMouseLeave={() => setDeleteHover(false)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1px solid #ef4444',
+                  background: deleteHover ? 'rgba(239,68,68,0.1)' : 'transparent',
+                  color: '#ef4444',
+                  fontWeight: 700,
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  fontSize: '13px',
+                }}
+              >
+                🗑️ Delete Contact
+              </button>
             </div>
           </div>
         </div>

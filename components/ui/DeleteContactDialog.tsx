@@ -66,11 +66,11 @@ export default function DeleteContactDialog({
   )
 }
 
-async function deleteContactApi(contactId: string, userId: string) {
+async function deleteContactApi(contactId: string) {
   const res = await fetch('/api/card/delete', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contactId, userId }),
+    body: JSON.stringify({ contactId }),
   })
   const json = await res.json()
   if (!res.ok || !json.success) {
