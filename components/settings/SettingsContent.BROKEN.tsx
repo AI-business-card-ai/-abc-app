@@ -304,7 +304,7 @@ export default function SettingsContent() {
   const subtitle = [safeProfile.company, safeProfile.role]
     .filter((v): v is string => typeof v === 'string' && v.length > 0)
     .join(' · ') || 'Company · Role'
-  const userPromptText = typeof safeProfile.user_prompt === 'string' ? safeProfile.user_prompt : ''
+  const userPromptText = typeof safeProfile.system_prompt === 'string' ? safeProfile.system_prompt : ''
   const commStyle = safeProfile.communication_style || 'direct'
   const outreachLang = safeProfile.outreach_language || 'EN'
 
@@ -456,7 +456,7 @@ export default function SettingsContent() {
             style={{ background: 'rgba(0,212,212,0.08)', border: '1px solid rgba(0,212,212,0.25)' }}
           >
             <span className="text-sm font-semibold" style={{ color: '#00d4d4' }}>
-              ✓ Messages language: {getLanguageLabel(safeProfile.user_language ?? 'EN')}
+              ✓ Messages language: {getLanguageLabel(safeProfile.outreach_language ?? 'EN')}
             </span>
             <button
               type="button"
@@ -470,19 +470,19 @@ export default function SettingsContent() {
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
               <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Name</p>
-              <p style={{ color: '#f0f0ff' }}>{safeProfile.user_name || safeProfile.full_name || '—'}</p>
+              <p style={{ color: '#f0f0ff' }}>{safeProfile.full_name || '—'}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Company</p>
-              <p style={{ color: '#f0f0ff' }}>{safeProfile.user_company || safeProfile.company || '—'}</p>
+              <p style={{ color: '#f0f0ff' }}>{safeProfile.company || '—'}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Role</p>
-              <p style={{ color: '#f0f0ff' }}>{safeProfile.user_role || safeProfile.role || '—'}</p>
+              <p style={{ color: '#f0f0ff' }}>{safeProfile.role || '—'}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase" style={{ color: '#4a5168' }}>Style</p>
-              <p style={{ color: '#f0f0ff' }}>{safeProfile.user_style || commStyle || '—'}</p>
+              <p style={{ color: '#f0f0ff' }}>{commStyle || '—'}</p>
             </div>
           </div>
           {userPromptText ? (

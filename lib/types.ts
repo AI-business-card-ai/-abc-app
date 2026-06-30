@@ -195,16 +195,9 @@ export interface ABCProfile {
   salesforce_instance_url: string | null
   salesforce_connected_at: string | null
   webhook_url: string | null
-  user_name: string | null
-  user_company: string | null
-  user_role: string | null
-  user_product: string | null
-  user_goal: string | null
-  user_icp: string | null
-  user_style: string | null
-  user_language: string | null
-  user_message_length: string | null
-  user_prompt: string | null
+  product_description: string | null
+  icp: string | null
+  system_prompt: string | null
   onboarding_completed: boolean | null
   message_goal: string | null
   message_length: string | null

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
+import { normalizeAbcProfile } from '@/lib/profile-defaults'
 import type { ABCProfile } from '@/lib/types'
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6
@@ -78,22 +79,25 @@ export default function OnboardingPage() {
         .maybeSingle()
 
       if (data) {
-        const profile = data as ABCProfile
+        const profile = normalizeAbcProfile(data as Partial<ABCProfile>, user.email)
         if (profile.onboarding_completed) {
           setIsEditing(true)
         }
-        setName(profile.user_name || profile.full_name || '')
-        setCompany(profile.user_company || profile.company || '')
-        setRole(profile.user_role || profile.role || '')
-        setProduct(profile.user_product || '')
-        setIcp(profile.user_icp || '')
-        const savedTone = profile.user_style || TONE_OPTIONS[0]
+        setName(profile.full_name || '')
+        setCompany(profile.company || '')
+        setRole(profile.role || '')
+        setProduct(profile.product_description || '')
+        setIcp(profile.icp || '')
+        const savedTone =
+          profile.communication_style === 'casual'
+            ? TONE_OPTIONS[1]
+            : TONE_OPTIONS[0]
         setTone(TONE_OPTIONS.includes(savedTone) ? savedTone : TONE_OPTIONS[0])
-        const savedLang = profile.outreach_language || profile.user_language || 'EN'
+        const savedLang = profile.outreach_language || 'EN'
         setLanguage(LANGUAGE_OPTIONS.includes(savedLang) ? savedLang : 'EN')
-        const savedLen = profile.user_message_length || LENGTH_OPTIONS[0]
+        const savedLen = profile.message_length || LENGTH_OPTIONS[0]
         setMessageLength(LENGTH_OPTIONS.includes(savedLen) ? savedLen : LENGTH_OPTIONS[0])
-        const savedGoal = profile.user_goal || profile.goals || GOAL_OPTIONS[0]
+        const savedGoal = profile.message_goal || profile.goals || GOAL_OPTIONS[0]
         setGoal(GOAL_OPTIONS.includes(savedGoal) ? savedGoal : GOAL_OPTIONS[0])
       }
       setLoading(false)

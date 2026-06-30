@@ -31,16 +31,9 @@ export const EMPTY_ABC_PROFILE: Omit<ABCProfile, 'id'> = {
   salesforce_instance_url: null,
   salesforce_connected_at: null,
   webhook_url: null,
-  user_name: null,
-  user_company: null,
-  user_role: null,
-  user_product: null,
-  user_goal: null,
-  user_icp: null,
-  user_style: null,
-  user_language: 'EN',
-  user_message_length: null,
-  user_prompt: null,
+  product_description: null,
+  icp: null,
+  system_prompt: null,
   onboarding_completed: false,
   message_goal: 'Schedule a meeting',
   message_length: 'medium',
@@ -61,6 +54,20 @@ export const EMPTY_ABC_PROFILE: Omit<ABCProfile, 'id'> = {
 
 const STYLE_VALUES = new Set<ABCProfile['communication_style']>(['direct', 'formal', 'casual'])
 const PLAN_VALUES = new Set<ABCProfile['plan']>(['free', 'starter', 'pro', 'team'])
+
+/** Legacy DB column names from pre-unification profiles */
+type LegacyProfileFields = {
+  user_name?: string | null
+  user_company?: string | null
+  user_role?: string | null
+  user_product?: string | null
+  user_goal?: string | null
+  user_icp?: string | null
+  user_style?: string | null
+  user_language?: string | null
+  user_message_length?: string | null
+  user_prompt?: string | null
+}
 
 function parseResearchPreferences(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -93,33 +100,42 @@ function asNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
+function mapLegacyStyle(style: string | null | undefined): ABCProfile['communication_style'] {
+  if (!style) return 'direct'
+  const lower = style.toLowerCase()
+  if (lower.includes('formal')) return 'formal'
+  if (lower.includes('casual')) return 'casual'
+  return 'direct'
+}
+
 /** Safe defaults when abc_profiles row is missing or partially migrated. */
 export function normalizeAbcProfile(
-  raw: Partial<ABCProfile> | null | undefined,
+  raw: Partial<ABCProfile & LegacyProfileFields> | null | undefined,
   userEmail?: string | null
 ): Omit<ABCProfile, 'id'> {
   const data = raw ?? {}
+  const legacy = data as LegacyProfileFields
   const researchPreferences = parseResearchPreferences(data.research_preferences)
   const communicationStyle = STYLE_VALUES.has(data.communication_style as ABCProfile['communication_style'])
     ? (data.communication_style as ABCProfile['communication_style'])
-    : 'direct'
+    : mapLegacyStyle(legacy.user_style)
   const plan = PLAN_VALUES.has(data.plan as ABCProfile['plan'])
     ? (data.plan as ABCProfile['plan'])
     : 'free'
 
   return {
     ...EMPTY_ABC_PROFILE,
-    full_name: asString(data.full_name || data.user_name, ''),
-    company: asString(data.company || data.user_company, ''),
-    role: asString(data.role || data.user_role, ''),
+    full_name: asString(data.full_name || legacy.user_name, ''),
+    company: asString(data.company || legacy.user_company, ''),
+    role: asString(data.role || legacy.user_role, ''),
     email: asString(data.email, userEmail ?? ''),
     phone: asString(data.phone, ''),
     linkedin_url: asString(data.linkedin_url, ''),
     website: asString(data.website, ''),
     avatar_url: asString(data.avatar_url, ''),
     communication_style: communicationStyle,
-    outreach_language: asString(data.outreach_language || data.user_language, 'EN'),
-    goals: asString(data.goals || data.user_goal, ''),
+    outreach_language: asString(data.outreach_language || legacy.user_language, 'EN'),
+    goals: asString(data.goals || legacy.user_goal, ''),
     plan,
     plan_activated_at: asNullableString(data.plan_activated_at),
     stripe_customer_id: asNullableString(data.stripe_customer_id),
@@ -138,19 +154,12 @@ export function normalizeAbcProfile(
     salesforce_instance_url: asNullableString(data.salesforce_instance_url),
     salesforce_connected_at: asNullableString(data.salesforce_connected_at),
     webhook_url: asNullableString(data.webhook_url),
-    user_name: asNullableString(data.user_name),
-    user_company: asNullableString(data.user_company),
-    user_role: asNullableString(data.user_role),
-    user_product: asNullableString(data.user_product),
-    user_goal: asNullableString(data.user_goal),
-    user_icp: asNullableString(data.user_icp),
-    user_style: asNullableString(data.user_style),
-    user_language: asString(data.user_language, 'EN'),
-    user_message_length: asNullableString(data.user_message_length || data.message_length),
-    user_prompt: asNullableString(data.user_prompt),
+    product_description: asNullableString(data.product_description || legacy.user_product),
+    icp: asNullableString(data.icp || legacy.user_icp),
+    system_prompt: asNullableString(data.system_prompt || legacy.user_prompt),
     onboarding_completed: Boolean(data.onboarding_completed),
-    message_goal: asString(data.message_goal || data.user_goal, 'Schedule a meeting'),
-    message_length: asString(data.message_length || data.user_message_length, 'medium'),
+    message_goal: asString(data.message_goal || legacy.user_goal, 'Schedule a meeting'),
+    message_length: asString(data.message_length || legacy.user_message_length, 'medium'),
     research_company_size: Boolean(data.research_company_size),
     research_revenue: Boolean(data.research_revenue),
     research_location: Boolean(data.research_location),

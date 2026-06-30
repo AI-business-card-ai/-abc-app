@@ -134,23 +134,18 @@ export async function POST(req: NextRequest) {
       .from('abc_profiles')
       .upsert({
         id: user.id,
-        user_name: name,
-        user_company: company,
-        user_role: role,
-        user_product: product,
-        user_goal: goal,
-        user_icp: icp,
-        user_style: style,
-        user_language: language,
-        user_message_length: body.messageLength || null,
-        user_prompt: userPrompt,
-        onboarding_completed: true,
         full_name: name,
         company,
         role,
+        product_description: product,
+        icp,
         goals: goal,
+        message_goal: goal,
+        message_length: body.messageLength || null,
         communication_style: communicationStyle,
         outreach_language: language,
+        system_prompt: userPrompt,
+        onboarding_completed: true,
       })
 
     if (error) throw error

@@ -61,13 +61,12 @@ function buildMessagePrompt(
   const language = userProfile.outreach_language || 'EN'
   const languageInstruction = getLanguageInstruction(language)
   const userPrompt =
-    userProfile.user_prompt ||
+    userProfile.system_prompt ||
     'You are a professional B2B networking assistant.'
-  const userName = userProfile.user_name || userProfile.full_name || 'the user'
+  const userName = userProfile.full_name || 'the user'
   const communicationStyle = userProfile.communication_style || 'direct'
-  const messageLength = userProfile.message_length || userProfile.user_message_length || 'medium'
-  const messageGoal =
-    userProfile.message_goal || userProfile.user_goal || userProfile.goals || 'Schedule a meeting'
+  const messageLength = userProfile.message_length || 'medium'
+  const messageGoal = userProfile.message_goal || userProfile.goals || 'Schedule a meeting'
 
   const lengthGuide =
     messageLength === 'short'
@@ -81,10 +80,10 @@ function buildMessagePrompt(
 ${languageInstruction}
 
 The user's name is ${userName}.
-Their company is ${userProfile.user_company || userProfile.company || ''}.
-Their role is ${userProfile.user_role || userProfile.role || ''}.
-They offer: ${userProfile.user_product || ''}.
-Their goal: ${userProfile.user_goal || userProfile.goals || ''}.
+Their company is ${userProfile.company || ''}.
+Their role is ${userProfile.role || ''}.
+They offer: ${userProfile.product_description || ''}.
+Their goal: ${userProfile.goals || ''}.
 Communication tone: ${communicationStyle} (direct=concise and confident, formal=professional, casual=warm and relaxed).
 Message length preference: ${messageLength}. ${lengthGuide}
 Primary CTA goal: ${messageGoal} — every message should drive toward this outcome.

@@ -27,7 +27,10 @@ export default function SettingsContent() {
         if (data) {
           setProfile({
             ...data,
-            message_goal: data.message_goal || data.user_goal || 'Schedule a meeting',
+            product_description: data.product_description || data.user_product || '',
+            icp: data.icp || data.user_icp || '',
+            goals: data.goals || data.user_goal || '',
+            message_goal: data.message_goal || data.user_goal || data.goals || 'Schedule a meeting',
             message_length: data.message_length || data.user_message_length || 'medium',
           })
         }
@@ -64,14 +67,12 @@ export default function SettingsContent() {
         linkedin_url: profile.linkedin_url || null,
         website: profile.website || null,
         goals: profile.goals || null,
-        user_product: profile.user_product || null,
-        user_icp: profile.user_icp || null,
+        product_description: profile.product_description || null,
+        icp: profile.icp || null,
         communication_style: communicationStyle,
         outreach_language: profile.outreach_language || 'EN',
         message_length: profile.message_length || 'medium',
         message_goal: profile.message_goal || 'Schedule a meeting',
-        user_message_length: profile.message_length || 'medium',
-        user_goal: profile.message_goal || profile.goals || null,
         research_company_size: profile.research_company_size || false,
         research_revenue: profile.research_revenue || false,
         research_location: profile.research_location || false,
@@ -168,8 +169,8 @@ export default function SettingsContent() {
           rows={3}
           style={{ width: '100%', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '10px 14px', color: '#ffffff', fontSize: '13px', outline: 'none', resize: 'none' }}
         />
-        {field('Your Product/Service', 'user_product', 'ABC AI Business Card — scan to CRM in 10 seconds')}
-        {field('Target Customer (ICP)', 'user_icp', 'Sales Directors, Founders, B2B tech companies EU/US')}
+        {field('Your Product/Service', 'product_description', 'ABC AI Business Card — scan to CRM in 10 seconds')}
+        {field('Target Customer (ICP)', 'icp', 'Sales Directors, Founders, B2B tech companies EU/US')}
       </div>
 
       <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>
