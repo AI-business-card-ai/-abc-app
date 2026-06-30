@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClientComponent } from '@/lib/supabase'
+import { normalizeAbcProfile } from '@/lib/profile-defaults'
+import type { ABCProfile } from '@/lib/types'
 
 export default function SettingsContent() {
   const supabase = useMemo(() => createClientComponent(), [])
@@ -25,14 +27,7 @@ export default function SettingsContent() {
           setError(loadError.message)
         }
         if (data) {
-          setProfile({
-            ...data,
-            product_description: data.product_description || data.user_product || '',
-            icp: data.icp || data.user_icp || '',
-            goals: data.goals || data.user_goal || '',
-            message_goal: data.message_goal || data.user_goal || data.goals || 'Schedule a meeting',
-            message_length: data.message_length || data.user_message_length || 'medium',
-          })
+          setProfile(normalizeAbcProfile(data as Partial<ABCProfile>, user.email))
         }
       } catch (e) {
         console.error('Profile load exception:', e)

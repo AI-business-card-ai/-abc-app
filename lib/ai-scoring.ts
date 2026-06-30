@@ -74,10 +74,13 @@ function buildScoringPrompt(contact: ScannedContact, userProfile: ABCProfile): s
   return `You are a B2B sales qualification expert.
 
 SELLER PROFILE:
+- Name: ${userProfile.full_name || 'N/A'}
 - Company: ${userProfile.company || 'N/A'}
 - Product/Service: ${userProfile.product_description || 'N/A'}
 - Ideal Customer (ICP): ${userProfile.icp || 'N/A'}
 - Goals: ${userProfile.goals || 'N/A'}
+- Communication style: ${userProfile.communication_style || 'direct'}
+- Outreach language: ${userProfile.outreach_language || 'EN'}
 
 CONTACT TO EVALUATE:
 - Name: ${first} ${last}
