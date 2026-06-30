@@ -15,7 +15,7 @@ export type OpportunityStage =
   | 'Closed Won'
   | 'Closed Lost'
 
-export type MessageChannel = 'LinkedIn' | 'Email' | 'WhatsApp'
+export type MessageChannel = 'LinkedIn' | 'Email' | 'WhatsApp' | 'Gmail'
 
 const CRM_STATUS_ORDER: CRMStatus[] = ['NEW', 'ENRICHED', 'CONTACTED', 'IN_CONVERSATION', 'CLOSED']
 const PIPELINE_ORDER: PipelineStage[] = ['new', 'follow-up', 'meeting', 'deal', 'won']
@@ -245,7 +245,11 @@ export async function onMessageSent(
   await scheduleFollowUpReminder(contactId, userId, 3)
 
   const activityType: ActivityType =
-    channel === 'LinkedIn' ? 'LINKEDIN_COPIED' : channel === 'Email' ? 'EMAIL_SENT' : 'WHATSAPP_OPENED'
+    channel === 'LinkedIn'
+      ? 'LINKEDIN_COPIED'
+      : channel === 'Email' || channel === 'Gmail'
+        ? 'EMAIL_SENT'
+        : 'WHATSAPP_OPENED'
 
   const preview = messageText.trim().slice(0, 100)
   await logActivity(

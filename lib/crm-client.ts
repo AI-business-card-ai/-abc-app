@@ -41,7 +41,7 @@ export async function updateContact(payload: {
 
 export async function logMessageSent(payload: {
   contactId: string
-  channel: 'LinkedIn' | 'Email' | 'WhatsApp'
+  channel: 'LinkedIn' | 'Email' | 'WhatsApp' | 'Gmail'
   messageText: string
 }) {
   const res = await fetch('/api/contact/message-sent', {

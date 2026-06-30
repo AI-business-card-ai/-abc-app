@@ -10,6 +10,7 @@ import { PIPELINE_STAGES } from '@/lib/pipeline'
 import { getStatusColor } from '@/lib/pipeline-ai'
 import { logCrmActivity, logDealOutcome, updateContact } from '@/lib/crm-client'
 import { exportToHubSpot, exportToSalesforce } from '@/lib/crm-export'
+import { hasGmailAccess } from '@/lib/google-oauth'
 import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/types'
 
 const CARD = { background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px' } as const
@@ -250,6 +251,8 @@ export default function ContactCrmDetailPage() {
   const [leadStatus, setLeadStatus] = useState('New')
   const [rating, setRating] = useState('Warm')
   const [deleteHover, setDeleteHover] = useState(false)
+  const [hasGmail, setHasGmail] = useState(false)
+  const [sendingGmail, setSendingGmail] = useState(false)
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -314,6 +317,16 @@ export default function ContactCrmDetailPage() {
   }, [id, router, supabase, syncDealForm])
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setHasGmail(hasGmailAccess(session))
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setHasGmail(hasGmailAccess(session))
+    })
+    return () => subscription.unsubscribe()
+  }, [supabase])
+
+  useEffect(() => {
     if (contact) setVariants(buildVariantsFromContact(contact))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-init when message fields change, not whole contact object
   }, [contact?.id, contact?.message_linkedin, contact?.message_email, contact?.message_whatsapp])
@@ -345,6 +358,37 @@ export default function ContactCrmDetailPage() {
   }
 
   function handleSendSelected() {
+    void handleSendSelectedAsync()
+  }
+
+  async function sendGmailViaApi(subject: string, body: string) {
+    if (!contact) return false
+    setSendingGmail(true)
+    try {
+      const res = await fetch('/api/contact/send-gmail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contactId: contact.id,
+          subject,
+          body,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Gmail send failed')
+      if (json.contact) applyContact(json.contact as ScannedContact)
+      setActivityKey((k) => k + 1)
+      return true
+    } catch (e) {
+      console.error(e)
+      showToast(e instanceof Error ? e.message : 'Gmail send failed')
+      return false
+    } finally {
+      setSendingGmail(false)
+    }
+  }
+
+  async function handleSendSelectedAsync() {
     if (!contact) return
     const emailSubject = contact.email_subject || ''
     const whatsappPhone = contact.phone || contact.mobile_phone || contact.whatsapp_number || ''
@@ -365,8 +409,13 @@ export default function ContactCrmDetailPage() {
 
       if (variant.platforms.email) {
         if (contact.email) {
-          sendEmail(contact.email, emailSubject || 'Following up', text)
-          toasts.push('Email opened ✓')
+          if (hasGmail) {
+            const sent = await sendGmailViaApi(emailSubject || 'Following up', text)
+            toasts.push(sent ? 'Gmail sent ✓' : 'Gmail send failed')
+          } else {
+            sendEmail(contact.email, emailSubject || 'Following up', text)
+            toasts.push('Email opened ✓')
+          }
         } else {
           toasts.push('Email address missing')
         }
@@ -388,6 +437,30 @@ export default function ContactCrmDetailPage() {
     }
 
     showToastSequence(toasts)
+  }
+
+  async function handleQuickGmailSend() {
+    if (!contact?.email) {
+      showToast('Email address missing')
+      return
+    }
+    const text = variants.find((v) => v.text.trim())?.text.trim() || contact.message_email || ''
+    if (!text) {
+      showToast('No message to send')
+      return
+    }
+    const sent = await sendGmailViaApi(contact.email_subject || 'Following up', text)
+    showToast(sent ? 'Gmail sent ✓' : 'Gmail send failed')
+  }
+
+  function handleQuickEmailOpen() {
+    if (!contact?.email) {
+      showToast('Email address missing')
+      return
+    }
+    const text = variants.find((v) => v.text.trim())?.text.trim() || contact.message_email || ''
+    sendEmail(contact.email, contact.email_subject || 'Following up', text)
+    showToast('Email opened ✓')
   }
 
   const applyContact = (c: ScannedContact) => {
@@ -530,6 +603,11 @@ export default function ContactCrmDetailPage() {
   const speaking = Array.isArray(contact.speaking_engagements) ? contact.speaking_engagements : []
 
   const emailSubject = contact.email_subject || ''
+
+  const emailSelected = variants.some((v) => v.platforms.email)
+  const sendButtonLabel = hasGmail && emailSelected && !variants.some((v) => v.platforms.linkedin || v.platforms.whatsapp)
+    ? 'Send from Gmail →'
+    : 'Send Selected →'
 
   return (
     <div style={{ background: '#0f0f0f', minHeight: '100vh', padding: '16px 16px 140px' }}>
@@ -843,6 +921,26 @@ export default function ContactCrmDetailPage() {
             <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>QUICK ACTIONS</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button type="button" onClick={() => router.push(`/contact/${contact.id}`)} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#00d4d4', color: '#0f0f0f', fontWeight: 700, cursor: 'pointer' }}>Send Follow-up</button>
+              {contact.email && (
+                hasGmail ? (
+                  <button
+                    type="button"
+                    disabled={sendingGmail}
+                    onClick={() => void handleQuickGmailSend()}
+                    style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: sendingGmail ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 600 }}
+                  >
+                    {sendingGmail ? 'Sending…' : 'Send from Gmail →'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleQuickEmailOpen}
+                    style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
+                  >
+                    Open Email →
+                  </button>
+                )
+              )}
               <button type="button" onClick={() => showToast('Meeting scheduler coming soon')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer' }}>Schedule Meeting</button>
               <button type="button" onClick={() => exportToSalesforce(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to Salesforce</button>
               <button type="button" onClick={() => exportToHubSpot(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to HubSpot</button>
@@ -886,7 +984,7 @@ export default function ContactCrmDetailPage() {
       >
         <button
           type="button"
-          disabled={selectedSendCount === 0}
+          disabled={selectedSendCount === 0 || sendingGmail}
           onClick={handleSendSelected}
           style={{
             width: '100%',
@@ -906,7 +1004,7 @@ export default function ContactCrmDetailPage() {
             boxShadow: selectedSendCount === 0 ? 'none' : '0 8px 32px rgba(0,212,212,0.25)',
           }}
         >
-          Send Selected →
+          {sendingGmail ? 'Sending…' : sendButtonLabel}
           {selectedSendCount > 0 && (
             <span style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginTop: '2px', opacity: 0.85 }}>
               Send {selectedSendCount} message{selectedSendCount === 1 ? '' : 's'}

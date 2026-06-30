@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClientComponent } from '@/lib/supabase'
 import { normalizeAbcProfile } from '@/lib/profile-defaults'
 import type { ABCProfile } from '@/lib/types'
+import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
+import { getGoogleAccountEmail, hasGmailAccess, isGoogleProvider } from '@/lib/google-oauth'
+import type { Session } from '@supabase/supabase-js'
 
 export default function SettingsContent() {
   const supabase = useMemo(() => createClientComponent(), [])
@@ -11,6 +14,13 @@ export default function SettingsContent() {
   const [profile, setProfile] = useState<any>({})
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
+    return () => subscription.unsubscribe()
+  }, [supabase])
 
   useEffect(() => {
     const load = async () => {
@@ -152,6 +162,41 @@ export default function SettingsContent() {
         {field('Phone', 'phone', '+420 ...')}
         {field('LinkedIn URL', 'linkedin_url', 'linkedin.com/in/...')}
         {field('Website', 'website', 'apexpo.com')}
+      </div>
+
+      <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>
+        <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>CONNECTED ACCOUNTS</div>
+        {isGoogleProvider(session) ? (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.56 2.95-2.23 5.45-4.76 7.11l7.73 6.01c4.51-4.16 7.11-10.28 7.11-17.59z" />
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6.01c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+              </svg>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>Google connected</div>
+                <div style={{ fontSize: '12px', color: '#555555' }}>{getGoogleAccountEmail(session) || '—'}</div>
+              </div>
+            </div>
+            <p style={{ margin: '0 0 12px', fontSize: '12px', color: hasGmailAccess(session) ? '#22c55e' : '#fbbf24' }}>
+              {hasGmailAccess(session)
+                ? 'Emails will be sent from your Gmail'
+                : 'Reconnect Google to enable sending from Gmail'}
+            </p>
+            {!hasGmailAccess(session) && (
+              <GoogleSignInButton nextPath="/settings" label="Reconnect Google" />
+            )}
+          </div>
+        ) : (
+          <div>
+            <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#555555' }}>
+              Connect Google to send from your own email
+            </p>
+            <GoogleSignInButton nextPath="/settings" label="Connect Google" />
+          </div>
+        )}
       </div>
 
       <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>

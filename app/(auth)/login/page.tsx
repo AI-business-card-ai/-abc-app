@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
+import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -49,39 +50,49 @@ export default function LoginPage() {
           <p className="mt-3 text-sm text-text-secondary">Scan. Know. Connect.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="abc-card p-5 flex flex-col gap-4">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            className="abc-input px-4 py-3 text-sm"
-          />
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Heslo"
-            className="abc-input px-4 py-3 text-sm"
-          />
+        <div className="abc-card p-5 flex flex-col gap-4">
+          <GoogleSignInButton nextPath="/dashboard" />
 
-          {error && (
-            <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
-              {error}
-            </p>
-          )}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px" style={{ background: '#2a2a2a' }} />
+            <span className="text-xs text-text-secondary shrink-0">or continue with email</span>
+            <div className="flex-1 h-px" style={{ background: '#2a2a2a' }} />
+          </div>
 
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            type="submit"
-            disabled={loading}
-            className={`glow-btn w-full rounded-xl text-white font-semibold py-3.5 ${loading ? 'opacity-40' : ''}`}
-          >
-            {loading ? 'Přihlašuji...' : 'Přihlásit se'}
-          </motion.button>
-        </form>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              className="abc-input px-4 py-3 text-sm"
+            />
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Heslo"
+              className="abc-input px-4 py-3 text-sm"
+            />
+
+            {error && (
+              <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
+                {error}
+              </p>
+            )}
+
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              type="submit"
+              disabled={loading}
+              className={`glow-btn w-full rounded-xl text-white font-semibold py-3.5 ${loading ? 'opacity-40' : ''}`}
+            >
+              {loading ? 'Přihlašuji...' : 'Přihlásit se'}
+            </motion.button>
+          </form>
+        </div>
 
         <p className="text-center text-sm text-text-secondary relative">
           Nemáš účet?{' '}

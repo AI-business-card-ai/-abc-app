@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing contactId or channel' }, { status: 400 })
     }
 
-    const channels: MessageChannel[] = ['LinkedIn', 'Email', 'WhatsApp']
+    const channels: MessageChannel[] = ['LinkedIn', 'Email', 'WhatsApp', 'Gmail']
     if (!channels.includes(body.channel)) {
       return NextResponse.json({ error: 'Invalid channel' }, { status: 400 })
     }
