@@ -3,10 +3,9 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 export const GOOGLE_GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send'
 
 export function getGoogleOAuthRedirectTo(nextPath = '/dashboard') {
-  if (typeof window === 'undefined') {
-    return `/auth/callback?next=${encodeURIComponent(nextPath)}`
-  }
-  return `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  const base = appUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+  return `${base}/auth/callback?next=${encodeURIComponent(nextPath)}`
 }
 
 export async function signInWithGoogle(
@@ -30,6 +29,13 @@ export function isGoogleProvider(session: Session | null): boolean {
   if (!session?.user) return false
   const provider = session.user.app_metadata?.provider
   const providers = session.user.app_metadata?.providers as string[] | undefined
+  return provider === 'google' || providers?.includes('google') === true
+}
+
+export function isGoogleUser(user: { app_metadata?: Record<string, unknown> } | null | undefined): boolean {
+  if (!user) return false
+  const provider = user.app_metadata?.provider
+  const providers = user.app_metadata?.providers as string[] | undefined
   return provider === 'google' || providers?.includes('google') === true
 }
 

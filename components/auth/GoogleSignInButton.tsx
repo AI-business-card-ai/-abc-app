@@ -7,13 +7,17 @@ import { signInWithGoogle } from '@/lib/google-oauth'
 type Props = {
   nextPath?: string
   label?: string
+  variant?: 'primary' | 'default'
 }
 
 export default function GoogleSignInButton({
   nextPath = '/dashboard',
   label = 'Continue with Google',
+  variant = 'default',
 }: Props) {
   const [loading, setLoading] = useState(false)
+  const [hover, setHover] = useState(false)
+  const isPrimary = variant === 'primary'
 
   async function handleClick() {
     setLoading(true)
@@ -33,14 +37,33 @@ export default function GoogleSignInButton({
       type="button"
       onClick={handleClick}
       disabled={loading}
-      className="w-full flex items-center justify-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-opacity disabled:opacity-60"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className={`w-full flex items-center justify-center gap-3 rounded-xl font-semibold transition-all duration-200 disabled:opacity-60 ${
+        isPrimary ? 'px-5 py-4 text-base' : 'px-4 py-3 text-sm'
+      }`}
       style={{
-        background: '#ffffff',
-        color: '#1f1f1f',
-        border: '1px solid #2a2a2a',
+        background: hover ? 'rgba(26, 26, 26, 0.88)' : '#1a1a1a',
+        backdropFilter: hover ? 'blur(12px)' : undefined,
+        WebkitBackdropFilter: hover ? 'blur(12px)' : undefined,
+        color: '#ffffff',
+        border: isPrimary
+          ? hover
+            ? '1px solid rgba(0, 212, 212, 0.65)'
+            : '1px solid rgba(0, 212, 212, 0.45)'
+          : hover
+            ? '1px solid rgba(0, 212, 212, 0.35)'
+            : '1px solid #2a2a2a',
+        boxShadow: isPrimary
+          ? hover
+            ? '0 0 28px rgba(0, 212, 212, 0.28), 0 0 48px rgba(240, 25, 125, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
+            : '0 0 20px rgba(0, 212, 212, 0.18), 0 0 36px rgba(240, 25, 125, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+          : hover
+            ? '0 0 24px rgba(240, 25, 125, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+            : 'none',
       }}
     >
-      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <svg width={isPrimary ? 22 : 18} height={isPrimary ? 22 : 18} viewBox="0 0 48 48" aria-hidden="true">
         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
         <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.56 2.95-2.23 5.45-4.76 7.11l7.73 6.01c4.51-4.16 7.11-10.28 7.11-17.59z" />
         <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />

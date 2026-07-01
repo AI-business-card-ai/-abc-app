@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { isGoogleUser } from '@/lib/google-oauth'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -27,12 +28,36 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=auth`)
   }
 
+  const googleLogin = isGoogleUser(user)
+  const googleEmail = user.email ?? null
+
   const { data: profile } = await supabase
     .from('abc_profiles')
-    .select('onboarding_completed')
+    .select('id, onboarding_completed')
     .eq('id', user.id)
     .maybeSingle()
 
-  const destination = profile?.onboarding_completed ? safeNext : '/onboarding'
+  if (!profile) {
+    await supabase.from('abc_profiles').insert({
+      id: user.id,
+      email: googleEmail,
+      google_connected: googleLogin,
+      google_email: googleLogin ? googleEmail : null,
+      onboarding_completed: false,
+    })
+    return NextResponse.redirect(`${origin}/onboarding`)
+  }
+
+  if (googleLogin) {
+    await supabase
+      .from('abc_profiles')
+      .update({
+        google_connected: true,
+        google_email: googleEmail,
+      })
+      .eq('id', user.id)
+  }
+
+  const destination = profile.onboarding_completed ? safeNext : '/onboarding'
   return NextResponse.redirect(`${origin}${destination}`)
 }

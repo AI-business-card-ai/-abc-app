@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
+import AuthOrDivider from '@/components/auth/AuthOrDivider'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
 
 export default function RegisterPage() {
@@ -72,69 +73,79 @@ export default function RegisterPage() {
           <p className="mt-3 text-sm text-text-secondary">Vytvoř si účet a začni skenovat.</p>
         </div>
 
-        <div className="abc-card p-5 flex flex-col gap-4">
-          <GoogleSignInButton nextPath="/onboarding" />
+        <div className="flex flex-col gap-5">
+          <GoogleSignInButton nextPath="/onboarding" variant="primary" />
+          <AuthOrDivider />
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px" style={{ background: '#2a2a2a' }} />
-            <span className="text-xs text-text-secondary shrink-0">or continue with email</span>
-            <div className="flex-1 h-px" style={{ background: '#2a2a2a' }} />
-          </div>
+          <div
+            className="rounded-xl p-4 flex flex-col gap-3"
+            style={{
+              background: 'rgba(15, 15, 15, 0.6)',
+              border: '1px solid rgba(42, 42, 42, 0.7)',
+            }}
+          >
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Jméno"
+                className="abc-input px-3 py-2.5 text-xs opacity-90"
+              />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                className="abc-input px-3 py-2.5 text-xs opacity-90"
+              />
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Heslo (min. 6 znaků)"
+                className="abc-input px-3 py-2.5 text-xs opacity-90"
+              />
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Jméno"
-              className="abc-input px-4 py-3 text-sm"
-            />
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              className="abc-input px-4 py-3 text-sm"
-            />
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Heslo (min. 6 znaků)"
-              className="abc-input px-4 py-3 text-sm"
-            />
+              {error && (
+                <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                  {error}
+                </p>
+              )}
+              {info && (
+                <p
+                  className="rounded-lg px-3 py-2 text-xs"
+                  style={{
+                    border: '0.5px solid rgba(14,165,233,0.4)',
+                    background: 'rgba(14,165,233,0.1)',
+                    color: '#38BDF8',
+                  }}
+                >
+                  {info}
+                </p>
+              )}
 
-            {error && (
-              <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
-                {error}
-              </p>
-            )}
-            {info && (
-              <p
-                className="rounded-xl px-4 py-2.5 text-sm"
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={loading}
+                className={`w-full rounded-lg text-xs font-medium py-2.5 transition-opacity ${
+                  loading ? 'opacity-40' : 'opacity-80 hover:opacity-100'
+                }`}
                 style={{
-                  border: '0.5px solid rgba(14,165,233,0.4)',
-                  background: 'rgba(14,165,233,0.1)',
-                  color: '#38BDF8',
+                  background: 'transparent',
+                  border: '1px solid #2a2a2a',
+                  color: '#999999',
                 }}
               >
-                {info}
-              </p>
-            )}
-
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              type="submit"
-              disabled={loading}
-              className={`glow-btn w-full rounded-xl text-white font-semibold py-3.5 ${loading ? 'opacity-40' : ''}`}
-            >
-              {loading ? 'Vytvářím účet...' : 'Vytvořit účet'}
-            </motion.button>
-          </form>
+                {loading ? 'Vytvářím účet...' : 'Vytvořit účet emailem'}
+              </motion.button>
+            </form>
+          </div>
         </div>
 
         <p className="text-center text-sm text-text-secondary relative">
