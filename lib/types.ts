@@ -31,6 +31,7 @@ export interface ScannedContact {
   email_subject: string | null
   match_reason: string | null
   status: 'pending' | 'approved' | 'sent' | 'replied' | 'archived'
+  scan_status: 'basic' | 'enriched'
   event_name: string | null
   notes: string | null
   voice_note_url: string | null

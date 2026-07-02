@@ -187,6 +187,7 @@ export async function onEnrichmentCompleted(contactId: string, userId: string, m
     opportunity_name: `${contact?.company || 'Unknown'} - ${contact?.role || 'Contact'}`,
     opportunity_stage: 'Qualification',
     enrichment_status: 'DONE',
+    scan_status: 'enriched',
     ai_lead_score: matchScore,
     match_score: matchScore,
   }

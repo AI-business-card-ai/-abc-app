@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { IconMicrophone, IconX } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
-import ScanInstantResult from '@/components/mobile/ScanInstantResult'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
+
+type FlowPhase = 'camera' | 'scanning' | 'event' | 'finishing'
 
 function PhoneStatusBar() {
   return (
@@ -35,13 +36,18 @@ function PhoneStatusBar() {
   )
 }
 
+async function fetchContactStatus(contactId: string) {
+  const res = await fetch(`/api/card/status/${contactId}`)
+  if (!res.ok) return null
+  return res.json() as Promise<{ status: 'basic' | 'enriched' }>
+}
+
 export default function ScanPage() {
   const router = useRouter()
   const supabase = createClientComponent()
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const chunksRef = useRef<BlobPart[]>([])
-  const touchStartY = useRef(0)
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -49,11 +55,12 @@ export default function ScanPage() {
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
-  const [isScanning, setIsScanning] = useState(false)
+  const [flowPhase, setFlowPhase] = useState<FlowPhase>('camera')
   const [flash, setFlash] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPaywall, setShowPaywall] = useState(false)
   const [savedContact, setSavedContact] = useState<ScannedContact | null>(null)
+  const [submittingEvent, setSubmittingEvent] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -68,13 +75,21 @@ export default function ScanPage() {
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'scanned_contacts', filter: `id=eq.${savedContact.id}` },
-        (payload) => setSavedContact(payload.new as ScannedContact)
+        (payload) => {
+          const updated = payload.new as ScannedContact
+          setSavedContact(updated)
+          if (updated.scan_status === 'enriched' || updated.enrichment_status === 'DONE') {
+            if (flowPhase === 'finishing') {
+              router.push(`/contact/${updated.id}`)
+            }
+          }
+        }
       )
       .subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [savedContact?.id, supabase])
+  }, [flowPhase, router, savedContact?.id, supabase])
 
   const resetForNextScan = useCallback(() => {
     if (imagePreview) URL.revokeObjectURL(imagePreview)
@@ -83,6 +98,7 @@ export default function ScanPage() {
     setSavedContact(null)
     setError(null)
     setNote('')
+    setFlowPhase('camera')
   }, [imagePreview])
 
   function handleFile(file: File | undefined) {
@@ -92,10 +108,11 @@ export default function ScanPage() {
     setImagePreview(URL.createObjectURL(file))
     setSavedContact(null)
     setError(null)
+    setFlowPhase('camera')
   }
 
-  const runScan = useCallback(async (file: File) => {
-    setIsScanning(true)
+  const runPhase1Scan = useCallback(async (file: File) => {
+    setFlowPhase('scanning')
     setError(null)
     hapticMedium()
     setFlash(true)
@@ -119,14 +136,13 @@ export default function ScanPage() {
       formData.append('image', file)
       formData.append('userId', user.id)
       formData.append('userProfile', JSON.stringify(profilePayload))
-      formData.append('fastScan', 'true')
-      if (note) formData.append('note', note)
 
       const res = await fetch('/api/card/scan', { method: 'POST', body: formData })
       const data = await res.json()
 
       if (res.status === 403 && data.error === 'SCAN_LIMIT_REACHED') {
         setShowPaywall(true)
+        setFlowPhase('camera')
         return
       }
       if (!res.ok || !data.success) throw new Error(data.error || 'Scan failed')
@@ -134,12 +150,58 @@ export default function ScanPage() {
       hapticSuccess()
       const contact = (data.contacts?.[0] as ScannedContact) || null
       setSavedContact(contact)
+      setFlowPhase('event')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Scan failed')
-    } finally {
-      setIsScanning(false)
+      setFlowPhase('camera')
     }
-  }, [note, router, supabase])
+  }, [router, supabase])
+
+  const waitForEnrichment = useCallback(async (contactId: string, maxMs = 20000) => {
+    const start = Date.now()
+    while (Date.now() - start < maxMs) {
+      const status = await fetchContactStatus(contactId)
+      if (status?.status === 'enriched') return true
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+    }
+    return false
+  }, [])
+
+  const submitEventAndContinue = useCallback(async () => {
+    if (!savedContact?.id) return
+    setSubmittingEvent(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/card/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contactId: savedContact.id,
+          eventName: note.trim() || null,
+          note: note.trim() || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save event')
+
+      const status = await fetchContactStatus(savedContact.id)
+      if (status?.status === 'enriched') {
+        hapticSuccess()
+        router.push(`/contact/${savedContact.id}`)
+        return
+      }
+
+      setFlowPhase('finishing')
+      await waitForEnrichment(savedContact.id, 20000)
+      router.push(`/contact/${savedContact.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to continue')
+      setFlowPhase('event')
+    } finally {
+      setSubmittingEvent(false)
+    }
+  }, [note, router, savedContact, waitForEnrichment])
 
   function triggerCamera() {
     hapticMedium()
@@ -151,7 +213,7 @@ export default function ScanPage() {
     e.target.value = ''
     if (!file) return
     handleFile(file)
-    await runScan(file)
+    await runPhase1Scan(file)
   }
 
   async function onGallerySelected(e: React.ChangeEvent<HTMLInputElement>) {
@@ -159,7 +221,7 @@ export default function ScanPage() {
     e.target.value = ''
     if (!file) return
     handleFile(file)
-    await runScan(file)
+    await runPhase1Scan(file)
   }
 
   const startRecording = async () => {
@@ -189,30 +251,24 @@ export default function ScanPage() {
     }
   }
 
+  const isScanning = flowPhase === 'scanning'
+  const showEventForm = flowPhase === 'event' || flowPhase === 'finishing'
+  const showCameraControls = flowPhase === 'camera' || flowPhase === 'scanning'
+
   return (
     <div
       className="fixed inset-0 z-40 flex flex-col md:static md:min-h-screen md:items-center md:justify-center md:overflow-hidden"
       style={{ background: '#0f0f0f' }}
-      onTouchStart={(e) => { touchStartY.current = e.touches[0].clientY }}
-      onTouchEnd={(e) => {
-        const dy = e.changedTouches[0].clientY - touchStartY.current
-        if (dy > 120) router.push('/contacts')
-      }}
     >
-      {/* Desktop glow behind phone */}
       <div
         className="hidden md:block absolute inset-0 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse at center, rgba(0,212,212,0.05) 0%, transparent 70%)' }}
       />
 
-      {/* Phone mockup (desktop) / fullscreen shell (mobile) */}
       <div
         className="relative flex flex-col flex-1 min-h-0 w-full h-full md:flex-none md:w-[390px] md:h-[780px] md:rounded-[44px] md:overflow-hidden md:shrink-0 md:z-10"
-        style={{
-          background: '#0f0f0f',
-        }}
+        style={{ background: '#0f0f0f' }}
       >
-        {/* Phone frame border + shadow — desktop only */}
         <div
           className="hidden md:block absolute inset-0 pointer-events-none rounded-[44px] z-50"
           style={{
@@ -221,7 +277,6 @@ export default function ScanPage() {
           }}
         />
 
-        {/* Notch */}
         <div
           className="hidden md:block absolute top-0 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
           style={{
@@ -246,7 +301,6 @@ export default function ScanPage() {
             )}
           </AnimatePresence>
 
-          {/* Status gradient */}
           <div
             className="absolute top-0 left-0 right-0 h-24 pointer-events-none z-10"
             style={{ background: 'linear-gradient(180deg, rgba(15,15,15,0.9), transparent)' }}
@@ -262,7 +316,6 @@ export default function ScanPage() {
             <IconX size={20} style={{ color: '#999999' }} />
           </button>
 
-          {/* Camera viewport */}
           <div className="flex-1 relative flex items-center justify-center overflow-hidden min-h-0">
             {imagePreview ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -279,7 +332,7 @@ export default function ScanPage() {
               <span className="scan-corner scan-corner-tr" />
               <span className="scan-corner scan-corner-bl" />
               <span className="scan-corner scan-corner-br" />
-              {!imagePreview && !isScanning && (
+              {!imagePreview && !isScanning && flowPhase === 'camera' && (
                 <p
                   className="absolute inset-0 flex items-center justify-center text-sm text-center px-4"
                   style={{ color: '#666666' }}
@@ -288,84 +341,155 @@ export default function ScanPage() {
                 </p>
               )}
               {isScanning && (
-                <p className="absolute inset-0 flex items-center justify-center text-sm font-semibold" style={{ color: '#00d4d4' }}>
-                  Reading card…
+                <p className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-center px-4" style={{ color: '#00d4d4' }}>
+                  AI analyzuje vizitku…
                 </p>
               )}
             </div>
+
+            {flowPhase === 'finishing' && (
+              <div
+                className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6"
+                style={{ background: 'rgba(15, 15, 15, 0.88)' }}
+              >
+                <div
+                  className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin mb-4"
+                  style={{ borderColor: '#00d4d4', borderTopColor: 'transparent' }}
+                />
+                <p className="text-base font-semibold text-center" style={{ color: '#ffffff' }}>
+                  Dokončuji AI analýzu…
+                </p>
+                <p className="text-sm text-center mt-2" style={{ color: '#999999' }}>
+                  Apollo · LinkedIn · zprávy
+                </p>
+              </div>
+            )}
           </div>
 
-          {savedContact && (
-            <ScanInstantResult contact={savedContact} previewUrl={imagePreview} onScanAnother={resetForNextScan} />
+          {flowPhase === 'event' && savedContact && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mx-4 mb-3 rounded-2xl p-4 z-20 relative"
+              style={{
+                background: 'rgba(26, 26, 26, 0.95)',
+                border: '1px solid rgba(0, 212, 212, 0.25)',
+              }}
+            >
+              <p className="text-xs mb-1" style={{ color: '#22c55e' }}>✓ Vizitka načtena</p>
+              <p className="font-bold text-lg leading-tight truncate" style={{ color: '#ffffff' }}>
+                {savedContact.name || 'Unknown'}
+              </p>
+              <p className="text-sm truncate" style={{ color: '#00d4d4' }}>
+                {[savedContact.role, savedContact.company].filter(Boolean).join(' · ') || '—'}
+              </p>
+              {(savedContact.email || savedContact.phone) && (
+                <p className="text-xs mt-1 truncate" style={{ color: '#999999' }}>
+                  {[savedContact.email, savedContact.phone].filter(Boolean).join(' · ')}
+                </p>
+              )}
+            </motion.div>
           )}
 
           {error && (
-            <p className="mx-4 mb-2 text-sm text-red-300 px-3 py-2 rounded-xl" style={{ background: 'rgba(239,68,68,0.1)' }}>
+            <p className="mx-4 mb-2 text-sm text-red-300 px-3 py-2 rounded-xl z-20 relative" style={{ background: 'rgba(239,68,68,0.1)' }}>
               {error}
             </p>
           )}
 
-          {/* Bottom panel */}
           <div
             className="shrink-0 z-20 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+72px)] md:pb-4"
             style={{
               background: 'rgba(15, 15, 15, 0.95)',
               backdropFilter: 'blur(16px)',
               borderTop: '1px solid rgba(0, 212, 212, 0.12)',
-              minHeight: 180,
+              minHeight: showEventForm ? 200 : 180,
             }}
           >
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs shrink-0" style={{ color: '#999999' }}>
-                📍 Where did you meet?
-              </span>
-              <button
-                type="button"
-                onClick={isRecording ? () => { mediaRecorder?.stop(); setIsRecording(false) } : startRecording}
-                disabled={isTranscribing}
-                className="tap-target shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold"
-                style={{ background: 'rgba(240,25,125,0.12)', border: '1px solid rgba(240,25,125,0.35)', color: '#f0197d' }}
-              >
-                <IconMicrophone size={14} />
-                {isTranscribing ? '…' : isRecording ? 'Stop' : 'Voice'}
-              </button>
-            </div>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Trade show, meeting, intro…"
-              className="w-full abc-input px-3 py-3 text-base mb-3 min-h-[44px]"
-            />
+            {showEventForm ? (
+              <>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs shrink-0" style={{ color: '#999999' }}>
+                    📍 Kde jste se potkali?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={isRecording ? () => { mediaRecorder?.stop(); setIsRecording(false) } : startRecording}
+                    disabled={isTranscribing || flowPhase === 'finishing'}
+                    className="tap-target shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold"
+                    style={{ background: 'rgba(240,25,125,0.12)', border: '1px solid rgba(240,25,125,0.35)', color: '#f0197d' }}
+                  >
+                    <IconMicrophone size={14} />
+                    {isTranscribing ? '…' : isRecording ? 'Stop' : 'Voice'}
+                  </button>
+                </div>
+                <input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Veletrh, schůzka, intro…"
+                  disabled={flowPhase === 'finishing'}
+                  className="w-full abc-input px-3 py-3 text-base mb-3 min-h-[44px]"
+                />
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  type="button"
+                  disabled={submittingEvent || flowPhase === 'finishing'}
+                  onClick={() => void submitEventAndContinue()}
+                  className="w-full rounded-xl text-white font-bold text-base disabled:opacity-50 min-h-[52px]"
+                  style={{
+                    background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+                    boxShadow: '0 4px 24px rgba(240,25,125,0.2)',
+                  }}
+                >
+                  {submittingEvent ? 'Ukládám…' : flowPhase === 'finishing' ? 'Analyzuji…' : 'Pokračovat →'}
+                </motion.button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-3 opacity-40 pointer-events-none">
+                  <span className="text-xs shrink-0" style={{ color: '#999999' }}>
+                    📍 Kde jste se potkali?
+                  </span>
+                </div>
+                <input
+                  disabled
+                  placeholder="Nejdřív nafoťte vizitku…"
+                  className="w-full abc-input px-3 py-3 text-base mb-3 min-h-[44px] opacity-40"
+                />
 
-            <div className="flex gap-2 md:flex-col">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                type="button"
-                disabled={isScanning}
-                onClick={triggerCamera}
-                className="flex-[2] md:flex-none w-full rounded-xl text-white font-bold text-base disabled:opacity-50 min-h-[52px] md:min-h-[48px]"
-                style={{
-                  background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
-                  boxShadow: '0 4px 24px rgba(240,25,125,0.2)',
-                }}
-              >
-                📷 SCAN CARD
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                type="button"
-                disabled={isScanning}
-                onClick={() => galleryInputRef.current?.click()}
-                className="flex-1 md:flex-none w-full rounded-xl font-semibold text-sm min-h-[52px] md:min-h-[44px]"
-                style={{
-                  background: '#1a1a1a',
-                  border: '1px solid #2a2a2a',
-                  color: '#999999',
-                }}
-              >
-                ⬆ Upload
-              </motion.button>
-            </div>
+                {showCameraControls && (
+                  <div className="flex gap-2 md:flex-col">
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      type="button"
+                      disabled={isScanning}
+                      onClick={triggerCamera}
+                      className="flex-[2] md:flex-none w-full rounded-xl text-white font-bold text-base disabled:opacity-50 min-h-[52px] md:min-h-[48px]"
+                      style={{
+                        background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+                        boxShadow: '0 4px 24px rgba(240,25,125,0.2)',
+                      }}
+                    >
+                      {isScanning ? 'Analyzuji…' : '📷 SCAN CARD'}
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      type="button"
+                      disabled={isScanning}
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="flex-1 md:flex-none w-full rounded-xl font-semibold text-sm min-h-[52px] md:min-h-[44px]"
+                      style={{
+                        background: '#1a1a1a',
+                        border: '1px solid #2a2a2a',
+                        color: '#999999',
+                      }}
+                    >
+                      ⬆ Upload
+                    </motion.button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>

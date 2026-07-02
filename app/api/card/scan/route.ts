@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase'
 import {
-  analyzeBusinessCard,
   extractBusinessCardFromImage,
   ClaudeVisionError,
   ClaudeAnalysisError,
@@ -11,15 +10,13 @@ import { triggerBackgroundEnrichment } from '@/lib/enrichment'
 import { ABCProfile } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
-  console.log('=== SCAN START ===')
+  console.log('=== SCAN PHASE 1 START ===')
 
   try {
     const formData = await req.formData()
     const image = formData.get('image') as File
     const userId = formData.get('userId') as string
     const userProfileRaw = formData.get('userProfile') as string
-    const note = (formData.get('note') as string) || null
-    const eventName = (formData.get('eventName') as string) || null
 
     if (!image) return NextResponse.json({ error: 'No image' }, { status: 400 })
     if (!userId) return NextResponse.json({ error: 'No userId' }, { status: 401 })
@@ -71,47 +68,30 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const useFastScan = formData.get('fastScan') !== 'false'
+    const extracted = await extractBusinessCardFromImage(base64, claudeMediaType)
+    console.log('Phase 1 OCR complete:', extracted.name, extracted.company)
 
-    let contacts: Awaited<ReturnType<typeof analyzeBusinessCard>>
-
-    if (useFastScan) {
-      const extracted = await extractBusinessCardFromImage(base64, claudeMediaType)
-      contacts = [
-        {
-          ...extracted,
-          industry: null,
-          company_size: null,
-          company_summary: extracted.company ? `${extracted.company} contact` : null,
-          match_score: 0,
-          match_reason: 'Scanned via ABC — AI scoring after enrichment.',
-          message_linkedin: '',
-          message_email: '',
-          email_subject: '',
-          message_whatsapp: '',
-        },
-      ]
-    } else {
-      contacts = await analyzeBusinessCard(
-        base64,
-        profile,
-        '',
-        claudeMediaType,
-        note,
-        eventName
-      )
-    }
-    console.log(`Detected ${contacts.length} business card(s)`)
-
-    const pendingContacts = contacts.map((contact) => ({
-      ...contact,
-      user_id: userId,
-      status: 'pending' as const,
-      event_name: eventName || null,
-      notes: note || null,
-      enrichment_status: 'PENDING' as const,
-      enrichment_step: 'queued',
-    }))
+    const pendingContacts = [
+      {
+        ...extracted,
+        industry: null,
+        company_size: null,
+        company_summary: extracted.company ? `${extracted.company} contact` : null,
+        match_score: 0,
+        match_reason: 'Scanned via ABC — AI scoring after enrichment.',
+        message_linkedin: '',
+        message_email: '',
+        email_subject: '',
+        message_whatsapp: '',
+        user_id: userId,
+        status: 'pending' as const,
+        scan_status: 'basic' as const,
+        event_name: null,
+        notes: null,
+        enrichment_status: 'PENDING' as const,
+        enrichment_step: 'queued',
+      },
+    ]
 
     const { data, error } = await supabase
       .from('scanned_contacts')
@@ -132,8 +112,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    console.log('=== SCAN PHASE 1 DONE — enrichment queued ===')
+
     return NextResponse.json({
       success: true,
+      phase: 'basic',
       contacts: data,
       count: data?.length || 0,
     })
