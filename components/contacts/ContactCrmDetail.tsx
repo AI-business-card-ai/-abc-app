@@ -10,7 +10,7 @@ import { PIPELINE_STAGES } from '@/lib/pipeline'
 import { getStatusColor } from '@/lib/pipeline-ai'
 import { logCrmActivity, logDealOutcome, logMessageSent, updateContact } from '@/lib/crm-client'
 import { exportToHubSpot, exportToSalesforce } from '@/lib/crm-export'
-import { hasGmailAccess } from '@/lib/google-oauth'
+import { GOOGLE_RECONNECT_CODE } from '@/lib/google-gmail-auth'
 import {
   openEmailComposer,
   openLinkedInComposer,
@@ -242,8 +242,9 @@ export default function ContactCrmDetailPage() {
   const [leadStatus, setLeadStatus] = useState('New')
   const [rating, setRating] = useState('Warm')
   const [deleteHover, setDeleteHover] = useState(false)
-  const [hasGmail, setHasGmail] = useState(false)
+  const [googleConnected, setGoogleConnected] = useState(false)
   const [sendingGmail, setSendingGmail] = useState(false)
+  const [gmailReconnectError, setGmailReconnectError] = useState<string | null>(null)
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -280,14 +281,23 @@ export default function ContactCrmDetailPage() {
           router.push('/login')
           return
         }
-        const { data, error } = await supabase
-          .from('scanned_contacts')
-          .select('*')
-          .eq('id', id)
-          .eq('user_id', user.id)
-          .maybeSingle()
+
+        const [{ data, error }, { data: profile }] = await Promise.all([
+          supabase
+            .from('scanned_contacts')
+            .select('*')
+            .eq('id', id)
+            .eq('user_id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('abc_profiles')
+            .select('google_connected')
+            .eq('id', user.id)
+            .maybeSingle(),
+        ])
 
         if (!active) return
+        if (active) setGoogleConnected(Boolean(profile?.google_connected))
         if (error) throw error
         if (!data) {
           setNotFound(true)
@@ -306,16 +316,6 @@ export default function ContactCrmDetailPage() {
     })()
     return () => { active = false }
   }, [id, router, supabase, syncDealForm])
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setHasGmail(hasGmailAccess(session))
-    })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setHasGmail(hasGmailAccess(session))
-    })
-    return () => subscription.unsubscribe()
-  }, [supabase])
 
   useEffect(() => {
     if (contact) setVariants(buildVariantsFromContact(contact))
@@ -356,6 +356,7 @@ export default function ContactCrmDetailPage() {
     channel: 'LinkedIn' | 'Email' | 'WhatsApp' | 'Gmail'
     text: string
     toast: string
+    skipLog?: boolean
   }
 
   async function handleSendSelectedAsync() {
@@ -371,7 +372,7 @@ export default function ContactCrmDetailPage() {
 
       if (variant.platforms.email) {
         if (contact.email) {
-          if (hasGmail) {
+          if (googleConnected) {
             gmailJobs.push({ subject: emailSubject, body: text })
           } else if (openEmailComposer(contact.email, emailSubject, text)) {
             pendingLogs.push({ channel: 'Email', text, toast: 'Email opened ✓' })
@@ -402,7 +403,7 @@ export default function ContactCrmDetailPage() {
     for (const job of gmailJobs) {
       const sent = await sendGmailViaApi(job.subject, job.body)
       if (sent) {
-        pendingLogs.push({ channel: 'Gmail', text: job.body, toast: 'Gmail sent ✓' })
+        pendingLogs.push({ channel: 'Gmail', text: job.body, toast: 'Gmail sent ✓', skipLog: true })
       }
     }
 
@@ -412,6 +413,7 @@ export default function ContactCrmDetailPage() {
     }
 
     for (const entry of pendingLogs) {
+      if (entry.skipLog) continue
       try {
         const result = await logMessageSent({
           contactId: contact.id,
@@ -431,8 +433,9 @@ export default function ContactCrmDetailPage() {
   async function sendGmailViaApi(subject: string, body: string) {
     if (!contact) return false
     setSendingGmail(true)
+    setGmailReconnectError(null)
     try {
-      const res = await fetch('/api/contact/send-gmail', {
+      const res = await fetch('/api/card/send-gmail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -442,7 +445,13 @@ export default function ContactCrmDetailPage() {
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Gmail send failed')
+      if (!res.ok) {
+        if (json.code === GOOGLE_RECONNECT_CODE) {
+          setGoogleConnected(false)
+          setGmailReconnectError(json.error || 'Google session expired. Please reconnect in Settings.')
+        }
+        throw new Error(json.error || 'Gmail send failed')
+      }
       if (json.contact) applyContact(json.contact as ScannedContact)
       setActivityKey((k) => k + 1)
       return true
@@ -453,6 +462,48 @@ export default function ContactCrmDetailPage() {
     } finally {
       setSendingGmail(false)
     }
+  }
+
+  async function handleVariantGmailSend(variantId: number) {
+    if (!contact?.email) {
+      showToast('Email address missing')
+      return
+    }
+    const variant = variants.find((v) => v.id === variantId)
+    const text = variant?.text.trim()
+    if (!text) {
+      showToast('No message to send')
+      return
+    }
+    const sent = await sendGmailViaApi(contact.email_subject || 'Following up', text)
+    if (sent) showToast('Gmail sent ✓')
+  }
+
+  async function handleVariantEmailOpen(variantId: number) {
+    if (!contact?.email) {
+      showToast('Email address missing')
+      return
+    }
+    const variant = variants.find((v) => v.id === variantId)
+    const text = variant?.text.trim()
+    if (!text) {
+      showToast('No message to send')
+      return
+    }
+    const subject = contact.email_subject || 'Following up'
+    if (!openEmailComposer(contact.email, subject, text)) return
+    try {
+      const result = await logMessageSent({
+        contactId: contact.id,
+        channel: 'Email',
+        messageText: text,
+      })
+      if (result.contact) applyContact(result.contact as ScannedContact)
+      setActivityKey((k) => k + 1)
+    } catch (e) {
+      console.error(e)
+    }
+    showToast('Email opened ✓')
   }
 
   async function handleQuickGmailSend() {
@@ -466,19 +517,7 @@ export default function ContactCrmDetailPage() {
       return
     }
     const sent = await sendGmailViaApi(contact.email_subject || 'Following up', text)
-    if (sent) {
-      try {
-        const result = await logMessageSent({
-          contactId: contact.id,
-          channel: 'Gmail',
-          messageText: text,
-        })
-        if (result.contact) applyContact(result.contact as ScannedContact)
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    showToast(sent ? 'Gmail sent ✓' : 'Gmail send failed')
+    if (sent) showToast('Gmail sent ✓')
   }
 
   async function handleQuickEmailOpen() {
@@ -649,8 +688,8 @@ export default function ContactCrmDetailPage() {
   const emailSubject = contact.email_subject || ''
 
   const emailSelected = variants.some((v) => v.platforms.email)
-  const sendButtonLabel = hasGmail && emailSelected && !variants.some((v) => v.platforms.linkedin || v.platforms.whatsapp)
-    ? 'Send from Gmail →'
+  const sendButtonLabel = googleConnected && emailSelected && !variants.some((v) => v.platforms.linkedin || v.platforms.whatsapp)
+    ? 'Send via Gmail (1-click)'
     : 'Send Selected →'
 
   return (
@@ -739,6 +778,25 @@ export default function ContactCrmDetailPage() {
 
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>AI MESSAGES</div>
+            {gmailReconnectError && (
+              <div
+                style={{
+                  marginBottom: '12px',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  background: 'rgba(239,68,68,0.08)',
+                  color: '#fca5a5',
+                  fontSize: '13px',
+                  lineHeight: 1.5,
+                }}
+              >
+                {gmailReconnectError}{' '}
+                <Link href="/settings" style={{ color: '#00d4d4', fontWeight: 700 }}>
+                  Reconnect Google →
+                </Link>
+              </div>
+            )}
             {emailSubject && (
               <div style={{ fontSize: '12px', color: '#999999', marginBottom: '12px' }}>
                 Email subject: <span style={{ color: '#ffffff' }}>{emailSubject}</span>
@@ -849,6 +907,69 @@ export default function ContactCrmDetailPage() {
                         )
                       })}
                     </div>
+
+                    {variant.platforms.email && contact.email && (
+                      <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {googleConnected ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={sendingGmail || !variant.text.trim()}
+                              onClick={() => void handleVariantGmailSend(variant.id)}
+                              style={{
+                                width: '100%',
+                                padding: '12px 16px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+                                color: '#0f0f0f',
+                                fontWeight: 700,
+                                fontSize: '14px',
+                                cursor: sendingGmail ? 'wait' : 'pointer',
+                              }}
+                            >
+                              {sendingGmail ? 'Sending…' : 'Send via Gmail (1-click)'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!variant.text.trim()}
+                              onClick={() => void handleVariantEmailOpen(variant.id)}
+                              style={{
+                                alignSelf: 'flex-start',
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #2a2a2a',
+                                background: 'transparent',
+                                color: '#777777',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Open in email app
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={!variant.text.trim()}
+                            onClick={() => void handleVariantEmailOpen(variant.id)}
+                            style={{
+                              alignSelf: 'flex-start',
+                              padding: '10px 14px',
+                              borderRadius: '8px',
+                              border: '1px solid #2a2a2a',
+                              background: '#242424',
+                              color: '#ffffff',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Open in email app
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -966,22 +1087,49 @@ export default function ContactCrmDetailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button type="button" onClick={() => router.push(`/contact/${contact.id}`)} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#00d4d4', color: '#0f0f0f', fontWeight: 700, cursor: 'pointer' }}>Send Follow-up</button>
               {contact.email && (
-                hasGmail ? (
-                  <button
-                    type="button"
-                    disabled={sendingGmail}
-                    onClick={() => void handleQuickGmailSend()}
-                    style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: sendingGmail ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 600 }}
-                  >
-                    {sendingGmail ? 'Sending…' : 'Send from Gmail →'}
-                  </button>
+                googleConnected ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={sendingGmail}
+                      onClick={() => void handleQuickGmailSend()}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+                        color: '#0f0f0f',
+                        fontWeight: 700,
+                        cursor: sendingGmail ? 'wait' : 'pointer',
+                        fontSize: '13px',
+                      }}
+                    >
+                      {sendingGmail ? 'Sending…' : 'Send via Gmail (1-click)'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleQuickEmailOpen}
+                      style={{
+                        alignSelf: 'flex-start',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid #2a2a2a',
+                        background: 'transparent',
+                        color: '#777777',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Open in email app
+                    </button>
+                  </>
                 ) : (
                   <button
                     type="button"
                     onClick={handleQuickEmailOpen}
                     style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
                   >
-                    Open Email →
+                    Open in email app
                   </button>
                 )
               )}

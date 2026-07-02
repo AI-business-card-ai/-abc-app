@@ -41,5 +41,10 @@ export async function sendGmailMessage(
     throw new Error(detail || 'Failed to send Gmail message')
   }
 
-  return response.json()
+  const data = (await response.json()) as { id?: string }
+  if (!data.id) {
+    throw new Error('Gmail API did not return a message id')
+  }
+
+  return { messageId: data.id }
 }

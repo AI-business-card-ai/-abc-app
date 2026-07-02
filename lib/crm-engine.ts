@@ -211,7 +211,8 @@ export async function onMessageSent(
   contactId: string,
   userId: string,
   channel: MessageChannel,
-  messageText: string
+  messageText: string,
+  metadata: Record<string, unknown> = {}
 ) {
   const supabase = createServiceClient()
 
@@ -258,7 +259,8 @@ export async function onMessageSent(
     contactId,
     userId,
     activityType,
-    `${channel} message sent${preview ? `: "${preview}${messageText.length > 100 ? '...' : ''}"` : ''}`
+    `${channel} message sent${preview ? `: "${preview}${messageText.length > 100 ? '...' : ''}"` : ''}`,
+    metadata
   )
   await refreshLeadScore(contactId, userId)
 }

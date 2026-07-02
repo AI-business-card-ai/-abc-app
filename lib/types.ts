@@ -197,6 +197,9 @@ export interface ABCProfile {
   salesforce_connected_at: string | null
   google_connected: boolean
   google_email: string | null
+  google_refresh_token: string | null
+  google_access_token: string | null
+  google_token_expires_at: string | null
   webhook_url: string | null
   product_description: string | null
   icp: string | null
