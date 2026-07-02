@@ -224,6 +224,7 @@ export async function onMessageSent(
 
   const now = new Date().toISOString()
   const updates: Record<string, unknown> = {
+    status: 'sent',
     last_message_type: channel,
     last_message_date: now,
     last_contacted_date: now,

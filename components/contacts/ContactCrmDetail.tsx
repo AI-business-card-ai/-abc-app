@@ -8,9 +8,14 @@ import ActivityTimeline from '@/components/crm/ActivityTimeline'
 import TagPills from '@/components/crm/TagPills'
 import { PIPELINE_STAGES } from '@/lib/pipeline'
 import { getStatusColor } from '@/lib/pipeline-ai'
-import { logCrmActivity, logDealOutcome, updateContact } from '@/lib/crm-client'
+import { logCrmActivity, logDealOutcome, logMessageSent, updateContact } from '@/lib/crm-client'
 import { exportToHubSpot, exportToSalesforce } from '@/lib/crm-export'
 import { hasGmailAccess } from '@/lib/google-oauth'
+import {
+  openEmailComposer,
+  openLinkedInComposer,
+  openWhatsAppComposer,
+} from '@/lib/outreach-composers'
 import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/types'
 
 const CARD = { background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px' } as const
@@ -126,20 +131,6 @@ function formatDate(value: string | null | undefined) {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
-function openWhatsApp(phone: string, message: string) {
-  const clean = (phone || '').replace(/[^0-9+]/g, '')
-  window.open(`https://wa.me/${clean}?text=${encodeURIComponent(message)}`, '_blank')
-}
-
-function sendLinkedIn(linkedinUrl: string, message: string) {
-  navigator.clipboard.writeText(message)
-  window.open(linkedinUrl, '_blank')
-}
-
-function sendEmail(email: string, subject: string, body: string) {
-  window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
 }
 
 const VARIANT_STYLES = ['Direct', 'Professional', 'Casual'] as const
@@ -361,6 +352,82 @@ export default function ContactCrmDetailPage() {
     void handleSendSelectedAsync()
   }
 
+  type SentChannel = {
+    channel: 'LinkedIn' | 'Email' | 'WhatsApp' | 'Gmail'
+    text: string
+    toast: string
+  }
+
+  async function handleSendSelectedAsync() {
+    if (!contact) return
+    const emailSubject = contact.email_subject || 'Following up'
+    const whatsappPhone = contact.phone || contact.mobile_phone || contact.whatsapp_number || ''
+    const pendingLogs: SentChannel[] = []
+    const gmailJobs: Array<{ subject: string; body: string }> = []
+
+    for (const variant of variants) {
+      const text = variant.text.trim()
+      if (!text) continue
+
+      if (variant.platforms.email) {
+        if (contact.email) {
+          if (hasGmail) {
+            gmailJobs.push({ subject: emailSubject, body: text })
+          } else if (openEmailComposer(contact.email, emailSubject, text)) {
+            pendingLogs.push({ channel: 'Email', text, toast: 'Email opened ✓' })
+          }
+        }
+      }
+
+      if (variant.platforms.whatsapp) {
+        if (whatsappPhone && openWhatsAppComposer(whatsappPhone, text)) {
+          pendingLogs.push({ channel: 'WhatsApp', text, toast: 'WhatsApp opened ✓' })
+        }
+      }
+
+      if (variant.platforms.linkedin) {
+        if (contact.linkedin_url) {
+          const opened = await openLinkedInComposer(contact.linkedin_url, text)
+          if (opened) {
+            pendingLogs.push({
+              channel: 'LinkedIn',
+              text,
+              toast: 'Zpráva zkopírována, vlož ji na LinkedIn profilu.',
+            })
+          }
+        }
+      }
+    }
+
+    for (const job of gmailJobs) {
+      const sent = await sendGmailViaApi(job.subject, job.body)
+      if (sent) {
+        pendingLogs.push({ channel: 'Gmail', text: job.body, toast: 'Gmail sent ✓' })
+      }
+    }
+
+    if (pendingLogs.length === 0) {
+      showToast('Select at least one platform with a message')
+      return
+    }
+
+    for (const entry of pendingLogs) {
+      try {
+        const result = await logMessageSent({
+          contactId: contact.id,
+          channel: entry.channel,
+          messageText: entry.text,
+        })
+        if (result.contact) applyContact(result.contact as ScannedContact)
+      } catch (e) {
+        console.error('Failed to log message sent:', e)
+      }
+    }
+
+    setActivityKey((k) => k + 1)
+    showToastSequence(pendingLogs.map((entry) => entry.toast))
+  }
+
   async function sendGmailViaApi(subject: string, body: string) {
     if (!contact) return false
     setSendingGmail(true)
@@ -388,57 +455,6 @@ export default function ContactCrmDetailPage() {
     }
   }
 
-  async function handleSendSelectedAsync() {
-    if (!contact) return
-    const emailSubject = contact.email_subject || ''
-    const whatsappPhone = contact.phone || contact.mobile_phone || contact.whatsapp_number || ''
-    const toasts: string[] = []
-
-    for (const variant of variants) {
-      const text = variant.text.trim()
-      if (!text) continue
-
-      if (variant.platforms.linkedin) {
-        if (contact.linkedin_url) {
-          sendLinkedIn(contact.linkedin_url, text)
-          toasts.push('LinkedIn copied ✓')
-        } else {
-          toasts.push('LinkedIn URL missing')
-        }
-      }
-
-      if (variant.platforms.email) {
-        if (contact.email) {
-          if (hasGmail) {
-            const sent = await sendGmailViaApi(emailSubject || 'Following up', text)
-            toasts.push(sent ? 'Gmail sent ✓' : 'Gmail send failed')
-          } else {
-            sendEmail(contact.email, emailSubject || 'Following up', text)
-            toasts.push('Email opened ✓')
-          }
-        } else {
-          toasts.push('Email address missing')
-        }
-      }
-
-      if (variant.platforms.whatsapp) {
-        if (whatsappPhone) {
-          openWhatsApp(whatsappPhone, text)
-          toasts.push('WhatsApp opened ✓')
-        } else {
-          toasts.push('Phone number missing')
-        }
-      }
-    }
-
-    if (toasts.length === 0) {
-      showToast('Select at least one platform')
-      return
-    }
-
-    showToastSequence(toasts)
-  }
-
   async function handleQuickGmailSend() {
     if (!contact?.email) {
       showToast('Email address missing')
@@ -450,16 +466,44 @@ export default function ContactCrmDetailPage() {
       return
     }
     const sent = await sendGmailViaApi(contact.email_subject || 'Following up', text)
+    if (sent) {
+      try {
+        const result = await logMessageSent({
+          contactId: contact.id,
+          channel: 'Gmail',
+          messageText: text,
+        })
+        if (result.contact) applyContact(result.contact as ScannedContact)
+      } catch (e) {
+        console.error(e)
+      }
+    }
     showToast(sent ? 'Gmail sent ✓' : 'Gmail send failed')
   }
 
-  function handleQuickEmailOpen() {
+  async function handleQuickEmailOpen() {
     if (!contact?.email) {
       showToast('Email address missing')
       return
     }
     const text = variants.find((v) => v.text.trim())?.text.trim() || contact.message_email || ''
-    sendEmail(contact.email, contact.email_subject || 'Following up', text)
+    if (!text) {
+      showToast('No message to send')
+      return
+    }
+    const subject = contact.email_subject || 'Following up'
+    if (!openEmailComposer(contact.email, subject, text)) return
+    try {
+      const result = await logMessageSent({
+        contactId: contact.id,
+        channel: 'Email',
+        messageText: text,
+      })
+      if (result.contact) applyContact(result.contact as ScannedContact)
+      setActivityKey((k) => k + 1)
+    } catch (e) {
+      console.error(e)
+    }
     showToast('Email opened ✓')
   }
 

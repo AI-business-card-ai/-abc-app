@@ -17,6 +17,12 @@ import MatchScore, { scoreColors } from '@/components/ui/MatchScore'
 import IntelligencePanel from '@/components/contact/IntelligencePanel'
 import { hasDisplayValue } from '@/lib/research'
 import { logCrmActivity, logMessageSent } from '@/lib/crm-client'
+import {
+  formatWhatsAppPhone,
+  openEmailComposer,
+  openLinkedInComposer,
+  openWhatsAppComposer,
+} from '@/lib/outreach-composers'
 import DealInformation from '@/components/crm/DealInformation'
 import SalesforceFields from '@/components/crm/SalesforceFields'
 import CommunicationHistory from '@/components/crm/CommunicationHistory'
@@ -234,80 +240,82 @@ export default function ContactResultPage() {
     }
   }, [contact])
 
-  const crmLogMessage = useCallback(
-    async (channel: 'LinkedIn' | 'Email' | 'WhatsApp', messageText: string) => {
-      if (!contact) return
-      try {
-        const { contact: updated } = await logMessageSent({
-          contactId: contact.id,
-          channel,
-          messageText,
-        })
-        applyContactUpdate(updated)
-        toast('✓ Logged to CRM')
-      } catch (err) {
-        console.error(err)
-      }
-    },
-    [contact, applyContactUpdate, toast]
-  )
-
   const openLinkedIn = async () => {
     if (!contact) return
+    const text = messages.linkedin || ''
     if (contact.linkedin_url) {
-      navigator.clipboard.writeText(messages.linkedin || '')
-      window.open(contact.linkedin_url, '_blank')
-      toast('✓ Message copied! Opening LinkedIn...')
-    } else {
-      navigator.clipboard.writeText(messages.linkedin || '')
+      await openLinkedInComposer(contact.linkedin_url, text)
+      toast('Zpráva zkopírována, vlož ji na LinkedIn profilu.')
+    } else if (text) {
+      await navigator.clipboard.writeText(text)
       toast('✓ LinkedIn message copied!')
-    }
-    if (contact.status === 'sent') {
-      await crmLogMessage('LinkedIn', messages.linkedin || '')
     } else {
-      logCrmActivity({
+      toast('No LinkedIn message')
+      return
+    }
+
+    try {
+      const { contact: updated } = await logMessageSent({
         contactId: contact.id,
-        activityType: 'LINKEDIN_COPIED',
-        activityDetail: `LinkedIn message copied for ${contact.name}`,
+        channel: 'LinkedIn',
+        messageText: text,
       })
+      applyContactUpdate(updated)
+    } catch (err) {
+      console.error(err)
     }
   }
 
   const openEmail = async () => {
-    if (!contact) return
-    const s = encodeURIComponent(subject || 'Hello')
-    const body = encodeURIComponent(messages.email || '')
-    window.open(`mailto:${contact.email ?? ''}?subject=${s}&body=${body}`)
-    if (contact.status === 'sent') {
-      await crmLogMessage('Email', messages.email || '')
-    } else {
-      logCrmActivity({
+    if (!contact?.email) {
+      toast('Email address missing')
+      return
+    }
+    const text = messages.email || ''
+    if (!text) {
+      toast('No email message')
+      return
+    }
+    const emailSubject = subject || 'Hello'
+    if (!openEmailComposer(contact.email, emailSubject, text)) return
+
+    try {
+      const { contact: updated } = await logMessageSent({
         contactId: contact.id,
-        activityType: 'EMAIL_SENT',
-        activityDetail: `Email draft opened for ${contact.name}`,
-        metadata: { email: contact.email },
+        channel: 'Email',
+        messageText: text,
       })
+      applyContactUpdate(updated)
+      toast('✓ Email opened')
+    } catch (err) {
+      console.error(err)
     }
   }
 
   const openWhatsApp = async () => {
     if (!contact) return
-    const phone = contact.phone?.replace(/\D/g, '')
-    const text = encodeURIComponent(messages.whatsapp || '')
-    if (phone) window.open(`https://wa.me/${phone}?text=${text}`)
-    else {
-      navigator.clipboard.writeText(messages.whatsapp || '')
-      toast('✓ WhatsApp message copied!')
+    const text = messages.whatsapp || ''
+    const phone = contact.phone || contact.mobile_phone || contact.whatsapp_number || ''
+    if (!text) {
+      toast('No WhatsApp message')
+      return
     }
-    if (contact.status === 'sent') {
-      await crmLogMessage('WhatsApp', messages.whatsapp || '')
-    } else {
-      logCrmActivity({
+    if (!phone || !formatWhatsAppPhone(phone)) {
+      toast('Phone number missing')
+      return
+    }
+    if (!openWhatsAppComposer(phone, text)) return
+
+    try {
+      const { contact: updated } = await logMessageSent({
         contactId: contact.id,
-        activityType: 'WHATSAPP_OPENED',
-        activityDetail: `WhatsApp draft opened for ${contact.name}`,
-        metadata: { phone: contact.phone },
+        channel: 'WhatsApp',
+        messageText: text,
       })
+      applyContactUpdate(updated)
+      toast('✓ WhatsApp opened')
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -389,32 +397,65 @@ export default function ContactResultPage() {
     if (!contact) return
     setSending(true)
     setError(null)
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
+      if (!user) {
+        router.push('/login')
+        return
+      }
 
-      const res = await fetch('/api/card/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await supabase
+        .from('scanned_contacts')
+        .update({
+          message_linkedin: messages.linkedin,
+          message_email: messages.email,
+          message_whatsapp: messages.whatsapp,
+          email_subject: subject,
+        })
+        .eq('id', contact.id)
+        .eq('user_id', user.id)
+
+      const whatsappPhone = contact.phone || contact.mobile_phone || contact.whatsapp_number || ''
+      const emailSubject = subject || 'Hello'
+      const sent: Array<{ channel: 'LinkedIn' | 'Email' | 'WhatsApp'; text: string }> = []
+
+      if (contact.email && messages.email.trim()) {
+        if (openEmailComposer(contact.email, emailSubject, messages.email)) {
+          sent.push({ channel: 'Email', text: messages.email })
+        }
+      }
+
+      if (whatsappPhone && messages.whatsapp.trim()) {
+        if (openWhatsAppComposer(whatsappPhone, messages.whatsapp)) {
+          sent.push({ channel: 'WhatsApp', text: messages.whatsapp })
+        }
+      }
+
+      if (contact.linkedin_url && messages.linkedin.trim()) {
+        if (await openLinkedInComposer(contact.linkedin_url, messages.linkedin)) {
+          sent.push({ channel: 'LinkedIn', text: messages.linkedin })
+        }
+      }
+
+      if (sent.length === 0) {
+        throw new Error('No messages to send. Add text for at least one channel.')
+      }
+
+      for (const entry of sent) {
+        const { contact: updated } = await logMessageSent({
           contactId: contact.id,
-          userId: user.id,
-          messages: {
-            linkedin: messages.linkedin,
-            email: messages.email,
-            whatsapp: messages.whatsapp,
-          },
-          emailSubject: subject,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.error || 'Sending failed.')
-      if (json.contact) setContact(json.contact as ScannedContact)
-      logCrmActivity({
-        contactId: contact.id,
-        activityType: 'MESSAGE_GENERATED',
-        activityDetail: `Outreach approved for ${contact.name}`,
-      })
+          channel: entry.channel,
+          messageText: entry.text,
+        })
+        applyContactUpdate(updated)
+      }
+
+      toast(
+        sent.some((entry) => entry.channel === 'LinkedIn')
+          ? 'Zpráva zkopírována, vlož ji na LinkedIn profilu.'
+          : '✓ Composers opened'
+      )
       setShowFollowup(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
