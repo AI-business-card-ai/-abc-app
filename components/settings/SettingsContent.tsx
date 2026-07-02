@@ -1,17 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
 import { normalizeAbcProfile } from '@/lib/profile-defaults'
 import ConnectionsSection from '@/components/settings/ConnectionsSection'
 import type { ABCProfile } from '@/lib/types'
 
 export default function SettingsContent() {
+  const router = useRouter()
   const supabase = useMemo(() => createClientComponent(), [])
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<any>({})
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   const loadProfile = useCallback(async () => {
     try {
@@ -102,6 +105,20 @@ export default function SettingsContent() {
     } catch (err: unknown) {
       console.error('Save exception:', err)
       setError(err instanceof Error ? err.message : 'Save failed')
+    }
+  }
+
+  async function handleLogout() {
+    setLoggingOut(true)
+    try {
+      const { error: signOutError } = await supabase.auth.signOut()
+      if (signOutError) throw signOutError
+      router.push('/login')
+      router.refresh()
+    } catch (err) {
+      console.error('Logout error:', err)
+      setError(err instanceof Error ? err.message : 'Odhlášení selhalo.')
+      setLoggingOut(false)
     }
   }
 
@@ -345,6 +362,28 @@ export default function SettingsContent() {
           {error}
         </p>
       )}
+
+      <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid #2a2a2a' }}>
+        <button
+          type="button"
+          onClick={() => void handleLogout()}
+          disabled={loggingOut}
+          style={{
+            width: '100%',
+            padding: '14px',
+            borderRadius: '10px',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            background: 'transparent',
+            color: '#ef4444',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: loggingOut ? 'wait' : 'pointer',
+            opacity: loggingOut ? 0.6 : 1,
+          }}
+        >
+          {loggingOut ? 'Odhlášení…' : 'Odhlásit se'}
+        </button>
+      </div>
     </div>
   )
 }
