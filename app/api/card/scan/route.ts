@@ -7,6 +7,7 @@ import {
 } from '@/lib/claude'
 import { onCardScanned } from '@/lib/crm-engine'
 import { triggerBackgroundEnrichment } from '@/lib/enrichment'
+import { contactMatchesOwnerProfile, warnIfContactMatchesOwnerProfile } from '@/lib/contact-owner-guard'
 import { ABCProfile } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
@@ -71,6 +72,24 @@ export async function POST(req: NextRequest) {
     const extracted = await extractBusinessCardFromImage(base64, claudeMediaType)
     console.log('Phase 1 OCR complete:', extracted.name, extracted.company)
 
+    const ownerMatch = contactMatchesOwnerProfile(extracted, profile)
+    if (ownerMatch.matches) {
+      console.warn('[card/scan] blocked — OCR result matches owner abc_profiles (not a scanned contact)', {
+        userId,
+        matchedFields: ownerMatch.reasons,
+        extracted,
+      })
+      return NextResponse.json(
+        {
+          error:
+            'This looks like your own profile, not a business card contact. Complete Setup only saves your profile — scan someone else\'s card.',
+          code: 'OWNER_PROFILE_MATCH',
+          matchedFields: ownerMatch.reasons,
+        },
+        { status: 400 }
+      )
+    }
+
     const pendingContacts = [
       {
         ...extracted,
@@ -107,6 +126,7 @@ export async function POST(req: NextRequest) {
 
     if (data) {
       for (const c of data) {
+        await warnIfContactMatchesOwnerProfile(userId, c, 'card/scan')
         onCardScanned(c.id, userId).catch(console.error)
         triggerBackgroundEnrichment(c.id, userId)
       }

@@ -92,6 +92,7 @@ Output ONLY the context text, no labels or formatting.`,
 
 export async function POST(req: NextRequest) {
   try {
+    // Onboarding completion writes ONLY to abc_profiles — never scanned_contacts or enrichment.
     const authClient = createRouteHandlerClient()
     const {
       data: { user },
@@ -222,7 +223,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log('[onboarding/complete] profile saved', { userId: user.id, created: !existingProfile })
+    console.log('[onboarding/complete] abc_profiles saved only (no scanned_contacts, no enrichment)', {
+      userId: user.id,
+      created: !existingProfile,
+    })
 
     return NextResponse.json({ success: true, userPrompt })
   } catch (err) {
