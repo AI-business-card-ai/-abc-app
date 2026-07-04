@@ -142,6 +142,7 @@ export default function OnboardingPage() {
     try {
       const res = await fetch('/api/onboarding/complete', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
@@ -155,14 +156,31 @@ export default function OnboardingPage() {
           messageLength,
         }),
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Setup failed')
+      const json = (await res.json()) as {
+        error?: string
+        code?: string
+        details?: string
+      }
+      if (!res.ok) {
+        const parts = [
+          json.error,
+          json.code ? `code=${json.code}` : null,
+          json.details ? `details=${json.details}` : null,
+        ].filter(Boolean)
+        throw new Error(parts.join(' | ') || `Setup failed (HTTP ${res.status})`)
+      }
       goNext()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Setup failed')
+      setError(formatClientError(err))
     } finally {
       setSubmitting(false)
     }
+  }
+
+  function formatClientError(err: unknown) {
+    if (err instanceof Error) return err.message
+    if (typeof err === 'string') return err
+    return 'Setup failed'
   }
 
   if (loading) {
@@ -319,12 +337,12 @@ export default function OnboardingPage() {
                 <p className="text-sm" style={{ color: '#999999' }}>What should each message achieve?</p>
                 <SelectCards label="Message length" options={LENGTH_OPTIONS} value={messageLength} onChange={setMessageLength} columns={2} />
                 <SelectCards label="Primary goal" options={GOAL_OPTIONS} value={goal} onChange={setGoal} columns={2} />
-                {error && <p className="text-sm text-red-400">{error}</p>}
                 <NavButtons
                   onBack={goBack}
                   onNext={handleComplete}
                   nextLabel={submitting ? 'Saving…' : isEditing ? 'Save changes' : 'Complete Setup →'}
                   nextDisabled={submitting}
+                  error={error}
                 />
               </>
             )}
@@ -446,11 +464,13 @@ function NavButtons({
   onNext,
   nextDisabled,
   nextLabel = 'Continue →',
+  error,
 }: {
   onBack: () => void
   onNext: () => void
   nextDisabled?: boolean
   nextLabel?: string
+  error?: string | null
 }) {
   return (
     <div className="flex flex-col gap-3 w-full pt-2">
@@ -462,6 +482,15 @@ function NavButtons({
       >
         {nextLabel}
       </button>
+      {error && (
+        <p
+          className="text-sm leading-relaxed"
+          style={{ color: '#f87171', margin: 0 }}
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
       <button
         type="button"
         onClick={onBack}

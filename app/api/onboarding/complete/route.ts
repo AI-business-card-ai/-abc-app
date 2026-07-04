@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { createServiceClient } from '@/lib/supabase/service'
+import { formatSupabaseError } from '@/lib/supabase-errors'
 import { getLanguageInstruction } from '@/lib/ai-messages'
 
 const anthropic = new Anthropic({
@@ -11,6 +13,27 @@ function mapStyleToCommunication(style: string): 'direct' | 'formal' | 'casual' 
   if (style.toLowerCase().includes('formal')) return 'formal'
   if (style.toLowerCase().includes('casual')) return 'casual'
   return 'direct'
+}
+
+function errorResponse(error: unknown, status = 500) {
+  const message = formatSupabaseError(error)
+  const code = typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as { code?: string }).code || '')
+    : undefined
+  const details = typeof error === 'object' && error !== null && 'details' in error
+    ? String((error as { details?: string }).details || '')
+    : undefined
+
+  console.error('[onboarding/complete] failed', { message, code, details, raw: error })
+
+  return NextResponse.json(
+    {
+      error: message,
+      code: code || undefined,
+      details: details || undefined,
+    },
+    { status }
+  )
 }
 
 async function generateUserPrompt(input: {
@@ -69,10 +92,18 @@ Output ONLY the context text, no labels or formatting.`,
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const authClient = createRouteHandlerClient()
+    const {
+      data: { user },
+      error: userError,
+    } = await authClient.auth.getUser()
+
+    if (userError) {
+      return errorResponse(userError, 401)
+    }
+
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized: no session user found' }, { status: 401 })
     }
 
     const body = (await req.json()) as {
@@ -102,17 +133,21 @@ export async function POST(req: NextRequest) {
 
     let userPrompt = ''
     if (process.env.ANTHROPIC_API_KEY) {
-      userPrompt = await generateUserPrompt({
-        name,
-        company,
-        role,
-        product,
-        icp,
-        style,
-        language,
-        goal,
-        messageLength: body.messageLength,
-      })
+      try {
+        userPrompt = await generateUserPrompt({
+          name,
+          company,
+          role,
+          product,
+          icp,
+          style,
+          language,
+          goal,
+          messageLength: body.messageLength,
+        })
+      } catch (promptError) {
+        return errorResponse(promptError, 502)
+      }
     } else {
       const userLang = language ?? 'EN'
       const langPhrase =
@@ -128,31 +163,69 @@ export async function POST(req: NextRequest) {
 
     const communicationStyle = mapStyleToCommunication(style)
 
-    console.log('Saving language:', language)
+    const profilePayload = {
+      full_name: name,
+      company,
+      role,
+      product_description: product,
+      icp,
+      goals: goal,
+      message_goal: goal,
+      message_length: body.messageLength || null,
+      communication_style: communicationStyle,
+      outreach_language: language,
+      system_prompt: userPrompt,
+      onboarding_completed: true,
+    }
 
-    const { error } = await supabase
+    const serviceClient = createServiceClient()
+
+    const { data: existingProfile, error: profileLookupError } = await serviceClient
       .from('abc_profiles')
-      .upsert({
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profileLookupError) {
+      return errorResponse(profileLookupError)
+    }
+
+    if (existingProfile) {
+      const { error: updateError } = await serviceClient
+        .from('abc_profiles')
+        .update(profilePayload)
+        .eq('id', user.id)
+
+      if (updateError) {
+        return errorResponse(updateError)
+      }
+    } else {
+      const { error: insertError } = await serviceClient.from('abc_profiles').insert({
         id: user.id,
-        full_name: name,
-        company,
-        role,
-        product_description: product,
-        icp,
-        goals: goal,
-        message_goal: goal,
-        message_length: body.messageLength || null,
-        communication_style: communicationStyle,
-        outreach_language: language,
-        system_prompt: userPrompt,
-        onboarding_completed: true,
+        email: user.email ?? null,
+        ...profilePayload,
       })
 
-    if (error) throw error
+      if (insertError) {
+        if (insertError.code === '23505') {
+          const { error: updateError } = await serviceClient
+            .from('abc_profiles')
+            .update(profilePayload)
+            .eq('id', user.id)
+
+          if (updateError) {
+            return errorResponse(updateError)
+          }
+        } else {
+          return errorResponse(insertError)
+        }
+      }
+    }
+
+    console.log('[onboarding/complete] profile saved', { userId: user.id, created: !existingProfile })
 
     return NextResponse.json({ success: true, userPrompt })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Onboarding failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return errorResponse(err)
   }
 }
