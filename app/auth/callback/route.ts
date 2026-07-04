@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { isGoogleUser } from '@/lib/google-oauth'
 import { saveGoogleOAuthTokens } from '@/lib/google-gmail-auth'
+import { formatSupabaseError } from '@/lib/supabase-errors'
 
 function authErrorRedirect(origin: string, reason: string) {
   console.error('[auth/callback] redirecting to login:', reason)
@@ -157,9 +158,10 @@ export async function GET(request: Request) {
               })
               console.log('[auth/callback] google tokens saved after duplicate-profile race')
             } catch (tokenError) {
-              const message = tokenError instanceof Error ? tokenError.message : 'unknown_token_save_error'
+              const message = formatSupabaseError(tokenError)
               console.error('[auth/callback] google token save failed after duplicate-profile race', {
                 message,
+                raw: tokenError,
               })
               return authErrorRedirect(origin, `google_token_save_failed:${message}`)
             }
@@ -191,10 +193,11 @@ export async function GET(request: Request) {
           email: googleEmail,
         })
       } catch (tokenError) {
-        const message = tokenError instanceof Error ? tokenError.message : 'unknown_token_save_error'
+        const message = formatSupabaseError(tokenError)
         console.error('[auth/callback] saveGoogleOAuthTokens failed', {
           message,
           userId: user.id,
+          raw: tokenError,
         })
         return authErrorRedirect(origin, `google_token_save_failed:${message}`)
       }
@@ -210,7 +213,7 @@ export async function GET(request: Request) {
     console.log('[auth/callback] redirecting to final destination', { destination })
     return NextResponse.redirect(`${origin}${destination}`)
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'unknown_callback_error'
+    const message = formatSupabaseError(err)
     console.error('[auth/callback] unhandled error', err)
     return authErrorRedirect(origin, `unhandled:${message}`)
   }

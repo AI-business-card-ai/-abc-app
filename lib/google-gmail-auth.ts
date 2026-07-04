@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import { formatSupabaseError, toThrownError } from '@/lib/supabase-errors'
 
 export const GOOGLE_RECONNECT_CODE = 'RECONNECT_GOOGLE'
 
@@ -115,7 +116,16 @@ export async function saveGoogleOAuthTokens(
   }
 
   const { error } = await supabase.from('abc_profiles').update(updates).eq('id', userId)
-  if (error) throw error
+  if (error) {
+    console.error('[saveGoogleOAuthTokens] update failed', {
+      userId,
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    })
+    throw toThrownError(error)
+  }
 }
 
 export async function getGoogleAccessTokenForUser(userId: string): Promise<string> {
