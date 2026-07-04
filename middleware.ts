@@ -4,6 +4,15 @@ import type { NextRequest } from 'next/server'
 
 const ONBOARDING_EXEMPT = ['/onboarding', '/login', '/register', '/', '/settings', '/profile', '/pricing']
 
+function withCookieDefaults(options: CookieOptions = {}): CookieOptions {
+  return {
+    ...options,
+    path: options.path ?? '/',
+    sameSite: options.sameSite ?? 'lax',
+    secure: options.secure ?? process.env.NODE_ENV === 'production',
+  }
+}
+
 export async function middleware(req: NextRequest) {
   let response = NextResponse.next({ request: req })
 
@@ -19,20 +28,23 @@ export async function middleware(req: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value))
           response = NextResponse.next({ request: req })
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, withCookieDefaults(options))
           )
         },
       },
     }
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   const pathname = req.nextUrl.pathname
 
   const protectedRoutes = ['/scan', '/contacts', '/contact', '/chat', '/settings', '/profile', '/pipeline', '/onboarding', '/dashboard']
   const isProtected = protectedRoutes.some((r) => pathname.startsWith(r))
 
-  if (isProtected && !session) {
+  if (isProtected && !user) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
@@ -42,11 +54,11 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api') ||
     pathname.startsWith('/_next')
 
-  if (session && !isOnboardingExempt) {
+  if (user && !isOnboardingExempt) {
     const { data: profile } = await supabase
       .from('abc_profiles')
       .select('onboarding_completed')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .maybeSingle()
 
     if (!profile?.onboarding_completed) {

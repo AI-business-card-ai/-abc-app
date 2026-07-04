@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { NextResponse, type NextRequest } from 'next/server'
+import { createOAuthCallbackClient, getPkceCookieDebugInfo } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { isGoogleUser } from '@/lib/google-oauth'
 import { saveGoogleOAuthTokens } from '@/lib/google-gmail-auth'
@@ -17,7 +17,7 @@ function summarizeToken(value: string | null | undefined) {
   return `present (${value.length} chars)`
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
@@ -27,14 +27,16 @@ export async function GET(request: Request) {
     hasCode: Boolean(code),
     next: safeNext,
     origin,
+    cookieSummary: getPkceCookieDebugInfo(request),
   })
 
   if (!code) {
     return authErrorRedirect(origin, 'missing_oauth_code')
   }
 
+  const { supabase, redirectWithAuthCookies } = createOAuthCallbackClient(request)
+
   try {
-    const supabase = createRouteHandlerClient()
     console.log('[auth/callback] exchanging OAuth code for session')
 
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
@@ -44,6 +46,7 @@ export async function GET(request: Request) {
         message: exchangeError.message,
         status: exchangeError.status,
         name: exchangeError.name,
+        cookieSummary: getPkceCookieDebugInfo(request),
       })
       return authErrorRedirect(origin, `exchange_failed:${exchangeError.message}`)
     }
@@ -167,7 +170,7 @@ export async function GET(request: Request) {
             }
           }
           console.log('[auth/callback] redirecting to onboarding after duplicate-profile race')
-          return NextResponse.redirect(`${origin}/onboarding`)
+          return redirectWithAuthCookies(`${origin}/onboarding`)
         }
 
         return authErrorRedirect(origin, `profile_insert_failed:${insertError.message}`)
@@ -177,7 +180,7 @@ export async function GET(request: Request) {
         googleRefreshToken: summarizeToken(session?.provider_refresh_token),
       })
       console.log('[auth/callback] redirecting to onboarding (new profile)')
-      return NextResponse.redirect(`${origin}/onboarding`)
+      return redirectWithAuthCookies(`${origin}/onboarding`)
     }
 
     if (googleLogin) {
@@ -211,7 +214,7 @@ export async function GET(request: Request) {
 
     const destination = profile.onboarding_completed ? safeNext : '/onboarding'
     console.log('[auth/callback] redirecting to final destination', { destination })
-    return NextResponse.redirect(`${origin}${destination}`)
+    return redirectWithAuthCookies(`${origin}${destination}`)
   } catch (err) {
     const message = formatSupabaseError(err)
     console.error('[auth/callback] unhandled error', err)

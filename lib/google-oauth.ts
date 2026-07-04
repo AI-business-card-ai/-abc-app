@@ -3,8 +3,13 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 export const GOOGLE_GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send'
 
 export function getGoogleOAuthRedirectTo(nextPath = '/dashboard') {
+  // Always use the browser origin so PKCE cookies match the callback domain.
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+  }
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL
-  const base = appUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+  const base = appUrl || ''
   return `${base}/auth/callback?next=${encodeURIComponent(nextPath)}`
 }
 
