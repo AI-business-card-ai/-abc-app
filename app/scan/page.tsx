@@ -6,9 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { IconMicrophone, IconX } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
+import ScanBurstQueue, { type BurstQueueItem } from '@/components/mobile/ScanBurstQueue'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
-
-type FlowPhase = 'camera' | 'scanning' | 'event' | 'finishing'
 
 function PhoneStatusBar() {
   return (
@@ -17,17 +16,11 @@ function PhoneStatusBar() {
       <div className="flex items-center gap-2">
         <div className="flex items-end gap-[2px] h-3">
           {[4, 6, 8, 10].map((h, i) => (
-            <div
-              key={i}
-              className="w-[3px] rounded-sm bg-white/75"
-              style={{ height: h }}
-            />
+            <div key={i} className="w-[3px] rounded-sm bg-white/75" style={{ height: h }} />
           ))}
         </div>
         <span className="text-[9px] font-semibold text-white/70">5G</span>
-        <div
-          className="relative w-[22px] h-[11px] rounded-[3px] border border-white/45 p-[1.5px]"
-        >
+        <div className="relative w-[22px] h-[11px] rounded-[3px] border border-white/45 p-[1.5px]">
           <div className="h-full w-[72%] rounded-[1px] bg-[#00d4d4]" />
           <div className="absolute -right-[3px] top-1/2 -translate-y-1/2 w-[2px] h-[5px] rounded-sm bg-white/45" />
         </div>
@@ -36,10 +29,15 @@ function PhoneStatusBar() {
   )
 }
 
-async function fetchContactStatus(contactId: string) {
-  const res = await fetch(`/api/card/status/${contactId}`)
-  if (!res.ok) return null
-  return res.json() as Promise<{ status: 'basic' | 'enriched' }>
+function burstStatusFromContact(contact: ScannedContact): BurstQueueItem['status'] {
+  if (contact.enrichment_status === 'ERROR') return 'error'
+  if (contact.enrichment_status === 'DONE' || contact.scan_status === 'enriched') return 'enriched'
+  if (contact.id) return 'saved'
+  return 'ocr'
+}
+
+function createClientId() {
+  return `scan-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
 export default function ScanPage() {
@@ -48,180 +46,249 @@ export default function ScanPage() {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const chunksRef = useRef<BlobPart[]>([])
+  const latestContactIdRef = useRef<string | null>(null)
+  const profileRef = useRef<Partial<ABCProfile> | null>(null)
+  const processingRef = useRef<Set<string>>(new Set())
 
-  const [selectedImage, setSelectedImage] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [queue, setQueue] = useState<BurstQueueItem[]>([])
   const [note, setNote] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
-  const [flowPhase, setFlowPhase] = useState<FlowPhase>('camera')
   const [flash, setFlash] = useState(false)
+  const [capturePulse, setCapturePulse] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPaywall, setShowPaywall] = useState(false)
-  const [savedContact, setSavedContact] = useState<ScannedContact | null>(null)
-  const [submittingEvent, setSubmittingEvent] = useState(false)
+  const [scanBlocked, setScanBlocked] = useState(false)
+  const [hasCapturedOnce, setHasCapturedOnce] = useState(false)
+  const [scansToday, setScansToday] = useState(0)
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
     return () => {
-      if (imagePreview) URL.revokeObjectURL(imagePreview)
+      queue.forEach((item) => URL.revokeObjectURL(item.previewUrl))
     }
-  }, [imagePreview])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
-    if (!savedContact?.id) return
-    const channel = supabase
-      .channel(`scan-${savedContact.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'scanned_contacts', filter: `id=eq.${savedContact.id}` },
-        (payload) => {
-          const updated = payload.new as ScannedContact
-          setSavedContact(updated)
-          if (updated.scan_status === 'enriched' || updated.enrichment_status === 'DONE') {
-            if (flowPhase === 'finishing') {
-              router.push(`/contact/${updated.id}`)
-            }
-          }
-        }
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [flowPhase, router, savedContact?.id, supabase])
+    let mounted = true
 
-  const resetForNextScan = useCallback(() => {
-    if (imagePreview) URL.revokeObjectURL(imagePreview)
-    setSelectedImage(null)
-    setImagePreview(null)
-    setSavedContact(null)
-    setError(null)
-    setNote('')
-    setFlowPhase('camera')
-  }, [imagePreview])
-
-  function handleFile(file: File | undefined) {
-    if (!file) return
-    if (imagePreview) URL.revokeObjectURL(imagePreview)
-    setSelectedImage(file)
-    setImagePreview(URL.createObjectURL(file))
-    setSavedContact(null)
-    setError(null)
-    setFlowPhase('camera')
-  }
-
-  const runPhase1Scan = useCallback(async (file: File) => {
-    setFlowPhase('scanning')
-    setError(null)
-    hapticMedium()
-    setFlash(true)
-    setTimeout(() => setFlash(false), 180)
-
-    try {
+    async function loadProfile() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      if (!user || !mounted) {
         router.push('/login')
         return
       }
-
+      setUserId(user.id)
       const { data: profile } = await supabase.from('abc_profiles').select('*').eq('id', user.id).maybeSingle()
-      const profilePayload: Partial<ABCProfile> = profile ?? {
+      profileRef.current = (profile as ABCProfile | null) ?? {
         id: user.id,
         communication_style: 'direct',
         outreach_language: 'EN',
       }
+      setScansToday((profile as ABCProfile | null)?.scans_used ?? 0)
+    }
 
-      const formData = new FormData()
-      formData.append('image', file)
-      formData.append('userId', user.id)
-      formData.append('userProfile', JSON.stringify(profilePayload))
-
-      const res = await fetch('/api/card/scan', { method: 'POST', body: formData })
-      const data = await res.json()
-
-      if (res.status === 403 && data.error === 'SCAN_LIMIT_REACHED') {
-        setShowPaywall(true)
-        setFlowPhase('camera')
-        return
-      }
-      if (!res.ok || !data.success) throw new Error(data.error || 'Scan failed')
-
-      hapticSuccess()
-      const contact = (data.contacts?.[0] as ScannedContact) || null
-      setSavedContact(contact)
-      setFlowPhase('event')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Scan failed')
-      setFlowPhase('camera')
+    void loadProfile()
+    return () => {
+      mounted = false
     }
   }, [router, supabase])
 
-  const waitForEnrichment = useCallback(async (contactId: string, maxMs = 20000) => {
-    const start = Date.now()
-    while (Date.now() - start < maxMs) {
-      const status = await fetchContactStatus(contactId)
-      if (status?.status === 'enriched') return true
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-    }
-    return false
+  const updateQueueItem = useCallback((clientId: string, patch: Partial<BurstQueueItem>) => {
+    setQueue((prev) => prev.map((item) => (item.id === clientId ? { ...item, ...patch } : item)))
   }, [])
 
-  const submitEventAndContinue = useCallback(async () => {
-    if (!savedContact?.id) return
-    setSubmittingEvent(true)
-    setError(null)
-
+  const saveEventForContact = useCallback(async (contactId: string, eventNote: string) => {
+    const trimmed = eventNote.trim()
+    if (!trimmed) return
     try {
-      const res = await fetch('/api/card/event', {
+      await fetch('/api/card/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contactId: savedContact.id,
-          eventName: note.trim() || null,
-          note: note.trim() || null,
+          contactId,
+          eventName: trimmed,
+          note: trimmed,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to save event')
+    } catch (err) {
+      console.error('save event failed:', err)
+    }
+  }, [])
 
-      const status = await fetchContactStatus(savedContact.id)
-      if (status?.status === 'enriched') {
-        hapticSuccess()
-        router.push(`/contact/${savedContact.id}`)
+  const flushNoteToLatestContact = useCallback(() => {
+    const trimmed = note.trim()
+    if (trimmed && latestContactIdRef.current) {
+      void saveEventForContact(latestContactIdRef.current, trimmed)
+      setNote('')
+    }
+  }, [note, saveEventForContact])
+
+  const processScanInBackground = useCallback(
+    async (clientId: string, file: File) => {
+      if (processingRef.current.has(clientId)) return
+      processingRef.current.add(clientId)
+
+      updateQueueItem(clientId, { status: 'ocr' })
+
+      try {
+        const uid = userId ?? (await supabase.auth.getUser()).data.user?.id
+        if (!uid) {
+          router.push('/login')
+          return
+        }
+
+        const profilePayload: Partial<ABCProfile> = profileRef.current ?? {
+          id: uid,
+          communication_style: 'direct',
+          outreach_language: 'EN',
+        }
+
+        const formData = new FormData()
+        formData.append('image', file)
+        formData.append('userId', uid)
+        formData.append('userProfile', JSON.stringify(profilePayload))
+
+        const res = await fetch('/api/card/scan', { method: 'POST', body: formData })
+        const data = await res.json()
+
+        if (res.status === 403 && data.error === 'SCAN_LIMIT_REACHED') {
+          setShowPaywall(true)
+          setScanBlocked(true)
+          updateQueueItem(clientId, { status: 'error', error: 'Limit reached' })
+          return
+        }
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Scan failed')
+        }
+
+        const contact = (data.contacts?.[0] as ScannedContact) || null
+        if (!contact) throw new Error('No contact returned')
+
+        latestContactIdRef.current = contact.id
+        setScansToday((prev) => prev + 1)
+        if (profileRef.current) {
+          profileRef.current = {
+            ...profileRef.current,
+            scans_used: (profileRef.current.scans_used ?? 0) + 1,
+          }
+        }
+
+        updateQueueItem(clientId, {
+          status: burstStatusFromContact(contact),
+          contact,
+        })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Scan failed'
+        setError(message)
+        updateQueueItem(clientId, { status: 'error', error: message })
+      } finally {
+        processingRef.current.delete(clientId)
+      }
+    },
+    [router, supabase, updateQueueItem, userId]
+  )
+
+  const enqueueCapture = useCallback(
+    (file: File) => {
+      if (scanBlocked) {
+        setShowPaywall(true)
         return
       }
 
-      setFlowPhase('finishing')
-      await waitForEnrichment(savedContact.id, 20000)
-      router.push(`/contact/${savedContact.id}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to continue')
-      setFlowPhase('event')
-    } finally {
-      setSubmittingEvent(false)
+      flushNoteToLatestContact()
+
+      hapticMedium()
+      setFlash(true)
+      setTimeout(() => setFlash(false), 120)
+
+      setCapturePulse(true)
+      setTimeout(() => setCapturePulse(false), 320)
+      hapticSuccess()
+
+      const previewUrl = URL.createObjectURL(file)
+      const clientId = createClientId()
+
+      setQueue((prev) => [
+        ...prev,
+        {
+          id: clientId,
+          previewUrl,
+          status: 'queued',
+          justCaptured: true,
+        },
+      ])
+      setHasCapturedOnce(true)
+      setError(null)
+
+      setTimeout(() => {
+        updateQueueItem(clientId, { justCaptured: false })
+      }, 300)
+
+      void processScanInBackground(clientId, file)
+    },
+    [flushNoteToLatestContact, processScanInBackground, scanBlocked, updateQueueItem]
+  )
+
+  useEffect(() => {
+    if (!userId) return
+
+    const channel = supabase
+      .channel(`scan-burst-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'scanned_contacts',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const updated = payload.new as ScannedContact
+          setQueue((prev) =>
+            prev.map((item) =>
+              item.contact?.id === updated.id
+                ? {
+                    ...item,
+                    contact: updated,
+                    status: burstStatusFromContact(updated),
+                  }
+                : item
+            )
+          )
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
-  }, [note, router, savedContact, waitForEnrichment])
+  }, [supabase, userId])
 
   function triggerCamera() {
+    if (scanBlocked) {
+      setShowPaywall(true)
+      return
+    }
     hapticMedium()
     cameraInputRef.current?.click()
   }
 
-  async function onCameraSelected(e: React.ChangeEvent<HTMLInputElement>) {
+  function onCameraSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    handleFile(file)
-    await runPhase1Scan(file)
+    enqueueCapture(file)
   }
 
-  async function onGallerySelected(e: React.ChangeEvent<HTMLInputElement>) {
+  function onGallerySelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    handleFile(file)
-    await runPhase1Scan(file)
+    enqueueCapture(file)
   }
 
   const startRecording = async () => {
@@ -251,9 +318,7 @@ export default function ScanPage() {
     }
   }
 
-  const isScanning = flowPhase === 'scanning'
-  const showEventForm = flowPhase === 'event' || flowPhase === 'finishing'
-  const showCameraControls = flowPhase === 'camera' || flowPhase === 'scanning'
+  const latestSaved = [...queue].reverse().find((item) => item.contact?.name || item.contact?.company)
 
   return (
     <div
@@ -279,12 +344,7 @@ export default function ScanPage() {
 
         <div
           className="hidden md:block absolute top-0 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
-          style={{
-            width: 120,
-            height: 30,
-            background: '#0f0f0f',
-            borderRadius: '0 0 20px 20px',
-          }}
+          style={{ width: 120, height: 30, background: '#0f0f0f', borderRadius: '0 0 20px 20px' }}
         />
 
         <PhoneStatusBar />
@@ -293,11 +353,31 @@ export default function ScanPage() {
           <AnimatePresence>
             {flash && (
               <motion.div
-                initial={{ opacity: 0.85 }}
+                initial={{ opacity: 0.9 }}
                 animate={{ opacity: 0 }}
                 exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
                 className="absolute inset-0 z-50 pointer-events-none bg-white"
               />
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {capturePulse && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.2 }}
+                transition={{ duration: 0.28 }}
+                className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
+              >
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-3xl font-bold"
+                  style={{ background: 'rgba(34,197,94,0.85)', color: '#ffffff', boxShadow: '0 0 40px rgba(34,197,94,0.5)' }}
+                >
+                  ✓
+                </div>
+              </motion.div>
             )}
           </AnimatePresence>
 
@@ -316,180 +396,141 @@ export default function ScanPage() {
             <IconX size={20} style={{ color: '#999999' }} />
           </button>
 
+          {hasCapturedOnce && (
+            <div
+              className="absolute top-4 left-4 z-20 rounded-full px-3 py-1.5 text-xs font-semibold tabular-nums"
+              style={{ background: 'rgba(15,15,15,0.75)', border: '1px solid rgba(0,212,212,0.25)', color: '#00d4d4' }}
+            >
+              {scansToday} karet dnes
+            </div>
+          )}
+
           <div className="flex-1 relative flex items-center justify-center overflow-hidden min-h-0">
-            {imagePreview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imagePreview} alt="" className="absolute inset-0 w-full h-full object-cover opacity-90" />
-            ) : (
-              <div
-                className="absolute inset-0"
-                style={{ background: 'radial-gradient(ellipse at center, #1a1a1a 0%, #0f0f0f 70%)' }}
-              />
-            )}
+            <div
+              className="absolute inset-0"
+              style={{ background: 'radial-gradient(ellipse at center, #1a1a1a 0%, #0f0f0f 70%)' }}
+            />
 
             <div className="scan-frame-mobile relative z-10 w-[85%] max-w-[320px] aspect-[1.6/1]">
               <span className="scan-corner scan-corner-tl" />
               <span className="scan-corner scan-corner-tr" />
               <span className="scan-corner scan-corner-bl" />
               <span className="scan-corner scan-corner-br" />
-              {!imagePreview && !isScanning && flowPhase === 'camera' && (
-                <p
-                  className="absolute inset-0 flex items-center justify-center text-sm text-center px-4"
-                  style={{ color: '#666666' }}
-                >
-                  Point at business card
-                </p>
-              )}
-              {isScanning && (
-                <p className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-center px-4" style={{ color: '#00d4d4' }}>
-                  AI analyzuje vizitku…
-                </p>
-              )}
-            </div>
-
-            {flowPhase === 'finishing' && (
-              <div
-                className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6"
-                style={{ background: 'rgba(15, 15, 15, 0.88)' }}
+              <p
+                className="absolute inset-0 flex items-center justify-center text-sm text-center px-4"
+                style={{ color: '#666666' }}
               >
-                <div
-                  className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin mb-4"
-                  style={{ borderColor: '#00d4d4', borderTopColor: 'transparent' }}
-                />
-                <p className="text-base font-semibold text-center" style={{ color: '#ffffff' }}>
-                  Dokončuji AI analýzu…
-                </p>
-                <p className="text-sm text-center mt-2" style={{ color: '#999999' }}>
-                  AI analyzuje firmu a kontakt…
-                </p>
-              </div>
-            )}
+                {scanBlocked ? 'Scan limit — upgrade pro další' : 'Point at business card'}
+              </p>
+            </div>
           </div>
 
-          {flowPhase === 'event' && savedContact && (
+          {latestSaved?.contact && (
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mx-4 mb-3 rounded-2xl p-4 z-20 relative"
+              className="mx-4 mb-1 rounded-2xl px-4 py-3 z-20 relative"
               style={{
-                background: 'rgba(26, 26, 26, 0.95)',
-                border: '1px solid rgba(0, 212, 212, 0.25)',
+                background: 'rgba(26, 26, 26, 0.92)',
+                border: '1px solid rgba(0, 212, 212, 0.2)',
               }}
             >
-              <p className="text-xs mb-1" style={{ color: '#22c55e' }}>✓ Vizitka načtena</p>
-              <p className="font-bold text-lg leading-tight truncate" style={{ color: '#ffffff' }}>
-                {savedContact.name || 'Unknown'}
+              <p className="text-[10px] mb-0.5" style={{ color: '#22c55e' }}>✓ Poslední vizitka</p>
+              <p className="font-bold text-base leading-tight truncate" style={{ color: '#ffffff' }}>
+                {latestSaved.contact.name || 'Analyzuji…'}
               </p>
-              <p className="text-sm truncate" style={{ color: '#00d4d4' }}>
-                {[savedContact.role, savedContact.company].filter(Boolean).join(' · ') || '—'}
+              <p className="text-xs truncate" style={{ color: '#00d4d4' }}>
+                {[latestSaved.contact.role, latestSaved.contact.company].filter(Boolean).join(' · ') || 'Zpracovává se…'}
               </p>
-              {(savedContact.email || savedContact.phone) && (
-                <p className="text-xs mt-1 truncate" style={{ color: '#999999' }}>
-                  {[savedContact.email, savedContact.phone].filter(Boolean).join(' · ')}
-                </p>
-              )}
             </motion.div>
           )}
 
+          <ScanBurstQueue items={queue} onItemClick={(id) => router.push(`/contact/${id}`)} />
+
           {error && (
-            <p className="mx-4 mb-2 text-sm text-red-300 px-3 py-2 rounded-xl z-20 relative" style={{ background: 'rgba(239,68,68,0.1)' }}>
+            <p
+              className="mx-4 mb-2 text-sm text-red-300 px-3 py-2 rounded-xl z-20 relative"
+              style={{ background: 'rgba(239,68,68,0.1)' }}
+            >
               {error}
             </p>
           )}
 
           <div
-            className="shrink-0 z-20 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+72px)] md:pb-4"
+            className="shrink-0 z-20 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+72px)] md:pb-4"
             style={{
               background: 'rgba(15, 15, 15, 0.95)',
               backdropFilter: 'blur(16px)',
               borderTop: '1px solid rgba(0, 212, 212, 0.12)',
-              minHeight: showEventForm ? 200 : 180,
             }}
           >
-            {showEventForm ? (
-              <>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs shrink-0" style={{ color: '#999999' }}>
-                    📍 Kde jste se potkali?
-                  </span>
-                  <button
-                    type="button"
-                    onClick={isRecording ? () => { mediaRecorder?.stop(); setIsRecording(false) } : startRecording}
-                    disabled={isTranscribing || flowPhase === 'finishing'}
-                    className="tap-target shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold"
-                    style={{ background: 'rgba(240,25,125,0.12)', border: '1px solid rgba(240,25,125,0.35)', color: '#f0197d' }}
-                  >
-                    <IconMicrophone size={14} />
-                    {isTranscribing ? '…' : isRecording ? 'Stop' : 'Voice'}
-                  </button>
-                </div>
-                <input
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Veletrh, schůzka, intro…"
-                  disabled={flowPhase === 'finishing'}
-                  className="w-full abc-input px-3 py-3 text-base mb-3 min-h-[44px]"
-                />
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  type="button"
-                  disabled={submittingEvent || flowPhase === 'finishing'}
-                  onClick={() => void submitEventAndContinue()}
-                  className="w-full rounded-xl text-white font-bold text-base disabled:opacity-50 min-h-[52px]"
-                  style={{
-                    background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
-                    boxShadow: '0 4px 24px rgba(240,25,125,0.2)',
-                  }}
-                >
-                  {submittingEvent ? 'Ukládám…' : flowPhase === 'finishing' ? 'Analyzuji…' : 'Pokračovat →'}
-                </motion.button>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2 mb-3 opacity-40 pointer-events-none">
-                  <span className="text-xs shrink-0" style={{ color: '#999999' }}>
-                    📍 Kde jste se potkali?
-                  </span>
-                </div>
-                <input
-                  disabled
-                  placeholder="Nejdřív nafoťte vizitku…"
-                  className="w-full abc-input px-3 py-3 text-base mb-3 min-h-[44px] opacity-40"
-                />
+            <div className={`flex items-center gap-2 mb-3 ${hasCapturedOnce ? '' : 'opacity-40'}`}>
+              <span className="text-xs shrink-0" style={{ color: '#999999' }}>
+                📍 Kde jste se potkali?
+              </span>
+              <button
+                type="button"
+                onClick={
+                  isRecording
+                    ? () => {
+                        mediaRecorder?.stop()
+                        setIsRecording(false)
+                      }
+                    : startRecording
+                }
+                disabled={!hasCapturedOnce || isTranscribing}
+                className="tap-target shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-40"
+                style={{ background: 'rgba(240,25,125,0.12)', border: '1px solid rgba(240,25,125,0.35)', color: '#f0197d' }}
+              >
+                <IconMicrophone size={14} />
+                {isTranscribing ? '…' : isRecording ? 'Stop' : 'Voice'}
+              </button>
+            </div>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={hasCapturedOnce ? 'Veletrh, schůzka, intro…' : 'Nejdřív nafoťte vizitku…'}
+              disabled={!hasCapturedOnce}
+              className="w-full abc-input px-3 py-3 text-base mb-3 min-h-[44px] disabled:opacity-40"
+            />
 
-                {showCameraControls && (
-                  <div className="flex gap-2 md:flex-col">
-                    <motion.button
-                      whileTap={{ scale: 0.97 }}
-                      type="button"
-                      disabled={isScanning}
-                      onClick={triggerCamera}
-                      className="flex-[2] md:flex-none w-full rounded-xl text-white font-bold text-base disabled:opacity-50 min-h-[52px] md:min-h-[48px]"
-                      style={{
-                        background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
-                        boxShadow: '0 4px 24px rgba(240,25,125,0.2)',
-                      }}
-                    >
-                      {isScanning ? 'Analyzuji…' : '📷 SCAN CARD'}
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.97 }}
-                      type="button"
-                      disabled={isScanning}
-                      onClick={() => galleryInputRef.current?.click()}
-                      className="flex-1 md:flex-none w-full rounded-xl font-semibold text-sm min-h-[52px] md:min-h-[44px]"
-                      style={{
-                        background: '#1a1a1a',
-                        border: '1px solid #2a2a2a',
-                        color: '#999999',
-                      }}
-                    >
-                      ⬆ Upload
-                    </motion.button>
-                  </div>
-                )}
-              </>
-            )}
+            <div className="flex gap-2 md:flex-col">
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                type="button"
+                onClick={triggerCamera}
+                className="flex-[2] md:flex-none w-full rounded-xl text-white font-bold text-base min-h-[52px] md:min-h-[48px]"
+                style={{
+                  background: scanBlocked
+                    ? '#2a2a2a'
+                    : 'linear-gradient(135deg, #f0197d, #00d4d4)',
+                  boxShadow: scanBlocked ? 'none' : '0 4px 24px rgba(240,25,125,0.2)',
+                  opacity: scanBlocked ? 0.65 : 1,
+                }}
+              >
+                📷 SCAN CARD
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                type="button"
+                onClick={() => {
+                  if (scanBlocked) {
+                    setShowPaywall(true)
+                    return
+                  }
+                  galleryInputRef.current?.click()
+                }}
+                className="flex-1 md:flex-none w-full rounded-xl font-semibold text-sm min-h-[52px] md:min-h-[44px]"
+                style={{
+                  background: '#1a1a1a',
+                  border: '1px solid #2a2a2a',
+                  color: '#999999',
+                  opacity: scanBlocked ? 0.65 : 1,
+                }}
+              >
+                ⬆ Upload
+              </motion.button>
+            </div>
           </div>
         </div>
       </div>
@@ -502,8 +543,14 @@ export default function ScanPage() {
           <div className="text-center max-w-sm">
             <p className="text-4xl mb-3">⚡</p>
             <h2 className="text-xl font-bold mb-2" style={{ color: '#ffffff' }}>Scan limit reached</h2>
-            <p className="text-sm mb-6" style={{ color: '#999999' }}>Upgrade to scan more contacts.</p>
-            <button type="button" onClick={() => router.push('/settings')} className="glow-btn w-full py-3 rounded-xl text-white font-semibold mb-2">
+            <p className="text-sm mb-6" style={{ color: '#999999' }}>
+              Upgrade to scan more contacts. Cards already in queue will keep processing.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push('/settings')}
+              className="glow-btn w-full py-3 rounded-xl text-white font-semibold mb-2"
+            >
               View plans
             </button>
             <button type="button" onClick={() => setShowPaywall(false)} className="text-sm" style={{ color: '#555555' }}>

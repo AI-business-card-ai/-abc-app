@@ -77,6 +77,22 @@ export default function ContactsPage() {
         .on(
           'postgres_changes',
           {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'scanned_contacts',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const inserted = payload.new as ScannedContact
+            setContacts((prev) => {
+              if (prev.some((c) => c.id === inserted.id)) return prev
+              return [inserted, ...prev]
+            })
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
             event: 'UPDATE',
             schema: 'public',
             table: 'scanned_contacts',
