@@ -8,6 +8,7 @@ import {
 import { onCardScanned } from '@/lib/crm-engine'
 import { triggerBackgroundEnrichment } from '@/lib/enrichment'
 import { contactMatchesOwnerProfile, warnIfContactMatchesOwnerProfile } from '@/lib/contact-owner-guard'
+import { isScanLimitReached, getScanLimitForPlan } from '@/lib/scan-limits'
 import { ABCProfile } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
@@ -51,18 +52,11 @@ export async function POST(req: NextRequest) {
 
     const profile: ABCProfile = (profileRow as ABCProfile | null) ?? userProfile
 
-    const limits: Record<string, number> = {
-      free: 3,
-      starter: 50,
-      basic: 20,
-      pro: 100,
-      team: 500,
-    }
-    const plan = profile?.plan || 'free'
-    const limit = limits[plan] || 3
     const used = profile?.scans_used || 0
 
-    if (used >= limit) {
+    if (isScanLimitReached(profile)) {
+      const plan = profile?.plan || 'free'
+      const limit = getScanLimitForPlan(plan)
       return NextResponse.json(
         { error: 'SCAN_LIMIT_REACHED', plan, used, limit },
         { status: 403 }

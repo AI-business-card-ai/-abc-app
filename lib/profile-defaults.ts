@@ -58,7 +58,7 @@ export const EMPTY_ABC_PROFILE: Omit<ABCProfile, 'id'> = {
 }
 
 const STYLE_VALUES = new Set<ABCProfile['communication_style']>(['direct', 'formal', 'casual'])
-const PLAN_VALUES = new Set<ABCProfile['plan']>(['free', 'starter', 'pro', 'team'])
+const PLAN_VALUES = new Set<ABCProfile['plan']>(['free', 'starter', 'pro', 'team', 'INTERNAL_TEST'])
 
 function parseResearchPreferences(value: unknown): string[] {
   if (Array.isArray(value)) {

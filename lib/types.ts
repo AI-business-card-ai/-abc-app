@@ -178,7 +178,7 @@ export interface ABCProfile {
   communication_style: 'direct' | 'formal' | 'casual'
   outreach_language: string
   goals: string | null
-  plan: 'free' | 'starter' | 'pro' | 'team'
+  plan: 'free' | 'starter' | 'pro' | 'team' | 'INTERNAL_TEST'
   plan_activated_at: string | null
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
