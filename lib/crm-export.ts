@@ -1,4 +1,10 @@
 import { splitName, toABCContact } from '@/lib/data-model'
+import {
+  getContactCompanySize,
+  getContactEventContextForExport,
+  getContactHeadquarters,
+  getContactRevenue,
+} from '@/lib/crm-mandatory-fields'
 import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/types'
 
 export type ExportRow = [string, string | number]
@@ -54,17 +60,23 @@ function buildAbcFieldValues(contact: ReturnType<typeof normalizeContact>) {
   const upcoming = parseJsonArray<ContactEvent>(contact.events_upcoming)
   const past = parseJsonArray<ContactEvent>(contact.events_past)
   const speaking = parseJsonArray<SpeakingEngagement>(contact.speaking_engagements)
+  const companySize = getContactCompanySize(contact as ScannedContact) || contact.company_size || ''
+  const revenue = getContactRevenue(contact as ScannedContact) || contact.company_revenue || ''
+  const hq = getContactHeadquarters(contact as ScannedContact) || contact.meeting_location || ''
+  const eventContext = getContactEventContextForExport(contact as ScannedContact)
 
   return {
     ABC_Score__c: contact.ai_lead_score ?? '',
     ABC_MatchReason__c: contact.match_reason || '',
-    ABC_CompanySize__c: contact.company_size || '',
+    ABC_CompanySize__c: companySize,
     ABC_FundingStage__c: contact.company_funding_stage || '',
     ABC_Technologies__c: Array.isArray(contact.company_technologies)
       ? contact.company_technologies.join(', ')
       : '',
     ABC_Tags__c: Array.isArray(contact.tags) ? contact.tags.join(', ') : '',
-    ABC_EventMet__c: contact.meeting_location || '',
+    ABC_EventMet__c: eventContext,
+    ABC_Headquarters__c: hq,
+    ABC_RevenueRange__c: revenue,
     ABC_MeetingDate__c: contact.meeting_date || '',
     ABC_PhotoUrl__c: contact.photo_url || '',
     ABC_LinkedInHeadline__c: contact.linkedin_headline || '',
@@ -117,16 +129,16 @@ export function buildSalesforceExportRows(contact: ScannedContact): ExportRow[] 
     ['Title', c.position || ''],
     ['Company', c.company || ''],
     ['Industry', c.industry || ''],
-    ['NumberOfEmployees', c.no_of_employees || ''],
-    ['AnnualRevenue', c.annual_revenue || ''],
-    ['City', c.billing_city || ''],
-    ['Country', c.billing_country || ''],
+    ['NumberOfEmployees', getContactCompanySize(c as ScannedContact) || c.no_of_employees || ''],
+    ['AnnualRevenue', getContactRevenue(c as ScannedContact) || c.annual_revenue || ''],
+    ['City', c.billing_city || getContactHeadquarters(c as ScannedContact)?.split(',')[0]?.trim() || ''],
+    ['Country', c.billing_country || getContactHeadquarters(c as ScannedContact)?.split(',').pop()?.trim() || ''],
     ['Website', c.website || ''],
     ['LinkedIn__c', c.linkedin_url || ''],
     ['Status', c.lead_status || 'New'],
     ['Rating', c.rating || 'Cold'],
     ['Description', c.ai_summary || ''],
-    ['LeadSource', c.lead_source || 'ABC AI Business Card'],
+    ['LeadSource', getContactEventContextForExport(c as ScannedContact)],
     ['OpportunityName__c', c.opportunity_name || `${c.first_name || ''} ${c.last_name || ''} - ${c.company || ''}`.trim()],
     ['Amount', c.deal_value || ''],
     ['CloseDate', c.expected_close_date || ''],
@@ -157,10 +169,10 @@ export function buildHubSpotExportRows(contact: ScannedContact): ExportRow[] {
     ['jobtitle', c.position || ''],
     ['website', c.website || ''],
     ['industry', c.industry || ''],
-    ['city', c.billing_city || ''],
-    ['country', c.billing_country || ''],
-    ['annualrevenue', c.annual_revenue || ''],
-    ['numberofemployees', c.no_of_employees || ''],
+    ['city', c.billing_city || getContactHeadquarters(c as ScannedContact)?.split(',')[0]?.trim() || ''],
+    ['country', c.billing_country || getContactHeadquarters(c as ScannedContact)?.split(',').pop()?.trim() || ''],
+    ['annualrevenue', getContactRevenue(c as ScannedContact) || c.annual_revenue || ''],
+    ['numberofemployees', getContactCompanySize(c as ScannedContact) || c.no_of_employees || ''],
     ['hs_lead_status', c.lead_status || 'NEW'],
     ['rating__c', c.rating || 'Cold'],
     ['amount', c.deal_value || ''],

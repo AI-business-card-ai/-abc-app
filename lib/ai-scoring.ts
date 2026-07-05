@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ABCProfile, ScannedContact } from './types'
+import { PERSONAL_MEETING_SCORE_BONUS, getContactMeetingContext } from './event-tag'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -21,6 +22,23 @@ export function scoreToRating(score: number): string {
   if (score >= 70) return 'Hot'
   if (score >= 40) return 'Warm'
   return 'Cold'
+}
+
+export function applyPersonalMeetingBonus(result: AiMatchScoreResult): AiMatchScoreResult {
+  const intent = Math.min(100, Math.round(result.intent_signals) + PERSONAL_MEETING_SCORE_BONUS)
+  const score = Math.round(
+    result.icp_fit * 0.4 + intent * 0.3 + result.timing * 0.2 + result.accessibility * 0.1
+  )
+  const clamped = Math.max(0, Math.min(100, score))
+  return {
+    ...result,
+    intent_signals: intent,
+    score: clamped,
+    rating: scoreToRating(clamped),
+    match_reason: result.match_reason
+      ? `${result.match_reason} In-person meeting context adds warmth (+${PERSONAL_MEETING_SCORE_BONUS} intent).`
+      : `In-person meeting context adds warmth (+${PERSONAL_MEETING_SCORE_BONUS} intent).`,
+  }
 }
 
 export function aiScoreToDbFields(result: AiMatchScoreResult) {
@@ -70,6 +88,7 @@ function buildScoringPrompt(contact: ScannedContact, userProfile: ABCProfile): s
     contact.company_news_summary ||
     (contact.enriched_context ? contact.enriched_context.slice(0, 800) : '') ||
     'N/A'
+  const meetingContext = getContactMeetingContext(contact)
 
   return `You are a B2B sales qualification expert.
 
@@ -89,11 +108,14 @@ CONTACT TO EVALUATE:
 - Industry: ${contact.industry || 'N/A'}
 - Company size: ${contact.no_of_employees ?? contact.company_size ?? 'N/A'}
 - Revenue: ${contact.annual_revenue ?? contact.company_revenue ?? 'N/A'}
+- Headquarters: ${[contact.billing_city, contact.billing_country].filter(Boolean).join(', ') || contact.meeting_location || 'N/A'}
+- Where we met: ${contact.event_name || contact.notes || 'Not provided yet'}
 - Events they attend: ${JSON.stringify(contact.events_past || [])}
 - Events upcoming: ${JSON.stringify(contact.events_upcoming || [])}
 - LinkedIn summary: ${contact.linkedin_summary || contact.linkedin_headline || 'N/A'}
 - Recent LinkedIn posts: ${postsJson}
 - Company news: ${companyNews}
+- Where we met (in person): ${meetingContext || 'Not provided yet'}
 
 SCORING CRITERIA (score each 0-100, then calculate weighted average):
 
@@ -106,6 +128,7 @@ SCORING CRITERIA (score each 0-100, then calculate weighted average):
 
 2. INTENT SIGNALS (weight: 30%)
    Do they show buying intent?
+   - Did we meet in person at an event or meeting? (strong warm intro)
    - Are they attending relevant trade shows?
    - Are they hiring in relevant areas?
    - Recent news suggesting they need this product?

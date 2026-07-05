@@ -17,6 +17,17 @@ import {
   openWhatsAppComposer,
 } from '@/lib/outreach-composers'
 import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/types'
+import EventTagPrompt from '@/components/contact/EventTagPrompt'
+import CrmMissingFieldsBanner from '@/components/contact/CrmMissingFieldsBanner'
+import CrmExportEventModal from '@/components/contact/CrmExportEventModal'
+import EstimatedBadge from '@/components/ui/EstimatedBadge'
+import { contactHasEventTag } from '@/lib/event-tag'
+import {
+  getContactCompanySize,
+  getContactHeadquarters,
+  getContactRevenue,
+  isCrmFieldEstimated,
+} from '@/lib/crm-mandatory-fields'
 
 const CARD = { background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px' } as const
 const LEAD_STATUSES = ['New', 'Working', 'Nurturing', 'Qualified', 'Converted']
@@ -245,6 +256,7 @@ export default function ContactCrmDetailPage() {
   const [googleConnected, setGoogleConnected] = useState(false)
   const [sendingGmail, setSendingGmail] = useState(false)
   const [gmailReconnectError, setGmailReconnectError] = useState<string | null>(null)
+  const [exportModalTarget, setExportModalTarget] = useState<'salesforce' | 'hubspot' | null>(null)
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -551,6 +563,26 @@ export default function ContactCrmDetailPage() {
     syncDealForm(c)
   }
 
+  function runExport(target: 'salesforce' | 'hubspot', c: ScannedContact) {
+    if (target === 'salesforce') exportToSalesforce(c)
+    else exportToHubSpot(c)
+    showToast(`Exported to ${target === 'salesforce' ? 'Salesforce' : 'HubSpot'} ✓`)
+  }
+
+  function handleExportClick(target: 'salesforce' | 'hubspot') {
+    if (!contact) return
+    if (!contactHasEventTag(contact)) {
+      setExportModalTarget(target)
+      return
+    }
+    runExport(target, contact)
+  }
+
+  function focusEventInput() {
+    document.getElementById('crm-event-input')?.focus()
+    document.getElementById('crm-event-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   const score = contact?.ai_lead_score ?? contact?.match_score ?? 0
   const scoreStyle = scoreColors(score)
   const status = contact?.crm_status || 'NEW'
@@ -698,6 +730,28 @@ export default function ContactCrmDetailPage() {
         ← Pipeline
       </Link>
 
+      <EventTagPrompt
+        contact={contact}
+        onContactUpdated={(updated) => setContact(updated)}
+      />
+
+      <CrmMissingFieldsBanner
+        contact={contact}
+        onContactUpdated={(updated) => setContact(updated)}
+        onFocusEvent={focusEventInput}
+      />
+
+      <CrmExportEventModal
+        open={exportModalTarget !== null}
+        target={exportModalTarget}
+        contact={contact}
+        onClose={() => setExportModalTarget(null)}
+        onExport={(updated, target) => {
+          setContact(updated)
+          runExport(target, updated)
+        }}
+      />
+
       <div
         style={{
           display: 'grid',
@@ -743,9 +797,18 @@ export default function ContactCrmDetailPage() {
           <div style={{ fontSize: '10px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '10px' }}>COMPANY</div>
           <div style={{ fontSize: '13px', color: '#999999', lineHeight: 1.6 }}>
             <div><strong style={{ color: '#ffffff' }}>Industry:</strong> {dash(contact.industry)}</div>
-            <div><strong style={{ color: '#ffffff' }}>Size:</strong> {dash(contact.company_size || contact.no_of_employees)}</div>
-            <div><strong style={{ color: '#ffffff' }}>Revenue:</strong> {dash(contact.company_revenue || contact.annual_revenue)}</div>
-            <div><strong style={{ color: '#ffffff' }}>HQ:</strong> {dash(hqLocation)}</div>
+            <div>
+              <strong style={{ color: '#ffffff' }}>Size:</strong> {dash(getContactCompanySize(contact) || contact.company_size || contact.no_of_employees)}
+              {isCrmFieldEstimated(contact, 'company_size') && <EstimatedBadge compact />}
+            </div>
+            <div>
+              <strong style={{ color: '#ffffff' }}>Revenue:</strong> {dash(getContactRevenue(contact) || contact.company_revenue || contact.annual_revenue)}
+              {isCrmFieldEstimated(contact, 'revenue') && <EstimatedBadge compact />}
+            </div>
+            <div>
+              <strong style={{ color: '#ffffff' }}>HQ:</strong> {dash(getContactHeadquarters(contact) || hqLocation)}
+              {isCrmFieldEstimated(contact, 'headquarters') && <EstimatedBadge compact />}
+            </div>
             <div><strong style={{ color: '#ffffff' }}>Funding:</strong> {dash(contact.company_funding_stage)}</div>
           </div>
 
@@ -1134,8 +1197,8 @@ export default function ContactCrmDetailPage() {
                 )
               )}
               <button type="button" onClick={() => showToast('Meeting scheduler coming soon')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer' }}>Schedule Meeting</button>
-              <button type="button" onClick={() => exportToSalesforce(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to Salesforce</button>
-              <button type="button" onClick={() => exportToHubSpot(contact)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to HubSpot</button>
+              <button type="button" onClick={() => handleExportClick('salesforce')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to Salesforce</button>
+              <button type="button" onClick={() => handleExportClick('hubspot')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to HubSpot</button>
               <button type="button" disabled={saving} onClick={() => markOutcome('won')} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#22c55e', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Mark as Won</button>
               <button type="button" disabled={saving} onClick={() => markOutcome('lost')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 700, cursor: 'pointer' }}>Mark as Lost</button>
               <button

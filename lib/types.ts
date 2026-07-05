@@ -111,6 +111,7 @@ export interface ScannedContact {
   accessibility_score: number | null
   red_flags: string | null
   conversation_starters: string[] | null
+  crm_estimated_fields: Record<string, boolean> | null
 }
 
 export type ContactEvent = {

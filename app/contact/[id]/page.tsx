@@ -28,6 +28,15 @@ import SalesforceFields from '@/components/crm/SalesforceFields'
 import CommunicationHistory from '@/components/crm/CommunicationHistory'
 import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
 import EnrichmentProgress from '@/components/ui/EnrichmentProgress'
+import EventTagPrompt from '@/components/contact/EventTagPrompt'
+import CrmMissingFieldsBanner from '@/components/contact/CrmMissingFieldsBanner'
+import EstimatedBadge from '@/components/ui/EstimatedBadge'
+import {
+  getContactCompanySize,
+  getContactHeadquarters,
+  getContactRevenue,
+  isCrmFieldEstimated,
+} from '@/lib/crm-mandatory-fields'
 import QuickCrmPanel from '@/components/mobile/QuickCrmPanel'
 import CollapsibleSection from '@/components/mobile/CollapsibleSection'
 import { useDevice } from '@/lib/hooks/useDevice'
@@ -591,21 +600,39 @@ export default function ContactResultPage() {
   const score = contact.match_score ?? 0
   const sc = scoreColors(score)
 
-  const snapshot: { icon: string; label: string; value: string }[] = [
+  const snapshot: { icon: string; label: string; value: string; estimated?: boolean }[] = [
     hasDisplayValue(contact.company_summary)
       ? { icon: '🏢', label: 'What they do', value: cleanText(contact.company_summary!) }
       : null,
     location ? { icon: '📍', label: 'Location', value: location } : null,
-    hasDisplayValue(contact.company_size)
-      ? { icon: '👥', label: 'Employees', value: contact.company_size! }
+    hasDisplayValue(getContactCompanySize(contact) || contact.company_size)
+      ? {
+          icon: '👥',
+          label: 'Employees',
+          value: getContactCompanySize(contact) || contact.company_size!,
+          estimated: isCrmFieldEstimated(contact, 'company_size'),
+        }
       : null,
-    hasDisplayValue(contact.company_revenue)
-      ? { icon: '💰', label: 'Revenue', value: contact.company_revenue! }
+    hasDisplayValue(getContactRevenue(contact) || contact.company_revenue)
+      ? {
+          icon: '💰',
+          label: 'Revenue',
+          value: getContactRevenue(contact) || contact.company_revenue!,
+          estimated: isCrmFieldEstimated(contact, 'revenue'),
+        }
+      : null,
+    hasDisplayValue(getContactHeadquarters(contact))
+      ? {
+          icon: '🏛',
+          label: 'HQ',
+          value: getContactHeadquarters(contact)!,
+          estimated: isCrmFieldEstimated(contact, 'headquarters'),
+        }
       : null,
     hasDisplayValue(contact.industry)
       ? { icon: '🏭', label: 'Industry', value: contact.industry! }
       : null,
-  ].filter(Boolean) as { icon: string; label: string; value: string }[]
+  ].filter(Boolean) as { icon: string; label: string; value: string; estimated?: boolean }[]
 
   const enrichmentStatus = contact.enrichment_status || 'DONE'
   const isEnriching = enrichmentStatus === 'PENDING' || enrichmentStatus === 'ENRICHING'
@@ -646,6 +673,20 @@ export default function ContactResultPage() {
       </div>
 
       <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-4 px-4">
+        <motion.div variants={item}>
+          <CrmMissingFieldsBanner
+            contact={contact}
+            onContactUpdated={applyContactUpdate}
+            onFocusEvent={() => {
+              document.getElementById('crm-event-input')?.focus()
+              document.getElementById('crm-event-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }}
+          />
+        </motion.div>
+        <motion.div variants={item}>
+          <EventTagPrompt contact={contact} onContactUpdated={applyContactUpdate} />
+        </motion.div>
+
         {/* SECTION 1 — HEADER */}
         <motion.div variants={item} className="abc-card p-4 flex items-center gap-3">
           <div className="gradient-ring shrink-0">
@@ -757,7 +798,10 @@ export default function ContactResultPage() {
                   <span className="text-base leading-5 shrink-0">{row.icon}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] uppercase tracking-wide" style={{ color: '#3A2060' }}>{row.label}</p>
-                    <p className="text-sm leading-snug" style={{ color: '#C9BEDE' }}>{row.value}</p>
+                    <p className="text-sm leading-snug" style={{ color: '#C9BEDE' }}>
+                      {row.value}
+                      {row.estimated && <EstimatedBadge compact />}
+                    </p>
                   </div>
                 </div>
               ))}

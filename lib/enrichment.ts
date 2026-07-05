@@ -6,10 +6,12 @@ import { generatePersonalizedMessages } from '@/lib/ai-messages'
 import { createHubSpotContact } from '@/lib/hubspot'
 import { createSalesforceContact } from '@/lib/salesforce'
 import { calculateLeadScore } from '@/lib/crm'
-import { calculateAiMatchScore, aiScoreToDbFields } from '@/lib/ai-scoring'
+import { calculateAiMatchScore, aiScoreToDbFields, applyPersonalMeetingBonus } from '@/lib/ai-scoring'
+import { contactHasEventTag } from '@/lib/event-tag'
 import { onEnrichmentCompleted } from '@/lib/crm-engine'
 import { runIntelligenceResearch } from '@/lib/research'
 import { buildPostEnrichmentMapping } from '@/lib/data-model'
+import { ensureMandatoryCompanyFields } from '@/lib/company-field-estimator'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
 import type { EnrichmentStepId } from '@/lib/enrichment-steps'
 
@@ -142,16 +144,30 @@ export async function runContactEnrichment(contactId: string, userId: string): P
       ...baseRecord,
     } as ScannedContact
 
-    const aiScoreResult = await calculateAiMatchScore(contactForScoring, profile).catch((err) => {
+    const mandatoryCompanyFields = await ensureMandatoryCompanyFields(contactForScoring).catch((err) => {
+      console.error('Mandatory company field estimation skipped:', err)
+      return {}
+    })
+
+    const contactWithMandatory = {
+      ...contactForScoring,
+      ...mandatoryCompanyFields,
+    } as ScannedContact
+
+    const aiScoreResult = await calculateAiMatchScore(contactWithMandatory, profile).catch((err) => {
       console.error('AI match scoring skipped:', err)
       return null
     })
 
     const scoreFields = aiScoreResult
-      ? aiScoreToDbFields(aiScoreResult)
+      ? aiScoreToDbFields(
+          contactHasEventTag(contactWithMandatory)
+            ? applyPersonalMeetingBonus(aiScoreResult)
+            : aiScoreResult
+        )
       : {
-          ai_lead_score: calculateLeadScore({ ...c, ...baseRecord }),
-          match_score: calculateLeadScore({ ...c, ...baseRecord }),
+          ai_lead_score: calculateLeadScore({ ...c, ...baseRecord, ...mandatoryCompanyFields }),
+          match_score: calculateLeadScore({ ...c, ...baseRecord, ...mandatoryCompanyFields }),
         }
 
     const aiMessages = await generatePersonalizedMessages(
@@ -169,6 +185,7 @@ export async function runContactEnrichment(contactId: string, userId: string): P
 
     const withMessages = {
       ...baseRecord,
+      ...mandatoryCompanyFields,
       ...scoreFields,
       message_linkedin: aiMessages?.message_linkedin || c.message_linkedin,
       message_email: aiMessages?.message_email || c.message_email,

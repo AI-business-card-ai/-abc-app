@@ -136,6 +136,9 @@ export function calculateLeadScore(contact: {
   match_score?: number | null
   contact_count?: number | null
   crm_status?: string | null
+  event_name?: string | null
+  notes?: string | null
+  meeting_event_name?: string | null
 }): number {
   let score = 0
 
@@ -179,6 +182,13 @@ export function calculateLeadScore(contact: {
     return !Number.isNaN(parsed) && parsed >= weekAgo
   })
   if (hasFreshPost) score += 5
+
+  const meetingContext = [contact.event_name, contact.meeting_event_name, contact.notes]
+    .map((v) => (typeof v === 'string' ? v.trim() : ''))
+    .find(Boolean)
+  if (meetingContext && !meetingContext.toLowerCase().includes('abc ai business card')) {
+    score += 8
+  }
 
   if (contact.match_score) {
     score += Math.round((contact.match_score / 100) * 30)

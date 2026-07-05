@@ -154,6 +154,9 @@ ALTER TABLE public.scanned_contacts
   ADD COLUMN IF NOT EXISTS conversation_starters jsonb,
   ADD COLUMN IF NOT EXISTS scan_status text DEFAULT 'basic';
 
+ALTER TABLE public.scanned_contacts
+  ADD COLUMN IF NOT EXISTS crm_estimated_fields jsonb DEFAULT '{}'::jsonb;
+
 -- Backfill scan_status for rows created before async scan flow
 UPDATE public.scanned_contacts
 SET scan_status = 'enriched'
