@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const message = err instanceof Error ? err.message : 'Failed to send Gmail message'
+    const message = err instanceof Error ? err.message : 'Failed to send email'
     console.error('send-gmail error:', err)
 
     if (message === 'Contact email not found') {

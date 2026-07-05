@@ -152,12 +152,15 @@ export default function ConnectionsSection({ profile, onRefresh }: Props) {
       </div>
 
       <div className="flex flex-col gap-3">
+        <div style={{ fontSize: '10px', color: '#8892b0', letterSpacing: '0.06em', marginBottom: '-4px' }}>
+          EMAIL
+        </div>
         {profile.google_connected ? (
           <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>
-            Google ✅ Connected ({profile.google_email || profile.email || '—'})
+            Email ✅ Connected ({profile.google_email || profile.email || '—'})
           </p>
         ) : (
-          <GoogleSignInButton nextPath="/settings" label="Connect Google Account" />
+          <GoogleSignInButton nextPath="/settings" label="Connect Email" />
         )}
 
         <ConnectRow

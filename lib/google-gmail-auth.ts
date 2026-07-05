@@ -6,7 +6,7 @@ export const GOOGLE_RECONNECT_CODE = 'RECONNECT_GOOGLE'
 export class GoogleReconnectRequiredError extends Error {
   code = GOOGLE_RECONNECT_CODE
 
-  constructor(message = 'Google session expired. Please reconnect your Google account in Settings.') {
+  constructor(message = 'Email session expired. Please reconnect your email account in Settings.') {
     super(message)
     this.name = 'GoogleReconnectRequiredError'
   }
@@ -139,12 +139,12 @@ export async function getGoogleAccessTokenForUser(userId: string): Promise<strin
   if (error) throw error
 
   if (!profile?.google_connected) {
-    throw new GoogleReconnectRequiredError('Connect your Google account in Settings to send via Gmail.')
+    throw new GoogleReconnectRequiredError('Connect your email account in Settings to send via Email.')
   }
 
   const refreshToken = profile.google_refresh_token as string | null
   if (!refreshToken) {
-    throw new GoogleReconnectRequiredError('Google refresh token missing. Please reconnect your Google account.')
+    throw new GoogleReconnectRequiredError('Email refresh token missing. Please reconnect your email account.')
   }
 
   const expiresAt = profile.google_token_expires_at

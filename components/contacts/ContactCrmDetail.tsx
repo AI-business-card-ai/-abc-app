@@ -403,7 +403,7 @@ export default function ContactCrmDetailPage() {
     for (const job of gmailJobs) {
       const sent = await sendGmailViaApi(job.subject, job.body)
       if (sent) {
-        pendingLogs.push({ channel: 'Gmail', text: job.body, toast: 'Gmail sent ✓', skipLog: true })
+        pendingLogs.push({ channel: 'Gmail', text: job.body, toast: 'Email sent ✓', skipLog: true })
       }
     }
 
@@ -448,16 +448,16 @@ export default function ContactCrmDetailPage() {
       if (!res.ok) {
         if (json.code === GOOGLE_RECONNECT_CODE) {
           setGoogleConnected(false)
-          setGmailReconnectError(json.error || 'Google session expired. Please reconnect in Settings.')
+          setGmailReconnectError(json.error || 'Email session expired. Please reconnect in Settings.')
         }
-        throw new Error(json.error || 'Gmail send failed')
+        throw new Error(json.error || 'Email send failed')
       }
       if (json.contact) applyContact(json.contact as ScannedContact)
       setActivityKey((k) => k + 1)
       return true
     } catch (e) {
       console.error(e)
-      showToast(e instanceof Error ? e.message : 'Gmail send failed')
+      showToast(e instanceof Error ? e.message : 'Email send failed')
       return false
     } finally {
       setSendingGmail(false)
@@ -476,7 +476,7 @@ export default function ContactCrmDetailPage() {
       return
     }
     const sent = await sendGmailViaApi(contact.email_subject || 'Following up', text)
-    if (sent) showToast('Gmail sent ✓')
+    if (sent) showToast('Email sent ✓')
   }
 
   async function handleVariantEmailOpen(variantId: number) {
@@ -517,7 +517,7 @@ export default function ContactCrmDetailPage() {
       return
     }
     const sent = await sendGmailViaApi(contact.email_subject || 'Following up', text)
-    if (sent) showToast('Gmail sent ✓')
+    if (sent) showToast('Email sent ✓')
   }
 
   async function handleQuickEmailOpen() {
@@ -689,7 +689,7 @@ export default function ContactCrmDetailPage() {
 
   const emailSelected = variants.some((v) => v.platforms.email)
   const sendButtonLabel = googleConnected && emailSelected && !variants.some((v) => v.platforms.linkedin || v.platforms.whatsapp)
-    ? 'Send via Gmail (1-click)'
+    ? 'Send via Email (1-click)'
     : 'Send Selected →'
 
   return (
@@ -793,7 +793,7 @@ export default function ContactCrmDetailPage() {
               >
                 {gmailReconnectError}{' '}
                 <Link href="/settings" style={{ color: '#00d4d4', fontWeight: 700 }}>
-                  Reconnect Google →
+                  Reconnect Email →
                 </Link>
               </div>
             )}
@@ -928,7 +928,7 @@ export default function ContactCrmDetailPage() {
                                 cursor: sendingGmail ? 'wait' : 'pointer',
                               }}
                             >
-                              {sendingGmail ? 'Sending…' : 'Send via Gmail (1-click)'}
+                              {sendingGmail ? 'Sending…' : 'Send via Email (1-click)'}
                             </button>
                             <button
                               type="button"
@@ -1104,7 +1104,7 @@ export default function ContactCrmDetailPage() {
                         fontSize: '13px',
                       }}
                     >
-                      {sendingGmail ? 'Sending…' : 'Send via Gmail (1-click)'}
+                      {sendingGmail ? 'Sending…' : 'Send via Email (1-click)'}
                     </button>
                     <button
                       type="button"

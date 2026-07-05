@@ -67,7 +67,7 @@ export default function ScanInstantResult({ contact, previewUrl, onScanAnother }
                 boxShadow: i === activeIdx ? '0 0 6px #00d4d4' : undefined,
               }}
             />
-            {s === 'apollo' ? 'Apollo' : s === 'linkedin' ? 'LinkedIn' : 'AI'}
+            {s === 'apollo' ? 'Profil' : s === 'linkedin' ? 'LinkedIn' : 'Zprávy'}
           </span>
         ))}
       </div>

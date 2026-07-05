@@ -790,7 +790,7 @@ export default function ContactResultPage() {
                 className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
                 style={{ border: '1px solid rgba(0,212,212,0.4)', color: '#00d4d4' }}
               >
-                Source: Enrich Layer
+                AI enriched
               </span>
             </div>
 

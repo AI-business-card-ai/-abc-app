@@ -360,7 +360,7 @@ export default function ScanPage() {
                   Dokončuji AI analýzu…
                 </p>
                 <p className="text-sm text-center mt-2" style={{ color: '#999999' }}>
-                  Apollo · LinkedIn · zprávy
+                  AI analyzuje firmu a kontakt…
                 </p>
               </div>
             )}
