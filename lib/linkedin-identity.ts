@@ -190,6 +190,45 @@ export function checkLinkedInIdentity(
   }
 }
 
+export function buildLinkedInProfileFromContact(
+  contact: Pick<
+    ScannedContact,
+    'name' | 'linkedin_headline' | 'linkedin_summary' | 'linkedin_experience' | 'linkedin_skills' | 'linkedin_posts' | 'linkedin_education' | 'linkedin_profile_name'
+  >
+): EnrichedLinkedInProfile | null {
+  const hasData =
+    contact.linkedin_headline?.trim() ||
+    (Array.isArray(contact.linkedin_experience) && contact.linkedin_experience.length > 0) ||
+    contact.linkedin_summary?.trim()
+
+  if (!hasData) return null
+
+  return {
+    fullName: contact.linkedin_profile_name?.trim() || contact.name?.trim() || '',
+    headline: contact.linkedin_headline || '',
+    summary: contact.linkedin_summary || '',
+    experiences: contact.linkedin_experience || [],
+    education: contact.linkedin_education || [],
+    skills: contact.linkedin_skills || [],
+    recentPosts: contact.linkedin_posts || [],
+    languages: [],
+  }
+}
+
+/** Compare card vs stored LinkedIn fields — no external API calls. */
+export function reconcileStoredLinkedInIdentity(
+  contact: ScannedContact
+): ReturnType<typeof identityCheckToDbFields> | null {
+  if (contact.linkedin_match_status) return null
+  if (!contact.company?.trim()) return null
+  if (!contact.linkedin_url && !contact.linkedin_headline?.trim()) return null
+
+  const profile = buildLinkedInProfileFromContact(contact)
+  if (!profile) return null
+
+  return identityCheckToDbFields(checkLinkedInIdentity(contact, profile))
+}
+
 export function identityCheckToDbFields(check: LinkedInIdentityCheck) {
   return {
     linkedin_match_status: check.status,

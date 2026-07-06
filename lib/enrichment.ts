@@ -16,6 +16,7 @@ import {
   checkLinkedInIdentity,
   identityCheckToDbFields,
   isLinkedInDataTrusted,
+  reconcileStoredLinkedInIdentity,
   stripUntrustedLinkedInFields,
 } from '@/lib/linkedin-identity'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
@@ -113,9 +114,19 @@ export async function runContactEnrichment(
     .single()
 
   const profile = (profileRow as ABCProfile | null) ?? ({} as ABCProfile)
-  const c = contact as ScannedContact
+  let c = contact as ScannedContact
 
   try {
+    const storedIdentity = reconcileStoredLinkedInIdentity(c)
+    if (storedIdentity) {
+      await supabase
+        .from('scanned_contacts')
+        .update(storedIdentity)
+        .eq('id', contactId)
+        .eq('user_id', userId)
+      c = { ...c, ...storedIdentity } as ScannedContact
+    }
+
     await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'apollo')
 
     const apolloData = await enrichWithApollo(c.name, c.company, c.email).catch((err) => {
@@ -154,7 +165,7 @@ export async function runContactEnrichment(
 
     const linkedinUrl = await pickLinkedInUrl(latest, apolloData?.linkedin_url, options)
     let linkedinData: EnrichedLinkedInProfile | null = null
-    let identityFields: Record<string, string | null> = {
+    let identityFields: Record<string, string | null> = storedIdentity ?? {
       linkedin_match_status: null,
       linkedin_match_confidence: null,
       linkedin_profile_name: null,

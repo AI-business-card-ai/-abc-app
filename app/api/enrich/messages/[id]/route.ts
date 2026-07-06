@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { generatePersonalizedMessages } from '@/lib/ai-messages'
+import { isLinkedInDataTrusted, stripUntrustedLinkedInFields } from '@/lib/linkedin-identity'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
 
 export async function POST(
@@ -38,13 +39,15 @@ export async function POST(
 
     const profile = (profileRow as ABCProfile | null) ?? ({} as ABCProfile)
     const c = contact as ScannedContact
+    const safeContact = stripUntrustedLinkedInFields(c)
 
     const aiMessages = await generatePersonalizedMessages(
       {
-        ...c,
+        ...safeContact,
         meeting_context: c.event_name || c.notes,
       },
-      profile
+      profile,
+      isLinkedInDataTrusted(c) ? undefined : null
     )
 
     if (!aiMessages) {

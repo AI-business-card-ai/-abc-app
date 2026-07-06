@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase'
-import { enrichContact } from '@/lib/perplexity'
-import { logActivity } from '@/lib/crm'
-import { ABCProfile } from '@/lib/types'
+import { createServiceClient } from '@/lib/supabase/service'
+import { runContactEnrichment } from '@/lib/enrichment'
 
+/** Legacy alias — same central enrichment pipeline as /api/enrich/queue. */
 export async function POST(req: NextRequest) {
   try {
     const { contactId, userId } = (await req.json()) as {
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contact, error: contactError } = await supabase
       .from('scanned_contacts')
-      .select('*')
+      .select('id')
       .eq('id', contactId)
       .eq('user_id', userId)
       .single()
@@ -28,34 +28,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
     }
 
-    const { data: profile } = await supabase
-      .from('abc_profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
+    await runContactEnrichment(contactId, userId)
 
-    const enrichedContext = await enrichContact(
-      contact.name,
-      contact.company,
-      (profile as ABCProfile | null) ?? {}
-    )
-
-    const { data, error } = await supabase
+    const service = createServiceClient()
+    const { data, error } = await service
       .from('scanned_contacts')
-      .update({ enriched_context: enrichedContext || null })
+      .select('*')
       .eq('id', contactId)
       .eq('user_id', userId)
-      .select()
       .single()
 
     if (error) throw error
-
-    logActivity({
-      contactId,
-      userId,
-      activityType: 'AI_ENRICHED',
-      activityDetail: `Additional research completed for ${contact.name || 'contact'}`,
-    }).catch(console.error)
 
     return NextResponse.json({ success: true, contact: data })
   } catch (err: unknown) {
@@ -63,3 +46,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
+
+export const maxDuration = 300

@@ -361,31 +361,19 @@ export default function ContactResultPage() {
     setEnriching(true)
     setError(null)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
+      const res = await fetch('/api/enrich/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: contact.id }),
+      })
 
-      const [enrichRes, queueRes] = await Promise.all([
-        fetch('/api/card/enrich', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactId: contact.id, userId: user.id }),
-        }),
-        fetch('/api/enrich/queue', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactId: contact.id }),
-        }),
-      ])
+      const json = await res.json()
 
-      const enrichJson = await enrichRes.json()
-      const queueJson = await queueRes.json()
-
-      if (!enrichRes.ok && !queueRes.ok) {
-        throw new Error(enrichJson.error || queueJson.error || 'Research failed.')
+      if (!res.ok) {
+        throw new Error(json.error || 'Research failed.')
       }
 
-      const updated = queueJson.contact || enrichJson.contact
-      if (updated) applyContactUpdate(updated as ScannedContact)
+      if (json.contact) applyContactUpdate(json.contact as ScannedContact)
       else setRetryKey((k) => k + 1)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Research failed.')
