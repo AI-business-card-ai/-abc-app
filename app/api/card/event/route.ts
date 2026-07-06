@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { applyPersonalMeetingBonus, aiScoreToDbFields, calculateAiMatchScore } from '@/lib/ai-scoring'
+import { ABC_LEAD_SOURCE } from '@/lib/crm-constants'
 import { calculateLeadScore } from '@/lib/crm'
 import { contactHasEventTag } from '@/lib/event-tag'
+import { normalizeEventText } from '@/lib/event-normalizer'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
 
 async function recalculateContactScore(contact: ScannedContact, userId: string) {
@@ -73,16 +75,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing contactId' }, { status: 400 })
     }
 
-    const eventName = body.eventName?.trim() || null
-    const note = body.note?.trim() || null
+    const rawEvent = (body.eventName || body.note || '').trim() || null
+    const normalizedEvent = rawEvent ? await normalizeEventText(rawEvent) : null
 
     const { data, error } = await supabase
       .from('scanned_contacts')
       .update({
-        event_name: eventName,
-        notes: note,
-        meeting_event_name: eventName,
-        lead_source: eventName || 'ABC AI Business Card',
+        raw_event_text: rawEvent,
+        normalized_event_text: normalizedEvent,
+        event_name: normalizedEvent,
+        meeting_event_name: normalizedEvent,
+        notes: rawEvent,
+        lead_source: ABC_LEAD_SOURCE,
       })
       .eq('id', body.contactId)
       .eq('user_id', user.id)

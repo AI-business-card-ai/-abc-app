@@ -1,9 +1,11 @@
 import { splitName, toABCContact } from '@/lib/data-model'
+import { ABC_ENRICHMENT_SOURCE, ABC_LEAD_SOURCE } from '@/lib/crm-constants'
 import {
   getContactCompanySize,
   getContactEventContextForExport,
   getContactHeadquarters,
   getContactRevenue,
+  getContactScanDate,
 } from '@/lib/crm-mandatory-fields'
 import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/types'
 
@@ -77,7 +79,7 @@ function buildAbcFieldValues(contact: ReturnType<typeof normalizeContact>) {
     ABC_EventMet__c: eventContext,
     ABC_Headquarters__c: hq,
     ABC_RevenueRange__c: revenue,
-    ABC_MeetingDate__c: contact.meeting_date || '',
+    ABC_MeetingDate__c: getContactScanDate(contact as ScannedContact) || contact.meeting_date || '',
     ABC_PhotoUrl__c: contact.photo_url || '',
     ABC_LinkedInHeadline__c: contact.linkedin_headline || '',
     ABC_LinkedInSummary__c:
@@ -110,7 +112,7 @@ function buildAbcFieldValues(contact: ReturnType<typeof normalizeContact>) {
     ABC_MessagesSent__c: contact.messages_sent || 0,
     ABC_CRMStatus__c: contact.crm_status || '',
     ABC_PipelineStage__c: contact.pipeline_stage || '',
-    ABC_EnrichmentSource__c: 'ABC AI Business Card',
+    ABC_EnrichmentSource__c: ABC_ENRICHMENT_SOURCE,
     ABC_ScannedAt__c: contact.created_at || contact.scanned_at || '',
   } as Record<string, string | number>
 }
@@ -138,7 +140,7 @@ export function buildSalesforceExportRows(contact: ScannedContact): ExportRow[] 
     ['Status', c.lead_status || 'New'],
     ['Rating', c.rating || 'Cold'],
     ['Description', c.ai_summary || ''],
-    ['LeadSource', getContactEventContextForExport(c as ScannedContact)],
+    ['LeadSource', ABC_LEAD_SOURCE],
     ['OpportunityName__c', c.opportunity_name || `${c.first_name || ''} ${c.last_name || ''} - ${c.company || ''}`.trim()],
     ['Amount', c.deal_value || ''],
     ['CloseDate', c.expected_close_date || ''],

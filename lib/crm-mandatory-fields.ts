@@ -63,6 +63,78 @@ export function getContactEventContextForExport(contact: ScannedContact): string
   return getContactMeetingContext(contact) || 'In-person meeting (ABC scan)'
 }
 
+export function getContactScanDate(contact: ScannedContact): string {
+  const raw = contact.scanned_at || contact.created_at
+  if (!raw) return ''
+  return raw.split('T')[0]
+}
+
+export function revenueRangeMidpointMillions(revenue: string | null | undefined): number | null {
+  const normalized = revenue ? normalizeRevenueRange(revenue) : null
+  if (!normalized) return null
+  const map: Record<string, number> = {
+    '<$1M': 0.5,
+    '$1M-10M': 5,
+    '$10M-50M': 30,
+    '$50M-100M': 75,
+    '$100M+': 150,
+  }
+  return map[normalized] ?? null
+}
+
+export function revenueExceeds5M(revenue: string | null | undefined): boolean {
+  const mid = revenueRangeMidpointMillions(revenue)
+  return mid != null && mid > 5
+}
+
+export function sizeRangeIndex(size: string | null | undefined): number {
+  const normalized = size ? normalizeEmployeeRange(size) : null
+  if (!normalized) return -1
+  return COMPANY_SIZE_RANGES.indexOf(normalized as (typeof COMPANY_SIZE_RANGES)[number])
+}
+
+/** Minimum plausible employee range for a given revenue band. */
+export function minimumSizeForRevenue(revenue: string | null | undefined): string {
+  const normalized = revenue ? normalizeRevenueRange(revenue) : null
+  switch (normalized) {
+    case '<$1M':
+      return '1-10'
+    case '$1M-10M':
+      return '11-50'
+    case '$10M-50M':
+      return '51-200'
+    case '$50M-100M':
+      return '201-500'
+    case '$100M+':
+      return '501-1000'
+    default:
+      return '11-50'
+  }
+}
+
+export function reconcileSizeWithRevenue(size: string, revenue: string): string {
+  const normalizedSize = normalizeEmployeeRange(size) || size
+  const normalizedRevenue = normalizeRevenueRange(revenue) || revenue
+
+  if (!revenueExceeds5M(normalizedRevenue)) {
+    return normalizedSize
+  }
+
+  const minSize = minimumSizeForRevenue(normalizedRevenue)
+  const sizeIdx = sizeRangeIndex(normalizedSize)
+  const minIdx = sizeRangeIndex(minSize)
+
+  if (normalizedSize === '1-10' || normalizedSize === '11-50') {
+    return minSize
+  }
+
+  if (sizeIdx >= 0 && minIdx >= 0 && sizeIdx < minIdx) {
+    return minSize
+  }
+
+  return normalizedSize
+}
+
 export function normalizeEmployeeRange(value: string | number | null | undefined): string | null {
   if (!hasDisplayValue(value)) return null
   const raw = String(value).trim()

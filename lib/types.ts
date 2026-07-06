@@ -34,6 +34,8 @@ export interface ScannedContact {
   scan_status: 'basic' | 'enriched'
   event_name: string | null
   notes: string | null
+  raw_event_text: string | null
+  normalized_event_text: string | null
   voice_note_url: string | null
   image_url: string | null
   scanned_at: string

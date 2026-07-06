@@ -816,7 +816,7 @@ export default function ContactCrmDetailPage() {
 
           <TagPills tags={contact.tags || []} />
           <div style={{ marginTop: '12px', fontSize: '13px', color: '#999999' }}>
-            <div><strong style={{ color: '#ffffff' }}>Event:</strong> {dash(contact.lead_source || contact.event_name)}</div>
+            <div><strong style={{ color: '#ffffff' }}>Event:</strong> {dash(contact.normalized_event_text || contact.event_name || contact.raw_event_text)}</div>
             <div style={{ marginTop: '6px' }}><strong style={{ color: '#ffffff' }}>Met:</strong> {formatDate(contact.meeting_date || contact.scanned_at)}</div>
           </div>
         </div>

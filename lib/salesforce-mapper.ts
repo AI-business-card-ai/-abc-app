@@ -1,5 +1,6 @@
 import type { ABCContact } from './data-model'
 import { toABCContact } from './data-model'
+import { ABC_LEAD_SOURCE } from './crm-constants'
 import {
   buildHubSpotExportRows,
   buildSalesforceExportRows,
@@ -117,7 +118,7 @@ export function mapToUniversalRow(input: ScannedContact | ABCContact): Record<st
     match_reason: c.match_reason,
     ai_summary: c.ai_summary,
     tags: c.tags.join('; '),
-    lead_source: c.lead_source,
+    lead_source: ABC_LEAD_SOURCE,
     linkedin_url: c.linkedin_url,
     linkedin_headline: c.linkedin_headline,
     linkedin_activity_level: c.linkedin_activity_level,
