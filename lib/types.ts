@@ -103,6 +103,11 @@ export interface ScannedContact {
   linkedin_connections: number | null
   linkedin_followers: number | null
   linkedin_activity_level: string | null
+  linkedin_match_status: 'verified' | 'possible_mismatch' | 'rejected' | null
+  linkedin_match_confidence: 'high' | 'low' | null
+  linkedin_profile_name: string | null
+  linkedin_profile_company: string | null
+  linkedin_mismatch_reason: string | null
   last_event_attended: string | null
   last_event_date: string | null
   next_event_attending: string | null

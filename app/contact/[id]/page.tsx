@@ -30,6 +30,7 @@ import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
 import EnrichmentProgress from '@/components/ui/EnrichmentProgress'
 import EventTagPrompt from '@/components/contact/EventTagPrompt'
 import CrmMissingFieldsBanner from '@/components/contact/CrmMissingFieldsBanner'
+import LinkedInMismatchBanner from '@/components/contact/LinkedInMismatchBanner'
 import EstimatedBadge from '@/components/ui/EstimatedBadge'
 import {
   getContactCompanySize,
@@ -828,6 +829,7 @@ export default function ContactResultPage() {
         {/* SECTION 3b — LINKEDIN INTELLIGENCE */}
         {linkedinIntel && (
           <motion.div variants={item} className="abc-card p-4 flex flex-col gap-3">
+            <LinkedInMismatchBanner contact={contact!} onUpdated={applyContactUpdate} />
             <div className="flex items-center justify-between gap-2">
               <span className="abc-label">LinkedIn Intelligence</span>
               <span

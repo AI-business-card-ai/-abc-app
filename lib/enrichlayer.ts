@@ -16,6 +16,11 @@ export type EnrichedLinkedInProfile = {
   languages: string[]
 }
 
+export type ResolvedLinkedInProfile = {
+  url: string
+  similarityScore: number | null
+}
+
 type DateParts = { day?: number | null; month?: number | null; year?: number | null }
 
 function authHeaders(): Record<string, string> | null {
@@ -100,6 +105,50 @@ async function fetchJson(url: string, headers: Record<string, string>): Promise<
     return null
   }
   return (await response.json()) as Record<string, unknown>
+}
+
+export async function resolveLinkedInProfile(input: {
+  name: string
+  company: string
+  role?: string | null
+  location?: string | null
+}): Promise<ResolvedLinkedInProfile | null> {
+  const headers = authHeaders()
+  if (!headers || !input.name || !input.company) return null
+
+  try {
+    const parts = input.name.trim().split(/\s+/)
+    const firstName = parts[0] || input.name
+    const lastName = parts.slice(1).join(' ') || firstName
+    const companyDomain = input.company.replace(/^https?:\/\//, '').split('/')[0]
+
+    const params = new URLSearchParams({
+      first_name: firstName,
+      last_name: lastName,
+      company_domain: companyDomain,
+      similarity_checks: 'include',
+    })
+    if (input.role?.trim()) params.set('title', input.role.trim())
+    if (input.location?.trim()) params.set('location', input.location.trim())
+
+    const lookupUrl = `${V2_BASE}/profile/resolve?${params}`
+    const lookup = await fetchJson(lookupUrl, headers)
+    const profileUrl = lookup?.url as string | undefined
+    if (!profileUrl) return null
+
+    const similarityRaw = lookup?.similarity_checks as Record<string, unknown> | undefined
+    const similarityScore =
+      typeof lookup?.similarity_score === 'number'
+        ? lookup.similarity_score
+        : typeof similarityRaw?.score === 'number'
+          ? (similarityRaw.score as number)
+          : null
+
+    return { url: profileUrl, similarityScore }
+  } catch (error) {
+    console.error('EnrichLayer resolveLinkedInProfile error:', error)
+    return null
+  }
 }
 
 export async function enrichLinkedIn(linkedinUrl: string): Promise<EnrichedLinkedInProfile | null> {

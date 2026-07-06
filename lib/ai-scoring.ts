@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ABCProfile, ScannedContact } from './types'
 import { PERSONAL_MEETING_SCORE_BONUS, getContactMeetingContext } from './event-tag'
+import { isLinkedInDataTrusted, stripUntrustedLinkedInFields } from './linkedin-identity'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -172,11 +173,13 @@ export async function calculateAiMatchScore(
     return null
   }
 
+  const safeContact = isLinkedInDataTrusted(contact) ? contact : stripUntrustedLinkedInFields(contact)
+
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 500,
-      messages: [{ role: 'user', content: buildScoringPrompt(contact, userProfile) }],
+      messages: [{ role: 'user', content: buildScoringPrompt(safeContact, userProfile) }],
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''

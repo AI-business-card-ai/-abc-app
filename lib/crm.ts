@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import { isLinkedInDataTrusted } from '@/lib/linkedin-identity'
 
 export type ActivityType =
   | 'CARD_SCANNED'
@@ -139,20 +140,26 @@ export function calculateLeadScore(contact: {
   event_name?: string | null
   notes?: string | null
   meeting_event_name?: string | null
+  linkedin_match_status?: string | null
+  linkedin_match_confidence?: string | null
 }): number {
   let score = 0
+  const linkedinTrusted = isLinkedInDataTrusted({
+    linkedin_match_status: contact.linkedin_match_status as 'verified' | 'possible_mismatch' | 'rejected' | null,
+    linkedin_match_confidence: contact.linkedin_match_confidence as 'high' | 'low' | null,
+  })
 
   if (contact.email) score += 10
   if (contact.phone) score += 10
   if (contact.company) score += 10
   if (contact.linkedin_url) score += 10
 
-  if (contact.linkedin_headline) score += 15
+  if (linkedinTrusted && contact.linkedin_headline) score += 15
 
-  const posts = parsePosts(contact.linkedin_posts)
+  const posts = linkedinTrusted ? parsePosts(contact.linkedin_posts) : []
   if (posts.length > 0) score += 10
 
-  const skills = contact.linkedin_skills || []
+  const skills = linkedinTrusted ? contact.linkedin_skills || [] : []
   const relevanceContext = [
     contact.industry,
     contact.role,

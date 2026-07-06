@@ -20,6 +20,7 @@ import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/typ
 import EventTagPrompt from '@/components/contact/EventTagPrompt'
 import CrmMissingFieldsBanner from '@/components/contact/CrmMissingFieldsBanner'
 import CrmExportEventModal from '@/components/contact/CrmExportEventModal'
+import LinkedInMismatchBanner from '@/components/contact/LinkedInMismatchBanner'
 import EstimatedBadge from '@/components/ui/EstimatedBadge'
 import { contactHasEventTag } from '@/lib/event-tag'
 import {
@@ -1041,6 +1042,7 @@ export default function ContactCrmDetailPage() {
 
           {(contact.linkedin_headline || contact.linkedin_summary || posts.length > 0 || skills.length > 0) && (
             <div style={CARD}>
+              <LinkedInMismatchBanner contact={contact} onUpdated={setContact} compact />
               <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>LINKEDIN INTELLIGENCE</div>
               {contact.linkedin_headline && <p style={{ margin: '0 0 8px', fontWeight: 600, color: '#ffffff' }}>{contact.linkedin_headline}</p>}
               {contact.linkedin_summary && <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#999999', lineHeight: 1.5 }}>{contact.linkedin_summary}</p>}

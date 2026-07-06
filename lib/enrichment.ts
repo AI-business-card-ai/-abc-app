@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { enrichContact } from '@/lib/perplexity'
 import { enrichWithApollo } from '@/lib/apollo'
-import { enrichLinkedIn, findWorkEmail } from '@/lib/enrichlayer'
+import { enrichLinkedIn, findWorkEmail, resolveLinkedInProfile } from '@/lib/enrichlayer'
 import { generatePersonalizedMessages } from '@/lib/ai-messages'
 import { createHubSpotContact } from '@/lib/hubspot'
 import { createSalesforceContact } from '@/lib/salesforce'
@@ -12,8 +12,21 @@ import { onEnrichmentCompleted } from '@/lib/crm-engine'
 import { runIntelligenceResearch } from '@/lib/research'
 import { buildPostEnrichmentMapping } from '@/lib/data-model'
 import { ensureMandatoryCompanyFields } from '@/lib/company-field-estimator'
+import {
+  checkLinkedInIdentity,
+  identityCheckToDbFields,
+  isLinkedInDataTrusted,
+  stripUntrustedLinkedInFields,
+} from '@/lib/linkedin-identity'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
 import type { EnrichmentStepId } from '@/lib/enrichment-steps'
+import type { EnrichedLinkedInProfile } from '@/lib/enrichlayer'
+
+export type EnrichmentOptions = {
+  skipLinkedIn?: boolean
+  linkedinUrlOverride?: string | null
+  skipApolloLinkedIn?: boolean
+}
 
 async function updateEnrichmentStep(
   contactId: string,
@@ -32,7 +45,54 @@ async function updateEnrichmentStep(
     .eq('user_id', userId)
 }
 
-export async function runContactEnrichment(contactId: string, userId: string): Promise<void> {
+async function pickLinkedInUrl(
+  contact: ScannedContact,
+  apolloLinkedInUrl: string | null | undefined,
+  options: EnrichmentOptions
+): Promise<string | null> {
+  if (options.skipLinkedIn) return null
+  if (options.linkedinUrlOverride) return options.linkedinUrlOverride
+
+  const cardLinkedInUrl = contact.linkedin_url
+  const location = [contact.billing_city, contact.billing_country, contact.meeting_location]
+    .filter(Boolean)
+    .join(', ')
+
+  let resolvedUrl: string | null = null
+  if (contact.name && contact.company) {
+    const resolved = await resolveLinkedInProfile({
+      name: contact.name,
+      company: contact.company,
+      role: contact.role,
+      location: location || null,
+    }).catch((err) => {
+      console.error('LinkedIn resolve skipped:', err)
+      return null
+    })
+
+    if (resolved?.url && (resolved.similarityScore == null || resolved.similarityScore >= 0.55)) {
+      resolvedUrl = resolved.url
+    }
+  }
+
+  if (cardLinkedInUrl && !options.skipApolloLinkedIn) {
+    return cardLinkedInUrl
+  }
+
+  if (resolvedUrl) return resolvedUrl
+
+  if (!options.skipApolloLinkedIn && apolloLinkedInUrl) {
+    return apolloLinkedInUrl
+  }
+
+  return cardLinkedInUrl || null
+}
+
+export async function runContactEnrichment(
+  contactId: string,
+  userId: string,
+  options: EnrichmentOptions = {}
+): Promise<void> {
   const supabase = createServiceClient()
 
   const { data: contact, error: contactError } = await supabase
@@ -92,8 +152,15 @@ export async function runContactEnrichment(contactId: string, userId: string): P
 
     const latest = (refreshedContact as ScannedContact | null) ?? c
 
-    const linkedinUrl = apolloData?.linkedin_url || c.linkedin_url
-    let linkedinData = null
+    const linkedinUrl = await pickLinkedInUrl(latest, apolloData?.linkedin_url, options)
+    let linkedinData: EnrichedLinkedInProfile | null = null
+    let identityFields: Record<string, string | null> = {
+      linkedin_match_status: null,
+      linkedin_match_confidence: null,
+      linkedin_profile_name: null,
+      linkedin_profile_company: null,
+      linkedin_mismatch_reason: null,
+    }
 
     await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'linkedin')
 
@@ -102,6 +169,19 @@ export async function runContactEnrichment(contactId: string, userId: string): P
         console.error('EnrichLayer LinkedIn skipped:', err)
         return null
       })
+
+      if (linkedinData) {
+        const identityCheck = checkLinkedInIdentity(latest, linkedinData)
+        identityFields = identityCheckToDbFields(identityCheck)
+      }
+    } else if (options.skipLinkedIn) {
+      identityFields = {
+        linkedin_match_status: 'rejected',
+        linkedin_match_confidence: null,
+        linkedin_profile_name: null,
+        linkedin_profile_company: null,
+        linkedin_mismatch_reason: 'LinkedIn enrichment skipped after profile rejection',
+      }
     }
 
     let resolvedEmail = c.email
@@ -118,7 +198,7 @@ export async function runContactEnrichment(contactId: string, userId: string): P
     const baseRecord = {
       email: resolvedEmail,
       photo_url: apolloData?.photo_url || c.photo_url,
-      linkedin_url: linkedinUrl || c.linkedin_url,
+      linkedin_url: linkedinUrl || (options.skipLinkedIn ? null : c.linkedin_url),
       company_size: apolloData?.company_size || c.company_size,
       company_revenue: apolloData?.company_revenue || c.company_revenue,
       technologies: apolloData?.technologies || c.technologies,
@@ -129,20 +209,19 @@ export async function runContactEnrichment(contactId: string, userId: string): P
       linkedin_skills: linkedinData?.skills || c.linkedin_skills,
       linkedin_posts: linkedinData?.recentPosts || c.linkedin_posts,
       linkedin_education: linkedinData?.education || c.linkedin_education,
+      ...identityFields,
     }
 
     await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'messages')
 
-    const { data: preScoreRow } = await supabase
-      .from('scanned_contacts')
-      .select('*')
-      .eq('id', contactId)
-      .single()
-
-    const contactForScoring = (preScoreRow as ScannedContact | null) ?? {
-      ...c,
+    const contactWithIdentity = {
+      ...latest,
       ...baseRecord,
     } as ScannedContact
+
+    const linkedinTrusted = isLinkedInDataTrusted(contactWithIdentity)
+
+    const contactForScoring = stripUntrustedLinkedInFields(contactWithIdentity)
 
     const mandatoryCompanyFields = await ensureMandatoryCompanyFields(contactForScoring).catch((err) => {
       console.error('Mandatory company field estimation skipped:', err)
@@ -166,18 +245,17 @@ export async function runContactEnrichment(contactId: string, userId: string): P
             : aiScoreResult
         )
       : {
-          ai_lead_score: calculateLeadScore({ ...c, ...baseRecord, ...mandatoryCompanyFields }),
-          match_score: calculateLeadScore({ ...c, ...baseRecord, ...mandatoryCompanyFields }),
+          ai_lead_score: calculateLeadScore({ ...contactWithMandatory, ...baseRecord }),
+          match_score: calculateLeadScore({ ...contactWithMandatory, ...baseRecord }),
         }
 
     const aiMessages = await generatePersonalizedMessages(
       {
-        ...latest,
-        ...baseRecord,
+        ...stripUntrustedLinkedInFields(contactWithIdentity),
         meeting_context: latest.event_name || latest.notes,
       },
       profile,
-      linkedinData
+      linkedinTrusted ? linkedinData : null
     ).catch((err) => {
       console.error('AI message regeneration skipped:', err)
       return null
@@ -268,7 +346,11 @@ export async function runContactEnrichment(contactId: string, userId: string): P
   }
 }
 
-export function triggerBackgroundEnrichment(contactId: string, userId: string) {
+export function triggerBackgroundEnrichment(
+  contactId: string,
+  userId: string,
+  options: EnrichmentOptions = {}
+) {
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
@@ -276,9 +358,9 @@ export function triggerBackgroundEnrichment(contactId: string, userId: string) {
   fetch(`${baseUrl}/api/enrich/run/${contactId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId }),
+    body: JSON.stringify({ userId, ...options }),
   }).catch((err) => {
     console.error('Background enrichment trigger failed, running inline:', err)
-    runContactEnrichment(contactId, userId).catch(console.error)
+    runContactEnrichment(contactId, userId, options).catch(console.error)
   })
 }
