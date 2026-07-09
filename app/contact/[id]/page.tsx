@@ -255,7 +255,7 @@ export default function ContactResultPage() {
     const text = messages.linkedin || ''
     if (contact.linkedin_url) {
       await openLinkedInComposer(contact.linkedin_url, text)
-      toast('Zpráva zkopírována, vlož ji na LinkedIn profilu.')
+      toast('Message copied — paste it on their LinkedIn profile.')
     } else if (text) {
       await navigator.clipboard.writeText(text)
       toast('✓ LinkedIn message copied!')
@@ -451,7 +451,7 @@ export default function ContactResultPage() {
 
       toast(
         sent.some((entry) => entry.channel === 'LinkedIn')
-          ? 'Zpráva zkopírována, vlož ji na LinkedIn profilu.'
+          ? 'Message copied — paste it on their LinkedIn profile.'
           : '✓ Composers opened'
       )
       setShowFollowup(true)

@@ -27,7 +27,7 @@ export default function LoginPage() {
       router.push('/scan')
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Přihlášení selhalo.')
+      setError(err instanceof Error ? err.message : 'Sign in failed.')
     } finally {
       setLoading(false)
     }
@@ -76,7 +76,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Heslo"
+                placeholder="Password"
                 className="abc-input px-3 py-2.5 text-xs opacity-90"
               />
 
@@ -99,16 +99,16 @@ export default function LoginPage() {
                   color: '#999999',
                 }}
               >
-                {loading ? 'Přihlašuji...' : 'Přihlásit se emailem'}
+                {loading ? 'Signing in…' : 'Sign in with email'}
               </motion.button>
             </form>
           </div>
         </div>
 
         <p className="text-center text-sm text-text-secondary relative">
-          Nemáš účet?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/register" className="gradient-text font-semibold hover:opacity-80 transition-opacity">
-            Registruj se
+            Sign up
           </Link>
         </p>
       </motion.div>

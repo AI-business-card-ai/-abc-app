@@ -46,10 +46,10 @@ export default function RegisterPage() {
         router.push('/scan')
         router.refresh()
       } else {
-        setInfo('Účet vytvořen. Zkontroluj email pro potvrzení, pak se přihlas.')
+        setInfo('Account created. Check your email to confirm, then sign in.')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registrace selhala.')
+      setError(err instanceof Error ? err.message : 'Registration failed.')
     } finally {
       setLoading(false)
     }
@@ -70,7 +70,7 @@ export default function RegisterPage() {
           >
             ABC
           </motion.h1>
-          <p className="mt-3 text-sm text-text-secondary">Vytvoř si účet a začni skenovat.</p>
+          <p className="mt-3 text-sm text-text-secondary">Create an account and start scanning.</p>
         </div>
 
         <div className="flex flex-col gap-5">
@@ -90,7 +90,7 @@ export default function RegisterPage() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Jméno"
+                placeholder="Name"
                 className="abc-input px-3 py-2.5 text-xs opacity-90"
               />
               <input
@@ -107,7 +107,7 @@ export default function RegisterPage() {
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Heslo (min. 6 znaků)"
+                placeholder="Password (min. 6 characters)"
                 className="abc-input px-3 py-2.5 text-xs opacity-90"
               />
 
@@ -142,16 +142,16 @@ export default function RegisterPage() {
                   color: '#999999',
                 }}
               >
-                {loading ? 'Vytvářím účet...' : 'Vytvořit účet emailem'}
+                {loading ? 'Creating account…' : 'Create account with email'}
               </motion.button>
             </form>
           </div>
         </div>
 
         <p className="text-center text-sm text-text-secondary relative">
-          Máš účet?{' '}
+          Already have an account?{' '}
           <Link href="/login" className="gradient-text font-semibold hover:opacity-80 transition-opacity">
-            Přihlaš se
+            Sign in
           </Link>
         </p>
       </motion.div>

@@ -167,7 +167,7 @@ export default function ChatPage() {
         setDraft('')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Odeslání selhalo.')
+      setError(err instanceof Error ? err.message : 'Send failed.')
     } finally {
       setSendingSequenceId(null)
     }
@@ -211,16 +211,16 @@ export default function ChatPage() {
       setDraft('')
       setActiveSequenceId(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Odeslání selhalo.')
+      setError(err instanceof Error ? err.message : 'Send failed.')
     } finally {
       setSending(false)
     }
   }
 
   function statusText() {
-    if (replied) return '● Odpověděl dnes'
-    if (contact?.status === 'sent') return '● Odesláno'
-    return '● Čeká na odpověď'
+    if (replied) return '● Replied today'
+    if (contact?.status === 'sent') return '● Sent'
+    return '● Awaiting reply'
   }
 
   if (loading) {
@@ -245,7 +245,7 @@ export default function ChatPage() {
         className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3"
         style={{ background: 'linear-gradient(180deg, #0A0614, #08060F)', borderBottom: '0.5px solid #1A0E30' }}
       >
-        <button onClick={() => router.back()} aria-label="Zpět">
+        <button onClick={() => router.back()} aria-label="Back">
           <IconArrowLeft size={20} style={{ color: '#2A1A4A' }} />
         </button>
         <div
@@ -255,7 +255,7 @@ export default function ChatPage() {
           {initials}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold truncate" style={{ color: '#F0EAFF' }}>{contact?.name ?? 'Kontakt'}</p>
+          <p className="text-sm font-bold truncate" style={{ color: '#F0EAFF' }}>{contact?.name ?? 'Contact'}</p>
           <p className="text-xs" style={{ color: replied || contact?.status === 'sent' ? '#A78BFA' : '#3A2060' }}>
             {statusText()}
           </p>
@@ -264,7 +264,7 @@ export default function ChatPage() {
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 pb-52">
         {messages.length === 0 ? (
-          <p className="py-8 text-center text-sm" style={{ color: '#3A2060' }}>Zatím žádné zprávy.</p>
+          <p className="py-8 text-center text-sm" style={{ color: '#3A2060' }}>No messages yet.</p>
         ) : (
           messages.map((m) => {
             const out = m.direction === 'out'
@@ -313,10 +313,10 @@ export default function ChatPage() {
           style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
         >
           <span className="block tracking-widest uppercase mb-2" style={{ fontSize: '8px', color: '#3A2060' }}>
-            PLÁNOVANÉ ZPRÁVY
+            SCHEDULED MESSAGES
           </span>
           {scheduled.length === 0 && sent.length === 0 ? (
-            <p className="text-xs" style={{ color: '#3A2060' }}>Žádné naplánované follow-upy.</p>
+            <p className="text-xs" style={{ color: '#3A2060' }}>No scheduled follow-ups.</p>
           ) : (
             <div className="flex flex-col gap-2">
               {scheduled.map((s) => {
@@ -339,7 +339,7 @@ export default function ChatPage() {
                       style={{ background: dotColor, boxShadow: `0 0 8px ${dotColor}` }}
                     />
                     <span className="text-xs flex-1 font-medium" style={{ color: isActive ? '#F0EAFF' : '#8B7AA8' }}>
-                      {channelLabel(s.message_type)} · krok {s.step}
+                      {channelLabel(s.message_type)} · step {s.step}
                     </span>
                     <span className="text-[10px] shrink-0" style={{ color: '#3A2060' }}>
                       {new Date(s.scheduled_at).toLocaleDateString('cs-CZ')}
@@ -356,7 +356,7 @@ export default function ChatPage() {
                         opacity: sendingSequenceId === s.id ? 0.5 : 1,
                       }}
                     >
-                      {sendingSequenceId === s.id ? '...' : 'Odeslat nyní'}
+                      {sendingSequenceId === s.id ? '...' : 'Send now'}
                     </span>
                   </button>
                 )
@@ -371,9 +371,9 @@ export default function ChatPage() {
                   >
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
                     <span className="text-xs flex-1" style={{ color: '#3A2060' }}>
-                      {channelLabel(s.message_type)} · krok {s.step}
+                      {channelLabel(s.message_type)} · step {s.step}
                     </span>
-                    <span className="text-[10px]" style={{ color: '#3A2060' }}>Odesláno</span>
+                    <span className="text-[10px]" style={{ color: '#3A2060' }}>Sent</span>
                   </div>
                 )
               })}
@@ -398,7 +398,7 @@ export default function ChatPage() {
                 style={{ background: CHANNEL_DOT[activeSequence.message_type], boxShadow: `0 0 6px ${CHANNEL_DOT[activeSequence.message_type]}` }}
               />
               <span className="text-[10px] font-medium" style={{ color: CHANNEL_DOT[activeSequence.message_type] }}>
-                {channelLabel(activeSequence.message_type)} · krok {activeSequence.step}
+                {channelLabel(activeSequence.message_type)} · step {activeSequence.step}
               </span>
             </div>
             <textarea
@@ -429,7 +429,7 @@ export default function ChatPage() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !sending && send()}
-            placeholder="Napsat zprávu..."
+            placeholder="Write a message..."
             disabled={sending}
             className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none disabled:opacity-50"
             style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}

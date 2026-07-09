@@ -71,7 +71,7 @@ const PLANS = [
 const TESTIMONIALS = [
   {
     quote: 'Scanned 47 cards at SaaStr. Had personalized LinkedIn messages ready before I landed. Closed 3 deals that week.',
-    name: 'Martin Novák',
+    name: 'James Miller',
     role: 'Head of Sales, TechFlow CZ',
   },
   {
@@ -81,7 +81,7 @@ const TESTIMONIALS = [
   },
   {
     quote: 'Our team cut CRM entry time by 90%. The AI messages actually get replies — not generic templates.',
-    name: 'Tomáš Dvořák',
+    name: 'Sarah Chen',
     role: 'VP Business Dev, Apex Digital',
   },
 ]
@@ -304,7 +304,7 @@ export default function HomePage() {
               color: COLORS.cyan,
             }}
           >
-            🚀 Beta launch — 30. června 2026
+            🚀 Beta launch — June 30, 2026
           </span>
           <h1
             style={{

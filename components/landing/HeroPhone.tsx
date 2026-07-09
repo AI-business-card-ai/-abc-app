@@ -176,7 +176,7 @@ function ScreenScan({ active }: { active: boolean }) {
             <div style={{ width: '60%', height: 6, borderRadius: 3, background: 'rgba(240,240,255,0.5)' }} />
             <div style={{ width: '80%', height: 4, borderRadius: 2, background: 'rgba(136,146,176,0.45)' }} />
             <div style={{ width: '55%', height: 4, borderRadius: 2, background: 'rgba(136,146,176,0.35)' }} />
-            <div style={{ marginTop: 6, fontSize: 8, color: COLORS.muted }}>Martin Novák</div>
+            <div style={{ marginTop: 6, fontSize: 8, color: COLORS.muted }}>Martin Novak</div>
           </div>
           {active && <div className="hero-phone-scan-line" />}
         </div>
@@ -258,7 +258,7 @@ function ScreenAnalyzing({ active }: { active: boolean }) {
         MN
       </div>
       <div style={{ textAlign: 'center' }}>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Martin Novák</p>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Martin Novak</p>
         <p style={{ margin: '4px 0 0', fontSize: 11, color: COLORS.muted }}>MedTech GmbH</p>
       </div>
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -365,7 +365,7 @@ function ScreenMessages() {
           MN
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 700 }}>Martin Novák</p>
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 700 }}>Martin Novak</p>
           <p style={{ margin: 0, fontSize: 9, color: COLORS.muted }}>MedTech GmbH</p>
         </div>
         <span
@@ -483,7 +483,7 @@ function ScreenSent({ active }: { active: boolean }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 10 }}>
-          <span style={{ fontWeight: 700 }}>Martin Novák</span>
+          <span style={{ fontWeight: 700 }}>Martin Novak</span>
           <span style={{ color: COLORS.muted }}>→</span>
           <span style={{ color: COLORS.cyan, fontWeight: 700 }}>CONTACTED</span>
           <span style={{ color: COLORS.muted }}>→ follow-up in 3 days</span>

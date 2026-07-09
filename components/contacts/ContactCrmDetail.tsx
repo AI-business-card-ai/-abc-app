@@ -406,7 +406,7 @@ export default function ContactCrmDetailPage() {
             pendingLogs.push({
               channel: 'LinkedIn',
               text,
-              toast: 'Zpráva zkopírována, vlož ji na LinkedIn profilu.',
+              toast: 'Message copied — paste it on their LinkedIn profile.',
             })
           }
         }

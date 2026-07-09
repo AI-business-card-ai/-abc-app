@@ -23,7 +23,7 @@ export default function CrmExportEventModal({ open, target, contact, onClose, on
   async function handleConfirm() {
     const trimmed = value.trim()
     if (!trimmed) {
-      setError('Vyplň, kde jste se potkali.')
+      setError('Add where you met.')
       return
     }
 
@@ -69,16 +69,16 @@ export default function CrmExportEventModal({ open, target, contact, onClose, on
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-lg font-bold mb-2" style={{ color: '#ffffff' }}>
-          Doplň, kde jste se potkali, než exportuješ do CRM
+          Add where you met before CRM export
         </p>
         <p className="text-sm mb-4" style={{ color: '#999999' }}>
-          Export do {targetLabel} vyžaduje kontext setkání (event). Vyplň rychle níže a export se spustí hned potom.
+          {targetLabel} export requires meeting context. Fill it in below and export will start right after.
         </p>
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && void handleConfirm()}
-          placeholder="Veletrh, schůzka, intro…"
+          placeholder="Trade show, meeting, intro…"
           className="w-full abc-input px-3 py-3 text-base mb-3 min-h-[48px]"
           autoFocus
           disabled={saving}
@@ -96,7 +96,7 @@ export default function CrmExportEventModal({ open, target, contact, onClose, on
             className="flex-1 rounded-xl py-3 font-bold text-white disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)' }}
           >
-            {saving ? 'Ukládám…' : `Uložit a exportovat → ${targetLabel}`}
+            {saving ? 'Saving…' : `Save & export → ${targetLabel}`}
           </button>
           <button
             type="button"
@@ -104,7 +104,7 @@ export default function CrmExportEventModal({ open, target, contact, onClose, on
             className="rounded-xl px-4 py-3 text-sm"
             style={{ border: '1px solid #2a2a2a', color: '#999999' }}
           >
-            Zrušit
+            Cancel
           </button>
         </div>
       </div>

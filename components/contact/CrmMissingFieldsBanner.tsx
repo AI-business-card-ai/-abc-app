@@ -56,10 +56,10 @@ export default function CrmMissingFieldsBanner({ contact, onContactUpdated, onFo
           }}
         >
           <p className="text-sm font-bold mb-1" style={{ color: '#fbbf24' }}>
-            ⚠ Chybí data pro CRM export
+            ⚠ Missing data for CRM export
           </p>
           <p className="text-xs mb-3" style={{ color: '#fcd34d' }}>
-            Doplň: {missing.map(getCrmFieldLabel).join(' · ')}
+            Add: {missing.map(getCrmFieldLabel).join(' · ')}
           </p>
           <div className="flex flex-wrap gap-2">
             {missing.some((f) => f !== 'event_context') && (
@@ -70,7 +70,7 @@ export default function CrmMissingFieldsBanner({ contact, onContactUpdated, onFo
                 className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50"
                 style={{ background: '#242424', border: '1px solid #fbbf24', color: '#ffffff' }}
               >
-                {filling ? 'AI doplňuje…' : 'Doplnit velikost / obrat / HQ (AI)'}
+                {filling ? 'AI filling…' : 'Fill size / revenue / HQ (AI)'}
               </button>
             )}
             {missing.includes('event_context') && (
@@ -80,7 +80,7 @@ export default function CrmMissingFieldsBanner({ contact, onContactUpdated, onFo
                 className="rounded-lg px-3 py-2 text-xs font-semibold"
                 style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)', color: '#ffffff' }}
               >
-                Doplnit kde jste se potkali ↓
+                Add where you met ↓
               </button>
             )}
           </div>
@@ -91,7 +91,7 @@ export default function CrmMissingFieldsBanner({ contact, onContactUpdated, onFo
           )}
           {!contactReadyForCrmExport(contact) && (
             <p className="text-[10px] mt-2" style={{ color: '#a3a3a3' }}>
-              Export do Salesforce/HubSpot bude dostupný po doplnění všech polí.
+              Export to Salesforce/HubSpot will be available once all fields are filled.
             </p>
           )}
         </motion.div>

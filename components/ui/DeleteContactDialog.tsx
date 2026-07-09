@@ -36,10 +36,10 @@ export default function DeleteContactDialog({
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="font-bold text-base mb-2" style={{ color: '#F0EAFF' }}>
-              Smazat kontakt?
+              Delete contact?
             </h3>
             <p className="text-sm mb-6 leading-relaxed" style={{ color: '#8B6ABF' }}>
-              Tato akce je nevratná.
+              This action cannot be undone.
             </p>
             <div className="flex gap-3">
               <button
@@ -48,7 +48,7 @@ export default function DeleteContactDialog({
                 className="flex-1 py-2.5 rounded-xl text-sm font-medium disabled:opacity-40"
                 style={{ border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
               >
-                Zrušit
+                Cancel
               </button>
               <button
                 onClick={onConfirm}
@@ -56,7 +56,7 @@ export default function DeleteContactDialog({
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
                 style={{ background: '#EF4444' }}
               >
-                {deleting ? 'Mažu...' : 'Smazat'}
+                {deleting ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </motion.div>
@@ -74,7 +74,7 @@ async function deleteContactApi(contactId: string) {
   })
   const json = await res.json()
   if (!res.ok || !json.success) {
-    throw new Error(json.error || 'Smazání selhalo.')
+    throw new Error(json.error || 'Delete failed.')
   }
 }
 

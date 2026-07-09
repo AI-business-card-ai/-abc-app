@@ -420,7 +420,7 @@ export default function ScanPage() {
                 className="absolute inset-0 flex items-center justify-center text-sm text-center px-4"
                 style={{ color: '#666666' }}
               >
-                {scanBlocked ? 'Scan limit — upgrade pro další' : 'Point at business card'}
+                {scanBlocked ? 'Scan limit — upgrade for more' : 'Point at business card'}
               </p>
             </div>
           </div>
@@ -435,12 +435,12 @@ export default function ScanPage() {
                 border: '1px solid rgba(0, 212, 212, 0.2)',
               }}
             >
-              <p className="text-[10px] mb-0.5" style={{ color: '#22c55e' }}>✓ Poslední vizitka</p>
+              <p className="text-[10px] mb-0.5" style={{ color: '#22c55e' }}>✓ Latest card</p>
               <p className="font-bold text-base leading-tight truncate" style={{ color: '#ffffff' }}>
-                {latestSaved.contact.name || 'Analyzuji…'}
+                {latestSaved.contact.name || 'Analyzing…'}
               </p>
               <p className="text-xs truncate" style={{ color: '#00d4d4' }}>
-                {[latestSaved.contact.role, latestSaved.contact.company].filter(Boolean).join(' · ') || 'Zpracovává se…'}
+                {[latestSaved.contact.role, latestSaved.contact.company].filter(Boolean).join(' · ') || 'Processing…'}
               </p>
             </motion.div>
           )}
@@ -466,7 +466,7 @@ export default function ScanPage() {
           >
             <div className={`flex items-center gap-2 mb-3 ${hasCapturedOnce ? '' : 'opacity-40'}`}>
               <span className="text-xs shrink-0" style={{ color: '#999999' }}>
-                📍 Kde jste se potkali?
+                📍 Where did you meet?
               </span>
               <button
                 type="button"
@@ -489,7 +489,7 @@ export default function ScanPage() {
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder={hasCapturedOnce ? 'Veletrh, schůzka, intro…' : 'Nejdřív nafoťte vizitku…'}
+              placeholder={hasCapturedOnce ? 'Trade show, meeting, intro…' : 'Scan a card first…'}
               disabled={!hasCapturedOnce}
               className="w-full abc-input px-3 py-3 text-base mb-3 min-h-[44px] disabled:opacity-40"
             />

@@ -117,7 +117,7 @@ export default function SettingsContent() {
       router.refresh()
     } catch (err) {
       console.error('Logout error:', err)
-      setError(err instanceof Error ? err.message : 'Odhlášení selhalo.')
+      setError(err instanceof Error ? err.message : 'Sign out failed.')
       setLoggingOut(false)
     }
   }
@@ -164,7 +164,7 @@ export default function SettingsContent() {
 
       <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>
         <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '16px' }}>YOUR CARD</div>
-        {field('Full Name', 'full_name', 'David Bureš')}
+        {field('Full Name', 'full_name', 'Jane Smith')}
         {field('Company', 'company', 'Apexpo')}
         {field('Role', 'role', 'CEO')}
         {field('Email', 'email', 'david@apexpo.com')}
@@ -381,7 +381,7 @@ export default function SettingsContent() {
             opacity: loggingOut ? 0.6 : 1,
           }}
         >
-          {loggingOut ? 'Odhlášení…' : 'Odhlásit se'}
+          {loggingOut ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
     </div>

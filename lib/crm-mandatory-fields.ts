@@ -51,10 +51,10 @@ export function isCrmFieldEstimated(
 
 export function getCrmFieldLabel(field: CrmMandatoryField): string {
   const labels: Record<CrmMandatoryField, string> = {
-    company_size: 'Velikost firmy',
-    revenue: 'Obrat',
-    headquarters: 'Sídlo (HQ)',
-    event_context: 'Kde jste se potkali',
+    company_size: 'Company size',
+    revenue: 'Revenue',
+    headquarters: 'HQ',
+    event_context: 'Where you met',
   }
   return labels[field]
 }

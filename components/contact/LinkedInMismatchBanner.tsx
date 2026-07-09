@@ -55,11 +55,11 @@ export default function LinkedInMismatchBanner({ contact, onUpdated, compact }: 
       }}
     >
       <div style={{ fontSize: compact ? '12px' : '13px', fontWeight: 700, marginBottom: '6px' }}>
-        ⚠ LinkedIn profil se nemusí shodovat — ověř prosím
+        ⚠ LinkedIn profile may not match — please verify
       </div>
       <p style={{ margin: '0 0 8px', fontSize: compact ? '11px' : '12px', color: '#fcd34d', lineHeight: 1.45 }}>
         {contact.linkedin_mismatch_reason ||
-          `Profil ukazuje jinou firmu než vizitka (${profileCompany} vs ${cardCompany}). Data nejsou použita ve skóre ani ve zprávách.`}
+          `Profile shows a different company than the business card (${profileCompany} vs ${cardCompany}). Data is not used in score or messages.`}
       </p>
       {contact.linkedin_profile_name && (
         <p style={{ margin: '0 0 10px', fontSize: '11px', color: '#eab308' }}>
@@ -85,7 +85,7 @@ export default function LinkedInMismatchBanner({ contact, onUpdated, compact }: 
             cursor: busy ? 'wait' : 'pointer',
           }}
         >
-          Toto není správný LinkedIn profil
+          This isn&apos;t the right LinkedIn profile
         </button>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -120,7 +120,7 @@ export default function LinkedInMismatchBanner({ contact, onUpdated, compact }: 
               cursor: busy ? 'wait' : 'pointer',
             }}
           >
-            Použít správnou URL
+            Use correct URL
           </button>
         </div>
       </div>

@@ -19,16 +19,16 @@ export const RESEARCH_PREFERENCE_OPTIONS: {
   key: ResearchPreferenceKey
   label: string
 }[] = [
-  { key: 'revenue', label: 'Obrat a velikost firmy' },
-  { key: 'location', label: 'Sídlo a pobočky' },
-  { key: 'news', label: 'Poslední novinky (6 měsíců)' },
-  { key: 'linkedin', label: 'LinkedIn profil osoby' },
-  { key: 'reputation', label: 'Reputace a kauzy' },
-  { key: 'events', label: 'Nadcházející eventy' },
-  { key: 'competitors', label: 'Konkurenti firmy' },
-  { key: 'technology', label: 'Technologie které používají' },
-  { key: 'decision_maker', label: 'Je to decision maker?' },
-  { key: 'pain_points', label: 'Aktuální problémy firmy' },
+  { key: 'revenue', label: 'Revenue & company size' },
+  { key: 'location', label: 'HQ & offices' },
+  { key: 'news', label: 'Recent news (6 months)' },
+  { key: 'linkedin', label: 'Person LinkedIn profile' },
+  { key: 'reputation', label: 'Reputation & controversies' },
+  { key: 'events', label: 'Upcoming events' },
+  { key: 'competitors', label: 'Company competitors' },
+  { key: 'technology', label: 'Technologies they use' },
+  { key: 'decision_maker', label: 'Is this a decision maker?' },
+  { key: 'pain_points', label: 'Current company pain points' },
 ]
 
 export interface EnrichedSection {

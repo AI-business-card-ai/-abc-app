@@ -94,10 +94,10 @@ export default function EventTagPrompt({ contact, onContactUpdated }: Props) {
           }}
         >
           <p className="text-sm font-bold mb-1" style={{ color: '#ffffff' }}>
-            📍 Kde jste se potkali? Doplň pro lepší match score
+            📍 Where did you meet? Improves match score
           </p>
           <p className="text-xs mb-3" style={{ color: '#b8c5d6' }}>
-            Např. ISE 2026, networking večer, intro od kolegy… Uloží se automaticky a přepočítá AI score.
+            e.g. ISE 2026, networking event, colleague intro… Saves automatically and recalculates AI score.
           </p>
           <input
             id="crm-event-input"
@@ -111,13 +111,13 @@ export default function EventTagPrompt({ contact, onContactUpdated }: Props) {
               }
             }}
             disabled={saving}
-            placeholder="Veletrh, schůzka, intro…"
+            placeholder="Trade show, meeting, intro…"
             className="w-full abc-input px-3 py-3 text-base min-h-[48px]"
             autoComplete="off"
           />
           <div className="flex items-center justify-between mt-2 gap-2">
             <span className="text-[11px]" style={{ color: rescoring ? '#00d4d4' : '#8892b0' }}>
-              {rescoring ? 'Přepočítávám match score…' : saving ? 'Ukládám…' : 'Enter nebo 0.7s po psaní'}
+              {rescoring ? 'Recalculating match score…' : saving ? 'Saving…' : 'Enter or 0.7s after typing'}
             </span>
           </div>
           {error && (
