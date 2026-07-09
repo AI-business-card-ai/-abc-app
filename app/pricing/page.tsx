@@ -21,7 +21,7 @@ const PLANS = [
     price: '$0',
     period: '',
     badge: null as string | null,
-    features: ['3 scans/month', 'Basic AI messages', 'Contact export'],
+    features: ['3 scans total', 'Basic AI messages', 'Contact export'],
     cta: 'Start free',
     highlight: false,
   },

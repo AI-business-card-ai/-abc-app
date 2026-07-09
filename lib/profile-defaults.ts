@@ -1,4 +1,5 @@
 import { DEFAULT_RESEARCH_PREFERENCES } from '@/lib/research'
+import { getScanLimitForPlan } from '@/lib/scan-limits'
 import type { ABCProfile } from '@/lib/types'
 
 export const EMPTY_ABC_PROFILE: Omit<ABCProfile, 'id'> = {
@@ -18,7 +19,7 @@ export const EMPTY_ABC_PROFILE: Omit<ABCProfile, 'id'> = {
   stripe_customer_id: null,
   stripe_subscription_id: null,
   scans_used: 0,
-  scans_limit: 30,
+  scans_limit: 3,
   research_preferences: [...DEFAULT_RESEARCH_PREFERENCES],
   custom_questions: '',
   hubspot_api_key: null,
@@ -123,7 +124,7 @@ export function normalizeAbcProfile(
     stripe_customer_id: asNullableString(data.stripe_customer_id),
     stripe_subscription_id: asNullableString(data.stripe_subscription_id),
     scans_used: asNumber(data.scans_used, 0),
-    scans_limit: asNumber(data.scans_limit, 30),
+    scans_limit: asNumber(data.scans_limit, getScanLimitForPlan(plan)),
     research_preferences: researchPreferences.length ? researchPreferences : [...DEFAULT_RESEARCH_PREFERENCES],
     custom_questions: asString(data.custom_questions, ''),
     hubspot_api_key: asNullableString(data.hubspot_api_key),

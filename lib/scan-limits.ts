@@ -1,4 +1,6 @@
 /** Internal/dev accounts bypass scan limits (whitelist only). */
+
+/** Lifetime scan caps per plan (total scans_used, never monthly reset). */
 export const INTERNAL_TEST_PLAN = 'INTERNAL_TEST' as const
 
 export const SCAN_LIMIT_EXEMPT_EMAILS = [
