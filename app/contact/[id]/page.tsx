@@ -27,7 +27,7 @@ import DealInformation from '@/components/crm/DealInformation'
 import SalesforceFields from '@/components/crm/SalesforceFields'
 import CommunicationHistory from '@/components/crm/CommunicationHistory'
 import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
-import EnrichmentProgress from '@/components/ui/EnrichmentProgress'
+import EnrichingPulse from '@/components/ui/EnrichingPulse'
 import EventTagPrompt from '@/components/contact/EventTagPrompt'
 import CrmMissingFieldsBanner from '@/components/contact/CrmMissingFieldsBanner'
 import LinkedInMismatchBanner from '@/components/contact/LinkedInMismatchBanner'
@@ -41,6 +41,7 @@ import {
 import QuickCrmPanel from '@/components/mobile/QuickCrmPanel'
 import CollapsibleSection from '@/components/mobile/CollapsibleSection'
 import { useDevice } from '@/lib/hooks/useDevice'
+import { getPreferredChannels, isContactEnriching } from '@/lib/contact-enrichment-ui'
 import type { ScannedContact } from '@/lib/types'
 
 type Tab = 'linkedin' | 'email' | 'whatsapp'
@@ -150,8 +151,7 @@ export default function ContactResultPage() {
     } else {
       const c = data as ScannedContact
       applyContactUpdate(c)
-      const status = c.enrichment_status || 'DONE'
-      setShowFullDetail(status === 'DONE' || !c.enrichment_status)
+      setShowFullDetail(true)
       setShowDoneBanner(false)
       setError(null)
     }
@@ -181,11 +181,7 @@ export default function ContactResultPage() {
             const prevStatus = prev?.enrichment_status || 'DONE'
             if (updated.enrichment_status === 'DONE' && prevStatus !== 'DONE') {
               setShowDoneBanner(true)
-              setShowFullDetail(false)
-              window.setTimeout(() => {
-                setShowDoneBanner(false)
-                setShowFullDetail(true)
-              }, 3000)
+              window.setTimeout(() => setShowDoneBanner(false), 2000)
             }
             return updated
           })
@@ -203,6 +199,14 @@ export default function ContactResultPage() {
       supabase.removeChannel(channel)
     }
   }, [id, supabase])
+
+  useEffect(() => {
+    if (!contact) return
+    const channels = getPreferredChannels(contact)
+    if (!channels.includes(tab)) {
+      setTab(channels[0] ?? 'linkedin')
+    }
+  }, [contact, tab])
 
   async function handleRetryEnrichment() {
     setRetryingEnrichment(true)
@@ -555,10 +559,11 @@ export default function ContactResultPage() {
             Try again
           </button>
           <button
-            onClick={() => router.push('/contacts')}
+            type="button"
+            onClick={() => router.back()}
             className="ghost-btn rounded-xl px-5 py-2.5 w-full text-sm"
           >
-            ← Back to contacts
+            ← Back
           </button>
         </div>
       </div>
@@ -574,18 +579,22 @@ export default function ContactResultPage() {
             This contact doesn&apos;t exist or you don&apos;t have access to it.
           </p>
           <button
-            onClick={() => router.push('/contacts')}
+            type="button"
+            onClick={() => router.back()}
             className="glow-btn rounded-xl text-white px-5 py-2.5 w-full"
           >
-            ← Back to contacts
+            ← Back
           </button>
         </div>
       </div>
     )
   }
 
-  const limit = tab === 'linkedin' ? 300 : tab === 'whatsapp' ? 160 : null
-  const over = limit !== null && messages[tab].length > limit
+  const preferredChannels = getPreferredChannels(contact)
+  const visibleTabs = TABS.filter((t) => preferredChannels.includes(t.key))
+  const activeTab = visibleTabs.some((t) => t.key === tab) ? tab : (visibleTabs[0]?.key ?? 'linkedin')
+  const limit = activeTab === 'linkedin' ? 300 : activeTab === 'whatsapp' ? 160 : null
+  const over = limit !== null && messages[activeTab].length > limit
   const score = contact.match_score ?? 0
   const sc = scoreColors(score)
 
@@ -624,14 +633,14 @@ export default function ContactResultPage() {
   ].filter(Boolean) as { icon: string; label: string; value: string; estimated?: boolean }[]
 
   const enrichmentStatus = contact.enrichment_status || 'DONE'
-  const isEnriching = enrichmentStatus === 'PENDING' || enrichmentStatus === 'ENRICHING'
-  const showDetailSections = showFullDetail && !showDoneBanner && !isEnriching
+  const isEnriching = isContactEnriching(contact)
+  const showDetailSections = showFullDetail && !showDoneBanner
 
   return (
     <motion.div className="min-h-screen bg-bg pb-44">
       {/* TOP BAR */}
       <div className="hero-radial flex items-center justify-between px-4 pt-6 pb-4 relative sticky top-0 z-30 backdrop-blur-md" style={{ background: 'rgba(13,15,26,0.92)' }}>
-        <button onClick={() => router.push('/contacts')} className="icon-btn">
+        <button type="button" onClick={() => router.back()} className="icon-btn" aria-label="Back">
           <IconArrowLeft size={18} />
         </button>
         <span className="text-sm font-semibold gradient-text">Result</span>
@@ -666,10 +675,6 @@ export default function ContactResultPage() {
           <CrmMissingFieldsBanner
             contact={contact}
             onContactUpdated={applyContactUpdate}
-            onFocusEvent={() => {
-              document.getElementById('crm-event-input')?.focus()
-              document.getElementById('crm-event-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            }}
           />
         </motion.div>
         <motion.div variants={item}>
@@ -731,8 +736,8 @@ export default function ContactResultPage() {
 
         <AnimatePresence>
           {isEnriching && (
-            <motion.div variants={item} key="enrichment-progress">
-              <EnrichmentProgress step={contact.enrichment_step} status={contact.enrichment_status} />
+            <motion.div variants={item} key="enrichment-pulse" className="abc-card p-3">
+              <EnrichingPulse />
             </motion.div>
           )}
         </AnimatePresence>
@@ -958,15 +963,15 @@ export default function ContactResultPage() {
           </div>
 
           <div className="flex border-b border-abc-border">
-            {TABS.map((t) => (
+            {visibleTabs.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className="relative flex-1 pb-2.5 text-sm font-medium transition-colors"
-                style={{ color: tab === t.key ? '#F0EAFF' : '#3A2060' }}
+                style={{ color: activeTab === t.key ? '#F0EAFF' : '#3A2060' }}
               >
                 {t.label}
-                {tab === t.key && (
+                {activeTab === t.key && (
                   <motion.span
                     layoutId="msg-underline"
                     className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-gradient-text"
@@ -977,7 +982,7 @@ export default function ContactResultPage() {
             ))}
           </div>
 
-          {tab === 'email' && (
+          {activeTab === 'email' && (
             <input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
@@ -987,8 +992,8 @@ export default function ContactResultPage() {
           )}
 
           <textarea
-            value={messages[tab]}
-            onChange={(e) => setMessages((m) => ({ ...m, [tab]: e.target.value }))}
+            value={messages[activeTab]}
+            onChange={(e) => setMessages((m) => ({ ...m, [activeTab]: e.target.value }))}
             className="abc-input px-3 py-2.5 text-base min-h-[120px] resize-none"
           />
 
@@ -1002,7 +1007,7 @@ export default function ContactResultPage() {
             </button>
             {limit !== null && (
               <div className="text-right text-xs" style={{ color: over ? '#EF4444' : '#3A2060' }}>
-                {messages[tab].length}/{limit}
+                {messages[activeTab].length}/{limit}
               </div>
             )}
           </div>

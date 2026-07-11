@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { generatePersonalizedMessages } from '@/lib/ai-messages'
+import { buildMeetingContext } from '@/lib/contact-enrichment-ui'
 import { isLinkedInDataTrusted, stripUntrustedLinkedInFields } from '@/lib/linkedin-identity'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
 
@@ -44,7 +45,7 @@ export async function POST(
     const aiMessages = await generatePersonalizedMessages(
       {
         ...safeContact,
-        meeting_context: c.event_name || c.notes,
+        meeting_context: buildMeetingContext(c) || undefined,
       },
       profile,
       isLinkedInDataTrusted(c) ? undefined : null

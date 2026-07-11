@@ -1,6 +1,8 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import EnrichingPulse from '@/components/ui/EnrichingPulse'
+import { isContactEnriching } from '@/lib/contact-enrichment-ui'
 import type { ScannedContact } from '@/lib/types'
 
 export type BurstQueueItem = {
@@ -14,7 +16,6 @@ export type BurstQueueItem = {
 
 type Props = {
   items: BurstQueueItem[]
-  onItemClick?: (contactId: string) => void
 }
 
 function queueItemLabel(item: BurstQueueItem): string | null {
@@ -25,13 +26,13 @@ function queueItemLabel(item: BurstQueueItem): string | null {
   return null
 }
 
-export default function ScanBurstQueue({ items, onItemClick }: Props) {
+export default function ScanBurstQueue({ items }: Props) {
   if (items.length === 0) return null
 
   return (
     <div className="mx-4 mb-2 z-20 relative">
       <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#666666' }}>
-        Fronta · {items.length}
+        Queue · {items.length}
       </p>
       <div
         className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
@@ -39,20 +40,18 @@ export default function ScanBurstQueue({ items, onItemClick }: Props) {
       >
         {items.map((item) => {
           const scoreLabel = queueItemLabel(item)
-          const isProcessing = item.status === 'queued' || item.status === 'ocr' || item.status === 'saved'
-          const contactId = item.contact?.id
+          const enriching =
+            item.contact && isContactEnriching(item.contact) && item.status !== 'error'
+          const isProcessing = item.status === 'queued' || item.status === 'ocr'
 
           return (
-            <motion.button
+            <motion.div
               key={item.id}
-              type="button"
               layout
               initial={item.justCaptured ? { scale: 1.2, opacity: 0.6, y: -40 } : { scale: 0.85, opacity: 0 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               transition={{ type: 'spring', stiffness: 420, damping: 28 }}
-              disabled={!contactId}
-              onClick={() => contactId && onItemClick?.(contactId)}
-              className="relative shrink-0 rounded-xl overflow-hidden disabled:cursor-default"
+              className="relative shrink-0 rounded-xl overflow-hidden"
               style={{
                 width: 56,
                 height: 56,
@@ -78,14 +77,18 @@ export default function ScanBurstQueue({ items, onItemClick }: Props) {
                 </motion.div>
               )}
 
-              {isProcessing && !item.justCaptured && (
+              {(isProcessing || enriching) && !item.justCaptured && item.status !== 'enriched' && (
                 <div
                   className="absolute inset-0 flex items-center justify-center"
                   style={{ background: 'rgba(15,15,15,0.55)' }}
                 >
-                  <div
-                    className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin"
-                    style={{ borderColor: '#00d4d4', borderTopColor: 'transparent' }}
+                  <span
+                    className="rounded-full enriching-pulse-dot"
+                    style={{
+                      width: 10,
+                      height: 10,
+                      background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+                    }}
                   />
                 </div>
               )}
@@ -113,7 +116,7 @@ export default function ScanBurstQueue({ items, onItemClick }: Props) {
                   !
                 </div>
               )}
-            </motion.button>
+            </motion.div>
           )
         })}
       </div>

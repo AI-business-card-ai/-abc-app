@@ -20,6 +20,7 @@ import {
   stripUntrustedLinkedInFields,
 } from '@/lib/linkedin-identity'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
+import { buildMeetingContext } from '@/lib/contact-enrichment-ui'
 import type { EnrichmentStepId } from '@/lib/enrichment-steps'
 import type { EnrichedLinkedInProfile } from '@/lib/enrichlayer'
 
@@ -225,8 +226,16 @@ export async function runContactEnrichment(
 
     await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'messages')
 
+    const { data: latestBeforeScore } = await supabase
+      .from('scanned_contacts')
+      .select('*')
+      .eq('id', contactId)
+      .single()
+
+    const contactWithLatestContext = (latestBeforeScore as ScannedContact | null) ?? latest
+
     const contactWithIdentity = {
-      ...latest,
+      ...contactWithLatestContext,
       ...baseRecord,
     } as ScannedContact
 
@@ -263,7 +272,7 @@ export async function runContactEnrichment(
     const aiMessages = await generatePersonalizedMessages(
       {
         ...stripUntrustedLinkedInFields(contactWithIdentity),
-        meeting_context: latest.event_name || latest.notes,
+        meeting_context: buildMeetingContext(contactWithLatestContext) || undefined,
       },
       profile,
       linkedinTrusted ? linkedinData : null

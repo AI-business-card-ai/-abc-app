@@ -707,7 +707,13 @@ export default function ContactCrmDetailPage() {
     return (
       <div style={{ padding: '40px', textAlign: 'center', color: '#999999' }}>
         <p style={{ marginBottom: '16px' }}>Contact not found</p>
-        <Link href="/pipeline" style={{ color: '#00d4d4' }}>← Back to Pipeline</Link>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          style={{ color: '#00d4d4', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+        >
+          ← Back
+        </button>
       </div>
     )
   }
@@ -727,9 +733,13 @@ export default function ContactCrmDetailPage() {
 
   return (
     <div style={{ background: '#0f0f0f', minHeight: '100vh', padding: '16px 16px 140px' }}>
-      <Link href="/pipeline" style={{ display: 'inline-block', marginBottom: '20px', color: '#00d4d4', fontSize: '14px', textDecoration: 'none' }}>
-        ← Pipeline
-      </Link>
+      <button
+        type="button"
+        onClick={() => router.back()}
+        style={{ display: 'inline-block', marginBottom: '20px', color: '#00d4d4', fontSize: '14px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      >
+        ← Back
+      </button>
 
       <EventTagPrompt
         contact={contact}
@@ -739,7 +749,6 @@ export default function ContactCrmDetailPage() {
       <CrmMissingFieldsBanner
         contact={contact}
         onContactUpdated={(updated) => setContact(updated)}
-        onFocusEvent={focusEventInput}
       />
 
       <CrmExportEventModal

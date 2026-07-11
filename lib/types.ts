@@ -63,6 +63,9 @@ export interface ScannedContact {
   contact_count: number | null
   tags: string[] | null
   whatsapp_number: string | null
+  meeting_topic: string | null
+  followup_note: string | null
+  preferred_channels: string[] | null
   enrichment_status: 'PENDING' | 'ENRICHING' | 'DONE' | 'ERROR' | null
   enrichment_step: string | null
   events_past: ContactEvent[] | null

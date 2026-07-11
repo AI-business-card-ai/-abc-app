@@ -4,6 +4,8 @@ import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDealValue } from '@/lib/tags'
 import { getAiNextStep, daysSinceActivity } from '@/lib/pipeline-ai'
+import EnrichingPulse from '@/components/ui/EnrichingPulse'
+import { isContactEnriching } from '@/lib/contact-enrichment-ui'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
 const KANBAN_STAGES: {
@@ -85,6 +87,7 @@ function PipelineKanbanCard({
   const dealVal = formatDealValue(contact.deal_value, contact.deal_currency || 'USD')
   const nextStage = NEXT_STAGE[contact.pipeline_stage || 'new']
   const nameLine = [contact.name?.trim() || 'Unknown', contact.company?.trim()].filter(Boolean).join(' · ')
+  const enriching = isContactEnriching(contact)
 
   return (
     <div
@@ -112,7 +115,7 @@ function PipelineKanbanCard({
       )}
 
       <p className="text-[11px] leading-snug truncate mb-2" style={{ color: '#00d4d4' }} title={step.text}>
-        {step.text}
+        {enriching ? <EnrichingPulse compact /> : step.text}
       </p>
 
       <div className="flex items-center justify-between gap-2">

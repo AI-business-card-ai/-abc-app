@@ -9,7 +9,9 @@ import { useDevice } from '@/lib/hooks/useDevice'
 import CardStack from '@/components/ui/CardStack'
 import PipelineStageBadge from '@/components/ui/PipelineStageBadge'
 import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
+import EnrichingPulse from '@/components/ui/EnrichingPulse'
 import MobileContactsList from '@/components/mobile/MobileContactsList'
+import { isContactEnriching } from '@/lib/contact-enrichment-ui'
 import ReminderSidebar from '@/components/crm/ReminderSidebar'
 import { filterContacts, type FilterTab } from '@/lib/pipeline-ai'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
@@ -373,6 +375,7 @@ export default function ContactsPage() {
             <div className={`grid gap-3 ${device === 'tablet' ? 'grid-cols-2' : 'grid-cols-3'}`}>
               {filtered.map((c) => {
                 const score = c.ai_lead_score ?? c.match_score ?? 0
+                const enriching = isContactEnriching(c)
                 return (
                   <button
                     key={c.id}
@@ -398,9 +401,13 @@ export default function ContactsPage() {
                           {c.crm_status || 'NEW'}
                         </span>
                       </div>
-                      <span className="text-xs font-bold tabular-nums shrink-0" style={{ color: '#f0f0ff' }}>
-                        {score}
-                      </span>
+                      {enriching ? (
+                        <EnrichingPulse compact />
+                      ) : (
+                        <span className="text-xs font-bold tabular-nums shrink-0" style={{ color: '#f0f0ff' }}>
+                          {score}
+                        </span>
+                      )}
                     </div>
                   </button>
                 )

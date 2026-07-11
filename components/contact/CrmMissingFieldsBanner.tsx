@@ -12,32 +12,41 @@ import type { ScannedContact } from '@/lib/types'
 type Props = {
   contact: ScannedContact
   onContactUpdated: (contact: ScannedContact) => void
-  onFocusEvent?: () => void
 }
 
-export default function CrmMissingFieldsBanner({ contact, onContactUpdated, onFocusEvent }: Props) {
-  const [filling, setFilling] = useState(false)
+export default function CrmMissingFieldsBanner({ contact, onContactUpdated }: Props) {
+  const [value, setValue] = useState('')
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const missing = getMissingCrmFields(contact)
+  const missing = getMissingCrmFields(contact).filter((f) => f === 'event_context')
   const visible = missing.length > 0
 
-  async function fillCompanyFields() {
-    setFilling(true)
+  async function saveEvent() {
+    const trimmed = value.trim()
+    if (!trimmed || saving) return
+
+    setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/api/contact/fill-crm-fields', {
+      const res = await fetch('/api/card/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId: contact.id }),
+        body: JSON.stringify({
+          contactId: contact.id,
+          eventName: trimmed,
+          note: trimmed,
+          recalculateScore: true,
+        }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to fill fields')
+      if (!res.ok) throw new Error(data.error || 'Failed to save')
       onContactUpdated(data.contact as ScannedContact)
+      setValue('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fill fields')
+      setError(err instanceof Error ? err.message : 'Failed to save')
     } finally {
-      setFilling(false)
+      setSaving(false)
     }
   }
 
@@ -61,29 +70,30 @@ export default function CrmMissingFieldsBanner({ contact, onContactUpdated, onFo
           <p className="text-xs mb-3" style={{ color: '#fcd34d' }}>
             Add: {missing.map(getCrmFieldLabel).join(' · ')}
           </p>
-          <div className="flex flex-wrap gap-2">
-            {missing.some((f) => f !== 'event_context') && (
-              <button
-                type="button"
-                disabled={filling}
-                onClick={() => void fillCompanyFields()}
-                className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50"
-                style={{ background: '#242424', border: '1px solid #fbbf24', color: '#ffffff' }}
-              >
-                {filling ? 'AI filling…' : 'Fill size / revenue / HQ (AI)'}
-              </button>
-            )}
-            {missing.includes('event_context') && (
-              <button
-                type="button"
-                onClick={onFocusEvent}
-                className="rounded-lg px-3 py-2 text-xs font-semibold"
-                style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)', color: '#ffffff' }}
-              >
-                Add where you met ↓
-              </button>
-            )}
-          </div>
+          <input
+            id="crm-event-input"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void saveEvent()
+              }
+            }}
+            disabled={saving}
+            placeholder="Where did you meet? Trade show, meeting, intro…"
+            className="w-full abc-input px-3 py-3 text-base min-h-[48px] mb-2"
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            disabled={saving || !value.trim()}
+            onClick={() => void saveEvent()}
+            className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)', color: '#ffffff' }}
+          >
+            {saving ? 'Saving…' : 'Save meeting context'}
+          </button>
           {error && (
             <p className="text-xs mt-2" style={{ color: '#fca5a5' }}>
               {error}

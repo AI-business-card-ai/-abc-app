@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { IconMicrophone, IconX } from '@tabler/icons-react'
+import { IconX } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
 import ScanBurstQueue, { type BurstQueueItem } from '@/components/mobile/ScanBurstQueue'
+import ScanContextSheet, { type ContextSheetContact } from '@/components/mobile/ScanContextSheet'
+import type { OutreachChannel } from '@/lib/contact-enrichment-ui'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
 
 function PhoneStatusBar() {
@@ -45,16 +47,11 @@ export default function ScanPage() {
   const supabase = createClientComponent()
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
-  const chunksRef = useRef<BlobPart[]>([])
-  const latestContactIdRef = useRef<string | null>(null)
   const profileRef = useRef<Partial<ABCProfile> | null>(null)
   const processingRef = useRef<Set<string>>(new Set())
 
   const [queue, setQueue] = useState<BurstQueueItem[]>([])
-  const [note, setNote] = useState('')
-  const [isRecording, setIsRecording] = useState(false)
-  const [isTranscribing, setIsTranscribing] = useState(false)
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+  const [contextSheet, setContextSheet] = useState<ContextSheetContact | null>(null)
   const [flash, setFlash] = useState(false)
   const [capturePulse, setCapturePulse] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -100,31 +97,51 @@ export default function ScanPage() {
     setQueue((prev) => prev.map((item) => (item.id === clientId ? { ...item, ...patch } : item)))
   }, [])
 
-  const saveEventForContact = useCallback(async (contactId: string, eventNote: string) => {
-    const trimmed = eventNote.trim()
-    if (!trimmed) return
-    try {
-      await fetch('/api/card/event', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contactId,
-          eventName: trimmed,
-          note: trimmed,
-        }),
-      })
-    } catch (err) {
-      console.error('save event failed:', err)
-    }
+  const openContextSheet = useCallback((contact: ScannedContact) => {
+    setContextSheet({
+      contactId: contact.id,
+      name: contact.name || 'Unknown',
+      company: contact.company,
+      role: contact.role,
+    })
   }, [])
 
-  const flushNoteToLatestContact = useCallback(() => {
-    const trimmed = note.trim()
-    if (trimmed && latestContactIdRef.current) {
-      void saveEventForContact(latestContactIdRef.current, trimmed)
-      setNote('')
-    }
-  }, [note, saveEventForContact])
+  const saveContext = useCallback(
+    async (payload: {
+      whereMet: string
+      topic: string
+      followupNote: string
+      preferredChannels: OutreachChannel[]
+    }) => {
+      if (!contextSheet) return
+
+      const hasData =
+        payload.whereMet.trim() ||
+        payload.topic.trim() ||
+        payload.followupNote.trim()
+
+      if (hasData) {
+        const res = await fetch('/api/card/context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contactId: contextSheet.contactId,
+            whereMet: payload.whereMet,
+            topic: payload.topic,
+            followupNote: payload.followupNote,
+            preferredChannels: payload.preferredChannels,
+            recalculateScore: true,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to save context')
+      }
+
+      setContextSheet(null)
+      hapticSuccess()
+    },
+    [contextSheet]
+  )
 
   const processScanInBackground = useCallback(
     async (clientId: string, file: File) => {
@@ -168,7 +185,6 @@ export default function ScanPage() {
         const contact = (data.contacts?.[0] as ScannedContact) || null
         if (!contact) throw new Error('No contact returned')
 
-        latestContactIdRef.current = contact.id
         setScansToday((prev) => prev + 1)
         if (profileRef.current) {
           profileRef.current = {
@@ -181,6 +197,8 @@ export default function ScanPage() {
           status: burstStatusFromContact(contact),
           contact,
         })
+
+        openContextSheet(contact)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Scan failed'
         setError(message)
@@ -189,7 +207,7 @@ export default function ScanPage() {
         processingRef.current.delete(clientId)
       }
     },
-    [router, supabase, updateQueueItem, userId]
+    [router, supabase, updateQueueItem, userId, openContextSheet]
   )
 
   const enqueueCapture = useCallback(
@@ -198,8 +216,6 @@ export default function ScanPage() {
         setShowPaywall(true)
         return
       }
-
-      flushNoteToLatestContact()
 
       hapticMedium()
       setFlash(true)
@@ -230,7 +246,7 @@ export default function ScanPage() {
 
       void processScanInBackground(clientId, file)
     },
-    [flushNoteToLatestContact, processScanInBackground, scanBlocked, updateQueueItem]
+    [processScanInBackground, scanBlocked, updateQueueItem]
   )
 
   useEffect(() => {
@@ -289,33 +305,6 @@ export default function ScanPage() {
     e.target.value = ''
     if (!file) return
     enqueueCapture(file)
-  }
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
-      chunksRef.current = []
-      recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data)
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop())
-        setIsTranscribing(true)
-        try {
-          const formData = new FormData()
-          formData.append('audio', new Blob(chunksRef.current, { type: 'audio/webm' }), 'recording.webm')
-          const res = await fetch('/api/card/transcribe', { method: 'POST', body: formData })
-          const data = await res.json()
-          if (data.text) setNote((prev) => (prev ? `${prev} ${data.text}` : data.text))
-        } finally {
-          setIsTranscribing(false)
-        }
-      }
-      recorder.start()
-      setMediaRecorder(recorder)
-      setIsRecording(true)
-    } catch {
-      setError('Microphone access denied')
-    }
   }
 
   const latestSaved = [...queue].reverse().find((item) => item.contact?.name || item.contact?.company)
@@ -401,7 +390,7 @@ export default function ScanPage() {
               className="absolute top-4 left-4 z-20 rounded-full px-3 py-1.5 text-xs font-semibold tabular-nums"
               style={{ background: 'rgba(15,15,15,0.75)', border: '1px solid rgba(0,212,212,0.25)', color: '#00d4d4' }}
             >
-              {scansToday} karet dnes
+              {scansToday} cards today
             </div>
           )}
 
@@ -425,7 +414,7 @@ export default function ScanPage() {
             </div>
           </div>
 
-          {latestSaved?.contact && (
+          {latestSaved?.contact && !contextSheet && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -437,15 +426,15 @@ export default function ScanPage() {
             >
               <p className="text-[10px] mb-0.5" style={{ color: '#22c55e' }}>✓ Latest card</p>
               <p className="font-bold text-base leading-tight truncate" style={{ color: '#ffffff' }}>
-                {latestSaved.contact.name || 'Analyzing…'}
+                {latestSaved.contact.name || 'Processing…'}
               </p>
               <p className="text-xs truncate" style={{ color: '#00d4d4' }}>
-                {[latestSaved.contact.role, latestSaved.contact.company].filter(Boolean).join(' · ') || 'Processing…'}
+                {[latestSaved.contact.role, latestSaved.contact.company].filter(Boolean).join(' · ') || 'Enriching in background…'}
               </p>
             </motion.div>
           )}
 
-          <ScanBurstQueue items={queue} onItemClick={(id) => router.push(`/contact/${id}`)} />
+          <ScanBurstQueue items={queue} />
 
           {error && (
             <p
@@ -464,36 +453,6 @@ export default function ScanPage() {
               borderTop: '1px solid rgba(0, 212, 212, 0.12)',
             }}
           >
-            <div className={`flex items-center gap-2 mb-3 ${hasCapturedOnce ? '' : 'opacity-40'}`}>
-              <span className="text-xs shrink-0" style={{ color: '#999999' }}>
-                📍 Where did you meet?
-              </span>
-              <button
-                type="button"
-                onClick={
-                  isRecording
-                    ? () => {
-                        mediaRecorder?.stop()
-                        setIsRecording(false)
-                      }
-                    : startRecording
-                }
-                disabled={!hasCapturedOnce || isTranscribing}
-                className="tap-target shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-40"
-                style={{ background: 'rgba(240,25,125,0.12)', border: '1px solid rgba(240,25,125,0.35)', color: '#f0197d' }}
-              >
-                <IconMicrophone size={14} />
-                {isTranscribing ? '…' : isRecording ? 'Stop' : 'Voice'}
-              </button>
-            </div>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder={hasCapturedOnce ? 'Trade show, meeting, intro…' : 'Scan a card first…'}
-              disabled={!hasCapturedOnce}
-              className="w-full abc-input px-3 py-3 text-base mb-3 min-h-[44px] disabled:opacity-40"
-            />
-
             <div className="flex gap-2 md:flex-col">
               <motion.button
                 whileTap={{ scale: 0.97 }}
@@ -538,8 +497,14 @@ export default function ScanPage() {
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onCameraSelected} />
       <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={onGallerySelected} />
 
+      <ScanContextSheet
+        contact={contextSheet}
+        onSave={saveContext}
+        onSkip={() => setContextSheet(null)}
+      />
+
       {showPaywall && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ background: 'rgba(7,5,14,0.97)' }}>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-6" style={{ background: 'rgba(7,5,14,0.97)' }}>
           <div className="text-center max-w-sm">
             <p className="text-4xl mb-3">⚡</p>
             <h2 className="text-xl font-bold mb-2" style={{ color: '#ffffff' }}>Scan limit reached</h2>

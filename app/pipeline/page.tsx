@@ -44,6 +44,69 @@ export default function PipelinePage() {
     loadContacts()
   }, [loadContacts])
 
+  useEffect(() => {
+    let mounted = true
+
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !mounted) return
+
+      const channel = supabase
+        .channel('pipeline-enrichment')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'scanned_contacts',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const inserted = payload.new as ScannedContact
+            setContacts((prev) => {
+              if (prev.some((c) => c.id === inserted.id)) return prev
+              return [
+                { ...inserted, pipeline_stage: (inserted.pipeline_stage as PipelineStageId) || 'new' },
+                ...prev,
+              ]
+            })
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'scanned_contacts',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const updated = payload.new as ScannedContact
+            setContacts((prev) =>
+              prev.map((c) =>
+                c.id === updated.id
+                  ? { ...updated, pipeline_stage: (updated.pipeline_stage as PipelineStageId) || c.pipeline_stage || 'new' }
+                  : c
+              )
+            )
+          }
+        )
+        .subscribe()
+
+      return channel
+    }
+
+    let channel: ReturnType<typeof supabase.channel> | undefined
+    void setupRealtime().then((ch) => {
+      channel = ch
+    })
+
+    return () => {
+      mounted = false
+      if (channel) supabase.removeChannel(channel)
+    }
+  }, [supabase])
+
   const metrics = useMemo(() => computeDashboardMetrics(contacts), [contacts])
 
   const boardMetrics = useMemo(() => {

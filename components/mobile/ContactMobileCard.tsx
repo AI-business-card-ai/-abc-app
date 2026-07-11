@@ -4,6 +4,8 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getAiNextStep, getScoreTier } from '@/lib/pipeline-ai'
 import { logCrmActivity } from '@/lib/crm-client'
+import EnrichingPulse from '@/components/ui/EnrichingPulse'
+import { isContactEnriching } from '@/lib/contact-enrichment-ui'
 import type { ScannedContact } from '@/lib/types'
 
 type Props = {
@@ -24,6 +26,7 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
   const score = contact.ai_lead_score ?? contact.match_score ?? 0
   const tier = getScoreTier(score)
   const step = getAiNextStep(contact)
+  const enriching = isContactEnriching(contact)
 
   const initials =
     contact.name
@@ -179,13 +182,17 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
             <p className="font-bold text-base truncate" style={{ color: '#ffffff' }}>
               {contact.name || 'Unknown'}
             </p>
-            <span
-              className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-md text-white"
-              style={{ background: tier.bg }}
-            >
-              {score}
-              {tier.tier === 'hot' ? ' 🔥' : ''}
-            </span>
+            {enriching ? (
+              <EnrichingPulse compact />
+            ) : (
+              <span
+                className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-md text-white"
+                style={{ background: tier.bg }}
+              >
+                {score}
+                {tier.tier === 'hot' ? ' 🔥' : ''}
+              </span>
+            )}
           </div>
           <p className="text-[13px] truncate" style={{ color: '#999999' }}>
             {[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}

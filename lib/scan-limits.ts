@@ -11,8 +11,8 @@ export const SCAN_LIMIT_EXEMPT_EMAILS = [
 export const PLAN_SCAN_LIMITS: Record<string, number> = {
   free: 3,
   starter: 50,
-  basic: 20,
-  pro: 100,
+  growth: 100,
+  pro: 200,
   team: 500,
 }
 
