@@ -549,7 +549,7 @@ export default function ScanPage() {
             </p>
             <button
               type="button"
-              onClick={() => router.push('/settings')}
+              onClick={() => router.push('/pricing')}
               className="glow-btn w-full py-3 rounded-xl text-white font-semibold mb-2"
             >
               View plans

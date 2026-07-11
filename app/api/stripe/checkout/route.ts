@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
-import { getStripePriceId, type PaidPlan } from '@/lib/stripe-prices'
+import { getStripePriceId, getPlanFromPriceId, type PaidPlan } from '@/lib/stripe-prices'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
-const PAID_PLANS = new Set<PaidPlan>(['starter', 'pro', 'team'])
+const PAID_PLANS = new Set<PaidPlan>(['starter', 'growth', 'pro', 'team'])
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,17 +27,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const paidPlan = plan as PaidPlan
+    const priceId = getStripePriceId(paidPlan)
+
+    if (!getPlanFromPriceId(priceId)) {
+      return NextResponse.json({ error: 'Price ID does not map to a known plan' }, { status: 500 })
+    }
+
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
-    const priceId = getStripePriceId(plan as PaidPlan)
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${appUrl}/dashboard?payment=success&plan=${plan}`,
-      cancel_url: `${appUrl}/pricing?payment=cancelled`,
+      success_url: `${appUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/pricing/cancel`,
       customer_email: user.email,
-      metadata: { user_id: user.id, plan },
+      metadata: {
+        userId: user.id,
+        plan: paidPlan,
+      },
     })
 
     return NextResponse.json({ url: session.url })

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
 import { normalizeAbcProfile } from '@/lib/profile-defaults'
+import { getScanLimitForPlan } from '@/lib/scan-limits'
+import { PLAN_LABELS, type PaidPlan } from '@/lib/stripe-prices'
 import ConnectionsSection from '@/components/settings/ConnectionsSection'
 import type { ABCProfile } from '@/lib/types'
 
@@ -15,6 +17,8 @@ export default function SettingsContent() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [subError, setSubError] = useState<string | null>(null)
 
   const loadProfile = useCallback(async () => {
     try {
@@ -150,6 +154,34 @@ export default function SettingsContent() {
     .slice(0, 2)
     .toUpperCase() || 'U'
 
+  const currentPlan = (profile.plan || 'free') as ABCProfile['plan']
+  const planLabel =
+    currentPlan === 'free'
+      ? 'Free'
+      : currentPlan === 'INTERNAL_TEST'
+        ? 'Internal Test'
+        : PLAN_LABELS[currentPlan as PaidPlan] ?? currentPlan
+  const scanLimit = getScanLimitForPlan(currentPlan)
+  const scansUsed = profile.scans_used ?? 0
+  const hasPaidPlan = currentPlan !== 'free' && currentPlan !== 'INTERNAL_TEST'
+  const hasStripeCustomer = Boolean(profile.stripe_customer_id)
+
+  async function openBillingPortal() {
+    setSubError(null)
+    setPortalLoading(true)
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'Could not open billing portal')
+      }
+      window.location.href = data.url
+    } catch (err) {
+      setSubError(err instanceof Error ? err.message : 'Could not open billing portal')
+      setPortalLoading(false)
+    }
+  }
+
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto', padding: '24px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px', padding: '20px', background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a' }}>
@@ -160,6 +192,60 @@ export default function SettingsContent() {
           <div style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff' }}>{profile.full_name || 'Your Name'}</div>
           <div style={{ fontSize: '13px', color: '#555555', marginTop: '2px' }}>{profile.company || 'Your Company'} · {profile.role || 'Your Role'}</div>
         </div>
+      </div>
+
+      <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>
+        <div style={{ fontSize: '11px', color: '#f0197d', letterSpacing: '0.08em', marginBottom: '12px' }}>SUBSCRIPTION</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>{planLabel}</span>
+          {hasPaidPlan && (
+            <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 600 }}>Active</span>
+          )}
+        </div>
+        <p style={{ fontSize: '13px', color: '#555555', margin: '0 0 16px' }}>
+          {scansUsed} / {scanLimit} lifetime scans used
+        </p>
+        {subError && (
+          <p style={{ fontSize: '12px', color: '#f0197d', marginBottom: 12 }}>{subError}</p>
+        )}
+        {hasPaidPlan && hasStripeCustomer ? (
+          <button
+            type="button"
+            disabled={portalLoading}
+            onClick={() => void openBillingPortal()}
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: '10px',
+              border: '1px solid rgba(0, 212, 212, 0.4)',
+              background: 'rgba(0, 212, 212, 0.1)',
+              color: '#00d4d4',
+              fontWeight: 700,
+              fontSize: '14px',
+              cursor: portalLoading ? 'wait' : 'pointer',
+            }}
+          >
+            {portalLoading ? 'Opening…' : 'Manage subscription'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => router.push('/pricing')}
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: '10px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+              color: '#ffffff',
+              fontWeight: 700,
+              fontSize: '14px',
+              cursor: 'pointer',
+            }}
+          >
+            Upgrade
+          </button>
+        )}
       </div>
 
       <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>
