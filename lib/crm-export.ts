@@ -219,11 +219,25 @@ export function contactsToCsv(contacts: ScannedContact[], format: 'salesforce' |
 export function downloadCsv(csv: string, filename: string) {
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
+  const isIOS =
+    typeof navigator !== 'undefined' &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent)
+
+  if (isIOS) {
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    return
+  }
+
   const link = document.createElement('a')
   link.href = url
-  link.download = filename
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
   link.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => {
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, 100)
 }
 
 export function exportToSalesforce(contact: ScannedContact) {

@@ -39,7 +39,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[100]">
         <BottomNav />
       </div>
     </div>

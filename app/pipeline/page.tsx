@@ -7,7 +7,12 @@ import { createClientComponent } from '@/lib/supabase'
 import PipelineKanban from '@/components/pipeline/PipelineKanban'
 import { formatDealValue } from '@/lib/tags'
 import { computeDashboardMetrics, formatPipelineValue } from '@/lib/pipeline-ai'
+import { downloadContactsListCsv } from '@/lib/contacts-csv-export'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
+
+function isInPipeline(contact: ScannedContact): boolean {
+  return contact.pipeline_stage != null
+}
 
 export default function PipelinePage() {
   const router = useRouter()
@@ -148,6 +153,16 @@ export default function PipelinePage() {
     [loadContacts]
   )
 
+  const pipelineContacts = useMemo(
+    () => contacts.filter(isInPipeline),
+    [contacts]
+  )
+
+  const handleExportCsv = useCallback(() => {
+    if (pipelineContacts.length === 0) return
+    downloadContactsListCsv(pipelineContacts, 'ABC_pipeline')
+  }, [pipelineContacts])
+
   const summaryCards = [
     { label: 'Total pipeline value', value: formatPipelineValue(boardMetrics.totalPipelineValue) },
     { label: 'Won this month', value: formatPipelineValue(boardMetrics.wonThisMonth) },
@@ -157,11 +172,27 @@ export default function PipelinePage() {
 
   return (
     <div className="min-h-screen page-shell page-shell--wide pb-8">
-      <div className="mb-5">
-        <h1 className="gradient-text page-heading font-black tracking-wide">PIPELINE</h1>
-        <p className="text-xs mt-1" style={{ color: '#999999' }}>
-          Sales board — drag deals through your funnel
-        </p>
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="gradient-text page-heading font-black tracking-wide">PIPELINE</h1>
+          <p className="text-xs mt-1" style={{ color: '#999999' }}>
+            Sales board — drag deals through your funnel
+          </p>
+        </div>
+        {pipelineContacts.length > 0 && (
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="shrink-0 rounded-xl px-3 py-2 text-xs font-semibold min-h-[40px]"
+            style={{
+              background: 'transparent',
+              border: '1px solid #2a2a2a',
+              color: '#999999',
+            }}
+          >
+            Export CSV
+          </button>
+        )}
       </div>
 
       <div

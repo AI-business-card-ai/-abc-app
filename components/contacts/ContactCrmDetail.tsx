@@ -258,6 +258,7 @@ export default function ContactCrmDetailPage() {
   const [sendingGmail, setSendingGmail] = useState(false)
   const [gmailReconnectError, setGmailReconnectError] = useState<string | null>(null)
   const [exportModalTarget, setExportModalTarget] = useState<'salesforce' | 'hubspot' | null>(null)
+  const [showSendBar, setShowSendBar] = useState(true)
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -334,6 +335,10 @@ export default function ContactCrmDetailPage() {
     if (contact) setVariants(buildVariantsFromContact(contact))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-init when message fields change, not whole contact object
   }, [contact?.id, contact?.message_linkedin, contact?.message_email, contact?.message_whatsapp])
+
+  useEffect(() => {
+    setShowSendBar(true)
+  }, [contact?.id])
 
   const selectedSendCount = useMemo(
     () => variants.reduce(
@@ -732,7 +737,16 @@ export default function ContactCrmDetailPage() {
     : 'Send Selected →'
 
   return (
-    <div style={{ background: '#0f0f0f', minHeight: '100vh', padding: '16px 16px 140px' }}>
+    <div
+      style={{
+        background: '#0f0f0f',
+        minHeight: '100vh',
+        padding: '16px 16px 0',
+        paddingBottom: showSendBar
+          ? 'calc(160px + env(safe-area-inset-bottom, 0px))'
+          : 'calc(80px + env(safe-area-inset-bottom, 0px))',
+      }}
+    >
       <button
         type="button"
         onClick={() => router.back()}
@@ -1237,6 +1251,7 @@ export default function ContactCrmDetailPage() {
         </div>
       </div>
 
+      {showSendBar && (
       <div
         style={{
           position: 'fixed',
@@ -1246,14 +1261,39 @@ export default function ContactCrmDetailPage() {
           padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px))',
           background: 'linear-gradient(to top, #0f0f0f 75%, transparent)',
           zIndex: 90,
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: '10px',
         }}
       >
+        <button
+          type="button"
+          onClick={() => setShowSendBar(false)}
+          aria-label="Dismiss send bar"
+          style={{
+            flexShrink: 0,
+            width: '44px',
+            height: '44px',
+            borderRadius: '12px',
+            border: '1px solid #2a2a2a',
+            background: '#1a1a1a',
+            color: '#999999',
+            fontSize: '18px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          ×
+        </button>
         <button
           type="button"
           disabled={selectedSendCount === 0 || sendingGmail}
           onClick={handleSendSelected}
           style={{
-            width: '100%',
+            flex: 1,
             maxWidth: '640px',
             margin: '0 auto',
             display: 'block',
@@ -1278,6 +1318,7 @@ export default function ContactCrmDetailPage() {
           )}
         </button>
       </div>
+      )}
 
       {toast && <Toast message={toast} />}
     </div>

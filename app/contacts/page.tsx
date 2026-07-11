@@ -13,7 +13,7 @@ import EnrichingPulse from '@/components/ui/EnrichingPulse'
 import MobileContactsList from '@/components/mobile/MobileContactsList'
 import { isContactEnriching } from '@/lib/contact-enrichment-ui'
 import ReminderSidebar from '@/components/crm/ReminderSidebar'
-import { filterContacts, type FilterTab } from '@/lib/pipeline-ai'
+import { downloadContactsListCsv } from '@/lib/contacts-csv-export'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
 const chipStyle = (active: boolean): React.CSSProperties =>
@@ -163,55 +163,7 @@ export default function ContactsPage() {
   const active = filtered[cur] ?? null
 
   const exportToCSV = (exportContacts: ScannedContact[] = contacts) => {
-    const headers = [
-      'First Name', 'Last Name', 'Company', 'Job Title',
-      'Email', 'Phone', 'Website', 'LinkedIn URL',
-      'Match Score', 'Industry', 'Company Size',
-      'Company Revenue', 'Event', 'Notes', 'Status',
-      'LinkedIn Message', 'Email Subject',
-      'Email Message', 'WhatsApp Message',
-      'Scanned Date',
-    ]
-
-    const rows = exportContacts.map((c) => {
-      const nameParts = (c.name || '').split(' ')
-      const firstName = nameParts[0] || ''
-      const lastName = nameParts.slice(1).join(' ') || ''
-      return [
-        firstName,
-        lastName,
-        c.company || '',
-        c.role || '',
-        c.email || '',
-        c.phone || '',
-        c.website || '',
-        c.linkedin_url || '',
-        c.match_score ?? '',
-        c.industry || '',
-        c.company_size || '',
-        c.company_revenue || '',
-        c.event_name || '',
-        c.notes || '',
-        c.status || '',
-        c.message_linkedin || '',
-        c.email_subject || '',
-        c.message_email || '',
-        c.message_whatsapp || '',
-        c.scanned_at ? new Date(c.scanned_at).toLocaleDateString() : '',
-      ]
-    })
-
-    const csv = [headers, ...rows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      .join('\n')
-
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `ABC_contacts_${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadContactsListCsv(exportContacts)
   }
 
   const updatePipelineStage = async (contactId: string, stage: PipelineStageId) => {
