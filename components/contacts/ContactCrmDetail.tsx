@@ -17,7 +17,6 @@ import {
   openWhatsAppComposer,
 } from '@/lib/outreach-composers'
 import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/types'
-import EventTagPrompt from '@/components/contact/EventTagPrompt'
 import CrmMissingFieldsBanner from '@/components/contact/CrmMissingFieldsBanner'
 import CrmExportEventModal from '@/components/contact/CrmExportEventModal'
 import LinkedInMismatchBanner from '@/components/contact/LinkedInMismatchBanner'
@@ -584,11 +583,6 @@ export default function ContactCrmDetailPage() {
     runExport(target, contact)
   }
 
-  function focusEventInput() {
-    document.getElementById('crm-event-input')?.focus()
-    document.getElementById('crm-event-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }
-
   const score = contact?.ai_lead_score ?? contact?.match_score ?? 0
   const scoreStyle = scoreColors(score)
   const status = contact?.crm_status || 'NEW'
@@ -755,15 +749,7 @@ export default function ContactCrmDetailPage() {
         ← Back
       </button>
 
-      <EventTagPrompt
-        contact={contact}
-        onContactUpdated={(updated) => setContact(updated)}
-      />
-
-      <CrmMissingFieldsBanner
-        contact={contact}
-        onContactUpdated={(updated) => setContact(updated)}
-      />
+      <CrmMissingFieldsBanner contact={contact} />
 
       <CrmExportEventModal
         open={exportModalTarget !== null}

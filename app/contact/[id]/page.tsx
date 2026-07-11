@@ -28,7 +28,6 @@ import SalesforceFields from '@/components/crm/SalesforceFields'
 import CommunicationHistory from '@/components/crm/CommunicationHistory'
 import EnrichmentIndicator from '@/components/ui/EnrichmentIndicator'
 import EnrichingPulse from '@/components/ui/EnrichingPulse'
-import EventTagPrompt from '@/components/contact/EventTagPrompt'
 import CrmMissingFieldsBanner from '@/components/contact/CrmMissingFieldsBanner'
 import LinkedInMismatchBanner from '@/components/contact/LinkedInMismatchBanner'
 import EstimatedBadge from '@/components/ui/EstimatedBadge'
@@ -672,13 +671,7 @@ export default function ContactResultPage() {
 
       <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-4 px-4">
         <motion.div variants={item}>
-          <CrmMissingFieldsBanner
-            contact={contact}
-            onContactUpdated={applyContactUpdate}
-          />
-        </motion.div>
-        <motion.div variants={item}>
-          <EventTagPrompt contact={contact} onContactUpdated={applyContactUpdate} />
+          <CrmMissingFieldsBanner contact={contact} />
         </motion.div>
 
         {/* SECTION 1 — HEADER */}

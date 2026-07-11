@@ -106,6 +106,13 @@ export default function ScanPage() {
     })
   }, [])
 
+  const closeContextSheet = useCallback(() => {
+    setContextSheet(null)
+    if (typeof window !== 'undefined' && window.location.search.includes('contextContact=')) {
+      router.replace('/scan')
+    }
+  }, [router])
+
   const saveContext = useCallback(
     async (payload: {
       whereMet: string
@@ -138,9 +145,12 @@ export default function ScanPage() {
       }
 
       setContextSheet(null)
+      if (typeof window !== 'undefined' && window.location.search.includes('contextContact=')) {
+        router.replace('/scan')
+      }
       hapticSuccess()
     },
-    [contextSheet]
+    [contextSheet, router]
   )
 
   const processScanInBackground = useCallback(
@@ -199,6 +209,7 @@ export default function ScanPage() {
         })
 
         openContextSheet(contact)
+        hapticSuccess()
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Scan failed'
         setError(message)
@@ -283,6 +294,31 @@ export default function ScanPage() {
       supabase.removeChannel(channel)
     }
   }, [supabase, userId])
+
+  useEffect(() => {
+    if (!userId) return
+
+    const params = new URLSearchParams(window.location.search)
+    const contextContactId = params.get('contextContact')
+    if (!contextContactId) return
+
+    let active = true
+    ;(async () => {
+      const { data } = await supabase
+        .from('scanned_contacts')
+        .select('*')
+        .eq('id', contextContactId)
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (!active || !data) return
+      openContextSheet(data as ScannedContact)
+    })()
+
+    return () => {
+      active = false
+    }
+  }, [userId, supabase, openContextSheet])
 
   function triggerCamera() {
     if (scanBlocked) {
@@ -500,7 +536,7 @@ export default function ScanPage() {
       <ScanContextSheet
         contact={contextSheet}
         onSave={saveContext}
-        onSkip={() => setContextSheet(null)}
+        onSkip={closeContextSheet}
       />
 
       {showPaywall && (

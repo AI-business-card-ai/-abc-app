@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { IconMicrophone } from '@tabler/icons-react'
 import {
@@ -46,6 +47,12 @@ export default function ScanContextSheet({ contact, onSave, onSkip }: Props) {
 
   const chunksRef = useRef<BlobPart[]>([])
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const contactId = contact?.contactId ?? null
 
@@ -135,7 +142,7 @@ export default function ScanContextSheet({ contact, onSave, onSkip }: Props) {
     ? [contact.role, contact.company].filter(Boolean).join(' · ')
     : ''
 
-  return (
+  const sheet = (
     <AnimatePresence>
       {contact && (
         <motion.div
@@ -144,7 +151,7 @@ export default function ScanContextSheet({ contact, onSave, onSkip }: Props) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[70] flex flex-col"
+          className="fixed inset-0 z-[110] flex flex-col"
           style={{ background: '#0f0f0f' }}
         >
           <div
@@ -316,4 +323,7 @@ export default function ScanContextSheet({ contact, onSave, onSkip }: Props) {
       )}
     </AnimatePresence>
   )
+
+  if (!mounted) return null
+  return createPortal(sheet, document.body)
 }

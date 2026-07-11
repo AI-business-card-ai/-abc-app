@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
         scan_status: 'basic' as const,
         event_name: null,
         notes: null,
-        enrichment_status: 'PENDING' as const,
+        enrichment_status: 'ENRICHING' as const,
         enrichment_step: 'queued',
       },
     ]
