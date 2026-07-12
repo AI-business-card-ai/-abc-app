@@ -139,9 +139,11 @@ Example opener: 'Are you heading to IBC 2026? Would love to connect there.'
 If they spoke at an event: 'Saw your presentation at {event} — really interesting perspective on {topic}.'
 
 Write exactly 3 message variants:
-1. LinkedIn (max 300 chars, reference specific detail from their profile or posts)
-2. Email (subject line + 3-4 sentences, professional)
-3. WhatsApp (max 2 sentences, friendly)
+1. LinkedIn: HARD LIMIT 280 characters total (count every character). If you exceed 280 chars the message is invalid. Reference one specific detail from their profile.
+2. Email: subject line (max 60 chars) + body 3-4 sentences (max 500 chars). Professional tone.
+3. WhatsApp: HARD LIMIT 155 characters total (count every character). Friendly, 1-2 sentences max. If you exceed 155 chars the message is invalid.
+
+IMPORTANT: Before returning JSON, count the characters in message_linkedin and message_whatsapp. If either exceeds the limit, shorten it and recount. Never return a message that exceeds its limit.
 
 After each message add one line: [SOURCE: what specific data point made this message personal]
 Messages must be so relevant the recipient is genuinely impressed.
@@ -157,17 +159,30 @@ Return ONLY valid JSON:
 
 function parseMessages(text: string): GeneratedMessages | null {
   const clean = text.replace(/```json|```/g, '').trim()
+  let parsed: GeneratedMessages | null = null
   try {
-    return JSON.parse(clean) as GeneratedMessages
+    parsed = JSON.parse(clean) as GeneratedMessages
   } catch {
     const match = clean.match(/\{[\s\S]*\}/)
     if (!match) return null
     try {
-      return JSON.parse(match[0]) as GeneratedMessages
+      parsed = JSON.parse(match[0]) as GeneratedMessages
     } catch {
       return null
     }
   }
+  if (!parsed) return null
+  // Hard enforce character limits
+  if (parsed.message_linkedin && parsed.message_linkedin.length > 300) {
+    parsed.message_linkedin = parsed.message_linkedin.slice(0, 297) + '...'
+  }
+  if (parsed.message_whatsapp && parsed.message_whatsapp.length > 160) {
+    parsed.message_whatsapp = parsed.message_whatsapp.slice(0, 157) + '...'
+  }
+  if (parsed.email_subject && parsed.email_subject.length > 60) {
+    parsed.email_subject = parsed.email_subject.slice(0, 60)
+  }
+  return parsed
 }
 
 export async function generatePersonalizedMessages(
