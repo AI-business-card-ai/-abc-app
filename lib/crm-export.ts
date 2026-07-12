@@ -148,6 +148,8 @@ export function buildSalesforceExportRows(contact: ScannedContact): ExportRow[] 
     ['StageName', pipelineStageName(c.pipeline_stage)],
     ['NextStep', c.next_step || ''],
     ['OpportunityType', c.opportunity_type || 'New Business'],
+    ['RecordType', 'Lead'],
+    ['IsConverted', 'false'],
   ]
 
   for (const [key, value] of Object.entries(abc)) {
@@ -181,6 +183,7 @@ export function buildHubSpotExportRows(contact: ScannedContact): ExportRow[] {
     ['closedate', c.expected_close_date || ''],
     ['hs_next_step', c.next_step || ''],
     ['dealname', c.opportunity_name || `${c.first_name || ''} ${c.last_name || ''} - ${c.company || ''}`.trim()],
+    ['hs_object_type', 'contact'],
   ]
 
   for (const [key, value] of Object.entries(abc)) {
