@@ -218,17 +218,28 @@ export function contactsToCsv(contacts: ScannedContact[], format: 'salesforce' |
 
 export function downloadCsv(csv: string, filename: string) {
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
+
   const isIOS =
     typeof navigator !== 'undefined' &&
     /iPad|iPhone|iPod/.test(navigator.userAgent)
 
   if (isIOS) {
-    window.open(url, '_blank')
-    setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    // iOS Safari cannot open blob URLs — use FileReader to convert to data URL
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      const link = document.createElement('a')
+      link.href = dataUrl
+      link.setAttribute('download', filename)
+      document.body.appendChild(link)
+      link.click()
+      setTimeout(() => document.body.removeChild(link), 500)
+    }
+    reader.readAsDataURL(blob)
     return
   }
 
+  const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
   link.setAttribute('download', filename)
