@@ -8,6 +8,7 @@ import PipelineKanban from '@/components/pipeline/PipelineKanban'
 import { formatDealValue } from '@/lib/tags'
 import { computeDashboardMetrics, formatPipelineValue } from '@/lib/pipeline-ai'
 import { downloadContactsListCsv } from '@/lib/contacts-csv-export'
+import { contactsToCsv, downloadCsv } from '@/lib/crm-export'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
 function isInPipeline(contact: ScannedContact): boolean {
@@ -19,6 +20,7 @@ export default function PipelinePage() {
   const supabase = createClientComponent()
   const [contacts, setContacts] = useState<ScannedContact[]>([])
   const [loading, setLoading] = useState(true)
+  const [exportOpen, setExportOpen] = useState(false)
 
   const loadContacts = useCallback(async () => {
     setLoading(true)
@@ -158,9 +160,16 @@ export default function PipelinePage() {
     [contacts]
   )
 
-  const handleExportCsv = useCallback(() => {
+  const handleExportFormat = useCallback((format: 'general' | 'salesforce' | 'hubspot') => {
     if (pipelineContacts.length === 0) return
-    downloadContactsListCsv(pipelineContacts, 'ABC_pipeline')
+    setExportOpen(false)
+    if (format === 'general') {
+      downloadContactsListCsv(pipelineContacts, 'ABC_pipeline')
+      return
+    }
+    const csv = contactsToCsv(pipelineContacts, format)
+    const date = new Date().toISOString().split('T')[0]
+    downloadCsv(csv, `ABC_${format}_${date}.csv`)
   }, [pipelineContacts])
 
   const summaryCards = [
@@ -180,18 +189,52 @@ export default function PipelinePage() {
           </p>
         </div>
         {pipelineContacts.length > 0 && (
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="shrink-0 rounded-xl px-3 py-2 text-xs font-semibold min-h-[40px]"
-            style={{
-              background: 'transparent',
-              border: '1px solid #2a2a2a',
-              color: '#999999',
-            }}
-          >
-            Export CSV
-          </button>
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setExportOpen((v) => !v)}
+              className="rounded-xl px-3 py-2 text-xs font-semibold min-h-[40px] flex items-center gap-2"
+              style={{
+                background: 'transparent',
+                border: '1px solid #2a2a2a',
+                color: '#999999',
+              }}
+            >
+              Export
+              <span style={{ fontSize: 10 }}>{exportOpen ? '▲' : '▼'}</span>
+            </button>
+            {exportOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setExportOpen(false)}
+                />
+                <div
+                  className="absolute right-0 top-full mt-1 z-20 rounded-xl overflow-hidden"
+                  style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', minWidth: 180 }}
+                >
+                  {[
+                    { key: 'general', label: '📋 General CSV', sub: 'All fields' },
+                    { key: 'salesforce', label: '☁️ Salesforce', sub: 'SF field names + custom fields' },
+                    { key: 'hubspot', label: '🟠 HubSpot', sub: 'HS field names + properties' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => handleExportFormat(opt.key as 'general' | 'salesforce' | 'hubspot')}
+                      className="w-full text-left px-4 py-3 flex flex-col gap-0.5 transition-colors"
+                      style={{ borderBottom: '1px solid #2a2a2a' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#2a2a2a')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span className="text-xs font-semibold" style={{ color: '#ffffff' }}>{opt.label}</span>
+                      <span className="text-[10px]" style={{ color: '#666' }}>{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
 
