@@ -9,6 +9,8 @@ import TagPills from '@/components/crm/TagPills'
 import { PIPELINE_STAGES } from '@/lib/pipeline'
 import { getStatusColor } from '@/lib/pipeline-ai'
 import { logCrmActivity, logDealOutcome, logMessageSent, updateContact } from '@/lib/crm-client'
+import { useOutreachSendConfirm } from '@/lib/hooks/useOutreachSendConfirm'
+import SendConfirmDialog from '@/components/outreach/SendConfirmDialog'
 import { exportToHubSpot, exportToSalesforce } from '@/lib/crm-export'
 import { GOOGLE_RECONNECT_CODE } from '@/lib/google-gmail-auth'
 import {
@@ -283,6 +285,37 @@ export default function ContactCrmDetailPage() {
     setRating(c.rating || 'Warm')
   }, [])
 
+  const applyContact = useCallback((c: ScannedContact) => {
+    setContact(c)
+    syncDealForm(c)
+  }, [syncDealForm])
+
+  const { dialogPending, enqueuePendingSend, confirmSent, dismissNotSent } = useOutreachSendConfirm(
+    async (pending) => {
+      const result = await logMessageSent({
+        contactId: pending.contactId,
+        channel: pending.channel,
+        messageText: pending.messageText,
+      })
+      if (result.contact) applyContact(result.contact as ScannedContact)
+      setActivityKey((k) => k + 1)
+      showToast('✓ Marked as sent')
+    }
+  )
+
+  const queueSendConfirmation = useCallback(
+    (channel: 'LinkedIn' | 'Email' | 'WhatsApp', messageText: string) => {
+      if (!contact) return
+      enqueuePendingSend({
+        contactId: contact.id,
+        contactName: contact.name || 'this contact',
+        channel,
+        messageText,
+      })
+    },
+    [contact, enqueuePendingSend]
+  )
+
   useEffect(() => {
     let active = true
     ;(async () => {
@@ -430,17 +463,8 @@ export default function ContactCrmDetailPage() {
     }
 
     for (const entry of pendingLogs) {
-      if (entry.skipLog) continue
-      try {
-        const result = await logMessageSent({
-          contactId: contact.id,
-          channel: entry.channel,
-          messageText: entry.text,
-        })
-        if (result.contact) applyContact(result.contact as ScannedContact)
-      } catch (e) {
-        console.error('Failed to log message sent:', e)
-      }
+      if (entry.skipLog || entry.channel === 'Gmail') continue
+      queueSendConfirmation(entry.channel, entry.text)
     }
 
     setActivityKey((k) => k + 1)
@@ -509,17 +533,8 @@ export default function ContactCrmDetailPage() {
     }
     const subject = contact.email_subject || 'Following up'
     if (!openEmailComposer(contact.email, subject, text)) return
-    try {
-      const result = await logMessageSent({
-        contactId: contact.id,
-        channel: 'Email',
-        messageText: text,
-      })
-      if (result.contact) applyContact(result.contact as ScannedContact)
-      setActivityKey((k) => k + 1)
-    } catch (e) {
-      console.error(e)
-    }
+    queueSendConfirmation('Email', text)
+    setActivityKey((k) => k + 1)
     showToast('Email opened ✓')
   }
 
@@ -549,23 +564,9 @@ export default function ContactCrmDetailPage() {
     }
     const subject = contact.email_subject || 'Following up'
     if (!openEmailComposer(contact.email, subject, text)) return
-    try {
-      const result = await logMessageSent({
-        contactId: contact.id,
-        channel: 'Email',
-        messageText: text,
-      })
-      if (result.contact) applyContact(result.contact as ScannedContact)
-      setActivityKey((k) => k + 1)
-    } catch (e) {
-      console.error(e)
-    }
+    queueSendConfirmation('Email', text)
+    setActivityKey((k) => k + 1)
     showToast('Email opened ✓')
-  }
-
-  const applyContact = (c: ScannedContact) => {
-    setContact(c)
-    syncDealForm(c)
   }
 
   function runExport(target: 'salesforce' | 'hubspot', c: ScannedContact) {
@@ -1307,6 +1308,12 @@ export default function ContactCrmDetailPage() {
       )}
 
       {toast && <Toast message={toast} />}
+
+      <SendConfirmDialog
+        pending={dialogPending}
+        onConfirm={() => void confirmSent()}
+        onDismiss={dismissNotSent}
+      />
     </div>
   )
 }

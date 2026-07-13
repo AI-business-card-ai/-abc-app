@@ -17,6 +17,8 @@ import MatchScore, { scoreColors } from '@/components/ui/MatchScore'
 import IntelligencePanel from '@/components/contact/IntelligencePanel'
 import { hasDisplayValue } from '@/lib/research'
 import { logCrmActivity, logMessageSent } from '@/lib/crm-client'
+import { useOutreachSendConfirm } from '@/lib/hooks/useOutreachSendConfirm'
+import SendConfirmDialog from '@/components/outreach/SendConfirmDialog'
 import {
   formatWhatsAppPhone,
   openEmailComposer,
@@ -121,6 +123,31 @@ export default function ContactResultPage() {
     })
     setSubject(c.email_subject ? cleanText(c.email_subject) : '')
   }, [])
+
+  const { dialogPending, enqueuePendingSend, confirmSent, dismissNotSent } = useOutreachSendConfirm(
+    async (pending) => {
+      const { contact: updated } = await logMessageSent({
+        contactId: pending.contactId,
+        channel: pending.channel,
+        messageText: pending.messageText,
+      })
+      applyContactUpdate(updated)
+      toast('✓ Marked as sent')
+    }
+  )
+
+  const queueSendConfirmation = useCallback(
+    (channel: 'LinkedIn' | 'Email' | 'WhatsApp', messageText: string) => {
+      if (!contact) return
+      enqueuePendingSend({
+        contactId: contact.id,
+        contactName: contact.name || 'this contact',
+        channel,
+        messageText,
+      })
+    },
+    [contact, enqueuePendingSend]
+  )
 
   const loadContact = useCallback(async () => {
     setLoading(true)
@@ -257,25 +284,15 @@ export default function ContactResultPage() {
     if (!contact) return
     const text = messages.linkedin || ''
     if (contact.linkedin_url) {
-      await openLinkedInComposer(contact.linkedin_url, text)
+      const opened = await openLinkedInComposer(contact.linkedin_url, text)
+      if (!opened) return
       toast('Message copied — paste it on their LinkedIn profile.')
+      queueSendConfirmation('LinkedIn', text)
     } else if (text) {
       await navigator.clipboard.writeText(text)
       toast('✓ LinkedIn message copied!')
     } else {
       toast('No LinkedIn message')
-      return
-    }
-
-    try {
-      const { contact: updated } = await logMessageSent({
-        contactId: contact.id,
-        channel: 'LinkedIn',
-        messageText: text,
-      })
-      applyContactUpdate(updated)
-    } catch (err) {
-      console.error(err)
     }
   }
 
@@ -291,18 +308,8 @@ export default function ContactResultPage() {
     }
     const emailSubject = subject || 'Hello'
     if (!openEmailComposer(contact.email, emailSubject, text)) return
-
-    try {
-      const { contact: updated } = await logMessageSent({
-        contactId: contact.id,
-        channel: 'Email',
-        messageText: text,
-      })
-      applyContactUpdate(updated)
-      toast('✓ Email opened')
-    } catch (err) {
-      console.error(err)
-    }
+    toast('✓ Email opened')
+    queueSendConfirmation('Email', text)
   }
 
   const openWhatsApp = async () => {
@@ -318,18 +325,8 @@ export default function ContactResultPage() {
       return
     }
     if (!openWhatsAppComposer(phone, text)) return
-
-    try {
-      const { contact: updated } = await logMessageSent({
-        contactId: contact.id,
-        channel: 'WhatsApp',
-        messageText: text,
-      })
-      applyContactUpdate(updated)
-      toast('✓ WhatsApp opened')
-    } catch (err) {
-      console.error(err)
-    }
+    toast('✓ WhatsApp opened')
+    queueSendConfirmation('WhatsApp', text)
   }
 
   const copyCurrentMessage = () => {
@@ -444,12 +441,7 @@ export default function ContactResultPage() {
       }
 
       for (const entry of sent) {
-        const { contact: updated } = await logMessageSent({
-          contactId: contact.id,
-          channel: entry.channel,
-          messageText: entry.text,
-        })
-        applyContactUpdate(updated)
+        queueSendConfirmation(entry.channel, entry.text)
       }
 
       toast(
@@ -1130,6 +1122,12 @@ export default function ContactResultPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <SendConfirmDialog
+        pending={dialogPending}
+        onConfirm={() => void confirmSent()}
+        onDismiss={dismissNotSent}
+      />
     </motion.div>
   )
 }
