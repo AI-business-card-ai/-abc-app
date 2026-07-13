@@ -136,6 +136,9 @@ export default function OnboardingPage() {
   const canContinueStep3 = product.trim().length >= 10
   const canContinueStep4 = icp.trim().length >= 10 || combinedIcp.length >= 10
 
+  const SAVE_PROFILE_ERROR =
+    'Something went wrong saving your profile, please try again'
+
   async function handleComplete() {
     setSubmitting(true)
     setError(null)
@@ -156,31 +159,34 @@ export default function OnboardingPage() {
           messageLength,
         }),
       })
-      const json = (await res.json()) as {
-        error?: string
-        code?: string
-        details?: string
+
+      let json: { success?: boolean; error?: string; code?: string; details?: string } = {}
+      try {
+        json = (await res.json()) as typeof json
+      } catch (parseErr) {
+        console.error('[onboarding] complete response parse failed', parseErr)
+        setError(SAVE_PROFILE_ERROR)
+        return
       }
-      if (!res.ok) {
-        const parts = [
-          json.error,
-          json.code ? `code=${json.code}` : null,
-          json.details ? `details=${json.details}` : null,
-        ].filter(Boolean)
-        throw new Error(parts.join(' | ') || `Setup failed (HTTP ${res.status})`)
+
+      if (!res.ok || !json.success) {
+        console.error('[onboarding] complete failed', {
+          status: res.status,
+          error: json.error,
+          code: json.code,
+          details: json.details,
+        })
+        setError(SAVE_PROFILE_ERROR)
+        return
       }
+
       goNext()
     } catch (err) {
-      setError(formatClientError(err))
+      console.error('[onboarding] complete request failed', err)
+      setError(SAVE_PROFILE_ERROR)
     } finally {
       setSubmitting(false)
     }
-  }
-
-  function formatClientError(err: unknown) {
-    if (err instanceof Error) return err.message
-    if (typeof err === 'string') return err
-    return 'Setup failed'
   }
 
   if (loading) {

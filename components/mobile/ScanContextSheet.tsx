@@ -18,6 +18,7 @@ export type ContextSheetContact = {
 
 type Props = {
   contact: ContextSheetContact | null
+  waitingCount?: number
   onSave: (payload: {
     whereMet: string
     topic: string
@@ -33,7 +34,7 @@ const CHANNEL_LABELS: Record<OutreachChannel, string> = {
   linkedin: 'LinkedIn',
 }
 
-export default function ScanContextSheet({ contact, onSave, onSkip }: Props) {
+export default function ScanContextSheet({ contact, waitingCount = 0, onSave, onSkip }: Props) {
   const [whereMet, setWhereMet] = useState('')
   const [topic, setTopic] = useState('')
   const [followupNote, setFollowupNote] = useState('')
@@ -159,9 +160,23 @@ export default function ScanContextSheet({ contact, onSave, onSkip }: Props) {
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div className="mb-6 pt-2">
-              <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: '#22c55e' }}>
-                ✓ Card scanned
-              </p>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <p className="text-[10px] uppercase tracking-widest" style={{ color: '#22c55e' }}>
+                  ✓ Card scanned
+                </p>
+                {waitingCount > 0 && (
+                  <span
+                    className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold tabular-nums"
+                    style={{
+                      background: 'rgba(0, 212, 212, 0.12)',
+                      border: '1px solid rgba(0, 212, 212, 0.35)',
+                      color: '#00d4d4',
+                    }}
+                  >
+                    {waitingCount} more waiting
+                  </span>
+                )}
+              </div>
               <h2 className="text-xl font-bold leading-tight" style={{ color: '#ffffff' }}>
                 {headerLine}
               </h2>

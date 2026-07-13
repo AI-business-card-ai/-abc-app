@@ -51,7 +51,8 @@ export default function ScanPage() {
   const processingRef = useRef<Set<string>>(new Set())
 
   const [queue, setQueue] = useState<BurstQueueItem[]>([])
-  const [contextSheet, setContextSheet] = useState<ContextSheetContact | null>(null)
+  const [contextSheetQueue, setContextSheetQueue] = useState<ContextSheetContact[]>([])
+  const contextSheet = contextSheetQueue[0] ?? null
   const [flash, setFlash] = useState(false)
   const [capturePulse, setCapturePulse] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -98,20 +99,32 @@ export default function ScanPage() {
   }, [])
 
   const openContextSheet = useCallback((contact: ScannedContact) => {
-    setContextSheet({
+    const entry: ContextSheetContact = {
       contactId: contact.id,
       name: contact.name || 'Unknown',
       company: contact.company,
       role: contact.role,
+    }
+    setContextSheetQueue((prev) => {
+      if (prev.some((c) => c.contactId === entry.contactId)) return prev
+      return [...prev, entry]
     })
   }, [])
 
+  const advanceContextSheetQueue = useCallback(() => {
+    setContextSheetQueue((prev) => prev.slice(1))
+  }, [])
+
   const closeContextSheet = useCallback(() => {
-    setContextSheet(null)
-    if (typeof window !== 'undefined' && window.location.search.includes('contextContact=')) {
-      router.replace('/scan')
-    }
-  }, [router])
+    advanceContextSheetQueue()
+  }, [advanceContextSheetQueue])
+
+  useEffect(() => {
+    if (contextSheetQueue.length > 0) return
+    if (typeof window === 'undefined') return
+    if (!window.location.search.includes('contextContact=')) return
+    router.replace('/scan')
+  }, [contextSheetQueue.length, router])
 
   const saveContext = useCallback(
     async (payload: {
@@ -144,13 +157,10 @@ export default function ScanPage() {
         if (!res.ok) throw new Error(data.error || 'Failed to save context')
       }
 
-      setContextSheet(null)
-      if (typeof window !== 'undefined' && window.location.search.includes('contextContact=')) {
-        router.replace('/scan')
-      }
+      advanceContextSheetQueue()
       hapticSuccess()
     },
-    [contextSheet, router]
+    [contextSheet, advanceContextSheetQueue]
   )
 
   const processScanInBackground = useCallback(
@@ -535,6 +545,7 @@ export default function ScanPage() {
 
       <ScanContextSheet
         contact={contextSheet}
+        waitingCount={Math.max(0, contextSheetQueue.length - 1)}
         onSave={saveContext}
         onSkip={closeContextSheet}
       />

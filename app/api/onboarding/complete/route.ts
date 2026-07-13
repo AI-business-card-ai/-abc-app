@@ -223,9 +223,34 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const { data: savedProfile, error: verifyError } = await serviceClient
+      .from('abc_profiles')
+      .select('onboarding_completed')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (verifyError) {
+      return errorResponse(verifyError)
+    }
+
+    if (!savedProfile?.onboarding_completed) {
+      console.error('[onboarding/complete] verification failed — onboarding_completed not true', {
+        userId: user.id,
+        savedProfile,
+      })
+      return NextResponse.json(
+        {
+          error:
+            'Profile was saved but onboarding completion was not confirmed. Please try again.',
+        },
+        { status: 500 }
+      )
+    }
+
     console.log('[onboarding/complete] abc_profiles saved only (no scanned_contacts, no enrichment)', {
       userId: user.id,
       created: !existingProfile,
+      onboardingCompleted: savedProfile.onboarding_completed,
     })
 
     return NextResponse.json({ success: true, userPrompt })
