@@ -726,20 +726,13 @@ export default function ContactCrmDetailPage() {
 
   const emailSubject = contact.email_subject || ''
 
-  const emailSelected = variants.some((v) => v.platforms.email)
-  const sendButtonLabel = googleConnected && emailSelected && !variants.some((v) => v.platforms.linkedin || v.platforms.whatsapp)
-    ? 'Send via Email (1-click)'
-    : 'Send Selected →'
-
   return (
     <div
       style={{
         background: '#0f0f0f',
         minHeight: '100vh',
         padding: '16px 16px 0',
-        paddingBottom: showSendBar
-          ? 'calc(160px + env(safe-area-inset-bottom, 0px))'
-          : 'calc(80px + env(safe-area-inset-bottom, 0px))',
+        paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
       }}
     >
       <button
@@ -1238,73 +1231,68 @@ export default function ContactCrmDetailPage() {
         </div>
       </div>
 
-      {showSendBar && (
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px))',
-          background: 'linear-gradient(to top, #0f0f0f 75%, transparent)',
-          zIndex: 90,
-          display: 'flex',
-          alignItems: 'flex-end',
-          gap: '10px',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setShowSendBar(false)}
-          aria-label="Dismiss send bar"
+      {showSendBar && selectedSendCount > 0 && (
+        <div
           style={{
-            flexShrink: 0,
-            width: '44px',
-            height: '44px',
-            borderRadius: '12px',
-            border: '1px solid #2a2a2a',
-            background: '#1a1a1a',
-            color: '#999999',
-            fontSize: '18px',
-            fontWeight: 700,
-            cursor: 'pointer',
+            position: 'fixed',
+            bottom: 'calc(84px + env(safe-area-inset-bottom, 0px))',
+            right: 16,
+            zIndex: 95,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            maxWidth: 140,
+            height: 44,
+            borderRadius: 999,
+            background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+            boxShadow: '0 4px 20px rgba(240, 25, 125, 0.35)',
+            overflow: 'hidden',
           }}
         >
-          ×
-        </button>
-        <button
-          type="button"
-          disabled={selectedSendCount === 0 || sendingGmail}
-          onClick={handleSendSelected}
-          style={{
-            flex: 1,
-            maxWidth: '640px',
-            margin: '0 auto',
-            display: 'block',
-            padding: '16px 24px',
-            borderRadius: '12px',
-            border: 'none',
-            background: selectedSendCount === 0
-              ? '#2a2a2a'
-              : 'linear-gradient(135deg,#f0197d,#00d4d4)',
-            color: selectedSendCount === 0 ? '#555555' : '#0f0f0f',
-            fontSize: '16px',
-            fontWeight: 800,
-            cursor: selectedSendCount === 0 ? 'not-allowed' : 'pointer',
-            boxShadow: selectedSendCount === 0 ? 'none' : '0 8px 32px rgba(0,212,212,0.25)',
-          }}
-        >
-          {sendingGmail ? 'Sending…' : sendButtonLabel}
-          {selectedSendCount > 0 && (
-            <span style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginTop: '2px', opacity: 0.85 }}>
-              Send {selectedSendCount} message{selectedSendCount === 1 ? '' : 's'}
-            </span>
-          )}
-        </button>
-      </div>
+          <button
+            type="button"
+            disabled={sendingGmail}
+            onClick={handleSendSelected}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: '100%',
+              border: 'none',
+              background: 'transparent',
+              color: '#0f0f0f',
+              fontSize: '13px',
+              fontWeight: 800,
+              cursor: sendingGmail ? 'wait' : 'pointer',
+              padding: '0 8px 0 14px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {sendingGmail ? 'Sending…' : `Send (${selectedSendCount})`}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowSendBar(false)}
+            aria-label="Dismiss send bar"
+            style={{
+              flexShrink: 0,
+              width: 32,
+              height: 32,
+              marginRight: 6,
+              borderRadius: '50%',
+              border: 'none',
+              background: 'rgba(15, 15, 15, 0.25)',
+              color: '#0f0f0f',
+              fontSize: '16px',
+              fontWeight: 700,
+              lineHeight: 1,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            ×
+          </button>
+        </div>
       )}
 
       {toast && <Toast message={toast} />}
