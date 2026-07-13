@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   title: 'ABC — Scan. Know. Connect.',
   description: 'AI Business Card — from card scan to a sent message in 10 seconds.',
   manifest: '/manifest.json',
+  verification: {
+    google: 'raqoKAz1vCqZjKfOF0xPMPARwyCNpP5bpphPypJGZL8',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
