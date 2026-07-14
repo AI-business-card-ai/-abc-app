@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { IconX } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
+import { formatScanErrorForUser } from '@/lib/scan-card-validation'
 import ScanBurstQueue, { type BurstQueueItem } from '@/components/mobile/ScanBurstQueue'
 import ScanContextSheet, { type ContextSheetContact } from '@/components/mobile/ScanContextSheet'
 import type { OutreachChannel } from '@/lib/contact-enrichment-ui'
@@ -199,11 +200,11 @@ export default function ScanPage() {
         }
 
         if (!res.ok || !data.success) {
-          throw new Error(data.error || 'Scan failed')
+          throw new Error(formatScanErrorForUser(data.error || 'Scan failed'))
         }
 
         const contact = (data.contacts?.[0] as ScannedContact) || null
-        if (!contact) throw new Error('No contact returned')
+        if (!contact) throw new Error(formatScanErrorForUser('No contact returned'))
 
         setScansToday((prev) => prev + 1)
         if (profileRef.current) {
@@ -221,7 +222,7 @@ export default function ScanPage() {
         openContextSheet(contact)
         hapticSuccess()
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Scan failed'
+        const message = formatScanErrorForUser(err instanceof Error ? err.message : 'Scan failed')
         setError(message)
         updateQueueItem(clientId, { status: 'error', error: message })
       } finally {

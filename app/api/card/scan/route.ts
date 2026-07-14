@@ -9,7 +9,20 @@ import { onCardScanned } from '@/lib/crm-engine'
 import { triggerBackgroundEnrichment } from '@/lib/enrichment'
 import { contactMatchesOwnerProfile, warnIfContactMatchesOwnerProfile } from '@/lib/contact-owner-guard'
 import { isScanLimitReached, getScanLimitForPlan } from '@/lib/scan-limits'
+import {
+  SCAN_CARD_UNREADABLE_ERROR,
+  hasUsableCardData,
+  isTechnicalScanReadError,
+  sanitizeCardExtract,
+} from '@/lib/scan-card-validation'
 import { ABCProfile } from '@/lib/types'
+
+function unreadableCardResponse(status = 422) {
+  return NextResponse.json(
+    { success: false, error: SCAN_CARD_UNREADABLE_ERROR },
+    { status }
+  )
+}
 
 export async function POST(req: NextRequest) {
   console.log('=== SCAN PHASE 1 START ===')
@@ -63,8 +76,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const extracted = await extractBusinessCardFromImage(base64, claudeMediaType)
+    const extracted = sanitizeCardExtract(await extractBusinessCardFromImage(base64, claudeMediaType))
     console.log('Phase 1 OCR complete:', extracted.name, extracted.company)
+
+    if (!hasUsableCardData(extracted)) {
+      console.warn('[card/scan] OCR returned no usable card data', extracted)
+      return unreadableCardResponse()
+    }
 
     const ownerMatch = contactMatchesOwnerProfile(extracted, profile)
     if (ownerMatch.matches) {
@@ -111,7 +129,13 @@ export async function POST(req: NextRequest) {
       .insert(pendingContacts)
       .select()
 
-    if (error) throw error
+    if (error) {
+      console.error('[card/scan] insert failed:', error)
+      if (isTechnicalScanReadError(error.message)) {
+        return unreadableCardResponse()
+      }
+      throw error
+    }
 
     await supabase
       .from('abc_profiles')
@@ -138,18 +162,18 @@ export async function POST(req: NextRequest) {
     console.error('Scan error:', err)
 
     if (err instanceof ClaudeVisionError || err instanceof ClaudeAnalysisError) {
-      return NextResponse.json(
-        {
-          error:
-            'Could not read the business card. Please try again with better lighting.',
-        },
-        { status: 502 }
-      )
+      return unreadableCardResponse(502)
+    }
+
+    const message = err instanceof Error ? err.message : JSON.stringify(err)
+    if (isTechnicalScanReadError(message)) {
+      return unreadableCardResponse()
     }
 
     return NextResponse.json(
       {
-        error: err instanceof Error ? err.message : JSON.stringify(err),
+        success: false,
+        error: message,
       },
       { status: 500 }
     )
