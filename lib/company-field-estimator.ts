@@ -177,76 +177,11 @@ Return ONLY JSON:
   }
 }
 
-async function refineEmployeeCountWithSearch(
-  contact: ScannedContact,
-  revenue: string,
-  currentSize: string
-): Promise<string | null> {
-  if (!process.env.ANTHROPIC_API_KEY || !contact.company) return null
-
-  const prompt = `Web research task: How many employees does ${contact.company} have?
-
-Known annual revenue range: ${revenue}
-Current employee estimate (likely wrong): ${currentSize}
-
-Search mentally like: "How many employees does ${contact.company} have?"
-Return ONLY one employee SIZE range from this list: ${COMPANY_SIZE_RANGES.join(', ')}
-
-The range must be logically consistent with revenue above $5M (cannot be 1-10 or 11-50 for large revenue companies).
-Return only the range string, nothing else.`
-
-  try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 40,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-    const normalized = normalizeEmployeeRange(text)
-    if (!normalized) return null
-    return reconcileSizeWithRevenue(normalized, revenue)
-  } catch (error) {
-    console.error('refineEmployeeCountWithSearch error:', error)
-    return null
-  }
-}
-
-async function resolveCompanyWebsite(contact: ScannedContact): Promise<string | null> {
-  if (hasDisplayValue(contact.website)) {
-    return normalizeWebsiteUrl(contact.website)
-  }
-
-  const fromEmail = websiteFromEmail(contact.email)
-  if (fromEmail) return fromEmail
-
-  if (!process.env.ANTHROPIC_API_KEY || !contact.company) return null
-
-  const prompt = `Find the official website for "${contact.company}".
-Web search: "${contact.company} official website"
-
-Return ONLY the official website URL (https://...) or bare domain. No explanation.`
-
-  try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 80,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-    const urlMatch = text.match(/https?:\/\/[^\s"'<>]+|(?:[a-z0-9-]+\.)+[a-z]{2,}/i)
-    return urlMatch ? normalizeWebsiteUrl(urlMatch[0]) : null
-  } catch (error) {
-    console.error('resolveCompanyWebsite error:', error)
-    return null
-  }
-}
-
-async function applySizeRevenueSanityCheck(
-  contact: ScannedContact,
+function applySizeRevenueSanityCheck(
   size: string,
   revenue: string,
   estimated: CrmEstimatedFields
-): Promise<string> {
+): string {
   let nextSize = normalizeEmployeeRange(size) || size
   const normalizedRevenue = normalizeRevenueRange(revenue) || revenue
 
@@ -258,8 +193,7 @@ async function applySizeRevenueSanityCheck(
     }
 
     if (nextSize === '1-10' || nextSize === '11-50' || sizeRangeTooSmall(nextSize, normalizedRevenue)) {
-      const refined = await refineEmployeeCountWithSearch(contact, normalizedRevenue, nextSize)
-      nextSize = refined || minimumSizeForRevenue(normalizedRevenue)
+      nextSize = minimumSizeForRevenue(normalizedRevenue)
       estimated.company_size = true
     }
   }
@@ -342,7 +276,7 @@ export async function ensureMandatoryCompanyFields(contact: ScannedContact): Pro
   size = update.company_size || size || '11-50'
   revenue = update.company_revenue || revenue || '$1M-10M'
 
-  const saneSize = await applySizeRevenueSanityCheck(contact, size, revenue, estimated)
+  const saneSize = applySizeRevenueSanityCheck(size, revenue, estimated)
   if (saneSize !== size) {
     update.company_size = saneSize
     size = saneSize
@@ -351,8 +285,8 @@ export async function ensureMandatoryCompanyFields(contact: ScannedContact): Pro
   }
 
   if (!hasDisplayValue(contact.website) && !update.website) {
-    const website = await resolveCompanyWebsite({ ...contact, ...update })
-    if (website) update.website = website
+    const fromEmail = websiteFromEmail(contact.email)
+    if (fromEmail) update.website = fromEmail
   }
 
   update.crm_estimated_fields = estimated

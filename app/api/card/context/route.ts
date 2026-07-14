@@ -130,6 +130,8 @@ export async function POST(req: NextRequest) {
       contact = await recalculateContactScore(contact, user.id)
     }
 
+    // Messages were generated without context if enrichment finished before the sheet save.
+    // Re-run message generation whenever context is saved on an already-enriched contact.
     if (contact.enrichment_status === 'DONE') {
       const baseUrl =
         process.env.NEXT_PUBLIC_APP_URL ||
@@ -138,7 +140,7 @@ export async function POST(req: NextRequest) {
       fetch(`${baseUrl}/api/enrich/messages/${contact.id}`, {
         method: 'POST',
         headers: { cookie: req.headers.get('cookie') || '' },
-      }).catch((err) => console.error('[card/context] message regen skipped:', err))
+      }).catch((err) => console.error('[card/context] message regen failed:', err))
     }
 
     return NextResponse.json({ success: true, contact })

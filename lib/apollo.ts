@@ -13,20 +13,30 @@ export async function enrichWithApollo(
 } | null> {
   if (!name && !email) return null
   try {
-    const response = await fetch('https://api.apollo.io/v1/people/match', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Api-Key': process.env.APOLLO_API_KEY!,
-      },
-      body: JSON.stringify({
-        name: name,
-        organization_name: company,
-        email: email,
-        reveal_personal_emails: false,
-        reveal_phone_number: false,
-      }),
-    })
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
+
+    let response: Response
+    try {
+      response = await fetch('https://api.apollo.io/v1/people/match', {
+        signal: controller.signal,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': process.env.APOLLO_API_KEY!,
+        },
+        body: JSON.stringify({
+          name: name,
+          organization_name: company,
+          email: email,
+          reveal_personal_emails: false,
+          reveal_phone_number: false,
+        }),
+      })
+    } finally {
+      clearTimeout(timeout)
+    }
+
     if (!response.ok) return null
     const data = await response.json()
     const person = data.person

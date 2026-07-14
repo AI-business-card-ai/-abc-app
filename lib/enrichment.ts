@@ -22,12 +22,16 @@ import {
 import type { ABCProfile, ScannedContact } from '@/lib/types'
 import { buildMeetingContext } from '@/lib/contact-enrichment-ui'
 import type { EnrichmentStepId } from '@/lib/enrichment-steps'
-import type { EnrichedLinkedInProfile } from '@/lib/enrichlayer'
+import type { EnrichedLinkedInProfile, ResolvedLinkedInProfile } from '@/lib/enrichlayer'
 
 export type EnrichmentOptions = {
   skipLinkedIn?: boolean
   linkedinUrlOverride?: string | null
   skipApolloLinkedIn?: boolean
+}
+
+function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
+  return result.status === 'fulfilled' ? result.value : fallback
 }
 
 async function updateEnrichmentStep(
@@ -47,34 +51,22 @@ async function updateEnrichmentStep(
     .eq('user_id', userId)
 }
 
-async function pickLinkedInUrl(
+function pickLinkedInUrl(
   contact: ScannedContact,
   apolloLinkedInUrl: string | null | undefined,
+  resolvedLinkedIn: ResolvedLinkedInProfile | null,
   options: EnrichmentOptions
-): Promise<string | null> {
+): string | null {
   if (options.skipLinkedIn) return null
   if (options.linkedinUrlOverride) return options.linkedinUrlOverride
 
   const cardLinkedInUrl = contact.linkedin_url
-  const location = [contact.billing_city, contact.billing_country, contact.meeting_location]
-    .filter(Boolean)
-    .join(', ')
-
   let resolvedUrl: string | null = null
-  if (contact.name && contact.company) {
-    const resolved = await resolveLinkedInProfile({
-      name: contact.name,
-      company: contact.company,
-      role: contact.role,
-      location: location || null,
-    }).catch((err) => {
-      console.error('LinkedIn resolve skipped:', err)
-      return null
-    })
-
-    if (resolved?.url && (resolved.similarityScore == null || resolved.similarityScore >= 0.55)) {
-      resolvedUrl = resolved.url
-    }
+  if (
+    resolvedLinkedIn?.url &&
+    (resolvedLinkedIn.similarityScore == null || resolvedLinkedIn.similarityScore >= 0.55)
+  ) {
+    resolvedUrl = resolvedLinkedIn.url
   }
 
   if (cardLinkedInUrl && !options.skipApolloLinkedIn) {
@@ -88,6 +80,52 @@ async function pickLinkedInUrl(
   }
 
   return cardLinkedInUrl || null
+}
+
+function deferCrmSync(
+  profileRow: ABCProfile | null,
+  userId: string,
+  contact: ScannedContact,
+  withMessages: Record<string, unknown>
+) {
+  void (async () => {
+    try {
+      const hubspotToken = (profileRow as { hubspot_access_token?: string } | null)?.hubspot_access_token
+      if (hubspotToken) {
+        await createHubSpotContact(
+          {
+            name: contact.name || '',
+            email: (withMessages.email as string | undefined) || undefined,
+            phone: contact.phone || undefined,
+            company: contact.company || undefined,
+            position: contact.role || undefined,
+          },
+          userId
+        )
+      }
+    } catch (e) {
+      console.error('HubSpot sync error:', e)
+    }
+
+    try {
+      const salesforceToken = (profileRow as { salesforce_access_token?: string } | null)
+        ?.salesforce_access_token
+      if (salesforceToken) {
+        await createSalesforceContact(
+          {
+            name: contact.name || '',
+            email: (withMessages.email as string | undefined) || undefined,
+            phone: contact.phone || undefined,
+            company: contact.company || undefined,
+            position: contact.role || undefined,
+          },
+          userId
+        )
+      }
+    } catch (e) {
+      console.error('Salesforce sync error:', e)
+    }
+  })()
 }
 
 export async function runContactEnrichment(
@@ -130,41 +168,54 @@ export async function runContactEnrichment(
 
     await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'apollo')
 
-    const apolloData = await enrichWithApollo(c.name, c.company, c.email).catch((err) => {
-      console.error('Apollo enrichment skipped:', err)
-      return null
-    })
+    const location = [c.billing_city, c.billing_country, c.meeting_location]
+      .filter(Boolean)
+      .join(', ')
 
-    await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'perplexity')
+    const linkedInResolvePromise =
+      !options.skipLinkedIn &&
+      !options.linkedinUrlOverride &&
+      c.name &&
+      c.company
+        ? resolveLinkedInProfile({
+            name: c.name,
+            company: c.company,
+            role: c.role,
+            location: location || null,
+          }).catch((err) => {
+            console.error('LinkedIn resolve skipped:', err)
+            return null
+          })
+        : Promise.resolve(null)
 
-    const perplexityContext = await enrichContact(c.name, c.company, profile).catch((err) => {
-      console.error('Perplexity enrichment skipped:', err)
-      return ''
-    })
+    const [apolloSettled, perplexitySettled, linkedinResolveSettled, intelligenceSettled] =
+      await Promise.allSettled([
+        enrichWithApollo(c.name, c.company, c.email),
+        enrichContact(c.name, c.company, profile),
+        linkedInResolvePromise,
+        runIntelligenceResearch(
+          {
+            id: contactId,
+            name: c.name,
+            company: c.company,
+            role: c.role,
+            industry: c.industry,
+          },
+          supabase,
+          profile
+        ),
+      ])
 
-    await runIntelligenceResearch(
-      {
-        id: contactId,
-        name: c.name,
-        company: c.company,
-        role: c.role,
-        industry: c.industry,
-      },
-      supabase,
-      profile
-    ).catch((err) => {
-      console.error('Intelligence research skipped:', err)
-    })
+    const apolloData = settledValue(apolloSettled, null)
+    const perplexityContext = settledValue(perplexitySettled, '')
+    const resolvedLinkedIn = settledValue(linkedinResolveSettled, null)
+    if (intelligenceSettled.status === 'rejected') {
+      console.error('Intelligence research skipped:', intelligenceSettled.reason)
+    }
 
-    const { data: refreshedContact } = await supabase
-      .from('scanned_contacts')
-      .select('*')
-      .eq('id', contactId)
-      .single()
+    await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'linkedin')
 
-    const latest = (refreshedContact as ScannedContact | null) ?? c
-
-    const linkedinUrl = await pickLinkedInUrl(latest, apolloData?.linkedin_url, options)
+    const linkedinUrl = pickLinkedInUrl(c, apolloData?.linkedin_url, resolvedLinkedIn, options)
     let linkedinData: EnrichedLinkedInProfile | null = null
     let identityFields: Record<string, string | null> = storedIdentity ?? {
       linkedin_match_status: null,
@@ -174,18 +225,19 @@ export async function runContactEnrichment(
       linkedin_mismatch_reason: null,
     }
 
-    await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'linkedin')
+    const [linkedinSettled, emailSettled] = await Promise.allSettled([
+      linkedinUrl
+        ? enrichLinkedIn(linkedinUrl)
+        : Promise.resolve(null),
+      !c.email && c.name && c.company
+        ? findWorkEmail(c.name, c.company)
+        : Promise.resolve(null),
+    ])
 
-    if (linkedinUrl) {
-      linkedinData = await enrichLinkedIn(linkedinUrl).catch((err) => {
-        console.error('EnrichLayer LinkedIn skipped:', err)
-        return null
-      })
-
-      if (linkedinData) {
-        const identityCheck = checkLinkedInIdentity(latest, linkedinData)
-        identityFields = identityCheckToDbFields(identityCheck)
-      }
+    linkedinData = settledValue(linkedinSettled, null)
+    if (linkedinData) {
+      const identityCheck = checkLinkedInIdentity(c, linkedinData)
+      identityFields = identityCheckToDbFields(identityCheck)
     } else if (options.skipLinkedIn) {
       identityFields = {
         linkedin_match_status: 'rejected',
@@ -197,20 +249,17 @@ export async function runContactEnrichment(
     }
 
     let resolvedEmail = c.email
-    if (!resolvedEmail && c.name && c.company) {
-      const emailData = await findWorkEmail(c.name, c.company).catch((err) => {
-        console.error('EnrichLayer email lookup skipped:', err)
-        return null
-      })
-      if (emailData && emailData.confidence > 0.7) {
-        resolvedEmail = emailData.email
-      }
+    const emailData = settledValue(emailSettled, null)
+    if (!resolvedEmail && emailData && emailData.confidence > 0.7) {
+      resolvedEmail = emailData.email
     }
 
     const baseRecord = {
       email: resolvedEmail,
       photo_url: apolloData?.photo_url || c.photo_url,
       linkedin_url: linkedinUrl || (options.skipLinkedIn ? null : c.linkedin_url),
+      role: apolloData?.title || c.role,
+      industry: apolloData?.company_industry || c.industry,
       company_size: apolloData?.company_size || c.company_size,
       company_revenue: apolloData?.company_revenue || c.company_revenue,
       technologies: apolloData?.technologies || c.technologies,
@@ -224,62 +273,77 @@ export async function runContactEnrichment(
       ...identityFields,
     }
 
-    await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'messages')
-
-    const { data: latestBeforeScore } = await supabase
-      .from('scanned_contacts')
-      .select('*')
-      .eq('id', contactId)
-      .single()
-
-    const contactWithLatestContext = (latestBeforeScore as ScannedContact | null) ?? latest
-
     const contactWithIdentity = {
-      ...contactWithLatestContext,
+      ...c,
       ...baseRecord,
     } as ScannedContact
 
-    const linkedinTrusted = isLinkedInDataTrusted(contactWithIdentity)
+    const contactForMandatoryEstimate = stripUntrustedLinkedInFields(contactWithIdentity)
 
-    const contactForScoring = stripUntrustedLinkedInFields(contactWithIdentity)
-
-    const mandatoryCompanyFields = await ensureMandatoryCompanyFields(contactForScoring).catch((err) => {
+    const mandatoryCompanyFields = await ensureMandatoryCompanyFields(contactForMandatoryEstimate).catch((err) => {
       console.error('Mandatory company field estimation skipped:', err)
       return {}
     })
 
-    const contactWithMandatory = {
-      ...contactForScoring,
+    // Stage 1: flush company/profile data early so Contacts UI updates before messages
+    await supabase
+      .from('scanned_contacts')
+      .update({
+        ...baseRecord,
+        ...mandatoryCompanyFields,
+        enrichment_status: 'ENRICHING',
+        enrichment_step: 'messages',
+      })
+      .eq('id', contactId)
+      .eq('user_id', userId)
+
+    await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'messages')
+
+    const { data: freshContactRow } = await supabase
+      .from('scanned_contacts')
+      .select('*')
+      .eq('id', contactId)
+      .eq('user_id', userId)
+      .single()
+
+    const freshContact = (freshContactRow as ScannedContact | null) ?? contactWithIdentity
+    const mergedForMessages = {
+      ...freshContact,
+      ...baseRecord,
       ...mandatoryCompanyFields,
     } as ScannedContact
 
-    const aiScoreResult = await calculateAiMatchScore(contactWithMandatory, profile).catch((err) => {
-      console.error('AI match scoring skipped:', err)
-      return null
-    })
+    const contactForScoring = stripUntrustedLinkedInFields(mergedForMessages)
+    const linkedinTrustedFresh = isLinkedInDataTrusted(mergedForMessages)
+
+    const [aiScoreResult, aiMessages] = await Promise.all([
+      calculateAiMatchScore(contactForScoring, profile).catch((err) => {
+        console.error('AI match scoring skipped:', err)
+        return null
+      }),
+      generatePersonalizedMessages(
+        {
+          ...stripUntrustedLinkedInFields(mergedForMessages),
+          meeting_context: buildMeetingContext(mergedForMessages) || undefined,
+        },
+        profile,
+        linkedinTrustedFresh ? linkedinData : null
+      ).catch((err) => {
+        console.error('AI message regeneration skipped:', err)
+        return null
+      }),
+    ])
 
     const scoreFields = aiScoreResult
       ? aiScoreToDbFields(
-          contactHasEventTag(contactWithMandatory)
+          contactHasEventTag(contactForScoring)
             ? applyPersonalMeetingBonus(aiScoreResult)
             : aiScoreResult
         )
       : {
-          ai_lead_score: calculateLeadScore({ ...contactWithMandatory, ...baseRecord }),
-          match_score: calculateLeadScore({ ...contactWithMandatory, ...baseRecord }),
+          ai_lead_score: calculateLeadScore({ ...contactForScoring, ...baseRecord }),
+          match_score: calculateLeadScore({ ...contactForScoring, ...baseRecord }),
         }
-
-    const aiMessages = await generatePersonalizedMessages(
-      {
-        ...stripUntrustedLinkedInFields(contactWithIdentity),
-        meeting_context: buildMeetingContext(contactWithLatestContext) || undefined,
-      },
-      profile,
-      linkedinTrusted ? linkedinData : null
-    ).catch((err) => {
-      console.error('AI message regeneration skipped:', err)
-      return null
-    })
 
     const withMessages = {
       ...baseRecord,
@@ -289,8 +353,12 @@ export async function runContactEnrichment(
       message_email: aiMessages?.message_email || c.message_email,
       email_subject: aiMessages?.email_subject || c.email_subject,
       message_whatsapp: aiMessages?.message_whatsapp || c.message_whatsapp,
+      enrichment_status: 'DONE' as const,
+      enrichment_step: 'done' as const,
+      scan_status: 'enriched' as const,
     }
 
+    // Stage 2: messages, scores, and completion
     await supabase
       .from('scanned_contacts')
       .update(withMessages)
@@ -308,57 +376,13 @@ export async function runContactEnrichment(
       await supabase.from('scanned_contacts').update(sfMapping).eq('id', contactId)
     }
 
-    await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'syncing')
-
-    try {
-      const hubspotToken = (profileRow as { hubspot_access_token?: string } | null)?.hubspot_access_token
-      if (hubspotToken) {
-        await createHubSpotContact(
-          {
-            name: c.name || '',
-            email: withMessages.email || undefined,
-            phone: c.phone || undefined,
-            company: c.company || undefined,
-            position: c.role || undefined,
-          },
-          userId
-        )
-      }
-    } catch (e) {
-      console.error('HubSpot sync error:', e)
-    }
-
-    try {
-      const salesforceToken = (profileRow as { salesforce_access_token?: string } | null)
-        ?.salesforce_access_token
-      if (salesforceToken) {
-        await createSalesforceContact(
-          {
-            name: c.name || '',
-            email: withMessages.email || undefined,
-            phone: c.phone || undefined,
-            company: c.company || undefined,
-            position: c.role || undefined,
-          },
-          userId
-        )
-      }
-    } catch (e) {
-      console.error('Salesforce sync error:', e)
-    }
-
-    await updateEnrichmentStep(contactId, userId, 'DONE', 'done')
-
-    const { data: finalRow } = await supabase
-      .from('scanned_contacts')
-      .select('match_score, ai_lead_score')
-      .eq('id', contactId)
-      .single()
-
     const matchScore =
-      finalRow?.ai_lead_score ?? finalRow?.match_score ?? withMessages.ai_lead_score ?? c.match_score ?? 50
+      withMessages.ai_lead_score ?? withMessages.match_score ?? c.match_score ?? 50
 
     await onEnrichmentCompleted(contactId, userId, Number(matchScore) || 50)
+
+    // CRM sync off critical path — user already sees DONE
+    deferCrmSync(profileRow as ABCProfile | null, userId, c, withMessages)
   } catch (error) {
     console.error('runContactEnrichment error:', error)
     await updateEnrichmentStep(contactId, userId, 'ERROR', 'queued')
