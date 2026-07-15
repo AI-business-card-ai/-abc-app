@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSPropertie
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
+import DemoQrCode from '@/components/landing/DemoQrCode'
 
 const COLORS = {
   bg: '#0f0f0f',
@@ -166,24 +167,23 @@ const btnOutline: CSSProperties = {
   transition: 'background 0.2s ease, border-color 0.2s ease',
 }
 
-/** Card with a subtle #f0197d → #00d4d4 gradient border. */
-function GradientBorderCard({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+/** Card with #f0197d → #00d4d4 gradient border. */
+function GradientBorderCard({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        borderRadius: 16,
+        background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
         padding: 1,
-        background: 'linear-gradient(135deg, rgba(240,25,125,0.4), rgba(0,212,212,0.4))',
+        borderRadius: 12,
         height: '100%',
       }}
     >
       <div
         style={{
-          borderRadius: 15,
-          background: COLORS.card,
-          padding: 28,
+          background: '#1a1a1a',
+          borderRadius: 11,
+          padding: 24,
           height: '100%',
-          ...style,
         }}
       >
         {children}
@@ -309,65 +309,6 @@ function HeroMockup() {
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  )
-}
-
-/** Simple CSS-only QR code visual for the digital card section. */
-function QrMockup() {
-  // Fixed pseudo-random pattern so the render is stable
-  const cells = useMemo(() => {
-    const seed = [3, 7, 11, 13, 17, 19, 23, 29]
-    return Array.from({ length: 121 }, (_, i) => seed.some((s) => (i * s) % 7 === 0 || i % s === 2))
-  }, [])
-
-  return (
-    <div
-      style={{
-        width: 240,
-        borderRadius: 32,
-        background: 'linear-gradient(145deg, #1c1c1c, #0a0a0a)',
-        padding: 8,
-        boxShadow: '0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)',
-        margin: '0 auto',
-      }}
-    >
-      <div
-        style={{
-          borderRadius: 26,
-          background: COLORS.bg,
-          border: `1px solid ${COLORS.border}`,
-          padding: '20px 16px',
-          textAlign: 'center',
-        }}
-      >
-        <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 800, ...gradientText }}>
-          My Digital Card
-        </p>
-        <div
-          style={{
-            background: '#ffffff',
-            borderRadius: 14,
-            padding: 12,
-            display: 'inline-block',
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(11, 10px)',
-              gridTemplateRows: 'repeat(11, 10px)',
-            }}
-          >
-            {cells.map((filled, i) => (
-              <span key={i} style={{ background: filled ? '#0f0f0f' : 'transparent' }} />
-            ))}
-          </div>
-        </div>
-        <p style={{ margin: '12px 0 0', fontSize: 10, color: COLORS.muted }}>
-          abccard.io/u/martin
-        </p>
       </div>
     </div>
   )
@@ -647,7 +588,7 @@ export default function HomePage() {
               alignItems: 'center',
             }}
           >
-            <QrMockup />
+            <DemoQrCode />
             <div>
               <h2
                 style={{
