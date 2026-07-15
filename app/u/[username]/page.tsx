@@ -16,7 +16,7 @@ export default async function PublicCardByUsernamePage({ params }: Props) {
   const { data: profile } = await supabase
     .from('abc_profiles')
     .select('id, full_name, company, role, phone, email, linkedin_url')
-    .eq('username', username)
+    .eq('user_name', username)
     .maybeSingle()
 
   if (!profile || (!profile.full_name && !profile.email && !profile.company)) {

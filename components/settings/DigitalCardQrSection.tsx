@@ -21,13 +21,13 @@ export default function DigitalCardQrSection() {
 
       const { data: profileRow } = await supabase
         .from('abc_profiles')
-        .select('username')
+        .select('user_name')
         .eq('id', user.id)
         .maybeSingle()
       if (!active) return
 
-      const url = profileRow?.username
-        ? `${SITE_URL}/u/${profileRow.username}`
+      const url = profileRow?.user_name
+        ? `${SITE_URL}/u/${profileRow.user_name}`
         : `${SITE_URL}/card/${user.id}`
       setCardUrl(url)
 

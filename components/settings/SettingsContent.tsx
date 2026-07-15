@@ -57,7 +57,7 @@ export default function SettingsContent() {
         return
       }
 
-      const username = (profile.username || '').trim().toLowerCase()
+      const username = (profile.user_name || '').trim().toLowerCase()
       if (username && !/^[a-z0-9-]{3,30}$/.test(username)) {
         setError('Username must be 3-30 characters: lowercase letters, numbers, and hyphens only')
         return
@@ -70,7 +70,7 @@ export default function SettingsContent() {
 
       const dataToSave = {
         id: user.id,
-        username: username || null,
+        user_name: username || null,
         full_name: profile.full_name || null,
         company: profile.company || null,
         role: profile.role || null,
@@ -108,7 +108,7 @@ export default function SettingsContent() {
 
       if (saveError) {
         console.error('Save error:', saveError)
-        if (saveError.code === '23505' && saveError.message.includes('username')) {
+        if (saveError.code === '23505' && saveError.message.includes('user_name')) {
           setError('This username is already taken')
         } else {
           setError(saveError.message)
@@ -269,8 +269,8 @@ export default function SettingsContent() {
           <div style={{ display: 'flex', alignItems: 'center', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', overflow: 'hidden' }}>
             <span style={{ padding: '10px 0 10px 14px', color: '#555555', fontSize: '13px', flexShrink: 0 }}>abccard.io/u/</span>
             <input
-              value={profile.username || ''}
-              onChange={(e) => setProfile({ ...profile, username: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+              value={profile.user_name || ''}
+              onChange={(e) => setProfile({ ...profile, user_name: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
               placeholder="janesmith"
               maxLength={30}
               style={{ flex: 1, background: 'transparent', border: 'none', padding: '10px 14px 10px 2px', color: '#ffffff', fontSize: '13px', outline: 'none' }}

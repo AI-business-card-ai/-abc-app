@@ -3,7 +3,7 @@ import { getScanLimitForPlan } from '@/lib/scan-limits'
 import type { ABCProfile } from '@/lib/types'
 
 export const EMPTY_ABC_PROFILE: Omit<ABCProfile, 'id'> = {
-  username: '',
+  user_name: '',
   full_name: '',
   company: '',
   role: '',
@@ -109,7 +109,7 @@ export function normalizeAbcProfile(
 
   return {
     ...EMPTY_ABC_PROFILE,
-    username: asString(data.username, ''),
+    user_name: asString(data.user_name, ''),
     full_name: asString(data.full_name, ''),
     company: asString(data.company, ''),
     role: asString(data.role, ''),

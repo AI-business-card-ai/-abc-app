@@ -15,13 +15,13 @@ export default async function PublicCardPage({ params }: Props) {
 
   const { data: profile } = await supabase
     .from('abc_profiles')
-    .select('id, username, full_name, company, role, phone, email, linkedin_url')
+    .select('id, user_name, full_name, company, role, phone, email, linkedin_url')
     .eq('id', params.userId)
     .maybeSingle()
 
   // Old printed QR codes keep working — forward to the canonical username URL
-  if (profile?.username) {
-    redirect(`/u/${profile.username}`)
+  if (profile?.user_name) {
+    redirect(`/u/${profile.user_name}`)
   }
 
   if (!profile?.full_name && !profile?.email && !profile?.company) {
