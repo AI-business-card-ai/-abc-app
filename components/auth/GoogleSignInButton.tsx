@@ -8,12 +8,14 @@ type Props = {
   nextPath?: string
   label?: string
   variant?: 'primary' | 'default'
+  connectUserId?: string
 }
 
 export default function GoogleSignInButton({
   nextPath = '/dashboard',
   label = 'Continue with Google',
   variant = 'default',
+  connectUserId,
 }: Props) {
   const [loading, setLoading] = useState(false)
   const [hover, setHover] = useState(false)
@@ -23,7 +25,7 @@ export default function GoogleSignInButton({
     setLoading(true)
     try {
       const supabase = createClientComponent()
-      const { error } = await signInWithGoogle(supabase, nextPath)
+      const { error } = await signInWithGoogle(supabase, nextPath, connectUserId)
       if (error) console.error('Google sign-in error:', error)
     } catch (err) {
       console.error('Google sign-in error:', err)

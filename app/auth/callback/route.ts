@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { isGoogleUser } from '@/lib/google-oauth'
 import { saveGoogleOAuthTokens } from '@/lib/google-gmail-auth'
 import { formatSupabaseError } from '@/lib/supabase-errors'
+import { handleQrConnect } from '@/lib/qr-connect'
 
 function authErrorRedirect(origin: string, reason: string) {
   console.error('[auth/callback] redirecting to login:', reason)
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
   const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
+  const connectUserId = searchParams.get('connect')
 
   console.log('[auth/callback] request received', {
     hasCode: Boolean(code),
@@ -76,6 +78,19 @@ export async function GET(request: NextRequest) {
       email: user.email ?? null,
       provider: user.app_metadata?.provider ?? null,
     })
+
+    if (connectUserId) {
+      // "Join ABC" viral loop — save the card owner as a contact in the new
+      // user's account. Fire-and-forget: never blocks or fails the login.
+      const newUserName =
+        (user.user_metadata?.full_name as string | undefined) ||
+        (user.user_metadata?.name as string | undefined) ||
+        user.email ||
+        null
+      handleQrConnect(user.id, newUserName, connectUserId).catch((err) =>
+        console.error('[auth/callback] qr-connect failed:', err)
+      )
+    }
 
     const {
       data: { session },

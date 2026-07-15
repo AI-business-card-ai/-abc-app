@@ -12,6 +12,7 @@ export type PublicCardProfile = {
   email: string | null
   phone: string | null
   linkedin_url: string | null
+  about?: string | null
 }
 
 function initials(name: string | null): string {
@@ -119,26 +120,47 @@ export default function DigitalCardClient({ profile }: { profile: PublicCardProf
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <div
           style={{
-            width: 88,
-            height: 88,
+            width: 116,
+            height: 116,
             borderRadius: '50%',
             margin: '0 auto 20px',
+            padding: 4,
             background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 28,
-            fontWeight: 800,
-            color: '#fff',
+            boxShadow: '0 0 32px rgba(0,212,212,0.25), 0 0 48px rgba(240,25,125,0.15)',
           }}
         >
-          {initials(profile.full_name)}
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: '50%',
+              background: '#0f0f0f',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <span
+              style={{
+                ...gradientText,
+                fontSize: 36,
+                fontWeight: 800,
+              }}
+            >
+              {initials(profile.full_name)}
+            </span>
+          </div>
         </div>
         <h1 style={{ ...gradientText, fontSize: 28, fontWeight: 900, margin: '0 0 8px' }}>
           {displayName}
         </h1>
         {subtitle ? (
           <p style={{ color: '#9ca3af', fontSize: 15, margin: 0 }}>{subtitle}</p>
+        ) : null}
+        {profile.about ? (
+          <p style={{ color: '#6b7280', fontSize: 14, lineHeight: 1.6, margin: '14px 0 0' }}>
+            {profile.about}
+          </p>
         ) : null}
       </div>
 
@@ -255,12 +277,38 @@ export default function DigitalCardClient({ profile }: { profile: PublicCardProf
         )}
       </div>
 
-      <p style={{ textAlign: 'center', color: '#4b5563', fontSize: 12, marginTop: 32 }}>
-        Powered by{' '}
-        <a href="/" style={{ ...gradientText, textDecoration: 'none', fontWeight: 700 }}>
-          ABC
+      <div
+        style={{
+          marginTop: 32,
+          padding: '24px 20px',
+          borderTop: '1px solid #2a2a2a',
+          textAlign: 'center',
+        }}
+      >
+        <p style={{ color: '#4b5563', fontSize: 12, margin: '0 0 12px' }}>
+          Powered by{' '}
+          <a href="/" style={{ ...gradientText, textDecoration: 'none', fontWeight: 700 }}>
+            ABC
+          </a>{' '}
+          — AI Business Card
+        </p>
+        <a
+          href={`/login?connect=${profile.userId}`}
+          style={{
+            display: 'inline-block',
+            padding: '11px 28px',
+            borderRadius: 10,
+            border: '1px solid rgba(0,212,212,0.4)',
+            background: 'rgba(0,212,212,0.08)',
+            color: '#00d4d4',
+            fontWeight: 700,
+            fontSize: 14,
+            textDecoration: 'none',
+          }}
+        >
+          Join ABC free
         </a>
-      </p>
+      </div>
     </div>
   )
 }

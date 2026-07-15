@@ -1,16 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
 import AuthOrDivider from '@/components/auth/AuthOrDivider'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
 
-export default function LoginPage() {
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function LoginContent() {
   const router = useRouter()
   const supabase = createClientComponent()
+  const searchParams = useSearchParams()
+
+  const rawConnect = searchParams.get('connect')
+  const connectUserId = rawConnect && UUID_RE.test(rawConnect) ? rawConnect : undefined
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,6 +31,14 @@ export default function LoginPage() {
     try {
       const { error: e2 } = await supabase.auth.signInWithPassword({ email, password })
       if (e2) throw new Error(e2.message)
+      if (connectUserId) {
+        // Email login skips the OAuth callback — run the connect flow via API
+        fetch('/api/card/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ownerUserId: connectUserId }),
+        }).catch(() => {})
+      }
       router.push('/scan')
       router.refresh()
     } catch (err) {
@@ -52,7 +67,7 @@ export default function LoginPage() {
         </div>
 
         <div className="flex flex-col gap-5">
-          <GoogleSignInButton nextPath="/dashboard" variant="primary" />
+          <GoogleSignInButton nextPath="/dashboard" variant="primary" connectUserId={connectUserId} />
           <AuthOrDivider />
 
           <div
@@ -113,5 +128,13 @@ export default function LoginPage() {
         </p>
       </motion.div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   )
 }

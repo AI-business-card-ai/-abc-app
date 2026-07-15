@@ -15,7 +15,7 @@ export default async function PublicCardPage({ params }: Props) {
 
   const { data: profile } = await supabase
     .from('abc_profiles')
-    .select('id, user_name, full_name, company, role, phone, email, linkedin_url')
+    .select('id, user_name, full_name, company, role, phone, email, linkedin_url, product_description, goals')
     .eq('id', params.userId)
     .maybeSingle()
 
@@ -39,6 +39,7 @@ export default async function PublicCardPage({ params }: Props) {
           email: profile.email,
           phone: profile.phone,
           linkedin_url: profile.linkedin_url,
+          about: profile.product_description || profile.goals || null,
         }}
       />
     </div>

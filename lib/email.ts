@@ -90,6 +90,36 @@ export async function sendMessageSentConfirmation(
   })
 }
 
+export async function sendQrConnectNotification(opts: {
+  to: string
+  ownerName: string
+  newUserName: string
+}) {
+  const { to, ownerName, newUserName } = opts
+
+  await resend.emails.send({
+    from: 'ABC AI Business Card <hello@abccard.io>',
+    to,
+    subject: `${newUserName} joined ABC and saved your card`,
+    html: `
+      <div style="font-family:system-ui;max-width:600px;margin:0 auto;background:#0d0f1a;color:#f0f0ff;padding:40px;border-radius:12px;">
+        <h1 style="background:linear-gradient(90deg,#f0197d,#00d4d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:24px;">
+          ${newUserName} joined ABC 🎉
+        </h1>
+        <p style="color:#9ca3af;font-size:15px;line-height:1.6;">
+          Hi ${ownerName}, ${newUserName} signed up for ABC from your digital card and saved your contact details.
+        </p>
+        <a href="${appUrl}/contacts" style="display:inline-block;background:linear-gradient(135deg,#f0197d,#00d4d4);color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;">
+          Open ABC →
+        </a>
+        <p style="color:#4b5563;font-size:13px;margin-top:32px;">
+          ABC AI Business Card · <a href="${appUrl}" style="color:#00d4d4;">abccard.io</a>
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendReverseLeadNotification(opts: {
   to: string
   ownerName: string

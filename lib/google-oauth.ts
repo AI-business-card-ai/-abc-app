@@ -2,25 +2,30 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 
 export const GOOGLE_GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send'
 
-export function getGoogleOAuthRedirectTo(nextPath = '/dashboard') {
+export function getGoogleOAuthRedirectTo(nextPath = '/dashboard', connectUserId?: string) {
+  const query =
+    `next=${encodeURIComponent(nextPath)}` +
+    (connectUserId ? `&connect=${encodeURIComponent(connectUserId)}` : '')
+
   // Always use the browser origin so PKCE cookies match the callback domain.
   if (typeof window !== 'undefined') {
-    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+    return `${window.location.origin}/auth/callback?${query}`
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL
   const base = appUrl || ''
-  return `${base}/auth/callback?next=${encodeURIComponent(nextPath)}`
+  return `${base}/auth/callback?${query}`
 }
 
 export async function signInWithGoogle(
   supabase: SupabaseClient,
-  nextPath = '/dashboard'
+  nextPath = '/dashboard',
+  connectUserId?: string
 ) {
   return supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: getGoogleOAuthRedirectTo(nextPath),
+      redirectTo: getGoogleOAuthRedirectTo(nextPath, connectUserId),
       scopes: GOOGLE_GMAIL_SCOPE,
       queryParams: {
         access_type: 'offline',
