@@ -197,12 +197,13 @@ function HeroMockup() {
   return (
     <div
       style={{
-        width: 300,
+        width: '100%',
+        maxWidth: 480,
         borderRadius: 40,
         background: 'linear-gradient(145deg, #1c1c1c, #0a0a0a)',
         padding: 10,
         boxShadow:
-          '0 24px 64px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.06), 0 0 60px rgba(0,212,212,0.12), inset 0 1px 0 rgba(255,255,255,0.08)',
+          '0 24px 64px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.06), 0 0 60px #f0197d18, 0 0 120px #00d4d418, inset 0 1px 0 rgba(255,255,255,0.08)',
         margin: '0 auto',
       }}
     >
@@ -211,7 +212,10 @@ function HeroMockup() {
           borderRadius: 32,
           background: COLORS.bg,
           overflow: 'hidden',
-          border: `1px solid ${COLORS.border}`,
+          border: '1px solid transparent',
+          backgroundImage: `linear-gradient(${COLORS.bg}, ${COLORS.bg}), linear-gradient(135deg, rgba(240,25,125,0.3), rgba(0,212,212,0.3))`,
+          backgroundOrigin: 'border-box',
+          backgroundClip: 'padding-box, border-box',
         }}
       >
         {/* Notch */}
@@ -251,6 +255,9 @@ function HeroMockup() {
               Martin Novak
             </p>
             <p style={{ margin: 0, fontSize: 10, color: COLORS.muted }}>MedTech GmbH</p>
+            <p style={{ margin: '2px 0 0', fontSize: 11, color: COLORS.cyan }}>
+              ● AI enriching...
+            </p>
           </div>
           <span
             style={{
@@ -267,8 +274,40 @@ function HeroMockup() {
           </span>
         </div>
 
+        {/* Match score bar */}
+        <div style={{ padding: '12px 14px 0' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 6,
+            }}
+          >
+            <span style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>Match Score</span>
+            <span style={{ fontSize: 11, color: COLORS.text, fontWeight: 700 }}>92%</span>
+          </div>
+          <div
+            style={{
+              height: 6,
+              borderRadius: 999,
+              background: COLORS.border,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                width: '92%',
+                height: '100%',
+                borderRadius: 999,
+                background: GRADIENT,
+              }}
+            />
+          </div>
+        </div>
+
         {/* Message previews */}
-        <div style={{ padding: '12px 14px 18px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <div style={{ padding: '14px 14px 18px', display: 'flex', flexDirection: 'column', gap: 9 }}>
           {MOCK_MESSAGES.map((msg) => (
             <div
               key={msg.channel}
@@ -381,10 +420,10 @@ export default function HomePage() {
           position: 'sticky',
           top: 0,
           zIndex: 50,
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          background: 'rgba(15, 15, 15, 0.85)',
-          borderBottom: `1px solid ${COLORS.border}`,
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          background: '#0f0f0f90',
+          borderBottom: '1px solid #1a1a1a',
         }}
       >
         <div
@@ -427,53 +466,141 @@ export default function HomePage() {
       <section
         id="hero"
         style={{
-          maxWidth: 1200,
-          margin: '0 auto',
-          padding: '72px 20px 64px',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: 48,
-          alignItems: 'center',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
-        <div>
-          <h1
-            style={{
-              fontSize: 'clamp(2rem, 5vw, 3.25rem)',
-              fontWeight: 800,
-              lineHeight: 1.1,
-              letterSpacing: '-0.03em',
-              margin: '0 0 20px',
-            }}
-          >
-            From business card to sent message in <span style={gradientText}>10 seconds</span>.
-          </h1>
-          <p
-            style={{
-              fontSize: 'clamp(1rem, 2.5vw, 1.125rem)',
-              lineHeight: 1.65,
-              color: COLORS.muted,
-              margin: '0 0 32px',
-              maxWidth: 520,
-            }}
-          >
-            AI scans the card, researches the contact, writes personalized LinkedIn/Email/WhatsApp
-            message. You just approve.
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-            <Link href="/register" style={btnGradient}>
-              Start for free →
-            </Link>
-            <button type="button" onClick={() => scrollTo('how-it-works')} style={btnOutline}>
-              See how it works
-            </button>
-          </div>
-          <p style={{ fontSize: 13, color: COLORS.muted, margin: 0 }}>
-            3 scans free · No credit card · 10 second setup
-          </p>
-        </div>
+        {/* Ambient glows */}
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            top: -120,
+            right: -120,
+            width: 600,
+            height: 600,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(240,25,125,0.06), transparent 70%)',
+            pointerEvents: 'none',
+          }}
+        />
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            bottom: -100,
+            left: -100,
+            width: 400,
+            height: 400,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(0,212,212,0.04), transparent 70%)',
+            pointerEvents: 'none',
+          }}
+        />
+        {/* Grid overlay */}
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage:
+              'linear-gradient(#ffffff08 1px, transparent 1px), linear-gradient(90deg, #ffffff08 1px, transparent 1px)',
+            backgroundSize: '60px 60px',
+            pointerEvents: 'none',
+          }}
+        />
 
-        <HeroMockup />
+        <div
+          style={{
+            position: 'relative',
+            maxWidth: 1200,
+            margin: '0 auto',
+            padding: '72px 20px 64px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: 48,
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <span
+              style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                marginBottom: 18,
+                ...gradientText,
+              }}
+            >
+              ✦ AI-Powered Networking
+            </span>
+            <h1
+              style={{
+                fontSize: 'clamp(2.5rem, 6vw, 3.5rem)',
+                fontWeight: 800,
+                lineHeight: 1.1,
+                letterSpacing: '-0.03em',
+                margin: '0 0 20px',
+              }}
+            >
+              From business card to sent message in{' '}
+              <span style={{ ...gradientText, display: 'block' }}>10 seconds</span>
+            </h1>
+            <p
+              style={{
+                fontSize: 'clamp(1rem, 2.5vw, 1.125rem)',
+                lineHeight: 1.65,
+                color: COLORS.muted,
+                margin: '0 0 32px',
+                maxWidth: 520,
+              }}
+            >
+              AI scans the card, researches the contact, writes personalized LinkedIn/Email/WhatsApp
+              message. You just approve.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+              <Link href="/register" style={btnGradient}>
+                Start for free →
+              </Link>
+              <button type="button" onClick={() => scrollTo('how-it-works')} style={btnOutline}>
+                See how it works
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: COLORS.muted, margin: '0 0 32px' }}>
+              3 scans free · No credit card · 10 second setup
+            </p>
+
+            {/* STATS ROW */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              {[
+                { icon: '⚡', label: '10 sec', sublabel: 'avg. scan to message' },
+                { icon: '🎯', label: '3 channels', sublabel: 'LinkedIn · Email · WhatsApp' },
+                { icon: '🔒', label: 'You approve', sublabel: 'always. never auto-send' },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: 12,
+                    background: COLORS.card,
+                    border: `1px solid ${COLORS.border}`,
+                  }}
+                >
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: COLORS.text }}>
+                    {stat.icon} {stat.label}
+                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: '#6b7280' }}>
+                    {stat.sublabel}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <HeroMockup />
+        </div>
       </section>
 
       {/* PROBLEM */}
