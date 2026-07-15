@@ -7,6 +7,7 @@ import { normalizeAbcProfile } from '@/lib/profile-defaults'
 import { getScanLimitForPlan } from '@/lib/scan-limits'
 import { PLAN_LABELS, type PaidPlan } from '@/lib/stripe-prices'
 import ConnectionsSection from '@/components/settings/ConnectionsSection'
+import DigitalCardQrSection from '@/components/settings/DigitalCardQrSection'
 import type { ABCProfile } from '@/lib/types'
 
 export default function SettingsContent() {
@@ -193,6 +194,8 @@ export default function SettingsContent() {
           <div style={{ fontSize: '13px', color: '#555555', marginTop: '2px' }}>{profile.company || 'Your Company'} · {profile.role || 'Your Role'}</div>
         </div>
       </div>
+
+      <DigitalCardQrSection />
 
       <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>
         <div style={{ fontSize: '11px', color: '#f0197d', letterSpacing: '0.08em', marginBottom: '12px' }}>SUBSCRIPTION</div>
