@@ -89,3 +89,42 @@ export async function sendMessageSentConfirmation(
     `,
   })
 }
+
+export async function sendReverseLeadNotification(opts: {
+  to: string
+  ownerName: string
+  contactName: string
+  company?: string
+  context?: string
+  contactId: string
+}) {
+  const { to, ownerName, contactName, company, context, contactId } = opts
+  const contactUrl = `${appUrl}/contact/${contactId}`
+
+  await resend.emails.send({
+    from: 'ABC AI Business Card <hello@abccard.io>',
+    to,
+    subject: `New contact from your ABC card: ${contactName}`,
+    html: `
+      <div style="font-family:system-ui;max-width:600px;margin:0 auto;background:#0d0f1a;color:#f0f0ff;padding:40px;border-radius:12px;">
+        <h1 style="background:linear-gradient(90deg,#f0197d,#00d4d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:24px;">
+          New contact from your ABC card
+        </h1>
+        <p style="color:#9ca3af;font-size:15px;line-height:1.6;">
+          Hi ${ownerName}, someone scanned your digital card and left their details.
+        </p>
+        <div style="background:#141628;border-radius:8px;padding:20px;margin:24px 0;border:1px solid #2a2d3e;">
+          <p style="color:#f0f0ff;margin:0 0 8px;font-size:16px;font-weight:700;">${contactName}</p>
+          ${company ? `<p style="color:#9ca3af;margin:0 0 8px;">${company}</p>` : ''}
+          ${context ? `<p style="color:#9ca3af;margin:0;font-size:14px;line-height:1.6;"><strong style="color:#00d4d4;">Context:</strong> ${context}</p>` : ''}
+        </div>
+        <a href="${contactUrl}" style="display:inline-block;background:linear-gradient(135deg,#f0197d,#00d4d4);color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;">
+          View contact in ABC →
+        </a>
+        <p style="color:#4b5563;font-size:13px;margin-top:32px;">
+          ABC AI Business Card · <a href="${appUrl}" style="color:#00d4d4;">abccard.io</a>
+        </p>
+      </div>
+    `,
+  })
+}

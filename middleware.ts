@@ -51,6 +51,7 @@ export async function middleware(req: NextRequest) {
   const isOnboardingExempt =
     ONBOARDING_EXEMPT.includes(pathname) ||
     pathname.startsWith('/auth') ||
+    pathname.startsWith('/card') ||
     pathname.startsWith('/api') ||
     pathname.startsWith('/_next')
 

@@ -49,6 +49,7 @@ export interface ScannedContact {
   deal_currency: string | null
   expected_close_date: string | null
   lead_source: string | null
+  source: string | null
   last_message_type: string | null
   last_message_date: string | null
   response_received: boolean | null
