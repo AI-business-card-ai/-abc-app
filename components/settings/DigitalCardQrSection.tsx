@@ -11,6 +11,7 @@ export default function DigitalCardQrSection() {
   const [cardUrl, setCardUrl] = useState<string | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [userName, setUserName] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -30,6 +31,7 @@ export default function DigitalCardQrSection() {
         ? `${SITE_URL}/u/${profileRow.user_name}`
         : `${SITE_URL}/card/${user.id}`
       setCardUrl(url)
+      setUserName(profileRow?.user_name ?? null)
 
       try {
         const dataUrl = await QRCode.toDataURL(url, {
@@ -77,6 +79,13 @@ export default function DigitalCardQrSection() {
     await copyLink()
   }
 
+  function previewCard() {
+    if (!cardUrl) return
+    window.open(cardUrl, '_blank')
+  }
+
+  const hasTrailingNumber = Boolean(userName && /\d+$/.test(userName))
+
   return (
     <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>
       <div
@@ -108,6 +117,12 @@ export default function DigitalCardQrSection() {
           )}
         </div>
       </div>
+
+      {hasTrailingNumber && (
+        <p style={{ color: '#6b7280', fontSize: 11, textAlign: 'center', margin: '0 0 12px' }}>
+          💡 Tip: set a custom username below for a cleaner link
+        </p>
+      )}
 
       <div
         style={{
@@ -159,6 +174,25 @@ export default function DigitalCardQrSection() {
           Share
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={previewCard}
+        style={{
+          width: '100%',
+          marginTop: '8px',
+          padding: '12px',
+          borderRadius: '10px',
+          border: '1px solid #2a2a2a',
+          background: '#1a1a1a',
+          color: '#ffffff',
+          fontWeight: 700,
+          fontSize: '14px',
+          cursor: 'pointer',
+        }}
+      >
+        👁 Preview my card
+      </button>
     </div>
   )
 }
