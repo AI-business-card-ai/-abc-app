@@ -4,85 +4,105 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSPropertie
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
-import HeroPhone from '@/components/landing/HeroPhone'
-import HeroGlobe from '@/components/landing/HeroGlobe'
 
 const COLORS = {
-  bg: '#0d0f1a',
-  cyan: '#00d4d4',
+  bg: '#0f0f0f',
+  card: '#1a1a1a',
+  border: '#2a2a2a',
   pink: '#f0197d',
-  purple: '#8b5cf6',
-  text: '#f0f0ff',
-  muted: '#8892b0',
-  surface: '#141628',
+  cyan: '#00d4d4',
+  text: '#ffffff',
+  muted: '#9ca3af',
+}
+
+const GRADIENT = 'linear-gradient(135deg, #f0197d, #00d4d4)'
+
+const gradientText: CSSProperties = {
+  background: 'linear-gradient(90deg, #f0197d, #00d4d4)',
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  backgroundClip: 'text',
 }
 
 const PAIN_POINTS = [
-  { icon: '⏱️', text: '3 hours of manual CRM data entry' },
+  { icon: '⏱', text: '3 hours of manual CRM data entry' },
   { icon: '💬', text: 'Generic messages nobody replies to' },
   { icon: '📉', text: '80% of contacts dead within a week' },
 ]
 
 const STEPS = [
   { icon: '📷', title: 'Scan', desc: 'Photo the card with your phone' },
-  { icon: '🤖', title: 'AI enriches', desc: 'LinkedIn, company data, news' },
-  { icon: '✉️', title: 'Messages ready', desc: 'LinkedIn / Email / WhatsApp personalized' },
+  { icon: '🤖', title: 'AI enriches', desc: 'LinkedIn, company data, news, match score' },
+  { icon: '✉️', title: 'Messages ready', desc: 'LinkedIn / Email / WhatsApp — personalized' },
   { icon: '✅', title: 'You approve', desc: 'AI prepares, you decide. Always.' },
+  { icon: '📊', title: 'Export to CRM', desc: 'One click to Salesforce or HubSpot' },
 ]
 
 const PLANS = [
   {
     name: 'FREE',
     price: '$0',
+    period: '/mo',
     badge: null as string | null,
-    features: ['3 scans/month', 'Basic AI messages', 'Contact export'],
+    features: ['3 lifetime scans', 'Basic AI messages', 'Contact export'],
     cta: 'Start free',
     highlight: false,
   },
   {
     name: 'STARTER',
-    price: '$49',
+    price: '$29',
     period: '/mo',
     badge: 'Most popular',
-    features: ['50 scans/month', 'AI messages', 'Follow-up reminders', 'CSV export'],
+    features: ['50 scans/month', 'AI messages + enrichment', 'Follow-up sequences', 'CSV export'],
     cta: 'Get Starter',
     highlight: true,
   },
   {
-    name: 'PRO',
-    price: '$149',
+    name: 'GROWTH',
+    price: '$49',
     period: '/mo',
     badge: null,
-    features: ['Unlimited scans', 'Salesforce & HubSpot', 'Pipeline analytics', 'Priority support'],
-    cta: 'Go Pro',
+    features: ['100 scans/month', 'Everything in Starter', 'Salesforce & HubSpot export', 'Pipeline analytics'],
+    cta: 'Get Growth',
+    highlight: false,
+  },
+  {
+    name: 'PRO',
+    price: '$89',
+    period: '/mo',
+    badge: null,
+    features: ['200 scans/month', 'Everything in Growth', 'Priority support', 'Advanced analytics'],
+    cta: 'Get Pro',
     highlight: false,
   },
   {
     name: 'TEAM',
-    price: '$399',
+    price: '$199',
     period: '/mo',
     badge: null,
-    features: ['5 users included', 'Shared contacts', 'Team pipeline', 'Admin dashboard'],
+    features: ['500 scans/month', '5 users included', 'Shared contacts', 'Admin dashboard'],
     cta: 'Contact sales',
     highlight: false,
   },
 ]
 
-const TESTIMONIALS = [
+const USE_CASES = ['🏭 Trade shows', '🎤 Conferences', '🤝 B2B meetings']
+
+const MOCK_MESSAGES = [
   {
-    quote: 'Scanned 47 cards at SaaStr. Had personalized LinkedIn messages ready before I landed. Closed 3 deals that week.',
-    name: 'James Miller',
-    role: 'Head of Sales, TechFlow CZ',
+    channel: 'LinkedIn',
+    color: '#00d4d4',
+    text: 'Hi Martin — loved our chat at Medica. Your AI diagnostics work is fascinating. Coffee next week?',
   },
   {
-    quote: 'Finally stopped losing contacts in my pocket. ABC turns every handshake into a warm follow-up in seconds.',
-    name: 'Sarah Chen',
-    role: 'Account Executive, Nexus B2B',
+    channel: 'Email',
+    color: '#f0197d',
+    text: 'Subject: Medica follow-up\nHi Martin, great meeting you at the booth...',
   },
   {
-    quote: 'Our team cut CRM entry time by 90%. The AI messages actually get replies — not generic templates.',
-    name: 'Sarah Chen',
-    role: 'VP Business Dev, Apex Digital',
+    channel: 'WhatsApp',
+    color: '#25D366',
+    text: 'Hey Martin! Great meeting you 👋 Here\u2019s the deck I mentioned...',
   },
 ]
 
@@ -113,37 +133,244 @@ function FadeIn({ children, className = '' }: { children: ReactNode; className?:
   )
 }
 
-const btnPink: CSSProperties = {
-  background: 'linear-gradient(135deg, #f0197d, #8b5cf6)',
+const btnGradient: CSSProperties = {
+  background: GRADIENT,
   color: '#fff',
   border: 'none',
   borderRadius: '12px',
-  padding: '12px 24px',
-  fontWeight: 600,
-  fontSize: '14px',
+  padding: '13px 26px',
+  fontWeight: 700,
+  fontSize: '15px',
   cursor: 'pointer',
   textDecoration: 'none',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  boxShadow: '0 4px 20px rgba(240, 25, 125, 0.35)',
+  boxShadow: '0 4px 24px rgba(240, 25, 125, 0.35)',
   transition: 'transform 0.15s ease, box-shadow 0.2s ease',
 }
 
 const btnOutline: CSSProperties = {
   background: 'transparent',
-  color: '#00d4d4',
+  color: COLORS.cyan,
   border: '1.5px solid rgba(0, 212, 212, 0.5)',
   borderRadius: '12px',
-  padding: '12px 24px',
-  fontWeight: 600,
-  fontSize: '14px',
+  padding: '13px 26px',
+  fontWeight: 700,
+  fontSize: '15px',
   cursor: 'pointer',
   textDecoration: 'none',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
   transition: 'background 0.2s ease, border-color 0.2s ease',
+}
+
+/** Card with a subtle #f0197d → #00d4d4 gradient border. */
+function GradientBorderCard({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  return (
+    <div
+      style={{
+        borderRadius: 16,
+        padding: 1,
+        background: 'linear-gradient(135deg, rgba(240,25,125,0.4), rgba(0,212,212,0.4))',
+        height: '100%',
+      }}
+    >
+      <div
+        style={{
+          borderRadius: 15,
+          background: COLORS.card,
+          padding: 28,
+          height: '100%',
+          ...style,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/** Static CSS phone mockup showing a scanned contact with AI messages. */
+function HeroMockup() {
+  return (
+    <div
+      style={{
+        width: 300,
+        borderRadius: 40,
+        background: 'linear-gradient(145deg, #1c1c1c, #0a0a0a)',
+        padding: 10,
+        boxShadow:
+          '0 24px 64px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.06), 0 0 60px rgba(0,212,212,0.12), inset 0 1px 0 rgba(255,255,255,0.08)',
+        margin: '0 auto',
+      }}
+    >
+      <div
+        style={{
+          borderRadius: 32,
+          background: COLORS.bg,
+          overflow: 'hidden',
+          border: `1px solid ${COLORS.border}`,
+        }}
+      >
+        {/* Notch */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
+          <div style={{ width: 90, height: 18, borderRadius: 999, background: '#0a0a0a' }} />
+        </div>
+
+        {/* Contact header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '14px 14px 12px',
+            borderBottom: `1px solid ${COLORS.border}`,
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: GRADIENT,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 13,
+              fontWeight: 800,
+              color: '#fff',
+              flexShrink: 0,
+            }}
+          >
+            MN
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: COLORS.text }}>
+              Martin Novak
+            </p>
+            <p style={{ margin: 0, fontSize: 10, color: COLORS.muted }}>MedTech GmbH</p>
+          </div>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: 999,
+              background: 'rgba(240, 25, 125, 0.15)',
+              color: COLORS.pink,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Score: 92 🔥
+          </span>
+        </div>
+
+        {/* Message previews */}
+        <div style={{ padding: '12px 14px 18px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {MOCK_MESSAGES.map((msg) => (
+            <div
+              key={msg.channel}
+              style={{
+                padding: '10px 11px',
+                borderRadius: 10,
+                background: COLORS.card,
+                border: `1px solid ${COLORS.border}`,
+                borderLeft: `3px solid ${msg.color}`,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: msg.color }}>{msg.channel}</span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '4px 12px',
+                    borderRadius: 7,
+                    background: `${msg.color}1f`,
+                    color: msg.color,
+                  }}
+                >
+                  Send
+                </span>
+              </div>
+              <p
+                style={{
+                  margin: '6px 0 0',
+                  fontSize: 10,
+                  lineHeight: 1.5,
+                  color: COLORS.muted,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {msg.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Simple CSS-only QR code visual for the digital card section. */
+function QrMockup() {
+  // Fixed pseudo-random pattern so the render is stable
+  const cells = useMemo(() => {
+    const seed = [3, 7, 11, 13, 17, 19, 23, 29]
+    return Array.from({ length: 121 }, (_, i) => seed.some((s) => (i * s) % 7 === 0 || i % s === 2))
+  }, [])
+
+  return (
+    <div
+      style={{
+        width: 240,
+        borderRadius: 32,
+        background: 'linear-gradient(145deg, #1c1c1c, #0a0a0a)',
+        padding: 8,
+        boxShadow: '0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)',
+        margin: '0 auto',
+      }}
+    >
+      <div
+        style={{
+          borderRadius: 26,
+          background: COLORS.bg,
+          border: `1px solid ${COLORS.border}`,
+          padding: '20px 16px',
+          textAlign: 'center',
+        }}
+      >
+        <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 800, ...gradientText }}>
+          My Digital Card
+        </p>
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: 14,
+            padding: 12,
+            display: 'inline-block',
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(11, 10px)',
+              gridTemplateRows: 'repeat(11, 10px)',
+            }}
+          >
+            {cells.map((filled, i) => (
+              <span key={i} style={{ background: filled ? '#0f0f0f' : 'transparent' }} />
+            ))}
+          </div>
+        </div>
+        <p style={{ margin: '12px 0 0', fontSize: 10, color: COLORS.muted }}>
+          abccard.io/u/martin
+        </p>
+      </div>
+    </div>
+  )
 }
 
 function scrollTo(id: string) {
@@ -188,7 +415,7 @@ export default function HomePage() {
             borderRadius: '50%',
             border: '2px solid transparent',
             borderTopColor: COLORS.cyan,
-            borderRightColor: COLORS.purple,
+            borderRightColor: COLORS.pink,
             animation: 'spin 0.8s linear infinite',
           }}
         />
@@ -202,7 +429,7 @@ export default function HomePage() {
       style={{
         background: COLORS.bg,
         color: COLORS.text,
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: "system-ui, -apple-system, 'Inter', sans-serif",
         minHeight: '100vh',
         overflowX: 'hidden',
       }}
@@ -215,8 +442,8 @@ export default function HomePage() {
           zIndex: 50,
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
-          background: 'rgba(13, 15, 26, 0.85)',
-          borderBottom: '1px solid rgba(139, 92, 246, 0.12)',
+          background: 'rgba(15, 15, 15, 0.85)',
+          borderBottom: `1px solid ${COLORS.border}`,
         }}
       >
         <div
@@ -231,17 +458,7 @@ export default function HomePage() {
           }}
         >
           <Link href="/" style={{ textDecoration: 'none' }}>
-            <span
-              style={{
-                fontSize: '22px',
-                fontWeight: 800,
-                letterSpacing: '-0.02em',
-                background: 'linear-gradient(135deg, #00d4d4, #f0197d)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
-            >
+            <span style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', ...gradientText }}>
               ABC
             </span>
           </Link>
@@ -258,54 +475,27 @@ export default function HomePage() {
             >
               Sign in
             </Link>
-            <Link href="/register" style={btnPink}>
+            <Link href="/register" style={{ ...btnGradient, padding: '10px 20px', fontSize: 14 }}>
               Start for free
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* HERO */}
+      {/* HERO — split layout, no globe */}
       <section
         id="hero"
         style={{
-          position: 'relative',
-          overflow: 'hidden',
-          minHeight: '100vh',
-          width: '100%',
-          maxWidth: '100%',
-          margin: 0,
-          padding: '48px 20px',
-          display: 'flex',
+          maxWidth: 1200,
+          margin: '0 auto',
+          padding: '72px 20px 64px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: 48,
           alignItems: 'center',
         }}
       >
-        <HeroGlobe />
-
-        <div
-          style={{
-            position: 'relative',
-            zIndex: 10,
-            maxWidth: 550,
-            paddingLeft: 80,
-            paddingRight: 20,
-          }}
-        >
-          <span
-            style={{
-              display: 'inline-block',
-              fontSize: 12,
-              fontWeight: 600,
-              padding: '6px 14px',
-              borderRadius: 999,
-              marginBottom: 20,
-              background: 'rgba(0, 212, 212, 0.1)',
-              border: '1px solid rgba(0, 212, 212, 0.3)',
-              color: COLORS.cyan,
-            }}
-          >
-            🚀 Beta launch — June 30, 2026
-          </span>
+        <div>
           <h1
             style={{
               fontSize: 'clamp(2rem, 5vw, 3.25rem)',
@@ -315,18 +505,7 @@ export default function HomePage() {
               margin: '0 0 20px',
             }}
           >
-            From business card to sent message in{' '}
-            <span
-              style={{
-                background: 'linear-gradient(135deg, #00d4d4, #f0197d)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
-            >
-              10 seconds
-            </span>
-            .
+            From business card to sent message in <span style={gradientText}>10 seconds</span>.
           </h1>
           <p
             style={{
@@ -337,10 +516,11 @@ export default function HomePage() {
               maxWidth: 520,
             }}
           >
-            AI scans the card, researches the contact, writes personalized LinkedIn/Email/WhatsApp message. You just approve.
+            AI scans the card, researches the contact, writes personalized LinkedIn/Email/WhatsApp
+            message. You just approve.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-            <Link href="/register" style={btnPink}>
+            <Link href="/register" style={btnGradient}>
               Start for free →
             </Link>
             <button type="button" onClick={() => scrollTo('how-it-works')} style={btnOutline}>
@@ -348,22 +528,11 @@ export default function HomePage() {
             </button>
           </div>
           <p style={{ fontSize: 13, color: COLORS.muted, margin: 0 }}>
-            3 scans free • No credit card • 10 second setup
+            3 scans free · No credit card · 10 second setup
           </p>
         </div>
 
-        <div
-          style={{
-            position: 'absolute',
-            right: 40,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            zIndex: 20,
-            filter: 'drop-shadow(0 0 60px rgba(0,212,212,0.3))',
-          }}
-        >
-          <HeroPhone />
-        </div>
+        <HeroMockup />
       </section>
 
       {/* PROBLEM */}
@@ -391,33 +560,19 @@ export default function HomePage() {
         >
           {PAIN_POINTS.map((p) => (
             <FadeIn key={p.text}>
-              <div
-                style={{
-                  padding: 28,
-                  borderRadius: 16,
-                  background: COLORS.surface,
-                  border: '1px solid rgba(240, 25, 125, 0.15)',
-                  height: '100%',
-                }}
-              >
-                <span style={{ fontSize: 28, display: 'block', marginBottom: 12 }}>{p.icon}</span>
-                <p style={{ margin: 0, fontSize: 16, fontWeight: 600, lineHeight: 1.5 }}>{p.text}</p>
-              </div>
+              <GradientBorderCard>
+                <span style={{ fontSize: 30, display: 'block', marginBottom: 12 }}>{p.icon}</span>
+                <p style={{ margin: 0, fontSize: 16, fontWeight: 600, lineHeight: 1.5, color: COLORS.text }}>
+                  {p.text}
+                </p>
+              </GradientBorderCard>
             </FadeIn>
           ))}
         </div>
       </section>
 
       {/* HOW IT WORKS */}
-      <section
-        id="how-it-works"
-        style={{
-          maxWidth: 1200,
-          margin: '0 auto',
-          padding: '64px 20px',
-          background: 'linear-gradient(180deg, transparent, rgba(139, 92, 246, 0.06), transparent)',
-        }}
-      >
+      <section id="how-it-works" style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 20px' }}>
         <FadeIn>
           <h2
             style={{
@@ -431,14 +586,14 @@ export default function HomePage() {
             Scan. Know. Connect.
           </h2>
           <p style={{ textAlign: 'center', color: COLORS.muted, margin: '0 0 48px' }}>
-            Four steps from handshake to inbox
+            Five steps from handshake to CRM
           </p>
         </FadeIn>
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 24,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: 20,
           }}
         >
           {STEPS.map((step, i) => (
@@ -448,35 +603,73 @@ export default function HomePage() {
                   textAlign: 'center',
                   padding: 28,
                   borderRadius: 16,
-                  background: 'rgba(20, 22, 40, 0.6)',
-                  border: '1px solid rgba(0, 212, 212, 0.15)',
+                  background: COLORS.card,
+                  border: `1px solid ${COLORS.border}`,
                   position: 'relative',
+                  height: '100%',
                 }}
               >
                 <span
                   style={{
                     position: 'absolute',
-                    top: 12,
-                    right: 16,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: COLORS.purple,
-                    opacity: 0.6,
+                    top: 14,
+                    right: 18,
+                    fontSize: 22,
+                    fontWeight: 900,
+                    ...gradientText,
                   }}
                 >
                   {i + 1}
                 </span>
                 <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}>{step.icon}</span>
-                <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700 }}>{step.title}</h3>
-                <p style={{ margin: 0, fontSize: 14, color: COLORS.muted, lineHeight: 1.5 }}>{step.desc}</p>
+                <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 700 }}>{step.title}</h3>
+                <p style={{ margin: 0, fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>
+                  {step.desc}
+                </p>
               </div>
             </FadeIn>
           ))}
         </div>
       </section>
 
+      {/* DIGITAL CARD / QR — reverse lead capture */}
+      <section id="digital-card" style={{ maxWidth: 1000, margin: '0 auto', padding: '64px 20px' }}>
+        <FadeIn>
+          <div
+            style={{
+              background: COLORS.card,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: 24,
+              padding: 'clamp(28px, 5vw, 48px)',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: 40,
+              alignItems: 'center',
+            }}
+          >
+            <QrMockup />
+            <div>
+              <h2
+                style={{
+                  fontSize: 'clamp(1.5rem, 4vw, 2.25rem)',
+                  fontWeight: 800,
+                  margin: '0 0 16px',
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                Your digital card. <span style={gradientText}>Their lead.</span>
+              </h2>
+              <p style={{ fontSize: 16, lineHeight: 1.7, color: COLORS.muted, margin: 0 }}>
+                Share your QR code → they scan → they leave their contact → you get a new lead
+                automatically. Every handshake becomes a two-way connection.
+              </p>
+            </div>
+          </div>
+        </FadeIn>
+      </section>
+
       {/* PRICING */}
-      <section id="pricing" style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 20px' }}>
+      <section id="pricing" style={{ maxWidth: 1280, margin: '0 auto', padding: '64px 20px' }}>
         <FadeIn>
           <h2
             style={{
@@ -492,8 +685,8 @@ export default function HomePage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: 20,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 18,
             alignItems: 'stretch',
           }}
         >
@@ -501,10 +694,14 @@ export default function HomePage() {
             <FadeIn key={plan.name}>
               <div
                 style={{
-                  padding: 28,
+                  padding: 26,
                   borderRadius: 16,
-                  background: plan.highlight ? 'linear-gradient(160deg, rgba(240,25,125,0.12), rgba(139,92,246,0.08))' : COLORS.surface,
-                  border: plan.highlight ? '1px solid rgba(240, 25, 125, 0.4)' : '1px solid rgba(139, 92, 246, 0.15)',
+                  background: plan.highlight
+                    ? 'linear-gradient(160deg, rgba(240,25,125,0.12), rgba(0,212,212,0.08))'
+                    : COLORS.card,
+                  border: plan.highlight
+                    ? '1px solid rgba(240, 25, 125, 0.4)'
+                    : `1px solid ${COLORS.border}`,
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
@@ -523,7 +720,7 @@ export default function HomePage() {
                       fontWeight: 700,
                       padding: '4px 12px',
                       borderRadius: 999,
-                      background: 'linear-gradient(135deg, #f0197d, #8b5cf6)',
+                      background: GRADIENT,
                       color: '#fff',
                       whiteSpace: 'nowrap',
                     }}
@@ -531,12 +728,22 @@ export default function HomePage() {
                     {plan.badge}
                   </span>
                 )}
-                <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: COLORS.cyan, letterSpacing: '0.08em' }}>
+                <p
+                  style={{
+                    margin: '0 0 4px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: COLORS.cyan,
+                    letterSpacing: '0.08em',
+                  }}
+                >
                   {plan.name}
                 </p>
                 <p style={{ margin: '0 0 20px', fontSize: 32, fontWeight: 800 }}>
                   {plan.price}
-                  {plan.period && <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.muted }}>{plan.period}</span>}
+                  <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.muted }}>
+                    {plan.period}
+                  </span>
                 </p>
                 <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', flex: 1 }}>
                   {plan.features.map((f) => (
@@ -556,14 +763,14 @@ export default function HomePage() {
                   ))}
                 </ul>
                 <Link
-                  href="/register"
+                  href="/pricing"
                   style={{
-                    ...btnPink,
+                    ...btnGradient,
                     width: '100%',
                     textAlign: 'center',
-                    background: plan.highlight
-                      ? 'linear-gradient(135deg, #f0197d, #8b5cf6)'
-                      : 'rgba(0, 212, 212, 0.1)',
+                    padding: '12px 16px',
+                    fontSize: 14,
+                    background: plan.highlight ? GRADIENT : 'rgba(0, 212, 212, 0.1)',
                     color: plan.highlight ? '#fff' : COLORS.cyan,
                     border: plan.highlight ? 'none' : '1px solid rgba(0, 212, 212, 0.4)',
                     boxShadow: plan.highlight ? '0 4px 20px rgba(240, 25, 125, 0.35)' : 'none',
@@ -577,59 +784,43 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SOCIAL PROOF */}
-      <section id="testimonials" style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 20px' }}>
+      {/* SOCIAL PROOF / USE CASES */}
+      <section id="use-cases" style={{ maxWidth: 900, margin: '0 auto', padding: '64px 20px', textAlign: 'center' }}>
         <FadeIn>
           <p
             style={{
-              textAlign: 'center',
-              fontSize: 'clamp(1rem, 2.5vw, 1.25rem)',
-              color: COLORS.muted,
-              margin: '0 0 40px',
+              fontSize: 'clamp(1.1rem, 2.5vw, 1.35rem)',
+              color: COLORS.text,
+              fontWeight: 600,
+              lineHeight: 1.6,
+              margin: '0 0 28px',
             }}
           >
-            Join <strong style={{ color: COLORS.text }}>100+ sales professionals</strong> already using ABC
+            Built for founders and sales teams at trade shows, conferences, and B2B events.
           </p>
-        </FadeIn>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 20,
-          }}
-        >
-          {TESTIMONIALS.map((t) => (
-            <FadeIn key={t.name}>
-              <div
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 12 }}>
+            {USE_CASES.map((label) => (
+              <span
+                key={label}
                 style={{
-                  padding: 24,
-                  borderRadius: 16,
-                  background: COLORS.surface,
-                  border: '1px solid rgba(139, 92, 246, 0.12)',
-                  height: '100%',
+                  padding: '10px 20px',
+                  borderRadius: 999,
+                  background: COLORS.card,
+                  border: `1px solid ${COLORS.border}`,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: COLORS.text,
                 }}
               >
-                <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.65, color: COLORS.muted, fontStyle: 'italic' }}>
-                  &ldquo;{t.quote}&rdquo;
-                </p>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{t.name}</p>
-                <p style={{ margin: '4px 0 0', fontSize: 12, color: COLORS.cyan }}>{t.role}</p>
-              </div>
-            </FadeIn>
-          ))}
-        </div>
+                {label}
+              </span>
+            ))}
+          </div>
+        </FadeIn>
       </section>
 
       {/* FINAL CTA */}
-      <section
-        id="cta"
-        style={{
-          maxWidth: 900,
-          margin: '0 auto',
-          padding: '80px 20px',
-          textAlign: 'center',
-        }}
-      >
+      <section id="cta" style={{ maxWidth: 900, margin: '0 auto', padding: '64px 20px 80px', textAlign: 'center' }}>
         <FadeIn>
           <h2
             style={{
@@ -641,33 +832,22 @@ export default function HomePage() {
           >
             Never lose a contact again.
           </h2>
-          <Link
-            href="/register"
-            style={{
-              ...btnPink,
-              fontSize: 16,
-              padding: '16px 32px',
-              borderRadius: 14,
-            }}
-          >
+          <Link href="/register" style={{ ...btnGradient, fontSize: 16, padding: '16px 32px', borderRadius: 14 }}>
             Start scanning for free →
           </Link>
-          <p style={{ margin: '20px 0 0', fontSize: 13, color: COLORS.muted }}>
-            Beta access • Limited spots
-          </p>
         </FadeIn>
       </section>
 
       {/* FOOTER */}
       <footer
         style={{
-          borderTop: '1px solid rgba(139, 92, 246, 0.12)',
+          borderTop: `1px solid ${COLORS.border}`,
           padding: '40px 20px',
           textAlign: 'center',
         }}
       >
         <p style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600 }}>
-          ABC AI Business Card • Scan. Know. Connect.
+          ABC AI Business Card · Scan. Know. Connect.
         </p>
         <div
           style={{
@@ -678,19 +858,18 @@ export default function HomePage() {
             marginBottom: 16,
           }}
         >
-          {['Privacy', 'Terms', 'Contact'].map((label) => (
-            <a
-              key={label}
-              href="#"
-              style={{ color: COLORS.muted, fontSize: 13, textDecoration: 'none' }}
-              onClick={(e) => e.preventDefault()}
-            >
-              {label}
-            </a>
-          ))}
+          <Link href="/privacy" style={{ color: COLORS.muted, fontSize: 13, textDecoration: 'none' }}>
+            Privacy Policy
+          </Link>
+          <Link href="/terms" style={{ color: COLORS.muted, fontSize: 13, textDecoration: 'none' }}>
+            Terms
+          </Link>
+          <Link href="/pricing" style={{ color: COLORS.muted, fontSize: 13, textDecoration: 'none' }}>
+            Pricing
+          </Link>
         </div>
         <p style={{ margin: 0, fontSize: 12, color: COLORS.muted, opacity: 0.7 }}>
-          Built on APEXPO ecosystem
+          © 2026 abccard.io
         </p>
       </footer>
     </div>
