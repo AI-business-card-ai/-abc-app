@@ -35,7 +35,15 @@ export default function SettingsContent() {
         setError(loadError.message)
       }
       if (data) {
-        setProfile(normalizeAbcProfile(data as Partial<ABCProfile>, user.email))
+        const normalized = normalizeAbcProfile(data as Partial<ABCProfile>, user.email)
+        // user_name is a legacy column that used to store raw full names during
+        // onboarding; some rows may still hold a non-slug value. Treat those as
+        // unset so the form doesn't load a value that would immediately fail
+        // slug validation on the next save.
+        if (normalized.user_name && !/^[a-z0-9-]{3,30}$/.test(normalized.user_name)) {
+          normalized.user_name = ''
+        }
+        setProfile(normalized)
       }
     } catch (e) {
       console.error('Profile load exception:', e)
