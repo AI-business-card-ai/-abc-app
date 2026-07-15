@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation'
 import { createServerSupabase } from '@/lib/supabase'
 import CardNotFound from '@/components/public/CardNotFound'
 import DigitalCardClient from '@/components/public/DigitalCardClient'
@@ -8,23 +7,19 @@ export const metadata = {
   description: 'Save contact details or leave your info.',
 }
 
-type Props = { params: { userId: string } }
+type Props = { params: { username: string } }
 
-export default async function PublicCardPage({ params }: Props) {
+export default async function PublicCardByUsernamePage({ params }: Props) {
+  const username = decodeURIComponent(params.username).toLowerCase()
   const supabase = createServerSupabase()
 
   const { data: profile } = await supabase
     .from('abc_profiles')
-    .select('id, username, full_name, company, role, phone, email, linkedin_url')
-    .eq('id', params.userId)
+    .select('id, full_name, company, role, phone, email, linkedin_url')
+    .eq('username', username)
     .maybeSingle()
 
-  // Old printed QR codes keep working — forward to the canonical username URL
-  if (profile?.username) {
-    redirect(`/u/${profile.username}`)
-  }
-
-  if (!profile?.full_name && !profile?.email && !profile?.company) {
+  if (!profile || (!profile.full_name && !profile.email && !profile.company)) {
     return <CardNotFound />
   }
 

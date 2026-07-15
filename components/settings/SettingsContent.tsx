@@ -57,6 +57,12 @@ export default function SettingsContent() {
         return
       }
 
+      const username = (profile.username || '').trim().toLowerCase()
+      if (username && !/^[a-z0-9-]{3,30}$/.test(username)) {
+        setError('Username must be 3-30 characters: lowercase letters, numbers, and hyphens only')
+        return
+      }
+
       const rawStyle = profile.communication_style || 'direct'
       const communicationStyle = ['direct', 'formal', 'casual'].includes(rawStyle)
         ? rawStyle
@@ -64,6 +70,7 @@ export default function SettingsContent() {
 
       const dataToSave = {
         id: user.id,
+        username: username || null,
         full_name: profile.full_name || null,
         company: profile.company || null,
         role: profile.role || null,
@@ -101,7 +108,11 @@ export default function SettingsContent() {
 
       if (saveError) {
         console.error('Save error:', saveError)
-        setError(saveError.message)
+        if (saveError.code === '23505' && saveError.message.includes('username')) {
+          setError('This username is already taken')
+        } else {
+          setError(saveError.message)
+        }
         return
       }
 
@@ -253,6 +264,20 @@ export default function SettingsContent() {
 
       <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>
         <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '16px' }}>YOUR CARD</div>
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '11px', color: '#00d4d4', marginBottom: '6px', letterSpacing: '0.08em' }}>Username</label>
+          <div style={{ display: 'flex', alignItems: 'center', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', overflow: 'hidden' }}>
+            <span style={{ padding: '10px 0 10px 14px', color: '#555555', fontSize: '13px', flexShrink: 0 }}>abccard.io/u/</span>
+            <input
+              value={profile.username || ''}
+              onChange={(e) => setProfile({ ...profile, username: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+              placeholder="janesmith"
+              maxLength={30}
+              style={{ flex: 1, background: 'transparent', border: 'none', padding: '10px 14px 10px 2px', color: '#ffffff', fontSize: '13px', outline: 'none' }}
+            />
+          </div>
+          <p style={{ fontSize: '11px', color: '#555555', margin: '6px 0 0' }}>3-30 characters: lowercase letters, numbers, hyphens. Used for your public card link.</p>
+        </div>
         {field('Full Name', 'full_name', 'Jane Smith')}
         {field('Company', 'company', 'Apexpo')}
         {field('Role', 'role', 'CEO')}

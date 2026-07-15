@@ -179,6 +179,7 @@ export interface FollowupSequence {
 
 export interface ABCProfile {
   id: string
+  username: string | null
   full_name: string | null
   company: string | null
   role: string | null

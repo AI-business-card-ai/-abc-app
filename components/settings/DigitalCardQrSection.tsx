@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import { createClientComponent } from '@/lib/supabase'
 
-const CARD_BASE_URL = 'https://abccard.io/card'
+const SITE_URL = 'https://abccard.io'
 
 export default function DigitalCardQrSection() {
   const supabase = useMemo(() => createClientComponent(), [])
@@ -19,7 +19,16 @@ export default function DigitalCardQrSection() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !active) return
 
-      const url = `${CARD_BASE_URL}/${user.id}`
+      const { data: profileRow } = await supabase
+        .from('abc_profiles')
+        .select('username')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (!active) return
+
+      const url = profileRow?.username
+        ? `${SITE_URL}/u/${profileRow.username}`
+        : `${SITE_URL}/card/${user.id}`
       setCardUrl(url)
 
       try {

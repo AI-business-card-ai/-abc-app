@@ -52,6 +52,7 @@ export async function middleware(req: NextRequest) {
     ONBOARDING_EXEMPT.includes(pathname) ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/card') ||
+    pathname.startsWith('/u/') ||
     pathname.startsWith('/api') ||
     pathname.startsWith('/_next')
 
