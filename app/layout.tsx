@@ -14,10 +14,13 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'ABC',
   },
+  icons: {
+    apple: '/icons/icon-192.png',
+  },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0d0f1a',
+  themeColor: '#0f0f0f',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
