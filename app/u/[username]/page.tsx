@@ -12,6 +12,15 @@ async function getProfile(username: string) {
     .select('id, full_name, company, role, phone, email, linkedin_url, website, product_description, goals')
     .eq('user_name', decodeURIComponent(username).toLowerCase())
     .maybeSingle()
+  console.log('CARD_DEBUG', {
+    username: decodeURIComponent(username).toLowerCase(),
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    serviceKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length || 0,
+    hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    profileFound: !!profile,
+    errorMessage: error?.message || null,
+    errorCode: error?.code || null,
+  })
   if (error) console.error('getProfile error:', error)
   return profile
 }
