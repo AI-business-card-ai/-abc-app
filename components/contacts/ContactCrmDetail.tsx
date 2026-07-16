@@ -1,23 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
 import ActivityTimeline from '@/components/crm/ActivityTimeline'
 import TagPills from '@/components/crm/TagPills'
 import { PIPELINE_STAGES } from '@/lib/pipeline'
 import { getStatusColor } from '@/lib/pipeline-ai'
-import { logCrmActivity, logDealOutcome, logMessageSent, updateContact } from '@/lib/crm-client'
-import { useOutreachSendConfirm } from '@/lib/hooks/useOutreachSendConfirm'
-import SendConfirmDialog from '@/components/outreach/SendConfirmDialog'
+import { logCrmActivity, logDealOutcome, updateContact } from '@/lib/crm-client'
 import { exportToHubSpot, exportToSalesforce } from '@/lib/crm-export'
-import { GOOGLE_RECONNECT_CODE } from '@/lib/google-gmail-auth'
-import {
-  openEmailComposer,
-  openLinkedInComposer,
-  openWhatsAppComposer,
-} from '@/lib/outreach-composers'
 import type { ContactEvent, ScannedContact, SpeakingEngagement } from '@/lib/types'
 import CrmMissingFieldsBanner from '@/components/contact/CrmMissingFieldsBanner'
 import CrmExportEventModal from '@/components/contact/CrmExportEventModal'
@@ -146,48 +137,6 @@ function formatDate(value: string | null | undefined) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-const VARIANT_STYLES = ['Direct', 'Professional', 'Casual'] as const
-type Platform = 'linkedin' | 'email' | 'whatsapp'
-
-type MessageVariant = {
-  id: number
-  style: (typeof VARIANT_STYLES)[number]
-  text: string
-  platforms: Record<Platform, boolean>
-}
-
-function buildVariantsFromContact(contact: ScannedContact): MessageVariant[] {
-  const texts = [
-    contact.message_linkedin || '',
-    contact.message_email || '',
-    contact.message_whatsapp || '',
-  ]
-  const fallback = texts.find((t) => t.trim()) || ''
-
-  return VARIANT_STYLES.map((style, index) => ({
-    id: index + 1,
-    style,
-    text: texts[index]?.trim() ? texts[index] : fallback,
-    platforms: {
-      linkedin: index === 0,
-      email: index === 1,
-      whatsapp: index === 2,
-    },
-  }))
-}
-
-function autoResizeTextarea(el: HTMLTextAreaElement | null) {
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = `${el.scrollHeight}px`
-}
-
-const PLATFORM_META: { key: Platform; label: string; color: string }[] = [
-  { key: 'linkedin', label: 'LinkedIn', color: '#0077B5' },
-  { key: 'email', label: 'Email', color: '#f0197d' },
-  { key: 'whatsapp', label: 'WhatsApp', color: '#25D366' },
-]
-
 function Toast({ message }: { message: string }) {
   return (
     <div
@@ -245,7 +194,6 @@ export default function ContactCrmDetailPage() {
   const [activityKey, setActivityKey] = useState(0)
   const [noteText, setNoteText] = useState('')
   const [toast, setToast] = useState<string | null>(null)
-  const [variants, setVariants] = useState<MessageVariant[]>([])
 
   const [dealValue, setDealValue] = useState('')
   const [closeDate, setCloseDate] = useState('')
@@ -255,24 +203,11 @@ export default function ContactCrmDetailPage() {
   const [leadStatus, setLeadStatus] = useState('New')
   const [rating, setRating] = useState('Warm')
   const [deleteHover, setDeleteHover] = useState(false)
-  const [googleConnected, setGoogleConnected] = useState(false)
-  const [sendingGmail, setSendingGmail] = useState(false)
-  const [gmailReconnectError, setGmailReconnectError] = useState<string | null>(null)
   const [exportModalTarget, setExportModalTarget] = useState<'salesforce' | 'hubspot' | null>(null)
-  const [showSendBar, setShowSendBar] = useState(true)
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
-  }, [])
-
-  const showToastSequence = useCallback((messages: string[]) => {
-    messages.forEach((msg, index) => {
-      setTimeout(() => {
-        setToast(msg)
-        setTimeout(() => setToast(null), 2800)
-      }, index * 3000)
-    })
   }, [])
 
   const syncDealForm = useCallback((c: ScannedContact) => {
@@ -290,32 +225,6 @@ export default function ContactCrmDetailPage() {
     syncDealForm(c)
   }, [syncDealForm])
 
-  const { dialogPending, enqueuePendingSend, confirmSent, dismissNotSent } = useOutreachSendConfirm(
-    async (pending) => {
-      const result = await logMessageSent({
-        contactId: pending.contactId,
-        channel: pending.channel,
-        messageText: pending.messageText,
-      })
-      if (result.contact) applyContact(result.contact as ScannedContact)
-      setActivityKey((k) => k + 1)
-      showToast('✓ Marked as sent')
-    }
-  )
-
-  const queueSendConfirmation = useCallback(
-    (channel: 'LinkedIn' | 'Email' | 'WhatsApp', messageText: string) => {
-      if (!contact) return
-      enqueuePendingSend({
-        contactId: contact.id,
-        contactName: contact.name || 'this contact',
-        channel,
-        messageText,
-      })
-    },
-    [contact, enqueuePendingSend]
-  )
-
   useEffect(() => {
     let active = true
     ;(async () => {
@@ -328,22 +237,14 @@ export default function ContactCrmDetailPage() {
           return
         }
 
-        const [{ data, error }, { data: profile }] = await Promise.all([
-          supabase
-            .from('scanned_contacts')
-            .select('*')
-            .eq('id', id)
-            .eq('user_id', user.id)
-            .maybeSingle(),
-          supabase
-            .from('abc_profiles')
-            .select('google_connected')
-            .eq('id', user.id)
-            .maybeSingle(),
-        ])
+        const { data, error } = await supabase
+          .from('scanned_contacts')
+          .select('*')
+          .eq('id', id)
+          .eq('user_id', user.id)
+          .maybeSingle()
 
         if (!active) return
-        if (active) setGoogleConnected(Boolean(profile?.google_connected))
         if (error) throw error
         if (!data) {
           setNotFound(true)
@@ -362,212 +263,6 @@ export default function ContactCrmDetailPage() {
     })()
     return () => { active = false }
   }, [id, router, supabase, syncDealForm])
-
-  useEffect(() => {
-    if (contact) setVariants(buildVariantsFromContact(contact))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-init when message fields change, not whole contact object
-  }, [contact?.id, contact?.message_linkedin, contact?.message_email, contact?.message_whatsapp])
-
-  useEffect(() => {
-    setShowSendBar(true)
-  }, [contact?.id])
-
-  const selectedSendCount = useMemo(
-    () => variants.reduce(
-      (count, variant) =>
-        count
-        + (variant.platforms.linkedin ? 1 : 0)
-        + (variant.platforms.email ? 1 : 0)
-        + (variant.platforms.whatsapp ? 1 : 0),
-      0
-    ),
-    [variants]
-  )
-
-  function updateVariantText(id: number, text: string) {
-    setVariants((prev) => prev.map((v) => (v.id === id ? { ...v, text } : v)))
-  }
-
-  function toggleVariantPlatform(id: number, platform: Platform) {
-    setVariants((prev) =>
-      prev.map((v) =>
-        v.id === id
-          ? { ...v, platforms: { ...v.platforms, [platform]: !v.platforms[platform] } }
-          : v
-      )
-    )
-  }
-
-  function handleSendSelected() {
-    void handleSendSelectedAsync()
-  }
-
-  type SentChannel = {
-    channel: 'LinkedIn' | 'Email' | 'WhatsApp' | 'Gmail'
-    text: string
-    toast: string
-    skipLog?: boolean
-  }
-
-  async function handleSendSelectedAsync() {
-    if (!contact) return
-    const emailSubject = contact.email_subject || 'Following up'
-    const whatsappPhone = contact.phone || contact.mobile_phone || contact.whatsapp_number || ''
-    const pendingLogs: SentChannel[] = []
-    const gmailJobs: Array<{ subject: string; body: string }> = []
-
-    for (const variant of variants) {
-      const text = variant.text.trim()
-      if (!text) continue
-
-      if (variant.platforms.email) {
-        if (contact.email) {
-          if (googleConnected) {
-            gmailJobs.push({ subject: emailSubject, body: text })
-          } else if (openEmailComposer(contact.email, emailSubject, text)) {
-            pendingLogs.push({ channel: 'Email', text, toast: 'Email opened ✓' })
-          }
-        }
-      }
-
-      if (variant.platforms.whatsapp) {
-        if (whatsappPhone && openWhatsAppComposer(whatsappPhone, text)) {
-          pendingLogs.push({ channel: 'WhatsApp', text, toast: 'WhatsApp opened ✓' })
-        }
-      }
-
-      if (variant.platforms.linkedin) {
-        if (contact.linkedin_url) {
-          const opened = await openLinkedInComposer(contact.linkedin_url, text)
-          if (opened) {
-            pendingLogs.push({
-              channel: 'LinkedIn',
-              text,
-              toast: 'Message copied — paste it on their LinkedIn profile.',
-            })
-          }
-        }
-      }
-    }
-
-    for (const job of gmailJobs) {
-      const sent = await sendGmailViaApi(job.subject, job.body)
-      if (sent) {
-        pendingLogs.push({ channel: 'Gmail', text: job.body, toast: 'Email sent ✓', skipLog: true })
-      }
-    }
-
-    if (pendingLogs.length === 0) {
-      showToast('Select at least one platform with a message')
-      return
-    }
-
-    for (const entry of pendingLogs) {
-      if (entry.skipLog || entry.channel === 'Gmail') continue
-      queueSendConfirmation(entry.channel, entry.text)
-    }
-
-    setActivityKey((k) => k + 1)
-    showToastSequence(pendingLogs.map((entry) => entry.toast))
-  }
-
-  async function sendGmailViaApi(subject: string, body: string) {
-    if (!contact) return false
-    setSendingGmail(true)
-    setGmailReconnectError(null)
-    try {
-      const res = await fetch('/api/card/send-gmail', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contactId: contact.id,
-          subject,
-          body,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        if (json.code === GOOGLE_RECONNECT_CODE) {
-          setGoogleConnected(false)
-          setGmailReconnectError(json.error || 'Email session expired. Please reconnect in Settings.')
-        }
-        throw new Error(json.error || 'Email send failed')
-      }
-      if (json.contact) applyContact(json.contact as ScannedContact)
-      setActivityKey((k) => k + 1)
-      return true
-    } catch (e) {
-      console.error(e)
-      showToast(e instanceof Error ? e.message : 'Email send failed')
-      return false
-    } finally {
-      setSendingGmail(false)
-    }
-  }
-
-  async function handleVariantGmailSend(variantId: number) {
-    if (!contact?.email) {
-      showToast('Email address missing')
-      return
-    }
-    const variant = variants.find((v) => v.id === variantId)
-    const text = variant?.text.trim()
-    if (!text) {
-      showToast('No message to send')
-      return
-    }
-    const sent = await sendGmailViaApi(contact.email_subject || 'Following up', text)
-    if (sent) showToast('Email sent ✓')
-  }
-
-  async function handleVariantEmailOpen(variantId: number) {
-    if (!contact?.email) {
-      showToast('Email address missing')
-      return
-    }
-    const variant = variants.find((v) => v.id === variantId)
-    const text = variant?.text.trim()
-    if (!text) {
-      showToast('No message to send')
-      return
-    }
-    const subject = contact.email_subject || 'Following up'
-    if (!openEmailComposer(contact.email, subject, text)) return
-    queueSendConfirmation('Email', text)
-    setActivityKey((k) => k + 1)
-    showToast('Email opened ✓')
-  }
-
-  async function handleQuickGmailSend() {
-    if (!contact?.email) {
-      showToast('Email address missing')
-      return
-    }
-    const text = variants.find((v) => v.text.trim())?.text.trim() || contact.message_email || ''
-    if (!text) {
-      showToast('No message to send')
-      return
-    }
-    const sent = await sendGmailViaApi(contact.email_subject || 'Following up', text)
-    if (sent) showToast('Email sent ✓')
-  }
-
-  async function handleQuickEmailOpen() {
-    if (!contact?.email) {
-      showToast('Email address missing')
-      return
-    }
-    const text = variants.find((v) => v.text.trim())?.text.trim() || contact.message_email || ''
-    if (!text) {
-      showToast('No message to send')
-      return
-    }
-    const subject = contact.email_subject || 'Following up'
-    if (!openEmailComposer(contact.email, subject, text)) return
-    queueSendConfirmation('Email', text)
-    setActivityKey((k) => k + 1)
-    showToast('Email opened ✓')
-  }
 
   function runExport(target: 'salesforce' | 'hubspot', c: ScannedContact) {
     if (target === 'salesforce') exportToSalesforce(c)
@@ -724,8 +419,6 @@ export default function ContactCrmDetailPage() {
   const past = Array.isArray(contact.events_past) ? contact.events_past : []
   const speaking = Array.isArray(contact.speaking_engagements) ? contact.speaking_engagements : []
 
-  const emailSubject = contact.email_subject || ''
-
   return (
     <div
       style={{
@@ -735,13 +428,31 @@ export default function ContactCrmDetailPage() {
         paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
       }}
     >
-      <button
-        type="button"
-        onClick={() => router.back()}
-        style={{ display: 'inline-block', marginBottom: '20px', color: '#00d4d4', fontSize: '14px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-      >
-        ← Back
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '20px' }}>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          style={{ color: '#00d4d4', fontSize: '14px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          ← Back
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push(`/chat/${contact.id}`)}
+          style={{
+            padding: '10px 18px',
+            borderRadius: '10px',
+            border: 'none',
+            background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+            color: '#ffffff',
+            fontSize: '13px',
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          💬 Open Chat
+        </button>
+      </div>
 
       <CrmMissingFieldsBanner contact={contact} />
 
@@ -843,206 +554,6 @@ export default function ContactCrmDetailPage() {
 
           <MatchScoreBreakdown contact={contact} score={score} />
 
-          <div style={CARD}>
-            <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>AI MESSAGES</div>
-            {gmailReconnectError && (
-              <div
-                style={{
-                  marginBottom: '12px',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(239,68,68,0.4)',
-                  background: 'rgba(239,68,68,0.08)',
-                  color: '#fca5a5',
-                  fontSize: '13px',
-                  lineHeight: 1.5,
-                }}
-              >
-                {gmailReconnectError}{' '}
-                <Link href="/settings" style={{ color: '#00d4d4', fontWeight: 700 }}>
-                  Reconnect Email →
-                </Link>
-              </div>
-            )}
-            {emailSubject && (
-              <div style={{ fontSize: '12px', color: '#999999', marginBottom: '12px' }}>
-                Email subject: <span style={{ color: '#ffffff' }}>{emailSubject}</span>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {variants.map((variant) => {
-                const anyChecked = variant.platforms.linkedin || variant.platforms.email || variant.platforms.whatsapp
-                const linkedinLen = variant.text.length
-                const whatsappLen = variant.text.length
-                const linkedinOver = linkedinLen > 300
-                const whatsappOver = whatsappLen > 160
-
-                return (
-                  <div
-                    key={variant.id}
-                    style={{
-                      background: '#1a1a1a',
-                      borderRadius: '12px',
-                      border: `1px solid ${anyChecked ? '#00d4d4' : '#2a2a2a'}`,
-                      padding: '16px',
-                      width: '100%',
-                    }}
-                  >
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#00d4d4', marginBottom: '10px' }}>
-                      Variant {variant.id} · {variant.style}
-                    </div>
-
-                    <textarea
-                      value={variant.text}
-                      onChange={(e) => {
-                        updateVariantText(variant.id, e.target.value)
-                        autoResizeTextarea(e.target)
-                      }}
-                      onFocus={(e) => autoResizeTextarea(e.target)}
-                      rows={3}
-                      placeholder="Edit your message…"
-                      style={{
-                        width: '100%',
-                        minHeight: '88px',
-                        resize: 'none',
-                        overflow: 'hidden',
-                        background: '#0f0f0f',
-                        border: '1px solid #2a2a2a',
-                        borderRadius: '8px',
-                        padding: '12px',
-                        color: '#ffffff',
-                        fontSize: '14px',
-                        lineHeight: 1.5,
-                        fontFamily: 'inherit',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '10px', fontSize: '11px' }}>
-                      <span style={{ color: linkedinOver ? '#ef4444' : '#555555' }}>
-                        LinkedIn: {linkedinLen}/300
-                      </span>
-                      <span style={{ color: whatsappOver ? '#ef4444' : '#555555' }}>
-                        WhatsApp: {whatsappLen}/160
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '10px',
-                        marginTop: '14px',
-                      }}
-                    >
-                      {PLATFORM_META.map(({ key, label, color }) => {
-                        const checked = variant.platforms[key]
-                        return (
-                          <label
-                            key={key}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '10px',
-                              minHeight: '44px',
-                              minWidth: '120px',
-                              padding: '8px 14px',
-                              borderRadius: '8px',
-                              border: `1px solid ${checked ? color : '#2a2a2a'}`,
-                              background: checked ? `${color}18` : 'transparent',
-                              color: checked ? color : '#999999',
-                              fontSize: '14px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              userSelect: 'none',
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleVariantPlatform(variant.id, key)}
-                              style={{
-                                width: '18px',
-                                height: '18px',
-                                accentColor: color,
-                                cursor: 'pointer',
-                              }}
-                            />
-                            {label}
-                          </label>
-                        )
-                      })}
-                    </div>
-
-                    {variant.platforms.email && contact.email && (
-                      <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {googleConnected ? (
-                          <>
-                            <button
-                              type="button"
-                              disabled={sendingGmail || !variant.text.trim()}
-                              onClick={() => void handleVariantGmailSend(variant.id)}
-                              style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: '10px',
-                                border: 'none',
-                                background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
-                                color: '#0f0f0f',
-                                fontWeight: 700,
-                                fontSize: '14px',
-                                cursor: sendingGmail ? 'wait' : 'pointer',
-                              }}
-                            >
-                              {sendingGmail ? 'Sending…' : 'Send via Email (1-click)'}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!variant.text.trim()}
-                              onClick={() => void handleVariantEmailOpen(variant.id)}
-                              style={{
-                                alignSelf: 'flex-start',
-                                padding: '6px 10px',
-                                borderRadius: '6px',
-                                border: '1px solid #2a2a2a',
-                                background: 'transparent',
-                                color: '#777777',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              Open in email app
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={!variant.text.trim()}
-                            onClick={() => void handleVariantEmailOpen(variant.id)}
-                            style={{
-                              alignSelf: 'flex-start',
-                              padding: '10px 14px',
-                              borderRadius: '8px',
-                              border: '1px solid #2a2a2a',
-                              background: '#242424',
-                              color: '#ffffff',
-                              fontSize: '13px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Open in email app
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
           {(contact.linkedin_headline || contact.linkedin_summary || posts.length > 0 || skills.length > 0) && (
             <div style={CARD}>
               <LinkedInMismatchBanner contact={contact} onUpdated={setContact} compact />
@@ -1142,6 +653,25 @@ export default function ContactCrmDetailPage() {
           </div>
 
           <div style={CARD}>
+            <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>COMMUNICATION</div>
+            <div style={{ fontSize: '13px', color: '#999999', lineHeight: 1.8 }}>
+              <div><strong style={{ color: '#ffffff' }}>Messages sent:</strong> {contact.messages_sent ?? 0}</div>
+              <div>
+                <strong style={{ color: '#ffffff' }}>Last message:</strong>{' '}
+                {contact.last_message_type
+                  ? `${contact.last_message_type} · ${formatDate(contact.last_message_date)}`
+                  : '—'}
+              </div>
+              <div>
+                <strong style={{ color: '#ffffff' }}>Response:</strong>{' '}
+                {contact.response_received || contact.reply_received
+                  ? <span style={{ color: '#22c55e' }}>✓ Yes</span>
+                  : <span style={{ color: '#999999' }}>✗ Not yet</span>}
+              </div>
+            </div>
+          </div>
+
+          <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>ACTIVITY TIMELINE</div>
             <ActivityTimeline key={activityKey} contactId={contact.id} />
             <div style={{ marginTop: '16px' }}>
@@ -1153,54 +683,7 @@ export default function ContactCrmDetailPage() {
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>QUICK ACTIONS</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <button type="button" onClick={() => router.push(`/contact/${contact.id}`)} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#00d4d4', color: '#0f0f0f', fontWeight: 700, cursor: 'pointer' }}>Send Follow-up</button>
-              {contact.email && (
-                googleConnected ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={sendingGmail}
-                      onClick={() => void handleQuickGmailSend()}
-                      style={{
-                        padding: '12px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
-                        color: '#0f0f0f',
-                        fontWeight: 700,
-                        cursor: sendingGmail ? 'wait' : 'pointer',
-                        fontSize: '13px',
-                      }}
-                    >
-                      {sendingGmail ? 'Sending…' : 'Send via Email (1-click)'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleQuickEmailOpen}
-                      style={{
-                        alignSelf: 'flex-start',
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        border: '1px solid #2a2a2a',
-                        background: 'transparent',
-                        color: '#777777',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Open in email app
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleQuickEmailOpen}
-                    style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
-                  >
-                    Open in email app
-                  </button>
-                )
-              )}
+              <button type="button" onClick={() => router.push(`/chat/${contact.id}`)} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#00d4d4', color: '#0f0f0f', fontWeight: 700, cursor: 'pointer' }}>💬 Open Chat</button>
               <button type="button" onClick={() => showToast('Meeting scheduler coming soon')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer' }}>Schedule Meeting</button>
               <button type="button" onClick={() => handleExportClick('salesforce')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to Salesforce</button>
               <button type="button" onClick={() => handleExportClick('hubspot')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to HubSpot</button>
@@ -1231,77 +714,7 @@ export default function ContactCrmDetailPage() {
         </div>
       </div>
 
-      {showSendBar && selectedSendCount > 0 && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 'calc(84px + env(safe-area-inset-bottom, 0px))',
-            right: 16,
-            zIndex: 95,
-            display: 'flex',
-            alignItems: 'center',
-            maxWidth: 140,
-            height: 44,
-            borderRadius: 999,
-            background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
-            boxShadow: '0 4px 20px rgba(240, 25, 125, 0.35)',
-            overflow: 'hidden',
-          }}
-        >
-          <button
-            type="button"
-            disabled={sendingGmail}
-            onClick={handleSendSelected}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              height: '100%',
-              border: 'none',
-              background: 'transparent',
-              color: '#0f0f0f',
-              fontSize: '13px',
-              fontWeight: 800,
-              cursor: sendingGmail ? 'wait' : 'pointer',
-              padding: '0 8px 0 14px',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {sendingGmail ? 'Sending…' : `Send (${selectedSendCount})`}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowSendBar(false)}
-            aria-label="Dismiss send bar"
-            style={{
-              flexShrink: 0,
-              width: 32,
-              height: 32,
-              marginRight: 6,
-              borderRadius: '50%',
-              border: 'none',
-              background: 'rgba(15, 15, 15, 0.25)',
-              color: '#0f0f0f',
-              fontSize: '16px',
-              fontWeight: 700,
-              lineHeight: 1,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       {toast && <Toast message={toast} />}
-
-      <SendConfirmDialog
-        pending={dialogPending}
-        onConfirm={() => void confirmSent()}
-        onDismiss={dismissNotSent}
-      />
     </div>
   )
 }

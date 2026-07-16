@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
 import MessageComposer from '@/components/chat/MessageComposer'
+import FollowupSchedule from '@/components/chat/FollowupSchedule'
 import type { FollowupSequence, ScannedContact } from '@/lib/types'
 
 type Channel = 'linkedin' | 'email' | 'whatsapp'
@@ -100,6 +101,10 @@ export default function ChatDetailPage() {
     [contact, sequences]
   )
 
+  const handleSequenceUpdated = useCallback((row: FollowupSequence) => {
+    setSequences((prev) => prev.map((s) => (s.id === row.id ? row : s)))
+  }, [])
+
   if (loading) {
     return (
       <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f0f' }}>
@@ -160,6 +165,9 @@ export default function ChatDetailPage() {
             </p>
           </div>
         </div>
+
+        {/* SCHEDULED FOLLOW-UPS */}
+        <FollowupSchedule sequences={sequences} onSequenceUpdated={handleSequenceUpdated} />
 
         {/* SENT MESSAGE HISTORY */}
         {history.length > 0 && (
