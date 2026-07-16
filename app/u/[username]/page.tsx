@@ -7,11 +7,12 @@ type Props = { params: { username: string } }
 
 async function getProfile(username: string) {
   const supabase = createServerSupabase()
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from('abc_profiles')
     .select('id, full_name, company, role, phone, email, linkedin_url, website, product_description, goals')
     .eq('user_name', decodeURIComponent(username).toLowerCase())
     .maybeSingle()
+  if (error) console.error('getProfile error:', error)
   return profile
 }
 
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PublicCardByUsernamePage({ params }: Props) {
   const profile = await getProfile(params.username)
 
-  if (!profile || (!profile.full_name && !profile.email && !profile.company)) {
+  if (!profile) {
     return <CardNotFound />
   }
 

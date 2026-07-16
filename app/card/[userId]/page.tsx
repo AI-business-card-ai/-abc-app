@@ -8,11 +8,12 @@ type Props = { params: { userId: string } }
 
 async function getProfile(userId: string) {
   const supabase = createServerSupabase()
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from('abc_profiles')
     .select('id, user_name, full_name, company, role, phone, email, linkedin_url, website, product_description, goals')
     .eq('id', userId)
     .maybeSingle()
+  if (error) console.error('getProfile error:', error)
   return profile
 }
 
@@ -35,7 +36,7 @@ export default async function PublicCardPage({ params }: Props) {
     redirect(`/u/${profile.user_name}`)
   }
 
-  if (!profile?.full_name && !profile?.email && !profile?.company) {
+  if (!profile) {
     return <CardNotFound />
   }
 
