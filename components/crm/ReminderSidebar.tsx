@@ -87,7 +87,7 @@ export default function ReminderSidebar({ variant = 'sidebar' }: Props) {
               </div>
               <button
                 type="button"
-                onClick={() => router.push('/contact/' + c.id)}
+                onClick={() => router.push('/contacts/' + c.id)}
                 className="text-xs font-semibold text-left min-h-[44px] rounded-lg px-3 py-2"
                 style={{ background: 'rgba(0,212,212,0.1)', color: '#00d4d4', border: '1px solid rgba(0,212,212,0.25)' }}
               >

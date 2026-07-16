@@ -129,7 +129,7 @@ export async function sendReverseLeadNotification(opts: {
   contactId: string
 }) {
   const { to, ownerName, contactName, company, context, contactId } = opts
-  const contactUrl = `${appUrl}/contact/${contactId}`
+  const contactUrl = `${appUrl}/contacts/${contactId}`
 
   await resend.emails.send({
     from: 'ABC AI Business Card <hello@abccard.io>',

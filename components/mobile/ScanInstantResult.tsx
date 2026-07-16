@@ -78,7 +78,7 @@ export default function ScanInstantResult({ contact, previewUrl, onScanAnother }
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={() => router.push('/contact/' + contact.id)}
+          onClick={() => router.push('/contacts/' + contact.id)}
           className="flex-1 rounded-xl py-3 text-sm font-semibold text-white"
           style={{ background: 'linear-gradient(135deg, #00d4d4, #8b5cf6)' }}
         >

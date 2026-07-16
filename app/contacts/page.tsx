@@ -332,7 +332,7 @@ export default function ContactsPage() {
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => router.push('/contact/' + c.id)}
+                    onClick={() => router.push('/contacts/' + c.id)}
                     className="text-left rounded-2xl p-4 transition-colors hover:bg-[#1a1a2e]"
                     style={{ background: '#12121a', border: '1px solid rgba(255,255,255,0.08)' }}
                   >

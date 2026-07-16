@@ -108,7 +108,7 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
         activityDetail: `Quick WhatsApp from contacts list — ${contact.name}`,
       })
     }
-    router.push('/contact/' + contact.id)
+    router.push('/contacts/' + contact.id)
   }
 
   const swipeHint =
@@ -143,11 +143,11 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
           setDeleteRevealed(false)
           return
         }
-        router.push('/contact/' + contact.id)
+        router.push('/contacts/' + contact.id)
       }}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && router.push('/contact/' + contact.id)}
+      onKeyDown={(e) => e.key === 'Enter' && router.push('/contacts/' + contact.id)}
     >
       {swipeHint && (
         <div
