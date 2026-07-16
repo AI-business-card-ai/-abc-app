@@ -425,7 +425,7 @@ export default function ScanPage() {
           <button
             type="button"
             onClick={() => router.push('/contacts')}
-            className="absolute top-4 right-4 z-20 tap-target rounded-full p-2 md:top-3"
+            className="interactive absolute top-4 right-4 z-20 tap-target rounded-full p-2 md:top-3"
             style={{ background: 'rgba(15,15,15,0.6)' }}
             aria-label="Close"
           >
@@ -505,7 +505,7 @@ export default function ScanPage() {
                 whileTap={{ scale: 0.97 }}
                 type="button"
                 onClick={triggerCamera}
-                className="flex-[2] md:flex-none w-full rounded-xl text-white font-bold text-base min-h-[52px] md:min-h-[48px]"
+                className="interactive-primary flex-[2] md:flex-none w-full rounded-xl text-white font-bold text-base min-h-[52px] md:min-h-[48px]"
                 style={{
                   background: scanBlocked
                     ? '#2a2a2a'
@@ -526,7 +526,7 @@ export default function ScanPage() {
                   }
                   galleryInputRef.current?.click()
                 }}
-                className="flex-1 md:flex-none w-full rounded-xl font-semibold text-sm min-h-[52px] md:min-h-[44px]"
+                className="interactive flex-1 md:flex-none w-full rounded-xl font-semibold text-sm min-h-[52px] md:min-h-[44px]"
                 style={{
                   background: '#1a1a1a',
                   border: '1px solid #2a2a2a',
@@ -562,11 +562,11 @@ export default function ScanPage() {
             <button
               type="button"
               onClick={() => router.push('/pricing')}
-              className="glow-btn w-full py-3 rounded-xl text-white font-semibold mb-2"
+              className="glow-btn interactive-primary w-full py-3 rounded-xl text-white font-semibold mb-2"
             >
               View plans
             </button>
-            <button type="button" onClick={() => setShowPaywall(false)} className="text-sm" style={{ color: '#555555' }}>
+            <button type="button" onClick={() => setShowPaywall(false)} className="interactive text-sm" style={{ color: '#555555' }}>
               Maybe later
             </button>
           </div>

@@ -131,7 +131,7 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      className="relative z-10 rounded-2xl p-4 flex flex-col gap-3 touch-pan-y transition-transform"
+      className="interactive relative z-10 rounded-2xl p-4 flex flex-col gap-3 touch-pan-y transition-transform"
       style={{
         background: '#1a1a1a',
         border: '1px solid #2a2a2a',
@@ -218,7 +218,7 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
               key={c.key}
               type="button"
               onClick={() => openChannel(c.key)}
-              className="flex-1 rounded-full py-2.5 text-xs font-semibold min-h-[44px]"
+              className="interactive flex-1 rounded-full py-2.5 text-xs font-semibold min-h-[44px]"
               style={{ background: 'rgba(0, 212, 212, 0.1)', border: '1px solid rgba(0, 212, 212, 0.25)', color: '#00d4d4' }}
             >
               {c.label}

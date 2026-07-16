@@ -84,7 +84,7 @@ export default function MobileContactsList({ contacts, onRefresh, toast, onConta
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         placeholder="Search name, company, tags…"
-        className="w-full abc-input px-4 py-3 text-base min-h-[52px]"
+        className="w-full abc-input interactive-input px-4 py-3 text-base min-h-[52px]"
       />
 
       <div
@@ -96,7 +96,7 @@ export default function MobileContactsList({ contacts, onRefresh, toast, onConta
             key={chip.id}
             type="button"
             onClick={() => setFilter(chip.id)}
-            className="shrink-0 snap-start rounded-full px-4 py-2 text-xs font-semibold min-h-[44px]"
+            className="interactive shrink-0 snap-start rounded-full px-4 py-2 text-xs font-semibold min-h-[44px]"
             style={
               filter === chip.id
                 ? { background: 'linear-gradient(135deg, rgba(0,212,212,0.15), rgba(240,25,125,0.1))', color: '#00d4d4', border: '1px solid rgba(0,212,212,0.35)' }

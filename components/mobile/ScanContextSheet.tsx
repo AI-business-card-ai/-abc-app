@@ -197,14 +197,14 @@ export default function ScanContextSheet({ contact, waitingCount = 0, onSave, on
                     value={whereMet}
                     onChange={(e) => setWhereMet(e.target.value)}
                     placeholder="Trade show, meeting, intro…"
-                    className="flex-1 abc-input px-3 py-3 text-base min-h-[48px]"
+                    className="flex-1 abc-input interactive-input px-3 py-3 text-base min-h-[48px]"
                     autoComplete="off"
                   />
                   <button
                     type="button"
                     onClick={isRecording ? stopRecording : startRecording}
                     disabled={isTranscribing}
-                    className="tap-target shrink-0 flex items-center justify-center w-12 rounded-xl disabled:opacity-40"
+                    className="interactive tap-target shrink-0 flex items-center justify-center w-12 rounded-xl disabled:opacity-40"
                     style={{
                       background: 'rgba(240,25,125,0.12)',
                       border: '1px solid rgba(240,25,125,0.35)',
@@ -230,7 +230,7 @@ export default function ScanContextSheet({ contact, waitingCount = 0, onSave, on
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   placeholder="Topic, project, interest…"
-                  className="w-full abc-input px-3 py-3 text-base min-h-[48px]"
+                  className="w-full abc-input interactive-input px-3 py-3 text-base min-h-[48px]"
                   autoComplete="off"
                 />
               </div>
@@ -243,7 +243,7 @@ export default function ScanContextSheet({ contact, waitingCount = 0, onSave, on
                   value={followupNote}
                   onChange={(e) => setFollowupNote(e.target.value)}
                   placeholder="e.g. follow up next week…"
-                  className="w-full abc-input px-3 py-3 text-base min-h-[48px]"
+                  className="w-full abc-input interactive-input px-3 py-3 text-base min-h-[48px]"
                   autoComplete="off"
                 />
               </div>
@@ -260,7 +260,7 @@ export default function ScanContextSheet({ contact, waitingCount = 0, onSave, on
                         key={ch}
                         type="button"
                         onClick={() => toggleChannel(ch)}
-                        className="rounded-full px-4 py-2 text-xs font-semibold min-h-[40px] transition-colors"
+                        className="interactive rounded-full px-4 py-2 text-xs font-semibold min-h-[40px] transition-colors"
                         style={
                           active
                             ? {
@@ -282,7 +282,7 @@ export default function ScanContextSheet({ contact, waitingCount = 0, onSave, on
                   <button
                     type="button"
                     onClick={selectAllChannels}
-                    className="rounded-full px-4 py-2 text-xs font-semibold min-h-[40px]"
+                    className="interactive rounded-full px-4 py-2 text-xs font-semibold min-h-[40px]"
                     style={{
                       background: channels.size === ALL_OUTREACH_CHANNELS.length
                         ? 'rgba(0,212,212,0.15)'
@@ -316,7 +316,7 @@ export default function ScanContextSheet({ contact, waitingCount = 0, onSave, on
               type="button"
               disabled={saving}
               onClick={() => void handleSave()}
-              className="w-full rounded-xl text-white font-bold text-base min-h-[52px] disabled:opacity-60"
+              className="interactive-primary w-full rounded-xl text-white font-bold text-base min-h-[52px] disabled:opacity-60"
               style={{
                 background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
                 boxShadow: '0 4px 24px rgba(240,25,125,0.2)',
@@ -328,7 +328,7 @@ export default function ScanContextSheet({ contact, waitingCount = 0, onSave, on
               type="button"
               disabled={saving}
               onClick={onSkip}
-              className="w-full rounded-xl font-semibold text-sm min-h-[44px] disabled:opacity-60"
+              className="interactive w-full rounded-xl font-semibold text-sm min-h-[44px] disabled:opacity-60"
               style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#999999' }}
             >
               Skip

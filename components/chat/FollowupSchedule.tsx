@@ -86,6 +86,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
                 </span>
                 <button
                   type="button"
+                  className="interactive-primary"
                   disabled={isSending}
                   onClick={() => void sendNow(s)}
                   style={{

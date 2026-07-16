@@ -140,6 +140,7 @@ export default function ChatDetailPage() {
     >
       <button
         type="button"
+        className="interactive"
         onClick={() => router.back()}
         style={{ display: 'inline-block', marginBottom: '20px', color: '#00d4d4', fontSize: '14px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
       >

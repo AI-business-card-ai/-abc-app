@@ -112,6 +112,7 @@ export default function ProfilePage() {
         <p>Error: {error}</p>
         <button
           type="button"
+          className="interactive"
           onClick={() => setReloadKey((k) => k + 1)}
           style={{
             background: 'rgba(0,212,212,0.1)',

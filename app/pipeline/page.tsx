@@ -193,7 +193,7 @@ export default function PipelinePage() {
             <button
               type="button"
               onClick={() => setExportOpen((v) => !v)}
-              className="rounded-xl px-3 py-2 text-xs font-semibold min-h-[40px] flex items-center gap-2"
+              className="interactive rounded-xl px-3 py-2 text-xs font-semibold min-h-[40px] flex items-center gap-2"
               style={{
                 background: 'transparent',
                 border: '1px solid #2a2a2a',
@@ -222,10 +222,8 @@ export default function PipelinePage() {
                       key={opt.key}
                       type="button"
                       onClick={() => handleExportFormat(opt.key as 'general' | 'salesforce' | 'hubspot')}
-                      className="w-full text-left px-4 py-3 flex flex-col gap-0.5 transition-colors"
+                      className="interactive w-full text-left px-4 py-3 flex flex-col gap-0.5 transition-colors"
                       style={{ borderBottom: '1px solid #2a2a2a' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = '#2a2a2a')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
                       <span className="text-xs font-semibold" style={{ color: '#ffffff' }}>{opt.label}</span>
                       <span className="text-[10px]" style={{ color: '#666' }}>{opt.sub}</span>
@@ -270,7 +268,7 @@ export default function PipelinePage() {
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => router.push('/scan')}
-            className="touch-target rounded-xl px-5 text-sm font-semibold text-white"
+            className="interactive-primary touch-target rounded-xl px-5 text-sm font-semibold text-white"
             style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)' }}
           >
             Scan your first card

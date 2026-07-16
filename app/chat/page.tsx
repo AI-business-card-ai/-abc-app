@@ -149,6 +149,7 @@ export default function ChatListPage() {
             <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
               <Link
                 href="/scan"
+                className="interactive-primary"
                 style={{
                   padding: '12px 24px',
                   background: 'linear-gradient(135deg,#f0197d,#8b5cf6)',
@@ -165,6 +166,7 @@ export default function ChatListPage() {
               </Link>
               <Link
                 href="/contacts"
+                className="interactive"
                 style={{
                   padding: '12px 24px',
                   background: 'transparent',
@@ -198,7 +200,7 @@ export default function ChatListPage() {
                 key={c.id}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => router.push(`/chat/${c.id}`)}
-                className="abc-card flex items-center gap-3 p-3.5 text-left w-full transition-colors hover:border-primary/30"
+                className="interactive abc-card flex items-center gap-3 p-3.5 text-left w-full transition-colors hover:border-primary/30"
               >
                 <GradientAvatar initials={initials} size="md" />
                 <div className="flex-1 min-w-0">

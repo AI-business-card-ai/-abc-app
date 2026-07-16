@@ -353,6 +353,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
           <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em' }}>AI MESSAGES</div>
           <button
             type="button"
+            className="interactive"
             disabled={regenerating}
             onClick={() => void handleRegenerateMessages()}
             style={{
@@ -396,6 +397,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
             Email subject
           </label>
           <input
+            className="interactive-input"
             value={emailSubject}
             onChange={(e) => setEmailSubject(e.target.value)}
             placeholder="Following up"
@@ -427,6 +429,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
             return (
               <div
                 key={variant.id}
+                className="interactive"
                 style={{
                   background: '#1a1a1a',
                   borderRadius: '12px',
@@ -440,6 +443,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                 </div>
 
                 <textarea
+                  className="interactive-input"
                   value={variant.text}
                   onChange={(e) => {
                     updateVariantText(variant.id, e.target.value)
@@ -487,6 +491,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                     return (
                       <label
                         key={key}
+                        className="interactive"
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -527,6 +532,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                       <>
                         <button
                           type="button"
+                          className="interactive-primary"
                           disabled={sendingGmail || !variant.text.trim()}
                           onClick={() => void handleVariantGmailSend(variant.id)}
                           style={{
@@ -545,6 +551,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                         </button>
                         <button
                           type="button"
+                          className="interactive"
                           disabled={!variant.text.trim()}
                           onClick={() => void handleVariantEmailOpen(variant.id)}
                           style={{
@@ -564,6 +571,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                     ) : (
                       <button
                         type="button"
+                        className="interactive"
                         disabled={!variant.text.trim()}
                         onClick={() => void handleVariantEmailOpen(variant.id)}
                         style={{
@@ -591,6 +599,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
 
       {showSendBar && selectedSendCount > 0 && (
         <div
+          className="interactive-primary"
           style={{
             position: 'fixed',
             bottom: 'calc(84px + env(safe-area-inset-bottom, 0px))',
@@ -608,6 +617,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
         >
           <button
             type="button"
+            className="interactive"
             disabled={sendingGmail}
             onClick={handleSendSelected}
             style={{
@@ -628,6 +638,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
           </button>
           <button
             type="button"
+            className="interactive"
             onClick={() => setShowSendBar(false)}
             aria-label="Dismiss send bar"
             style={{

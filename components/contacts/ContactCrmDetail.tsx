@@ -257,7 +257,6 @@ export default function ContactCrmDetailPage() {
   const [nextStep, setNextStep] = useState('')
   const [leadStatus, setLeadStatus] = useState('New')
   const [rating, setRating] = useState('Warm')
-  const [deleteHover, setDeleteHover] = useState(false)
   const [exportModalTarget, setExportModalTarget] = useState<'salesforce' | 'hubspot' | null>(null)
 
   const showToast = useCallback((msg: string) => {
@@ -494,6 +493,7 @@ export default function ContactCrmDetailPage() {
         </button>
         <button
           type="button"
+          className="interactive-primary"
           onClick={() => router.push(`/chat/${contact.id}`)}
           style={{
             padding: '10px 18px',
@@ -658,6 +658,7 @@ export default function ContactCrmDetailPage() {
                 <button
                   key={s.id}
                   type="button"
+                  className="interactive"
                   disabled={saving}
                   onClick={() => setPipelineStage(s.id)}
                   style={{
@@ -681,14 +682,14 @@ export default function ContactCrmDetailPage() {
             <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '6px' }}>Lead status</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
               {LEAD_STATUSES.map((s) => (
-                <button key={s} type="button" onClick={() => setLeadStatus(s)} style={{ padding: '6px 10px', borderRadius: '999px', fontSize: '11px', border: leadStatus === s ? '1px solid #00d4d4' : '1px solid #2a2a2a', background: leadStatus === s ? 'rgba(0,212,212,0.1)' : 'transparent', color: leadStatus === s ? '#00d4d4' : '#555555', cursor: 'pointer' }}>{s}</button>
+                <button key={s} type="button" className="interactive" onClick={() => setLeadStatus(s)} style={{ padding: '6px 10px', borderRadius: '999px', fontSize: '11px', border: leadStatus === s ? '1px solid #00d4d4' : '1px solid #2a2a2a', background: leadStatus === s ? 'rgba(0,212,212,0.1)' : 'transparent', color: leadStatus === s ? '#00d4d4' : '#555555', cursor: 'pointer' }}>{s}</button>
               ))}
             </div>
 
             <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '6px' }}>Rating</label>
             <div style={{ display: 'flex', gap: '6px' }}>
               {RATINGS.map((r) => (
-                <button key={r.id} type="button" onClick={() => setRating(r.id)} style={{ flex: 1, padding: '8px', borderRadius: '8px', fontSize: '11px', border: rating === r.id ? '1px solid #f0197d' : '1px solid #2a2a2a', background: rating === r.id ? 'rgba(240,25,125,0.1)' : 'transparent', color: rating === r.id ? '#f0197d' : '#555555', cursor: 'pointer' }}>{r.label}</button>
+                <button key={r.id} type="button" className="interactive" onClick={() => setRating(r.id)} style={{ flex: 1, padding: '8px', borderRadius: '8px', fontSize: '11px', border: rating === r.id ? '1px solid #f0197d' : '1px solid #2a2a2a', background: rating === r.id ? 'rgba(240,25,125,0.1)' : 'transparent', color: rating === r.id ? '#f0197d' : '#555555', cursor: 'pointer' }}>{r.label}</button>
               ))}
             </div>
           </div>
@@ -696,16 +697,16 @@ export default function ContactCrmDetailPage() {
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#f0197d', letterSpacing: '0.08em', marginBottom: '12px' }}>DEAL INFORMATION</div>
             <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '4px' }}>Deal value ($)</label>
-            <input type="number" value={dealValue} onChange={(e) => setDealValue(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+            <input type="number" className="interactive-input" value={dealValue} onChange={(e) => setDealValue(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
             <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '4px' }}>Expected close date</label>
-            <input type="date" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+            <input type="date" className="interactive-input" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
             <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '4px' }}>Close probability (%)</label>
-            <input type="number" value={closeProb} onChange={(e) => setCloseProb(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+            <input type="number" className="interactive-input" value={closeProb} onChange={(e) => setCloseProb(e.target.value)} style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
             <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '4px' }}>Opportunity type</label>
-            <input value={oppType} onChange={(e) => setOppType(e.target.value)} placeholder="New Business, Renewal…" style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+            <input className="interactive-input" value={oppType} onChange={(e) => setOppType(e.target.value)} placeholder="New Business, Renewal…" style={{ width: '100%', marginBottom: '10px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
             <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '4px' }}>Next step</label>
-            <input value={nextStep} onChange={(e) => setNextStep(e.target.value)} style={{ width: '100%', marginBottom: '14px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
-            <button type="button" disabled={saving} onClick={saveDeal} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg,#f0197d,#00d4d4)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Update Deal</button>
+            <input className="interactive-input" value={nextStep} onChange={(e) => setNextStep(e.target.value)} style={{ width: '100%', marginBottom: '14px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+            <button type="button" className="interactive-primary" disabled={saving} onClick={saveDeal} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg,#f0197d,#00d4d4)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Update Deal</button>
           </div>
 
           <div style={CARD}>
@@ -731,32 +732,31 @@ export default function ContactCrmDetailPage() {
             <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>ACTIVITY TIMELINE</div>
             <ActivityTimeline key={activityKey} contactId={contact.id} />
             <div style={{ marginTop: '16px' }}>
-              <input value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Add a note…" style={{ width: '100%', marginBottom: '8px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
-              <button type="button" disabled={saving || !noteText.trim()} onClick={addNote} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #2a2a2a', background: 'transparent', color: '#00d4d4', fontSize: '12px', cursor: 'pointer' }}>Add Note</button>
+              <input className="interactive-input" value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Add a note…" style={{ width: '100%', marginBottom: '8px', background: '#242424', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '8px 12px', color: '#ffffff', fontSize: '13px' }} />
+              <button type="button" className="interactive" disabled={saving || !noteText.trim()} onClick={addNote} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #2a2a2a', background: 'transparent', color: '#00d4d4', fontSize: '12px', cursor: 'pointer' }}>Add Note</button>
             </div>
           </div>
 
           <div style={CARD}>
             <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '12px' }}>QUICK ACTIONS</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <button type="button" onClick={() => router.push(`/chat/${contact.id}`)} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#00d4d4', color: '#0f0f0f', fontWeight: 700, cursor: 'pointer' }}>💬 Open Chat</button>
-              <button type="button" onClick={() => showToast('Meeting scheduler coming soon')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer' }}>Schedule Meeting</button>
-              <button type="button" onClick={() => handleExportClick('salesforce')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to Salesforce</button>
-              <button type="button" onClick={() => handleExportClick('hubspot')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to HubSpot</button>
-              <button type="button" disabled={saving} onClick={() => markOutcome('won')} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#22c55e', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Mark as Won</button>
-              <button type="button" disabled={saving} onClick={() => markOutcome('lost')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 700, cursor: 'pointer' }}>Mark as Lost</button>
+              <button type="button" className="interactive-primary" onClick={() => router.push(`/chat/${contact.id}`)} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#00d4d4', color: '#0f0f0f', fontWeight: 700, cursor: 'pointer' }}>💬 Open Chat</button>
+              <button type="button" className="interactive" onClick={() => showToast('Meeting scheduler coming soon')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer' }}>Schedule Meeting</button>
+              <button type="button" className="interactive" onClick={() => handleExportClick('salesforce')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to Salesforce</button>
+              <button type="button" className="interactive" onClick={() => handleExportClick('hubspot')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#242424', color: '#ffffff', cursor: 'pointer', fontSize: '13px' }}>Export to HubSpot</button>
+              <button type="button" className="interactive-primary" disabled={saving} onClick={() => markOutcome('won')} style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#22c55e', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Mark as Won</button>
+              <button type="button" className="interactive" disabled={saving} onClick={() => markOutcome('lost')} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 700, cursor: 'pointer' }}>Mark as Lost</button>
               <button
                 type="button"
+                className="interactive"
                 disabled={saving}
                 onClick={deleteContact}
-                onMouseEnter={() => setDeleteHover(true)}
-                onMouseLeave={() => setDeleteHover(false)}
                 style={{
                   width: '100%',
                   padding: '12px',
                   borderRadius: '8px',
                   border: '1px solid #ef4444',
-                  background: deleteHover ? 'rgba(239,68,68,0.1)' : 'transparent',
+                  background: 'transparent',
                   color: '#ef4444',
                   fontWeight: 700,
                   cursor: saving ? 'not-allowed' : 'pointer',

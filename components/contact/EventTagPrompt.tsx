@@ -112,7 +112,7 @@ export default function EventTagPrompt({ contact, onContactUpdated }: Props) {
             }}
             disabled={saving}
             placeholder="Trade show, meeting, intro…"
-            className="w-full abc-input px-3 py-3 text-base min-h-[48px]"
+            className="w-full abc-input interactive-input px-3 py-3 text-base min-h-[48px]"
             autoComplete="off"
           />
           <div className="flex items-center justify-between mt-2 gap-2">

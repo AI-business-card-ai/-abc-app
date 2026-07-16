@@ -158,6 +158,7 @@ export default function SettingsContent() {
     <div style={{ marginBottom: '16px' }}>
       <label style={{ display: 'block', fontSize: '11px', color: '#00d4d4', marginBottom: '6px', letterSpacing: '0.08em' }}>{label}</label>
       <input
+        className="interactive-input"
         value={profile[key] || ''}
         onChange={(e) => setProfile({ ...profile, [key]: e.target.value })}
         placeholder={placeholder}
@@ -233,6 +234,7 @@ export default function SettingsContent() {
         {hasPaidPlan && hasStripeCustomer ? (
           <button
             type="button"
+            className="interactive"
             disabled={portalLoading}
             onClick={() => void openBillingPortal()}
             style={{
@@ -252,6 +254,7 @@ export default function SettingsContent() {
         ) : (
           <button
             type="button"
+            className="interactive-primary"
             onClick={() => router.push('/pricing')}
             style={{
               width: '100%',
@@ -299,6 +302,7 @@ export default function SettingsContent() {
         <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '16px' }}>YOUR GOALS</div>
         <label style={{ display: 'block', fontSize: '11px', color: '#555555', marginBottom: '6px' }}>What are you looking for?</label>
         <textarea
+          className="interactive-input"
           value={profile.goals || ''}
           onChange={(e) => setProfile({ ...profile, goals: e.target.value })}
           placeholder="e.g. Expo partners, B2B SaaS investors, EU market expansion..."
@@ -317,6 +321,7 @@ export default function SettingsContent() {
               key={style}
               role="button"
               tabIndex={0}
+              className="interactive"
               onClick={() => setProfile({ ...profile, communication_style: style.toLowerCase() })}
               onKeyDown={(e) => e.key === 'Enter' && setProfile({ ...profile, communication_style: style.toLowerCase() })}
               style={{ padding: '10px', borderRadius: '8px', border: `1px solid ${profile.communication_style === style.toLowerCase() ? '#00d4d4' : '#2a2a2a'}`, background: profile.communication_style === style.toLowerCase() ? 'rgba(0,212,212,0.1)' : '#242424', color: profile.communication_style === style.toLowerCase() ? '#00d4d4' : '#555555', fontSize: '13px', textAlign: 'center', cursor: 'pointer' }}
@@ -331,6 +336,7 @@ export default function SettingsContent() {
               key={lang}
               role="button"
               tabIndex={0}
+              className="interactive"
               onClick={() => setProfile({ ...profile, outreach_language: lang })}
               onKeyDown={(e) => e.key === 'Enter' && setProfile({ ...profile, outreach_language: lang })}
               style={{ padding: '10px', borderRadius: '8px', border: `1px solid ${profile.outreach_language === lang ? '#f0197d' : '#2a2a2a'}`, background: profile.outreach_language === lang ? 'rgba(240,25,125,0.1)' : '#242424', color: profile.outreach_language === lang ? '#f0197d' : '#555555', fontSize: '13px', textAlign: 'center', cursor: 'pointer' }}
@@ -355,6 +361,7 @@ export default function SettingsContent() {
               key={goal}
               role="button"
               tabIndex={0}
+              className="interactive"
               onClick={() => setProfile({ ...profile, message_goal: goal })}
               onKeyDown={(e) => e.key === 'Enter' && setProfile({ ...profile, message_goal: goal })}
               style={{
@@ -380,6 +387,7 @@ export default function SettingsContent() {
               key={len}
               role="button"
               tabIndex={0}
+              className="interactive"
               onClick={() => setProfile({ ...profile, message_length: len.toLowerCase() })}
               onKeyDown={(e) => e.key === 'Enter' && setProfile({ ...profile, message_length: len.toLowerCase() })}
               style={{
@@ -422,6 +430,7 @@ export default function SettingsContent() {
             key={item.key}
             role="button"
             tabIndex={0}
+            className="interactive"
             onClick={() => setProfile({ ...profile, [item.key]: !profile[item.key] })}
             onKeyDown={(e) => e.key === 'Enter' && setProfile({ ...profile, [item.key]: !profile[item.key] })}
             style={{
@@ -464,6 +473,7 @@ export default function SettingsContent() {
             + Custom research request
           </label>
           <input
+            className="interactive-input"
             value={profile.research_custom || ''}
             onChange={(e) => setProfile({ ...profile, research_custom: e.target.value })}
             placeholder="e.g. Find their booth number at Medica, check if they won any awards..."
@@ -474,6 +484,7 @@ export default function SettingsContent() {
 
       <button
         type="button"
+        className="interactive-primary"
         onClick={save}
         style={{ width: '100%', padding: '14px', background: saved ? '#00d4d4' : 'linear-gradient(135deg,#f0197d,#00d4d4)', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '15px', fontWeight: '700', cursor: 'pointer' }}
       >
@@ -488,6 +499,7 @@ export default function SettingsContent() {
       <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid #2a2a2a' }}>
         <button
           type="button"
+          className="interactive"
           onClick={() => void handleLogout()}
           disabled={loggingOut}
           style={{

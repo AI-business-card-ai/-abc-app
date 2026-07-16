@@ -232,6 +232,7 @@ export default function ContactsPage() {
           {contacts.length > 0 && (
             <button
               onClick={() => setShowExportModal(true)}
+              className="interactive"
               style={{
                 background: 'transparent',
                 border: '1px solid #1A0E30',
@@ -249,7 +250,7 @@ export default function ContactsPage() {
               ↓ Export
             </button>
           )}
-          <button aria-label="Search">
+          <button aria-label="Search" className="interactive rounded-full p-1">
             <IconSearch size={20} style={{ color: '#2A1A4A' }} />
           </button>
         </div>
@@ -284,7 +285,7 @@ export default function ContactsPage() {
           <button
             key={ev}
             onClick={() => setFilter(ev)}
-            className="px-3 py-1.5 rounded-full text-xs"
+            className="interactive px-3 py-1.5 rounded-full text-xs"
             style={chipStyle(filter === ev)}
           >
             {ev}
@@ -305,7 +306,7 @@ export default function ContactsPage() {
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => router.push('/scan')}
-            className="glow-btn rounded-xl text-white px-5 py-2.5 flex items-center gap-2"
+            className="glow-btn interactive-primary rounded-xl text-white px-5 py-2.5 flex items-center gap-2"
           >
             📷 Scan your first card
           </motion.button>
@@ -333,7 +334,7 @@ export default function ContactsPage() {
                     key={c.id}
                     type="button"
                     onClick={() => router.push('/contacts/' + c.id)}
-                    className="text-left rounded-2xl p-4 transition-colors hover:bg-[#1a1a2e]"
+                    className="interactive text-left rounded-2xl p-4 transition-colors hover:bg-[#1a1a2e]"
                     style={{ background: '#12121a', border: '1px solid rgba(255,255,255,0.08)' }}
                   >
                     <p className="font-bold truncate" style={{ color: '#F0EAFF' }}>
@@ -411,6 +412,7 @@ export default function ContactsPage() {
                 exportToCSV()
                 setTimeout(() => window.open('https://login.salesforce.com', '_blank'), 1000)
               }}
+              className="interactive-primary"
               style={{ width: '100%', padding: '12px 16px', background: '#00A1E0', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               ☁️ Export to Salesforce
@@ -422,6 +424,7 @@ export default function ContactsPage() {
                 exportToCSV()
                 setTimeout(() => window.open('https://app.hubspot.com', '_blank'), 1000)
               }}
+              className="interactive-primary"
               style={{ width: '100%', padding: '12px 16px', background: '#FF7A59', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               🧡 Export to HubSpot
@@ -433,6 +436,7 @@ export default function ContactsPage() {
                 exportToCSV()
                 setTimeout(() => window.open('https://app.pipedrive.com', '_blank'), 1000)
               }}
+              className="interactive-primary"
               style={{ width: '100%', padding: '12px 16px', background: '#267558', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               🟢 Export to Pipedrive
@@ -441,6 +445,7 @@ export default function ContactsPage() {
 
             <button
               onClick={() => exportToCSV()}
+              className="interactive-primary"
               style={{ width: '100%', padding: '12px 16px', background: '#1D6F42', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               📊 Export to Excel / Sheets
@@ -449,6 +454,7 @@ export default function ContactsPage() {
 
             <button
               onClick={() => exportToCSV()}
+              className="interactive-primary"
               style={{ width: '100%', padding: '12px 16px', background: 'linear-gradient(135deg, #7C3AED, #0EA5E9)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               ↓ Download CSV

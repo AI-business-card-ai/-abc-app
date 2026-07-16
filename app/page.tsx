@@ -445,6 +445,7 @@ export default function HomePage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Link
               href="/login"
+              className="interactive"
               style={{
                 color: COLORS.muted,
                 textDecoration: 'none',
@@ -455,7 +456,7 @@ export default function HomePage() {
             >
               Sign in
             </Link>
-            <Link href="/register" style={{ ...btnGradient, padding: '10px 20px', fontSize: 14 }}>
+            <Link href="/register" className="interactive-primary" style={{ ...btnGradient, padding: '10px 20px', fontSize: 14 }}>
               Start for free
             </Link>
           </div>
@@ -561,10 +562,10 @@ export default function HomePage() {
               message. You just approve.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-              <Link href="/register" style={btnGradient}>
+              <Link href="/register" className="interactive-primary" style={btnGradient}>
                 Start for free →
               </Link>
-              <button type="button" onClick={() => scrollTo('how-it-works')} style={btnOutline}>
+              <button type="button" className="interactive" onClick={() => scrollTo('how-it-works')} style={btnOutline}>
                 See how it works
               </button>
             </div>
@@ -761,6 +762,7 @@ export default function HomePage() {
           {PLANS.map((plan) => (
             <FadeIn key={plan.name}>
               <div
+                className="interactive"
                 style={{
                   padding: 26,
                   borderRadius: 16,
@@ -832,6 +834,7 @@ export default function HomePage() {
                 </ul>
                 <Link
                   href="/pricing"
+                  className="interactive-primary"
                   style={{
                     ...btnGradient,
                     width: '100%',
@@ -900,7 +903,7 @@ export default function HomePage() {
           >
             Never lose a contact again.
           </h2>
-          <Link href="/register" style={{ ...btnGradient, fontSize: 16, padding: '16px 32px', borderRadius: 14 }}>
+          <Link href="/register" className="interactive-primary" style={{ ...btnGradient, fontSize: 16, padding: '16px 32px', borderRadius: 14 }}>
             Start scanning for free →
           </Link>
         </FadeIn>
@@ -926,13 +929,13 @@ export default function HomePage() {
             marginBottom: 16,
           }}
         >
-          <Link href="/privacy" style={{ color: COLORS.muted, fontSize: 13, textDecoration: 'none' }}>
+          <Link href="/privacy" className="interactive" style={{ color: COLORS.muted, fontSize: 13, textDecoration: 'none' }}>
             Privacy Policy
           </Link>
-          <Link href="/terms" style={{ color: COLORS.muted, fontSize: 13, textDecoration: 'none' }}>
+          <Link href="/terms" className="interactive" style={{ color: COLORS.muted, fontSize: 13, textDecoration: 'none' }}>
             Terms
           </Link>
-          <Link href="/pricing" style={{ color: COLORS.muted, fontSize: 13, textDecoration: 'none' }}>
+          <Link href="/pricing" className="interactive" style={{ color: COLORS.muted, fontSize: 13, textDecoration: 'none' }}>
             Pricing
           </Link>
         </div>

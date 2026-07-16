@@ -475,6 +475,54 @@ a,
     0%, 100% { filter: brightness(1); }
     50% { filter: brightness(1.08); }
   }
+
+  /* App-wide interactive feedback */
+  .interactive {
+    transition: all 0.2s ease;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .interactive:hover {
+    border-color: #f0197d66 !important;
+    box-shadow: 0 0 16px rgba(240, 25, 125, 0.15) !important;
+    background-color: #202020 !important;
+  }
+  .interactive:active {
+    transform: scale(0.98);
+  }
+  .interactive:focus-visible {
+    outline: none;
+    border-color: #f0197d66 !important;
+    box-shadow: 0 0 0 3px rgba(240, 25, 125, 0.15) !important;
+  }
+
+  .interactive-primary {
+    transition: all 0.2s ease;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .interactive-primary:hover:not(:disabled) {
+    box-shadow: 0 0 24px rgba(240, 25, 125, 0.45) !important;
+    filter: brightness(1.1);
+  }
+  .interactive-primary:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .interactive-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(240, 25, 125, 0.25), 0 0 24px rgba(240, 25, 125, 0.45) !important;
+  }
+
+  .interactive-input {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .interactive-input:focus {
+    outline: none;
+    border-color: #f0197d !important;
+    box-shadow: 0 0 0 3px rgba(240, 25, 125, 0.15) !important;
+  }
 }
 
 ::-webkit-scrollbar { width: 4px; }

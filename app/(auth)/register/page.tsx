@@ -91,7 +91,7 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Name"
-                className="abc-input px-3 py-2.5 text-xs opacity-90"
+                className="abc-input interactive-input px-3 py-2.5 text-xs opacity-90"
               />
               <input
                 type="email"
@@ -99,7 +99,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
-                className="abc-input px-3 py-2.5 text-xs opacity-90"
+                className="abc-input interactive-input px-3 py-2.5 text-xs opacity-90"
               />
               <input
                 type="password"
@@ -108,7 +108,7 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password (min. 6 characters)"
-                className="abc-input px-3 py-2.5 text-xs opacity-90"
+                className="abc-input interactive-input px-3 py-2.5 text-xs opacity-90"
               />
 
               {error && (
@@ -133,7 +133,7 @@ export default function RegisterPage() {
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={loading}
-                className={`w-full rounded-lg text-xs font-medium py-2.5 transition-opacity ${
+                className={`interactive w-full rounded-lg text-xs font-medium py-2.5 transition-opacity ${
                   loading ? 'opacity-40' : 'opacity-80 hover:opacity-100'
                 }`}
                 style={{
@@ -150,7 +150,7 @@ export default function RegisterPage() {
 
         <p className="text-center text-sm text-text-secondary relative">
           Already have an account?{' '}
-          <Link href="/login" className="gradient-text font-semibold hover:opacity-80 transition-opacity">
+          <Link href="/login" className="gradient-text font-semibold interactive transition-opacity">
             Sign in
           </Link>
         </p>
