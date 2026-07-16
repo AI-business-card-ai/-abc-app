@@ -164,6 +164,17 @@ export default function ScanPage() {
     [contextSheet, advanceContextSheetQueue]
   )
 
+  const resetScanUi = useCallback(() => {
+    setQueue((prev) => {
+      prev.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+      return []
+    })
+    setContextSheetQueue([])
+    setError(null)
+    setFlash(false)
+    setCapturePulse(false)
+  }, [])
+
   const processScanInBackground = useCallback(
     async (clientId: string, file: File) => {
       if (processingRef.current.has(clientId)) return
@@ -189,7 +200,7 @@ export default function ScanPage() {
         formData.append('userId', uid)
         formData.append('userProfile', JSON.stringify(profilePayload))
 
-        const res = await fetch('/api/card/scan', { method: 'POST', body: formData })
+        const res = await fetch('/api/card/scan/quick', { method: 'POST', body: formData })
         const data = await res.json()
 
         if (res.status === 403 && data.error === 'SCAN_LIMIT_REACHED') {
@@ -203,8 +214,11 @@ export default function ScanPage() {
           throw new Error(formatScanErrorForUser(data.error || 'Scan failed'))
         }
 
-        const contact = (data.contacts?.[0] as ScannedContact) || null
-        if (!contact) throw new Error(formatScanErrorForUser('No contact returned'))
+        const contact =
+          (data.contact as ScannedContact | null) ||
+          (data.contacts?.[0] as ScannedContact) ||
+          null
+        if (!contact?.id) throw new Error(formatScanErrorForUser('No contact returned'))
 
         setScansToday((prev) => prev + 1)
         if (profileRef.current) {
@@ -214,13 +228,17 @@ export default function ScanPage() {
           }
         }
 
-        updateQueueItem(clientId, {
-          status: burstStatusFromContact(contact),
-          contact,
-        })
+        // Fire-and-forget enrichment — keepalive so it survives navigation
+        void fetch('/api/card/scan/enrich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contactId: contact.id, userId: uid }),
+          keepalive: true,
+        }).catch((err) => console.error('[scan] enrich trigger failed', err))
 
-        openContextSheet(contact)
         hapticSuccess()
+        resetScanUi()
+        router.push(`/contacts/${contact.id}`)
       } catch (err) {
         const message = formatScanErrorForUser(err instanceof Error ? err.message : 'Scan failed')
         setError(message)
@@ -229,7 +247,7 @@ export default function ScanPage() {
         processingRef.current.delete(clientId)
       }
     },
-    [router, supabase, updateQueueItem, userId, openContextSheet]
+    [router, supabase, updateQueueItem, userId, resetScanUi]
   )
 
   const enqueueCapture = useCallback(
@@ -355,6 +373,7 @@ export default function ScanPage() {
   }
 
   const latestSaved = [...queue].reverse().find((item) => item.contact?.name || item.contact?.company)
+  const isReadingCard = queue.some((item) => item.status === 'queued' || item.status === 'ocr')
 
   return (
     <div
@@ -456,7 +475,11 @@ export default function ScanPage() {
                 className="absolute inset-0 flex items-center justify-center text-sm text-center px-4"
                 style={{ color: '#666666' }}
               >
-                {scanBlocked ? 'Scan limit — upgrade for more' : 'Point at business card'}
+                {scanBlocked
+                  ? 'Scan limit — upgrade for more'
+                  : isReadingCard
+                    ? 'Reading card…'
+                    : 'Point at business card'}
               </p>
             </div>
           </div>

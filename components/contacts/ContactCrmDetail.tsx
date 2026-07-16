@@ -14,7 +14,9 @@ import CrmMissingFieldsBanner from '@/components/contact/CrmMissingFieldsBanner'
 import CrmExportEventModal from '@/components/contact/CrmExportEventModal'
 import LinkedInMismatchBanner from '@/components/contact/LinkedInMismatchBanner'
 import EstimatedBadge from '@/components/ui/EstimatedBadge'
+import EnrichingPulse from '@/components/ui/EnrichingPulse'
 import { contactHasEventTag } from '@/lib/event-tag'
+import { isContactEnriching } from '@/lib/contact-enrichment-ui'
 import {
   getContactCompanySize,
   getContactHeadquarters,
@@ -258,6 +260,7 @@ export default function ContactCrmDetailPage() {
   const [leadStatus, setLeadStatus] = useState('New')
   const [rating, setRating] = useState('Warm')
   const [exportModalTarget, setExportModalTarget] = useState<'salesforce' | 'hubspot' | null>(null)
+  const [retryingEnrich, setRetryingEnrich] = useState(false)
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -317,6 +320,66 @@ export default function ContactCrmDetailPage() {
     })()
     return () => { active = false }
   }, [id, router, supabase, syncDealForm])
+
+  // Live updates when background enrichment finishes (or progresses)
+  useEffect(() => {
+    if (!id) return
+
+    const channel = supabase
+      .channel(`contact-enrich-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'scanned_contacts',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          const updated = payload.new as ScannedContact
+          setContact(updated)
+          if (updated.enrichment_status === 'DONE' || updated.scan_status === 'enriched') {
+            syncDealForm(updated)
+            setActivityKey((k) => k + 1)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [id, supabase, syncDealForm])
+
+  async function retryEnrichment() {
+    if (!contact || retryingEnrich) return
+    setRetryingEnrich(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
+      }
+      const res = await fetch('/api/card/scan/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: contact.id, userId: user.id }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Enrichment retry failed')
+      setContact((prev) =>
+        prev
+          ? { ...prev, enrichment_status: 'PENDING', enrichment_step: 'queued' }
+          : prev
+      )
+      showToast('Enrichment restarted')
+    } catch (e) {
+      console.error(e)
+      showToast(e instanceof Error ? e.message : 'Enrichment retry failed')
+    } finally {
+      setRetryingEnrich(false)
+    }
+  }
 
   function runExport(target: 'salesforce' | 'hubspot', c: ScannedContact) {
     if (target === 'salesforce') exportToSalesforce(c)
@@ -546,14 +609,55 @@ export default function ContactCrmDetailPage() {
             <p style={{ margin: '6px 0 12px', fontSize: '13px', color: '#999999' }}>
               {[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}
             </p>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              <span style={{ padding: '4px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, background: scoreStyle.bg, color: scoreStyle.text }}>
-                AI Score {score}
-              </span>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
+              {isContactEnriching(contact) ? (
+                <span
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '999px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    background: 'rgba(0,212,212,0.1)',
+                    border: '1px solid rgba(0,212,212,0.3)',
+                  }}
+                >
+                  <EnrichingPulse compact />
+                </span>
+              ) : (
+                <span style={{ padding: '4px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, background: scoreStyle.bg, color: scoreStyle.text }}>
+                  AI Score {score}
+                </span>
+              )}
               <span style={{ padding: '4px 10px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, border: `1px solid ${statusColor}`, color: statusColor }}>
                 {status.replace(/_/g, ' ')}
               </span>
             </div>
+            {isContactEnriching(contact) && (
+              <p style={{ margin: '10px 0 0', fontSize: '11px', color: '#666666', textAlign: 'center' }}>
+                AI enriching in background — score & messages will appear shortly
+              </p>
+            )}
+            {contact.enrichment_status === 'ERROR' && (
+              <button
+                type="button"
+                className="interactive"
+                disabled={retryingEnrich}
+                onClick={() => void retryEnrichment()}
+                style={{
+                  marginTop: '10px',
+                  padding: '8px 14px',
+                  borderRadius: '999px',
+                  border: '1px solid rgba(239,68,68,0.45)',
+                  background: 'rgba(239,68,68,0.08)',
+                  color: '#ef4444',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: retryingEnrich ? 'wait' : 'pointer',
+                }}
+              >
+                {retryingEnrich ? 'Retrying…' : 'Enrichment failed — tap to retry'}
+              </button>
+            )}
           </div>
 
           <hr style={{ border: 'none', borderTop: '1px solid #2a2a2a', margin: '16px 0' }} />
@@ -594,6 +698,15 @@ export default function ContactCrmDetailPage() {
 
         {/* MIDDLE — Intelligence */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+          {isContactEnriching(contact) && !contact.ai_summary && score <= 0 && (
+            <div style={{ ...CARD, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
+              <EnrichingPulse />
+              <p style={{ margin: 0, fontSize: '13px', color: '#999999', lineHeight: 1.5 }}>
+                Researching LinkedIn, company data, and drafting messages…
+              </p>
+            </div>
+          )}
+
           {(contact.ai_summary || contact.match_reason) && (
             <div style={CARD}>
               <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>AI SUMMARY</div>

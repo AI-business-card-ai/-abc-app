@@ -6,7 +6,6 @@ import {
   ClaudeAnalysisError,
 } from '@/lib/claude'
 import { onCardScanned } from '@/lib/crm-engine'
-import { triggerBackgroundEnrichment } from '@/lib/enrichment'
 import { contactMatchesOwnerProfile, warnIfContactMatchesOwnerProfile } from '@/lib/contact-owner-guard'
 import { isScanLimitReached, getScanLimitForPlan } from '@/lib/scan-limits'
 import {
@@ -25,11 +24,11 @@ function unreadableCardResponse(status = 422) {
 }
 
 /**
- * Legacy combined scan endpoint (OCR + auto-queues enrichment).
- * Prefer /api/card/scan/quick + /api/card/scan/enrich for the optimistic UI flow.
+ * Fast OCR-only scan. Saves a minimal contact and returns immediately.
+ * Does NOT run enrichment — caller should POST /api/card/scan/enrich.
  */
 export async function POST(req: NextRequest) {
-  console.log('=== SCAN PHASE 1 START ===')
+  console.log('=== SCAN QUICK (OCR) START ===')
 
   try {
     const formData = await req.formData()
@@ -68,7 +67,6 @@ export async function POST(req: NextRequest) {
       .single()
 
     const profile: ABCProfile = (profileRow as ABCProfile | null) ?? userProfile
-
     const used = profile?.scans_used || 0
 
     if (isScanLimitReached(profile)) {
@@ -81,19 +79,18 @@ export async function POST(req: NextRequest) {
     }
 
     const extracted = sanitizeCardExtract(await extractBusinessCardFromImage(base64, claudeMediaType))
-    console.log('Phase 1 OCR complete:', extracted.name, extracted.company)
+    console.log('Quick OCR complete:', extracted.name, extracted.company)
 
     if (!hasUsableCardData(extracted)) {
-      console.warn('[card/scan] OCR returned no usable card data', extracted)
+      console.warn('[card/scan/quick] OCR returned no usable card data', extracted)
       return unreadableCardResponse()
     }
 
     const ownerMatch = contactMatchesOwnerProfile(extracted, profile)
     if (ownerMatch.matches) {
-      console.warn('[card/scan] blocked — OCR result matches owner abc_profiles (not a scanned contact)', {
+      console.warn('[card/scan/quick] blocked — OCR matches owner profile', {
         userId,
         matchedFields: ownerMatch.reasons,
-        extracted,
       })
       return NextResponse.json(
         {
@@ -123,7 +120,7 @@ export async function POST(req: NextRequest) {
         scan_status: 'basic' as const,
         event_name: null,
         notes: null,
-        enrichment_status: 'ENRICHING' as const,
+        enrichment_status: 'PENDING' as const,
         enrichment_step: 'queued',
       },
     ]
@@ -134,7 +131,7 @@ export async function POST(req: NextRequest) {
       .select()
 
     if (error) {
-      console.error('[card/scan] insert failed:', error)
+      console.error('[card/scan/quick] insert failed:', error)
       if (isTechnicalScanReadError(error.message)) {
         return unreadableCardResponse()
       }
@@ -146,24 +143,23 @@ export async function POST(req: NextRequest) {
       .update({ scans_used: used + 1 })
       .eq('id', userId)
 
-    if (data) {
-      for (const c of data) {
-        await warnIfContactMatchesOwnerProfile(userId, c, 'card/scan')
-        onCardScanned(c.id, userId).catch(console.error)
-        triggerBackgroundEnrichment(c.id, userId)
-      }
+    const contact = data?.[0] ?? null
+    if (contact) {
+      await warnIfContactMatchesOwnerProfile(userId, contact, 'card/scan/quick')
+      onCardScanned(contact.id, userId).catch(console.error)
     }
 
-    console.log('=== SCAN PHASE 1 DONE — enrichment queued ===')
+    console.log('=== SCAN QUICK DONE — awaiting client enrich trigger ===')
 
     return NextResponse.json({
       success: true,
       phase: 'basic',
+      contact,
       contacts: data,
       count: data?.length || 0,
     })
   } catch (err) {
-    console.error('Scan error:', err)
+    console.error('Quick scan error:', err)
 
     if (err instanceof ClaudeVisionError || err instanceof ClaudeAnalysisError) {
       return unreadableCardResponse(502)
@@ -175,10 +171,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      {
-        success: false,
-        error: message,
-      },
+      { success: false, error: message },
       { status: 500 }
     )
   }
