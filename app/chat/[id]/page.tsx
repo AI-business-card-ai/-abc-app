@@ -2,88 +2,60 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { IconArrowLeft, IconSend } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
+import MessageComposer from '@/components/chat/MessageComposer'
 import type { FollowupSequence, ScannedContact } from '@/lib/types'
 
 type Channel = 'linkedin' | 'email' | 'whatsapp'
 
-const CHANNELS: { key: Channel; label: string }[] = [
-  { key: 'linkedin', label: 'LinkedIn' },
-  { key: 'email', label: 'Email' },
-  { key: 'whatsapp', label: 'WhatsApp' },
-]
-
-const CHANNEL_DOT: Record<Channel, string> = {
-  linkedin: '#A78BFA',
-  email: '#38BDF8',
-  whatsapp: '#34D399',
+const CHANNEL_META: Record<Channel, { label: string; color: string }> = {
+  linkedin: { label: 'LinkedIn', color: '#0077B5' },
+  email: { label: 'Email', color: '#f0197d' },
+  whatsapp: { label: 'WhatsApp', color: '#25D366' },
 }
 
 interface ChatMessage {
   id: string
-  direction: 'in' | 'out'
   body: string
   channel: Channel
   at: string
 }
 
-const chipStyle = (active: boolean): React.CSSProperties =>
-  active
-    ? { border: '0.5px solid #7C3AED', color: '#A78BFA', background: '#1A0A2E' }
-    : { border: '0.5px solid #1A0E30', color: '#3A2060', background: 'transparent' }
-
-function channelLabel(channel: Channel) {
-  return CHANNELS.find((c) => c.key === channel)?.label ?? channel
-}
-
-function buildMessages(contact: ScannedContact, seqs: FollowupSequence[]): ChatMessage[] {
+function buildHistory(contact: ScannedContact, seqs: FollowupSequence[]): ChatMessage[] {
   const msgs: ChatMessage[] = []
 
   if (contact.status === 'sent' || contact.status === 'replied') {
     if (contact.message_linkedin) {
-      msgs.push({ id: 'contact-li', direction: 'out', body: contact.message_linkedin, channel: 'linkedin', at: contact.scanned_at })
+      msgs.push({ id: 'contact-li', body: contact.message_linkedin, channel: 'linkedin', at: contact.scanned_at })
     }
     if (contact.message_email) {
-      msgs.push({ id: 'contact-em', direction: 'out', body: contact.message_email, channel: 'email', at: contact.scanned_at })
+      msgs.push({ id: 'contact-em', body: contact.message_email, channel: 'email', at: contact.scanned_at })
     }
     if (contact.message_whatsapp) {
-      msgs.push({ id: 'contact-wa', direction: 'out', body: contact.message_whatsapp, channel: 'whatsapp', at: contact.scanned_at })
+      msgs.push({ id: 'contact-wa', body: contact.message_whatsapp, channel: 'whatsapp', at: contact.scanned_at })
     }
   }
 
   for (const s of seqs) {
     if (s.sent_at) {
-      msgs.push({
-        id: s.id,
-        direction: 'out',
-        body: s.message_body,
-        channel: s.message_type,
-        at: s.sent_at,
-      })
+      msgs.push({ id: s.id, body: s.message_body, channel: s.message_type, at: s.sent_at })
     }
   }
 
   return msgs.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
 }
 
-export default function ChatPage() {
+export default function ChatDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const supabase = createClientComponent()
+  const supabase = useMemo(() => createClientComponent(), [])
   const id = String(params?.id ?? '')
 
   const [contact, setContact] = useState<ScannedContact | null>(null)
   const [sequences, setSequences] = useState<FollowupSequence[]>([])
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [googleConnected, setGoogleConnected] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [channel, setChannel] = useState<Channel>('linkedin')
-  const [draft, setDraft] = useState('')
-  const [sending, setSending] = useState(false)
-  const [activeSequenceId, setActiveSequenceId] = useState<string | null>(null)
-  const [sendingSequenceId, setSendingSequenceId] = useState<string | null>(null)
+  const [notFound, setNotFound] = useState(false)
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -92,25 +64,21 @@ export default function ChatPage() {
       return
     }
 
-    const [{ data: c, error: cErr }, { data: seq, error: sErr }] = await Promise.all([
+    const [{ data: c, error: cErr }, { data: seq }, { data: profile }] = await Promise.all([
       supabase.from('scanned_contacts').select('*').eq('id', id).eq('user_id', user.id).maybeSingle(),
       supabase.from('followup_sequences').select('*').eq('contact_id', id).order('step', { ascending: true }),
+      supabase.from('abc_profiles').select('google_connected').eq('id', user.id).maybeSingle(),
     ])
 
     if (cErr || !c) {
-      setError(cErr?.message ?? 'Konverzace nenalezena.')
+      setNotFound(true)
       setContact(null)
-      setSequences([])
-      setMessages([])
       return
     }
 
-    const contactData = c as ScannedContact
-    const seqs = (seq as FollowupSequence[]) ?? []
-    setContact(contactData)
-    setSequences(seqs)
-    setMessages(buildMessages(contactData, seqs))
-    setError(sErr?.message ?? null)
+    setContact(c as ScannedContact)
+    setSequences((seq as FollowupSequence[]) ?? [])
+    setGoogleConnected(Boolean(profile?.google_connected))
   }, [id, router, supabase])
 
   useEffect(() => {
@@ -123,326 +91,116 @@ export default function ChatPage() {
   }, [loadData])
 
   const initials = useMemo(() => {
-    if (!contact?.name) return '?'
-    return contact.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+    const name = contact?.name || '?'
+    return name.split(' ').map((n) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'
   }, [contact?.name])
 
-  const replied = contact?.status === 'replied'
-  const scheduled = sequences.filter((s) => s.status === 'scheduled')
-  const sent = sequences.filter((s) => s.status === 'sent')
-
-  const activeSequence = useMemo(
-    () => sequences.find((s) => s.id === activeSequenceId) ?? null,
-    [sequences, activeSequenceId]
+  const history = useMemo(
+    () => (contact ? buildHistory(contact, sequences) : []),
+    [contact, sequences]
   )
-
-  function selectSequence(seq: FollowupSequence) {
-    setActiveSequenceId(seq.id)
-    setChannel(seq.message_type)
-    setDraft(seq.message_body)
-  }
-
-  async function sendNow(seq: FollowupSequence) {
-    setSendingSequenceId(seq.id)
-    setError(null)
-    try {
-      const now = new Date().toISOString()
-      const { data, error: updateError } = await supabase
-        .from('followup_sequences')
-        .update({ status: 'sent', sent_at: now })
-        .eq('id', seq.id)
-        .select()
-        .single()
-
-      if (updateError) throw new Error(updateError.message)
-
-      const row = data as FollowupSequence
-      setSequences((prev) => prev.map((s) => (s.id === row.id ? row : s)))
-      setMessages((m) => [
-        ...m,
-        { id: row.id, direction: 'out', body: row.message_body, channel: row.message_type, at: row.sent_at ?? now },
-      ])
-      if (activeSequenceId === seq.id) {
-        setActiveSequenceId(null)
-        setDraft('')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Send failed.')
-    } finally {
-      setSendingSequenceId(null)
-    }
-  }
-
-  async function send() {
-    const body = draft.trim()
-    if (!body || !contact) return
-    setSending(true)
-    setError(null)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-
-      const nextStep = sequences.length > 0 ? Math.max(...sequences.map((s) => s.step)) + 1 : 1
-      const now = new Date().toISOString()
-
-      const { data, error: insertError } = await supabase
-        .from('followup_sequences')
-        .insert({
-          contact_id: id,
-          user_id: user.id,
-          step: nextStep,
-          message_type: channel,
-          message_body: body,
-          scheduled_at: now,
-          sent_at: now,
-          status: 'sent',
-        })
-        .select()
-        .single()
-
-      if (insertError) throw new Error(insertError.message)
-
-      const row = data as FollowupSequence
-      setSequences((prev) => [...prev, row])
-      setMessages((m) => [
-        ...m,
-        { id: row.id, direction: 'out', body, channel, at: row.sent_at ?? now },
-      ])
-      setDraft('')
-      setActiveSequenceId(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Send failed.')
-    } finally {
-      setSending(false)
-    }
-  }
-
-  function statusText() {
-    if (replied) return '● Replied today'
-    if (contact?.status === 'sent') return '● Sent'
-    return '● Awaiting reply'
-  }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#07050E' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#7C3AED', borderRightColor: '#0EA5E9' }} />
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f0f' }}>
+        <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#00d4d4', borderRightColor: '#f0197d' }} />
       </div>
     )
   }
 
-  if (error && !contact) {
+  if (notFound || !contact) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6 text-center" style={{ background: '#07050E', color: '#3A2060' }}>
-        {error}
+      <div style={{ padding: '40px', textAlign: 'center', color: '#999999', background: '#0f0f0f', minHeight: '100vh' }}>
+        <p style={{ marginBottom: '16px' }}>Conversation not found</p>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          style={{ color: '#00d4d4', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+        >
+          ← Back
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#07050E' }}>
-      <div
-        className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3"
-        style={{ background: 'linear-gradient(180deg, #0A0614, #08060F)', borderBottom: '0.5px solid #1A0E30' }}
+    <div
+      style={{
+        background: '#0f0f0f',
+        minHeight: '100vh',
+        padding: '16px 16px 0',
+        paddingBottom: 'calc(140px + env(safe-area-inset-bottom, 0px))',
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => router.back()}
+        style={{ display: 'inline-block', marginBottom: '20px', color: '#00d4d4', fontSize: '14px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
       >
-        <button onClick={() => router.back()} aria-label="Back">
-          <IconArrowLeft size={20} style={{ color: '#2A1A4A' }} />
-        </button>
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-          style={{ background: 'linear-gradient(135deg, #7C3AED, #0EA5E9)' }}
-        >
-          {initials}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold truncate" style={{ color: '#F0EAFF' }}>{contact?.name ?? 'Contact'}</p>
-          <p className="text-xs" style={{ color: replied || contact?.status === 'sent' ? '#A78BFA' : '#3A2060' }}>
-            {statusText()}
-          </p>
-        </div>
-      </div>
+        ← Back
+      </button>
 
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 pb-52">
-        {messages.length === 0 ? (
-          <p className="py-8 text-center text-sm" style={{ color: '#3A2060' }}>No messages yet.</p>
-        ) : (
-          messages.map((m) => {
-            const out = m.direction === 'out'
-            const dotColor = CHANNEL_DOT[m.channel]
-            return (
-              <div
-                key={m.id}
-                className={`flex flex-col ${out ? 'self-end items-end' : 'self-start items-start'} max-w-[88%]`}
-              >
-                <div className="flex items-center gap-1.5 mb-1 px-1">
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: dotColor, boxShadow: `0 0 6px ${dotColor}` }} />
-                  <span className="text-[9px] font-medium uppercase tracking-wide" style={{ color: dotColor }}>
-                    {channelLabel(m.channel)}
-                  </span>
-                </div>
-                <div
-                  className="px-3 py-2 text-sm leading-relaxed"
-                  style={
-                    out
-                      ? {
-                          background: 'linear-gradient(135deg, #1A0A2E, #0A1428)',
-                          color: '#C4B5FD',
-                          border: `0.5px solid ${dotColor}44`,
-                          borderRadius: '10px 10px 2px 10px',
-                        }
-                      : {
-                          background: '#0D0A18',
-                          color: '#6A5098',
-                          border: '0.5px solid #1A0E30',
-                          borderRadius: '10px 10px 10px 2px',
-                        }
-                  }
-                >
-                  {m.body}
-                </div>
-                <span className="mt-1 px-1" style={{ fontSize: '7px', color: '#2A1A4A' }}>
-                  {new Date(m.at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            )
-          })
-        )}
-
-        <div
-          className="mt-2 px-4 py-3 -mx-4"
-          style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
-        >
-          <span className="block tracking-widest uppercase mb-2" style={{ fontSize: '8px', color: '#3A2060' }}>
-            SCHEDULED MESSAGES
-          </span>
-          {scheduled.length === 0 && sent.length === 0 ? (
-            <p className="text-xs" style={{ color: '#3A2060' }}>No scheduled follow-ups.</p>
+      <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* CONTACT HEADER */}
+        <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+          {contact.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={contact.photo_url} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(0,212,212,0.3)', flexShrink: 0 }} />
           ) : (
-            <div className="flex flex-col gap-2">
-              {scheduled.map((s) => {
-                const isActive = activeSequenceId === s.id
-                const dotColor = CHANNEL_DOT[s.message_type]
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => selectSequence(s)}
-                    className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left w-full transition-colors"
-                    style={{
-                      background: isActive ? '#1A0A2E' : '#0D0A18',
-                      border: isActive ? `0.5px solid ${dotColor}` : '0.5px solid #1A0E30',
-                      boxShadow: isActive ? `0 0 12px ${dotColor}33` : undefined,
-                    }}
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ background: dotColor, boxShadow: `0 0 8px ${dotColor}` }}
-                    />
-                    <span className="text-xs flex-1 font-medium" style={{ color: isActive ? '#F0EAFF' : '#8B7AA8' }}>
-                      {channelLabel(s.message_type)} · step {s.step}
-                    </span>
-                    <span className="text-[10px] shrink-0" style={{ color: '#3A2060' }}>
-                      {new Date(s.scheduled_at).toLocaleDateString('cs-CZ')}
-                    </span>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); sendNow(s) }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); sendNow(s) } }}
-                      className="text-[10px] font-semibold shrink-0 px-2 py-1 rounded-lg ml-1"
-                      style={{
-                        background: 'linear-gradient(135deg, #7C3AED, #0EA5E9)',
-                        color: '#fff',
-                        opacity: sendingSequenceId === s.id ? 0.5 : 1,
-                      }}
-                    >
-                      {sendingSequenceId === s.id ? '...' : 'Send now'}
-                    </span>
-                  </button>
-                )
-              })}
-              {sent.map((s) => {
-                const dotColor = CHANNEL_DOT[s.message_type]
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#f0197d,#00d4d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+              {initials}
+            </div>
+          )}
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {contact.name || 'Unknown contact'}
+            </h1>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#999999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}
+            </p>
+          </div>
+        </div>
+
+        {/* SENT MESSAGE HISTORY */}
+        {history.length > 0 && (
+          <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px' }}>
+            <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>SENT MESSAGES</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {history.map((m) => {
+                const meta = CHANNEL_META[m.channel]
                 return (
                   <div
-                    key={s.id}
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 opacity-60"
-                    style={{ background: '#0D0A18', border: '0.5px solid #1A0E30' }}
+                    key={m.id}
+                    style={{
+                      background: '#242424',
+                      border: '1px solid #2a2a2a',
+                      borderLeft: `3px solid ${meta.color}`,
+                      borderRadius: '8px',
+                      padding: '12px',
+                    }}
                   >
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
-                    <span className="text-xs flex-1" style={{ color: '#3A2060' }}>
-                      {channelLabel(s.message_type)} · step {s.step}
-                    </span>
-                    <span className="text-[10px]" style={{ color: '#3A2060' }}>Sent</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', color: meta.color, textTransform: 'uppercase' }}>
+                        {meta.label}
+                      </span>
+                      <span style={{ fontSize: '10px', color: '#555555' }}>
+                        {new Date(m.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#ffffff', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{m.body}</p>
                   </div>
                 )
               })}
             </div>
-          )}
-        </div>
-
-        {error && contact && (
-          <p className="text-sm text-red-300 text-center">{error}</p>
-        )}
-      </div>
-
-      <div
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px]"
-        style={{ background: '#06040C', borderTop: '0.5px solid #1A0E30' }}
-      >
-        {activeSequence && (
-          <div className="px-4 pt-3 pb-1">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ background: CHANNEL_DOT[activeSequence.message_type], boxShadow: `0 0 6px ${CHANNEL_DOT[activeSequence.message_type]}` }}
-              />
-              <span className="text-[10px] font-medium" style={{ color: CHANNEL_DOT[activeSequence.message_type] }}>
-                {channelLabel(activeSequence.message_type)} · step {activeSequence.step}
-              </span>
-            </div>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={3}
-              className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none"
-              style={{ background: '#0D0A18', border: `0.5px solid ${CHANNEL_DOT[activeSequence.message_type]}`, color: '#F0EAFF' }}
-            />
           </div>
         )}
 
-        <div className="px-4 pb-2 pt-2 flex gap-2">
-          {CHANNELS.map((c) => (
-            <button
-              key={c.key}
-              onClick={() => setChannel(c.key)}
-              className="px-3 py-1 rounded-full text-xs"
-              style={chipStyle(channel === c.key)}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="p-3 flex gap-2 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !sending && send()}
-            placeholder="Write a message..."
-            disabled={sending}
-            className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none disabled:opacity-50"
-            style={{ background: '#0D0A18', border: '0.5px solid #1A0E30', color: '#F0EAFF' }}
-          />
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={send}
-            disabled={sending || !draft.trim()}
-            className="glow-btn w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 disabled:opacity-40"
-          >
-            <IconSend size={18} />
-          </motion.button>
-        </div>
+        {/* AI MESSAGE COMPOSER */}
+        <MessageComposer
+          contact={contact}
+          googleConnected={googleConnected}
+          onContactUpdate={setContact}
+        />
       </div>
     </div>
   )
