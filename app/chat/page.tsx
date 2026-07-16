@@ -197,7 +197,7 @@ export default function ChatListPage() {
               <motion.button
                 key={c.id}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => router.push(`/contacts/${c.id}`)}
+                onClick={() => router.push(`/chat/${c.id}`)}
                 className="abc-card flex items-center gap-3 p-3.5 text-left w-full transition-colors hover:border-primary/30"
               >
                 <GradientAvatar initials={initials} size="md" />

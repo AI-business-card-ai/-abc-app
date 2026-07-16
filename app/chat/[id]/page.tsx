@@ -134,6 +134,7 @@ export default function ChatDetailPage() {
         background: '#0f0f0f',
         minHeight: '100vh',
         padding: '16px 16px 0',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
         paddingBottom: 'calc(140px + env(safe-area-inset-bottom, 0px))',
       }}
     >

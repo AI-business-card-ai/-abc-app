@@ -73,6 +73,9 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 }
 
 function MatchScoreBreakdown({ contact, score }: { contact: ScannedContact; score: number }) {
+  const [flagsExpanded, setFlagsExpanded] = useState(false)
+  const [startersExpanded, setStartersExpanded] = useState(false)
+
   const hasBreakdown =
     contact.icp_fit_score != null ||
     contact.intent_score != null ||
@@ -82,6 +85,8 @@ function MatchScoreBreakdown({ contact, score }: { contact: ScannedContact; scor
   if (!hasBreakdown && score <= 0) return null
 
   const starters = Array.isArray(contact.conversation_starters) ? contact.conversation_starters : []
+  const visibleStarters = startersExpanded ? starters : starters.slice(0, 2)
+  const hiddenStarterCount = Math.max(0, starters.length - 2)
 
   return (
     <div style={CARD}>
@@ -112,18 +117,68 @@ function MatchScoreBreakdown({ contact, score }: { contact: ScannedContact; scor
 
         {starters.length > 0 && (
           <div style={{ marginTop: '12px', borderTop: '1px solid #2a2a2a', paddingTop: '12px' }}>
-            {starters.map((starter) => (
+            {visibleStarters.map((starter) => (
               <p key={starter} style={{ margin: '0 0 6px', fontSize: '12px', color: '#00d4d4' }}>
                 ✓ &quot;{starter}&quot;
               </p>
             ))}
+            {hiddenStarterCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setStartersExpanded((v) => !v)}
+                style={{
+                  marginTop: '2px',
+                  padding: 0,
+                  border: 'none',
+                  background: 'none',
+                  color: '#999999',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {startersExpanded ? 'Show less' : `+${hiddenStarterCount} more`}
+              </button>
+            )}
           </div>
         )}
 
         {contact.red_flags && (
-          <p style={{ margin: starters.length ? '8px 0 0' : '12px 0 0', fontSize: '12px', color: '#f59e0b' }}>
-            ⚠ {contact.red_flags}
-          </p>
+          <div style={{ margin: starters.length ? '8px 0 0' : '12px 0 0' }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: '12px',
+                color: '#f59e0b',
+                ...(flagsExpanded
+                  ? {}
+                  : {
+                      display: '-webkit-box',
+                      WebkitLineClamp: 1,
+                      WebkitBoxOrient: 'vertical' as const,
+                      overflow: 'hidden',
+                    }),
+              }}
+            >
+              ⚠ {contact.red_flags}
+            </p>
+            <button
+              type="button"
+              onClick={() => setFlagsExpanded((v) => !v)}
+              style={{
+                marginTop: '4px',
+                padding: 0,
+                border: 'none',
+                background: 'none',
+                color: '#999999',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {flagsExpanded ? 'Show less' : 'Show more'}
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -425,6 +480,7 @@ export default function ContactCrmDetailPage() {
         background: '#0f0f0f',
         minHeight: '100vh',
         padding: '16px 16px 0',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
         paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
       }}
     >
