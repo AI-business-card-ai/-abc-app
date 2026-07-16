@@ -136,6 +136,25 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
     })
   }
 
+  // After the first sent message, move the contact out of 'new' into 'follow-up'.
+  // Never moves a contact backward — contacts already past 'new' are left untouched.
+  async function maybeAdvancePipelineStage(c: ScannedContact) {
+    const current = c.pipeline_stage
+    if (current && current !== 'new') return
+    try {
+      const res = await fetch('/api/pipeline/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: c.id, stage: 'follow-up' }),
+      })
+      if (res.ok) {
+        onContactUpdate({ ...c, pipeline_stage: 'follow-up' })
+      }
+    } catch (e) {
+      console.error('[message-composer] pipeline auto-advance failed:', e)
+    }
+  }
+
   const { dialogPending, enqueuePendingSend, confirmSent, dismissNotSent } = useOutreachSendConfirm(
     async (pending) => {
       const result = await logMessageSent({
@@ -143,8 +162,10 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
         channel: pending.channel,
         messageText: pending.messageText,
       })
-      if (result.contact) onContactUpdate(result.contact as ScannedContact)
+      const updated = (result.contact as ScannedContact) ?? contact
+      if (result.contact) onContactUpdate(updated)
       showToast('✓ Marked as sent')
+      await maybeAdvancePipelineStage(updated)
     }
   )
 
@@ -202,6 +223,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
         throw new Error(json.error || 'Email send failed')
       }
       if (json.contact) onContactUpdate(json.contact as ScannedContact)
+      await maybeAdvancePipelineStage((json.contact as ScannedContact) ?? contact)
       return true
     } catch (e) {
       console.error(e)
