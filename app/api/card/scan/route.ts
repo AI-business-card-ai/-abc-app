@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase'
+import { createRouteHandlerClient } from '@/lib/supabase-route'
 import {
   extractBusinessCardFromImage,
   ClaudeVisionError,
@@ -27,24 +28,46 @@ function unreadableCardResponse(status = 422) {
 /**
  * Phase 1 — Instant scan (target <3s):
  * OCR only → save PENDING contact → fire-and-forget Phase 2 enrichment.
+ *
+ * Plan / scans_used for limit checks ALWAYS come from the server-side
+ * abc_profiles row keyed by auth.uid() — never from client FormData.
  */
 export async function POST(req: NextRequest) {
   console.log('=== SCAN PHASE 1 (OCR) START ===')
 
   try {
+    const authClient = createRouteHandlerClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await authClient.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = user.id
+
     const formData = await req.formData()
     const image = formData.get('image') as File
-    const userId = formData.get('userId') as string
+    const formUserId = formData.get('userId') as string | null
     const userProfileRaw = formData.get('userProfile') as string
 
     if (!image) return NextResponse.json({ error: 'No image' }, { status: 400 })
-    if (!userId) return NextResponse.json({ error: 'No userId' }, { status: 401 })
 
-    let userProfile: ABCProfile
-    try {
-      userProfile = JSON.parse(userProfileRaw)
-    } catch {
-      return NextResponse.json({ error: 'Invalid userProfile JSON' }, { status: 400 })
+    // Reject forged userId if client sends a different one
+    if (formUserId && formUserId !== userId) {
+      return NextResponse.json({ error: 'User mismatch' }, { status: 403 })
+    }
+
+    // Client profile is only for message-style preferences — never for plan/limits
+    let clientProfile: Partial<ABCProfile> = {}
+    if (userProfileRaw) {
+      try {
+        clientProfile = JSON.parse(userProfileRaw) as Partial<ABCProfile>
+      } catch {
+        return NextResponse.json({ error: 'Invalid userProfile JSON' }, { status: 400 })
+      }
     }
 
     const arrayBuffer = await image.arrayBuffer()
@@ -61,23 +84,67 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServerSupabase()
 
-    const { data: profileRow } = await supabase
+    let { data: profileRow } = await supabase
       .from('abc_profiles')
       .select('*')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
-    const profile: ABCProfile = (profileRow as ABCProfile | null) ?? userProfile
-    const used = profile?.scans_used || 0
+    // Auto-create on first scan — always free / 0. INTERNAL_TEST is DB-only.
+    if (!profileRow) {
+      const { data: created, error: createError } = await supabase
+        .from('abc_profiles')
+        .insert({
+          id: userId,
+          email: user.email ?? null,
+          google_email: user.email ?? null,
+          full_name: (user.user_metadata?.full_name as string | undefined) || null,
+          plan: 'free',
+          scans_used: 0,
+        })
+        .select('*')
+        .single()
 
-    if (isScanLimitReached(profile)) {
-      const plan = profile?.plan || 'free'
+      if (createError) {
+        console.error('[card/scan] auto-create profile failed:', createError)
+        // Race: row may have been created concurrently
+        const { data: retry } = await supabase
+          .from('abc_profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle()
+        profileRow = retry
+      } else {
+        profileRow = created
+      }
+    }
+
+    if (!profileRow) {
+      return NextResponse.json({ error: 'Profile unavailable' }, { status: 500 })
+    }
+
+    // Limit check — server profile only (plan / scans_used never from client)
+    const dbProfile = profileRow as ABCProfile
+    const used = dbProfile.scans_used || 0
+
+    if (isScanLimitReached(dbProfile)) {
+      const plan = dbProfile.plan || 'free'
       const limit = getScanLimitForPlan(plan)
       return NextResponse.json(
         { error: 'SCAN_LIMIT_REACHED', plan, used, limit },
         { status: 403 }
       )
     }
+
+    // Enrichment preferences may come from client, but plan/scans/email from DB
+    const profile: ABCProfile = {
+      ...clientProfile,
+      ...dbProfile,
+      id: userId,
+      plan: dbProfile.plan,
+      scans_used: dbProfile.scans_used,
+      email: dbProfile.email || user.email || clientProfile.email || null,
+    } as ABCProfile
 
     const extracted = sanitizeCardExtract(await extractBusinessCardFromImage(base64, claudeMediaType))
     console.log('Phase 1 OCR complete:', extracted.name, extracted.company)
@@ -135,16 +202,18 @@ export async function POST(req: NextRequest) {
       throw error
     }
 
-    await supabase
-      .from('abc_profiles')
-      .update({ scans_used: used + 1 })
-      .eq('id', userId)
+    // Don't increment counter for unlimited internal accounts (optional hygiene)
+    if (dbProfile.plan !== 'INTERNAL_TEST') {
+      await supabase
+        .from('abc_profiles')
+        .update({ scans_used: used + 1 })
+        .eq('id', userId)
+    }
 
     const contact = data?.[0] ?? null
     if (contact) {
       await warnIfContactMatchesOwnerProfile(userId, contact, 'card/scan')
       onCardScanned(contact.id, userId).catch(console.error)
-      // Phase 2 — fire and forget (never block the OCR response)
       triggerBackgroundEnrichment(contact.id, userId)
     }
 

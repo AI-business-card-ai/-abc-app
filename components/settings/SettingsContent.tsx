@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
 import { normalizeAbcProfile } from '@/lib/profile-defaults'
-import { getScanLimitForPlan } from '@/lib/scan-limits'
+import { getScanLimitForPlan, isInternalTestPlan } from '@/lib/scan-limits'
 import { PLAN_LABELS, type PaidPlan } from '@/lib/stripe-prices'
 import ConnectionsSection from '@/components/settings/ConnectionsSection'
 import DigitalCardQrSection from '@/components/settings/DigitalCardQrSection'
@@ -183,15 +183,16 @@ export default function SettingsContent({ initialProfile }: Props) {
     .toUpperCase() || 'U'
 
   const currentPlan = (profile.plan || 'free') as ABCProfile['plan']
+  const isInternal = isInternalTestPlan(currentPlan)
   const planLabel =
     currentPlan === 'free'
       ? 'Free'
-      : currentPlan === 'INTERNAL_TEST'
-        ? 'Internal Test'
+      : isInternal
+        ? 'Interní účet'
         : PLAN_LABELS[currentPlan as PaidPlan] ?? currentPlan
   const scanLimit = getScanLimitForPlan(currentPlan)
   const scansUsed = profile.scans_used ?? 0
-  const hasPaidPlan = currentPlan !== 'free' && currentPlan !== 'INTERNAL_TEST'
+  const hasPaidPlan = currentPlan !== 'free' && !isInternal
   const hasStripeCustomer = Boolean(profile.stripe_customer_id)
 
   async function openBillingPortal() {
@@ -226,57 +227,78 @@ export default function SettingsContent({ initialProfile }: Props) {
 
       <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>
         <div style={{ fontSize: '11px', color: '#f0197d', letterSpacing: '0.08em', marginBottom: '12px' }}>SUBSCRIPTION</div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <span style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>{planLabel}</span>
-          {hasPaidPlan && (
-            <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 600 }}>Active</span>
-          )}
-        </div>
-        <p style={{ fontSize: '13px', color: '#555555', margin: '0 0 16px' }}>
-          {scansUsed} / {scanLimit} lifetime scans used
-        </p>
-        {subError && (
-          <p style={{ fontSize: '12px', color: '#f0197d', marginBottom: 12 }}>{subError}</p>
-        )}
-        {hasPaidPlan && hasStripeCustomer ? (
-          <button
-            type="button"
-            className="interactive"
-            disabled={portalLoading}
-            onClick={() => void openBillingPortal()}
-            style={{
-              width: '100%',
-              padding: '12px',
-              borderRadius: '10px',
-              border: '1px solid rgba(0, 212, 212, 0.4)',
-              background: 'rgba(0, 212, 212, 0.1)',
-              color: '#00d4d4',
-              fontWeight: 700,
-              fontSize: '14px',
-              cursor: portalLoading ? 'wait' : 'pointer',
-            }}
-          >
-            {portalLoading ? 'Opening…' : 'Manage subscription'}
-          </button>
+        {isInternal ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>{planLabel}</span>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: 999,
+                background: 'rgba(0,212,212,0.12)',
+                border: '1px solid rgba(0,212,212,0.35)',
+                color: '#00d4d4',
+              }}
+            >
+              Interní účet
+            </span>
+          </div>
         ) : (
-          <button
-            type="button"
-            className="interactive-primary"
-            onClick={() => router.push('/pricing')}
-            style={{
-              width: '100%',
-              padding: '12px',
-              borderRadius: '10px',
-              border: 'none',
-              background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
-              color: '#ffffff',
-              fontWeight: 700,
-              fontSize: '14px',
-              cursor: 'pointer',
-            }}
-          >
-            Upgrade
-          </button>
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>{planLabel}</span>
+              {hasPaidPlan && (
+                <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 600 }}>Active</span>
+              )}
+            </div>
+            <p style={{ fontSize: '13px', color: '#555555', margin: '0 0 16px' }}>
+              {scansUsed} / {scanLimit} lifetime scans used
+            </p>
+            {subError && (
+              <p style={{ fontSize: '12px', color: '#f0197d', marginBottom: 12 }}>{subError}</p>
+            )}
+            {hasPaidPlan && hasStripeCustomer ? (
+              <button
+                type="button"
+                className="interactive"
+                disabled={portalLoading}
+                onClick={() => void openBillingPortal()}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(0, 212, 212, 0.4)',
+                  background: 'rgba(0, 212, 212, 0.1)',
+                  color: '#00d4d4',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  cursor: portalLoading ? 'wait' : 'pointer',
+                }}
+              >
+                {portalLoading ? 'Opening…' : 'Manage subscription'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="interactive-primary"
+                onClick={() => router.push('/pricing')}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                }}
+              >
+                Upgrade
+              </button>
+            )}
+          </>
         )}
       </div>
 

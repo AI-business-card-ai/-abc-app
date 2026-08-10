@@ -11,6 +11,7 @@ import { compressImageForScan } from '@/lib/image-compress'
 import ScanBurstQueue, { type BurstQueueItem } from '@/components/mobile/ScanBurstQueue'
 import ScanContextSheet, { type ContextSheetContact } from '@/components/mobile/ScanContextSheet'
 import type { OutreachChannel } from '@/lib/contact-enrichment-ui'
+import { isInternalTestPlan } from '@/lib/scan-limits'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
 
 function PhoneStatusBar() {
@@ -62,6 +63,7 @@ export default function ScanPage() {
   const [scanBlocked, setScanBlocked] = useState(false)
   const [hasCapturedOnce, setHasCapturedOnce] = useState(false)
   const [scansToday, setScansToday] = useState(0)
+  const [isInternalAccount, setIsInternalAccount] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [burstMode, setBurstMode] = useState(false)
   const [burstCount, setBurstCount] = useState(0)
@@ -112,12 +114,14 @@ export default function ScanPage() {
       }
       setUserId(user.id)
       const { data: profile } = await supabase.from('abc_profiles').select('*').eq('id', user.id).maybeSingle()
-      profileRef.current = (profile as ABCProfile | null) ?? {
+      const loaded = (profile as ABCProfile | null) ?? {
         id: user.id,
-        communication_style: 'direct',
-        outreach_language: 'EN',
+        communication_style: 'direct' as const,
+        outreach_language: 'EN' as const,
       }
-      setScansToday((profile as ABCProfile | null)?.scans_used ?? 0)
+      profileRef.current = loaded
+      setIsInternalAccount(isInternalTestPlan(loaded.plan))
+      setScansToday(loaded.scans_used ?? 0)
     }
 
     void loadProfile()
@@ -255,11 +259,13 @@ export default function ScanPage() {
           null
         if (!contact?.id) throw new Error(formatScanErrorForUser('No contact returned'))
 
-        setScansToday((prev) => prev + 1)
-        if (profileRef.current) {
-          profileRef.current = {
-            ...profileRef.current,
-            scans_used: (profileRef.current.scans_used ?? 0) + 1,
+        if (!isInternalTestPlan(profileRef.current?.plan)) {
+          setScansToday((prev) => prev + 1)
+          if (profileRef.current) {
+            profileRef.current = {
+              ...profileRef.current,
+              scans_used: (profileRef.current.scans_used ?? 0) + 1,
+            }
           }
         }
 
@@ -495,13 +501,26 @@ export default function ScanPage() {
           </button>
 
           <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
-            {hasCapturedOnce && (
+            {isInternalAccount ? (
               <div
-                className="rounded-full px-3 py-1.5 text-xs font-semibold tabular-nums"
-                style={{ background: 'rgba(15,15,15,0.75)', border: '1px solid rgba(0,212,212,0.25)', color: '#00d4d4' }}
+                className="rounded-full px-3 py-1.5 text-[11px] font-bold"
+                style={{
+                  background: 'rgba(0,212,212,0.12)',
+                  border: '1px solid rgba(0,212,212,0.35)',
+                  color: '#00d4d4',
+                }}
               >
-                {burstMode ? `${burstCount} vizitek naskenováno` : `${scansToday} cards today`}
+                Interní účet
               </div>
+            ) : (
+              hasCapturedOnce && (
+                <div
+                  className="rounded-full px-3 py-1.5 text-xs font-semibold tabular-nums"
+                  style={{ background: 'rgba(15,15,15,0.75)', border: '1px solid rgba(0,212,212,0.25)', color: '#00d4d4' }}
+                >
+                  {burstMode ? `${burstCount} vizitek naskenováno` : `${scansToday} cards today`}
+                </div>
+              )
             )}
             <button
               type="button"
