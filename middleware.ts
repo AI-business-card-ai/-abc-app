@@ -2,7 +2,16 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const ONBOARDING_EXEMPT = ['/onboarding', '/login', '/register', '/', '/settings', '/profile', '/pricing']
+  const ONBOARDING_EXEMPT = [
+    '/onboarding',
+    '/login',
+    '/register',
+    '/',
+    '/settings',
+    '/profile',
+    '/pricing',
+    '/offline',
+  ]
 
 function withCookieDefaults(options: CookieOptions = {}): CookieOptions {
   return {
@@ -72,5 +81,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|icons/|sw.js|workbox-|manifest.json|offline).*)',
+  ],
 }

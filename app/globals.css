@@ -525,6 +525,31 @@ a,
   }
 }
 
+/* Skeleton shimmer — perceived speed on route transitions */
+.skeleton-block {
+  background: #1a1a1a;
+  position: relative;
+  overflow: hidden;
+}
+.skeleton-block::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 45%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 55%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
 ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 99px; }

@@ -1,12 +1,8 @@
-'use client'
-
-import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClientComponent } from '@/lib/supabase'
-import ErrorBoundary from '@/components/ui/ErrorBoundary'
 import SettingsContent from '@/components/settings/SettingsContent'
+import ErrorBoundary from '@/components/ui/ErrorBoundary'
+import { createServerComponentClient } from '@/lib/supabase-server'
+import { normalizeAbcProfile } from '@/lib/profile-defaults'
 import type { ABCProfile } from '@/lib/types'
-import type { User } from '@supabase/supabase-js'
 
 const profileErrorFallback = (
   <div style={{ color: '#f0197d', padding: '20px', background: '#0f0f0f' }}>
@@ -14,143 +10,35 @@ const profileErrorFallback = (
   </div>
 )
 
-export default function ProfilePage() {
-  const router = useRouter()
-  const supabase = useMemo(() => createClientComponent(), [])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [profile, setProfile] = useState<ABCProfile | null>(null)
-  const [user, setUser] = useState<User | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
+export default async function ProfilePage() {
+  const supabase = createServerComponentClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  useEffect(() => {
-    let active = true
+  if (!user) return null
 
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        if (sessionError) throw sessionError
-
-        if (!session) {
-          if (active) {
-            setUser(null)
-            setProfile(null)
-            router.push('/login')
-          }
-          return
-        }
-
-        if (!active) return
-        setUser(session.user)
-
-        const { data, error: dbError } = await supabase
-          .from('abc_profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .maybeSingle()
-
-        if (dbError) {
-          console.error('[profile] abc_profiles query failed:', dbError)
-          throw dbError
-        }
-
-        if (!active) return
-        setProfile((data as ABCProfile | null) ?? null)
-      } catch (err: unknown) {
-        if (!active) return
-        const message = err instanceof Error ? err.message : 'Failed to load profile'
-        console.error('[profile] Profile load error:', err)
-        setError(message)
-        setProfile(null)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-
-    load()
-    return () => { active = false }
-  }, [router, supabase, reloadKey])
-
-  if (loading) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          background: '#0f0f0f',
-          color: '#00d4d4',
-          fontSize: '14px',
-        }}
-      >
-        Loading profile...
-      </div>
-    )
-  }
+  const { data, error } = await supabase
+    .from('abc_profiles')
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle()
 
   if (error) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '16px',
-          height: '100vh',
-          background: '#0f0f0f',
-          color: '#f0197d',
-          fontSize: '14px',
-          padding: '24px',
-          textAlign: 'center',
-        }}
-      >
-        <p>Error: {error}</p>
-        <button
-          type="button"
-          className="interactive"
-          onClick={() => setReloadKey((k) => k + 1)}
-          style={{
-            background: 'rgba(0,212,212,0.1)',
-            border: '1px solid rgba(0,212,212,0.4)',
-            color: '#00d4d4',
-            borderRadius: '12px',
-            padding: '12px 20px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          Try again
-        </button>
-      </div>
-    )
+    console.error('[profile] abc_profiles query failed:', error)
   }
 
-  if (!user) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          background: '#0f0f0f',
-          color: '#999999',
-          fontSize: '14px',
-        }}
-      >
-        Redirecting to login...
-      </div>
-    )
+  const profile = data
+    ? normalizeAbcProfile(data as Partial<ABCProfile>, user.email)
+    : normalizeAbcProfile({}, user.email)
+
+  if (profile.user_name && !/^[a-z0-9-]{3,30}$/.test(profile.user_name)) {
+    profile.user_name = ''
   }
 
   return (
     <ErrorBoundary fallback={profileErrorFallback}>
-      {!profile && (
+      {!data && (
         <div
           className="mx-4 mt-4 rounded-xl px-4 py-3 text-sm"
           style={{ background: 'var(--bg-surface-2)', border: '1px solid var(--border)', color: '#999999' }}
@@ -158,7 +46,7 @@ export default function ProfilePage() {
           Welcome! Set up your profile below — all fields are optional until you save.
         </div>
       )}
-      <SettingsContent />
+      <SettingsContent initialProfile={profile} />
     </ErrorBoundary>
   )
 }

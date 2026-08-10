@@ -1,10 +1,15 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
-import DemoQrCode from '@/components/landing/DemoQrCode'
+
+const DemoQrCode = dynamic(() => import('@/components/landing/DemoQrCode'), {
+  ssr: false,
+  loading: () => <div className="skeleton-block w-[180px] h-[180px] rounded-2xl mx-auto" />,
+})
 
 const COLORS = {
   bg: '#0f0f0f',

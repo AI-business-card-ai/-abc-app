@@ -10,11 +10,15 @@ import ConnectionsSection from '@/components/settings/ConnectionsSection'
 import DigitalCardQrSection from '@/components/settings/DigitalCardQrSection'
 import type { ABCProfile } from '@/lib/types'
 
-export default function SettingsContent() {
+type Props = {
+  initialProfile?: Partial<ABCProfile> | null
+}
+
+export default function SettingsContent({ initialProfile }: Props) {
   const router = useRouter()
   const supabase = useMemo(() => createClientComponent(), [])
-  const [loading, setLoading] = useState(true)
-  const [profile, setProfile] = useState<any>({})
+  const [loading, setLoading] = useState(!initialProfile)
+  const [profile, setProfile] = useState<any>(() => initialProfile ?? {})
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -53,8 +57,9 @@ export default function SettingsContent() {
   }, [supabase])
 
   useEffect(() => {
+    if (initialProfile) return
     void loadProfile()
-  }, [loadProfile])
+  }, [loadProfile, initialProfile])
 
   const save = async () => {
     try {
@@ -148,8 +153,10 @@ export default function SettingsContent() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px', color: '#00d4d4' }}>
-        Loading...
+      <div className="max-w-[600px] mx-auto px-4 py-6 space-y-4">
+        <div className="skeleton-block h-24 rounded-xl" />
+        <div className="skeleton-block h-40 rounded-xl" />
+        <div className="skeleton-block h-64 rounded-xl" />
       </div>
     )
   }
