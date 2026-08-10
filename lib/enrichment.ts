@@ -24,14 +24,34 @@ import { buildMeetingContext } from '@/lib/contact-enrichment-ui'
 import type { EnrichmentStepId } from '@/lib/enrichment-steps'
 import type { EnrichedLinkedInProfile, ResolvedLinkedInProfile } from '@/lib/enrichlayer'
 
+const SOURCE_TIMEOUT_MS = 12_000
+
 export type EnrichmentOptions = {
   skipLinkedIn?: boolean
   linkedinUrlOverride?: string | null
   skipApolloLinkedIn?: boolean
+  /** When true, skip Phase 3 message generation (generate on demand later). */
+  skipMessages?: boolean
 }
 
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
   return result.status === 'fulfilled' ? result.value : fallback
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (err) => {
+        clearTimeout(timer)
+        reject(err)
+      }
+    )
+  })
 }
 
 async function updateEnrichmentStep(
@@ -47,6 +67,19 @@ async function updateEnrichmentStep(
       enrichment_status: status,
       enrichment_step: step,
     })
+    .eq('id', contactId)
+    .eq('user_id', userId)
+}
+
+async function patchContact(
+  contactId: string,
+  userId: string,
+  patch: Record<string, unknown>
+) {
+  const supabase = createServiceClient()
+  await supabase
+    .from('scanned_contacts')
+    .update(patch)
     .eq('id', contactId)
     .eq('user_id', userId)
 }
@@ -154,15 +187,12 @@ export async function runContactEnrichment(
 
   const profile = (profileRow as ABCProfile | null) ?? ({} as ABCProfile)
   let c = contact as ScannedContact
+  let sourcesOk = 0
 
   try {
     const storedIdentity = reconcileStoredLinkedInIdentity(c)
     if (storedIdentity) {
-      await supabase
-        .from('scanned_contacts')
-        .update(storedIdentity)
-        .eq('id', contactId)
-        .eq('user_id', userId)
+      await patchContact(contactId, userId, storedIdentity)
       c = { ...c, ...storedIdentity } as ScannedContact
     }
 
@@ -172,46 +202,113 @@ export async function runContactEnrichment(
       .filter(Boolean)
       .join(', ')
 
+    // ── Parallel sources with 12s timeout each + progressive DB patches ──
+    const apolloPromise = withTimeout(
+      enrichWithApollo(c.name, c.company, c.email),
+      SOURCE_TIMEOUT_MS,
+      'Apollo'
+    )
+      .then(async (apolloData) => {
+        if (apolloData) {
+          sourcesOk += 1
+          await patchContact(contactId, userId, {
+            photo_url: apolloData.photo_url || undefined,
+            role: apolloData.title || undefined,
+            industry: apolloData.company_industry || undefined,
+            company_size: apolloData.company_size || undefined,
+            company_revenue: apolloData.company_revenue || undefined,
+            technologies: apolloData.technologies || undefined,
+            linkedin_url: apolloData.linkedin_url || undefined,
+            enrichment_status: 'ENRICHING',
+            enrichment_step: 'apollo',
+          })
+        }
+        return apolloData
+      })
+      .catch((err) => {
+        console.error('Apollo skipped:', err)
+        return null
+      })
+
+    const perplexityPromise = withTimeout(
+      enrichContact(c.name, c.company, profile),
+      SOURCE_TIMEOUT_MS,
+      'Perplexity'
+    )
+      .then(async (perplexityContext) => {
+        if (perplexityContext) {
+          sourcesOk += 1
+          await patchContact(contactId, userId, {
+            enriched_context: perplexityContext,
+            enrichment_status: 'ENRICHING',
+            enrichment_step: 'perplexity',
+          })
+        }
+        return perplexityContext
+      })
+      .catch((err) => {
+        console.error('Perplexity skipped:', err)
+        return ''
+      })
+
     const linkedInResolvePromise =
       !options.skipLinkedIn &&
       !options.linkedinUrlOverride &&
       c.name &&
       c.company
-        ? resolveLinkedInProfile({
-            name: c.name,
-            company: c.company,
-            role: c.role,
-            location: location || null,
-          }).catch((err) => {
+        ? withTimeout(
+            resolveLinkedInProfile({
+              name: c.name,
+              company: c.company,
+              role: c.role,
+              location: location || null,
+            }),
+            SOURCE_TIMEOUT_MS,
+            'LinkedIn resolve'
+          ).catch((err) => {
             console.error('LinkedIn resolve skipped:', err)
             return null
           })
         : Promise.resolve(null)
 
-    const [apolloSettled, perplexitySettled, linkedinResolveSettled, intelligenceSettled] =
-      await Promise.allSettled([
-        enrichWithApollo(c.name, c.company, c.email),
-        enrichContact(c.name, c.company, profile),
-        linkedInResolvePromise,
-        runIntelligenceResearch(
-          {
-            id: contactId,
-            name: c.name,
-            company: c.company,
-            role: c.role,
-            industry: c.industry,
-          },
-          supabase,
-          profile
-        ),
-      ])
+    const intelligencePromise = withTimeout(
+      runIntelligenceResearch(
+        {
+          id: contactId,
+          name: c.name,
+          company: c.company,
+          role: c.role,
+          industry: c.industry,
+        },
+        supabase,
+        profile
+      ),
+      SOURCE_TIMEOUT_MS,
+      'Intelligence research'
+    ).catch((err) => {
+      console.error('Intelligence research skipped:', err)
+      return null
+    })
+
+    const [apolloSettled, perplexitySettled, linkedinResolveSettled] = await Promise.allSettled([
+      apolloPromise,
+      perplexityPromise,
+      linkedInResolvePromise,
+      intelligencePromise,
+    ])
+
+    // Re-read after progressive patches so we merge latest
+    const { data: midRow } = await supabase
+      .from('scanned_contacts')
+      .select('*')
+      .eq('id', contactId)
+      .eq('user_id', userId)
+      .single()
+    if (midRow) c = midRow as ScannedContact
 
     const apolloData = settledValue(apolloSettled, null)
-    const perplexityContext = settledValue(perplexitySettled, '')
+    const perplexityContext = settledValue(perplexitySettled, '') || c.enriched_context || ''
     const resolvedLinkedIn = settledValue(linkedinResolveSettled, null)
-    if (intelligenceSettled.status === 'rejected') {
-      console.error('Intelligence research skipped:', intelligenceSettled.reason)
-    }
 
     await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'linkedin')
 
@@ -227,17 +324,31 @@ export async function runContactEnrichment(
 
     const [linkedinSettled, emailSettled] = await Promise.allSettled([
       linkedinUrl
-        ? enrichLinkedIn(linkedinUrl)
+        ? withTimeout(enrichLinkedIn(linkedinUrl), SOURCE_TIMEOUT_MS, 'LinkedIn enrich')
         : Promise.resolve(null),
       !c.email && c.name && c.company
-        ? findWorkEmail(c.name, c.company)
+        ? withTimeout(findWorkEmail(c.name, c.company), SOURCE_TIMEOUT_MS, 'Email find')
         : Promise.resolve(null),
     ])
 
     linkedinData = settledValue(linkedinSettled, null)
     if (linkedinData) {
+      sourcesOk += 1
       const identityCheck = checkLinkedInIdentity(c, linkedinData)
       identityFields = identityCheckToDbFields(identityCheck)
+      // Progressive LinkedIn flush
+      await patchContact(contactId, userId, {
+        linkedin_url: linkedinUrl,
+        linkedin_headline: linkedinData.headline || undefined,
+        linkedin_summary: linkedinData.summary || undefined,
+        linkedin_experience: linkedinData.experiences || undefined,
+        linkedin_skills: linkedinData.skills || undefined,
+        linkedin_posts: linkedinData.recentPosts || undefined,
+        linkedin_education: linkedinData.education || undefined,
+        ...identityFields,
+        enrichment_status: 'ENRICHING',
+        enrichment_step: 'linkedin',
+      })
     } else if (options.skipLinkedIn) {
       identityFields = {
         linkedin_match_status: 'rejected',
@@ -252,6 +363,7 @@ export async function runContactEnrichment(
     const emailData = settledValue(emailSettled, null)
     if (!resolvedEmail && emailData && emailData.confidence > 0.7) {
       resolvedEmail = emailData.email
+      sourcesOk += 1
     }
 
     const baseRecord = {
@@ -285,85 +397,97 @@ export async function runContactEnrichment(
       return {}
     })
 
-    // Stage 1: flush company/profile data early so Contacts UI updates before messages
-    await supabase
-      .from('scanned_contacts')
-      .update({
-        ...baseRecord,
-        ...mandatoryCompanyFields,
-        enrichment_status: 'ENRICHING',
-        enrichment_step: 'messages',
-      })
-      .eq('id', contactId)
-      .eq('user_id', userId)
-
-    await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'messages')
-
-    const { data: freshContactRow } = await supabase
-      .from('scanned_contacts')
-      .select('*')
-      .eq('id', contactId)
-      .eq('user_id', userId)
-      .single()
-
-    const freshContact = (freshContactRow as ScannedContact | null) ?? contactWithIdentity
-    const mergedForMessages = {
-      ...freshContact,
+    // Stage 1 flush — company/profile visible before messages
+    await patchContact(contactId, userId, {
       ...baseRecord,
       ...mandatoryCompanyFields,
-    } as ScannedContact
+      enrichment_status: 'ENRICHING',
+      enrichment_step: options.skipMessages ? 'done' : 'messages',
+    })
 
-    const contactForScoring = stripUntrustedLinkedInFields(mergedForMessages)
-    const linkedinTrustedFresh = isLinkedInDataTrusted(mergedForMessages)
-
-    const [aiScoreResult, aiMessages] = await Promise.all([
-      calculateAiMatchScore(contactForScoring, profile).catch((err) => {
-        console.error('AI match scoring skipped:', err)
-        return null
-      }),
-      generatePersonalizedMessages(
-        {
-          ...stripUntrustedLinkedInFields(mergedForMessages),
-          meeting_context: buildMeetingContext(mergedForMessages) || undefined,
-        },
-        profile,
-        linkedinTrustedFresh ? linkedinData : null
-      ).catch((err) => {
-        console.error('AI message regeneration skipped:', err)
-        return null
-      }),
-    ])
-
-    const scoreFields = aiScoreResult
-      ? aiScoreToDbFields(
-          contactHasEventTag(contactForScoring)
-            ? applyPersonalMeetingBonus(aiScoreResult)
-            : aiScoreResult
-        )
-      : {
-          ai_lead_score: calculateLeadScore({ ...contactForScoring, ...baseRecord }),
-          match_score: calculateLeadScore({ ...contactForScoring, ...baseRecord }),
-        }
-
-    const withMessages = {
-      ...baseRecord,
-      ...mandatoryCompanyFields,
-      ...scoreFields,
-      message_linkedin: aiMessages?.message_linkedin || c.message_linkedin,
-      message_email: aiMessages?.message_email || c.message_email,
-      email_subject: aiMessages?.email_subject || c.email_subject,
-      message_whatsapp: aiMessages?.message_whatsapp || c.message_whatsapp,
-      enrichment_status: 'DONE' as const,
-      enrichment_step: 'done' as const,
-      scan_status: 'enriched' as const,
+    if (sourcesOk === 0 && !apolloData && !perplexityContext && !linkedinData) {
+      // All external sources failed — contact stays usable from OCR
+      console.warn('[enrichment] all sources failed/timed out for', contactId)
     }
 
-    // Stage 2: messages, scores, and completion
-    await supabase
-      .from('scanned_contacts')
-      .update(withMessages)
-      .eq('id', contactId)
-      .eq('user_id', userId)
+    // ── Phase 3: one Claude call for LinkedIn + Email + WhatsApp ──
+    let withMessages: Record<string, unknown> = {
+      ...baseRecord,
+      ...mandatoryCompanyFields,
+    }
+
+    if (!options.skipMessages) {
+      await updateEnrichmentStep(contactId, userId, 'ENRICHING', 'messages')
+
+      const { data: freshContactRow } = await supabase
+        .from('scanned_contacts')
+        .select('*')
+        .eq('id', contactId)
+        .eq('user_id', userId)
+        .single()
+
+      const freshContact = (freshContactRow as ScannedContact | null) ?? contactWithIdentity
+      const mergedForMessages = {
+        ...freshContact,
+        ...baseRecord,
+        ...mandatoryCompanyFields,
+      } as ScannedContact
+
+      const contactForScoring = stripUntrustedLinkedInFields(mergedForMessages)
+      const linkedinTrustedFresh = isLinkedInDataTrusted(mergedForMessages)
+
+      const [aiScoreResult, aiMessages] = await Promise.all([
+        withTimeout(calculateAiMatchScore(contactForScoring, profile), SOURCE_TIMEOUT_MS, 'AI score').catch(
+          (err) => {
+            console.error('AI match scoring skipped:', err)
+            return null
+          }
+        ),
+        withTimeout(
+          generatePersonalizedMessages(
+            {
+              ...stripUntrustedLinkedInFields(mergedForMessages),
+              meeting_context: buildMeetingContext(mergedForMessages) || undefined,
+            },
+            profile,
+            linkedinTrustedFresh ? linkedinData : null
+          ),
+          SOURCE_TIMEOUT_MS,
+          'AI messages'
+        ).catch((err) => {
+          console.error('AI message generation skipped:', err)
+          return null
+        }),
+      ])
+
+      const scoreFields = aiScoreResult
+        ? aiScoreToDbFields(
+            contactHasEventTag(contactForScoring)
+              ? applyPersonalMeetingBonus(aiScoreResult)
+              : aiScoreResult
+          )
+        : {
+            ai_lead_score: calculateLeadScore({ ...contactForScoring, ...baseRecord }),
+            match_score: calculateLeadScore({ ...contactForScoring, ...baseRecord }),
+          }
+
+      withMessages = {
+        ...baseRecord,
+        ...mandatoryCompanyFields,
+        ...scoreFields,
+        message_linkedin: aiMessages?.message_linkedin || c.message_linkedin,
+        message_email: aiMessages?.message_email || c.message_email,
+        email_subject: aiMessages?.email_subject || c.email_subject,
+        message_whatsapp: aiMessages?.message_whatsapp || c.message_whatsapp,
+      }
+    }
+
+    await patchContact(contactId, userId, {
+      ...withMessages,
+      enrichment_status: 'DONE',
+      enrichment_step: 'done',
+      scan_status: 'enriched',
+    })
 
     const { data: enrichedRow } = await supabase
       .from('scanned_contacts')
@@ -373,18 +497,20 @@ export async function runContactEnrichment(
 
     if (enrichedRow) {
       const sfMapping = buildPostEnrichmentMapping(enrichedRow, true)
-      await supabase.from('scanned_contacts').update(sfMapping).eq('id', contactId)
+      await patchContact(contactId, userId, sfMapping)
     }
 
     const matchScore =
-      withMessages.ai_lead_score ?? withMessages.match_score ?? c.match_score ?? 50
+      (withMessages.ai_lead_score as number | undefined) ??
+      (withMessages.match_score as number | undefined) ??
+      c.match_score ??
+      50
 
     await onEnrichmentCompleted(contactId, userId, Number(matchScore) || 50)
-
-    // CRM sync off critical path — user already sees DONE
     deferCrmSync(profileRow as ABCProfile | null, userId, c, withMessages)
   } catch (error) {
     console.error('runContactEnrichment error:', error)
+    // Keep OCR data usable — mark failed, don't delete
     await updateEnrichmentStep(contactId, userId, 'ERROR', 'queued')
     throw error
   }
@@ -399,7 +525,8 @@ export function triggerBackgroundEnrichment(
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
-  fetch(`${baseUrl}/api/enrich/run/${contactId}`, {
+  // Prefer new progressive enrich route; fall back to inline on trigger failure
+  fetch(`${baseUrl}/api/card/enrich/${contactId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId, ...options }),

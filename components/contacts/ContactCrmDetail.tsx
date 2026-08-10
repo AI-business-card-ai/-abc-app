@@ -17,6 +17,7 @@ import EstimatedBadge from '@/components/ui/EstimatedBadge'
 import EnrichingPulse from '@/components/ui/EnrichingPulse'
 import { contactHasEventTag } from '@/lib/event-tag'
 import { isContactEnriching } from '@/lib/contact-enrichment-ui'
+import { getEnrichmentStepLabel } from '@/lib/enrichment-steps'
 import {
   getContactCompanySize,
   getContactHeadquarters,
@@ -72,6 +73,32 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
       </div>
     </div>
   )
+}
+
+function EnrichingSectionSkeleton({ label }: { label: string }) {
+  return (
+    <div style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span
+          className="enriching-pulse-dot shrink-0 rounded-full"
+          style={{ width: 8, height: 8, background: 'linear-gradient(135deg, #f0197d, #00d4d4)' }}
+        />
+        <span style={{ fontSize: '13px', color: '#999999' }}>{label}</span>
+      </div>
+      <div className="skeleton-block h-3 w-3/4 rounded" style={{ width: '75%', height: 12, borderRadius: 6 }} />
+      <div className="skeleton-block h-3 w-1/2 rounded" style={{ width: '50%', height: 12, borderRadius: 6 }} />
+    </div>
+  )
+}
+
+function enrichmentProgress(contact: ScannedContact): { done: number; total: number } {
+  const checks = [
+    Boolean(contact.industry || contact.company_size || contact.enriched_context || contact.company_summary),
+    Boolean(contact.linkedin_headline || contact.linkedin_summary || contact.linkedin_url),
+    Boolean((contact.ai_lead_score ?? contact.match_score ?? 0) > 0 || contact.icp_fit_score != null),
+    Boolean(contact.message_linkedin || contact.message_email || contact.message_whatsapp),
+  ]
+  return { done: checks.filter(Boolean).length, total: 4 }
 }
 
 function MatchScoreBreakdown({ contact, score }: { contact: ScannedContact; score: number }) {
@@ -360,10 +387,10 @@ export default function ContactCrmDetailPage() {
         router.push('/login')
         return
       }
-      const res = await fetch('/api/card/scan/enrich', {
+      const res = await fetch(`/api/card/enrich/${contact.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId: contact.id, userId: user.id }),
+        body: JSON.stringify({ userId: user.id }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Enrichment retry failed')
@@ -401,6 +428,17 @@ export default function ContactCrmDetailPage() {
   const status = contact?.crm_status || 'NEW'
   const statusColor = getStatusColor(contact?.crm_status)
   const stage = contact?.pipeline_stage || 'new'
+  const enriching = contact ? isContactEnriching(contact) : false
+  const progress = contact ? enrichmentProgress(contact) : { done: 0, total: 4 }
+  const hasCompanyIntel = Boolean(
+    contact?.industry || contact?.company_size || contact?.enriched_context || contact?.company_revenue
+  )
+  const hasLinkedInIntel = Boolean(
+    contact?.linkedin_headline || contact?.linkedin_summary || (contact?.linkedin_skills?.length ?? 0) > 0
+  )
+  const hasMessages = Boolean(
+    contact?.message_linkedin || contact?.message_email || contact?.message_whatsapp
+  )
 
   const initials = useMemo(() => {
     const name = contact?.name || '?'
@@ -573,6 +611,33 @@ export default function ContactCrmDetailPage() {
         </button>
       </div>
 
+      {enriching && (
+        <div
+          style={{
+            marginBottom: '16px',
+            padding: '10px 14px',
+            borderRadius: '10px',
+            background: 'rgba(0,212,212,0.08)',
+            border: '1px solid rgba(0,212,212,0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <EnrichingPulse compact />
+            <span style={{ fontSize: '13px', color: '#ffffff', fontWeight: 600 }}>
+              Obohacuji kontakt… {progress.done}/{progress.total}
+            </span>
+          </div>
+          <span style={{ fontSize: '11px', color: '#666666' }}>
+            {getEnrichmentStepLabel(contact.enrichment_step)}
+          </span>
+        </div>
+      )}
+
       <CrmMissingFieldsBanner contact={contact} />
 
       <CrmExportEventModal
@@ -670,22 +735,26 @@ export default function ContactCrmDetailPage() {
           <hr style={{ border: 'none', borderTop: '1px solid #2a2a2a', margin: '16px 0' }} />
 
           <div style={{ fontSize: '10px', color: '#00d4d4', letterSpacing: '0.08em', marginBottom: '10px' }}>COMPANY</div>
-          <div style={{ fontSize: '13px', color: '#999999', lineHeight: 1.6 }}>
-            <div><strong style={{ color: '#ffffff' }}>Industry:</strong> {dash(contact.industry)}</div>
-            <div>
-              <strong style={{ color: '#ffffff' }}>Size:</strong> {dash(getContactCompanySize(contact) || contact.company_size || contact.no_of_employees)}
-              {isCrmFieldEstimated(contact, 'company_size') && <EstimatedBadge compact />}
+          {enriching && !hasCompanyIntel ? (
+            <p style={{ margin: 0, fontSize: '13px', color: '#666666' }}>Zjišťuji o firmě…</p>
+          ) : (
+            <div style={{ fontSize: '13px', color: '#999999', lineHeight: 1.6 }}>
+              <div><strong style={{ color: '#ffffff' }}>Industry:</strong> {dash(contact.industry)}</div>
+              <div>
+                <strong style={{ color: '#ffffff' }}>Size:</strong> {dash(getContactCompanySize(contact) || contact.company_size || contact.no_of_employees)}
+                {isCrmFieldEstimated(contact, 'company_size') && <EstimatedBadge compact />}
+              </div>
+              <div>
+                <strong style={{ color: '#ffffff' }}>Revenue:</strong> {dash(getContactRevenue(contact) || contact.company_revenue || contact.annual_revenue)}
+                {isCrmFieldEstimated(contact, 'revenue') && <EstimatedBadge compact />}
+              </div>
+              <div>
+                <strong style={{ color: '#ffffff' }}>HQ:</strong> {dash(getContactHeadquarters(contact) || hqLocation)}
+                {isCrmFieldEstimated(contact, 'headquarters') && <EstimatedBadge compact />}
+              </div>
+              <div><strong style={{ color: '#ffffff' }}>Funding:</strong> {dash(contact.company_funding_stage)}</div>
             </div>
-            <div>
-              <strong style={{ color: '#ffffff' }}>Revenue:</strong> {dash(getContactRevenue(contact) || contact.company_revenue || contact.annual_revenue)}
-              {isCrmFieldEstimated(contact, 'revenue') && <EstimatedBadge compact />}
-            </div>
-            <div>
-              <strong style={{ color: '#ffffff' }}>HQ:</strong> {dash(getContactHeadquarters(contact) || hqLocation)}
-              {isCrmFieldEstimated(contact, 'headquarters') && <EstimatedBadge compact />}
-            </div>
-            <div><strong style={{ color: '#ffffff' }}>Funding:</strong> {dash(contact.company_funding_stage)}</div>
-          </div>
+          )}
 
           <hr style={{ border: 'none', borderTop: '1px solid #2a2a2a', margin: '16px 0' }} />
 
@@ -696,18 +765,9 @@ export default function ContactCrmDetailPage() {
           </div>
         </div>
 
-        {/* MIDDLE — Intelligence */}
+        {/* MIDDLE — Intelligence (progressive disclosure) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
-          {isContactEnriching(contact) && !contact.ai_summary && score <= 0 && (
-            <div style={{ ...CARD, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
-              <EnrichingPulse />
-              <p style={{ margin: 0, fontSize: '13px', color: '#999999', lineHeight: 1.5 }}>
-                Researching LinkedIn, company data, and drafting messages…
-              </p>
-            </div>
-          )}
-
-          {(contact.ai_summary || contact.match_reason) && (
+          {(contact.ai_summary || contact.match_reason) ? (
             <div style={CARD}>
               <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>AI SUMMARY</div>
               {contact.ai_summary && (
@@ -719,11 +779,17 @@ export default function ContactCrmDetailPage() {
                 <p style={{ margin: 0, fontSize: '13px', color: '#999999', fontStyle: 'italic' }}>{contact.match_reason}</p>
               )}
             </div>
-          )}
+          ) : enriching && !hasCompanyIntel ? (
+            <EnrichingSectionSkeleton label="Zjišťuji o firmě…" />
+          ) : null}
 
-          <MatchScoreBreakdown contact={contact} score={score} />
+          {score > 0 || contact.icp_fit_score != null ? (
+            <MatchScoreBreakdown contact={contact} score={score} />
+          ) : enriching ? (
+            <EnrichingSectionSkeleton label="Počítám match score…" />
+          ) : null}
 
-          {(contact.linkedin_headline || contact.linkedin_summary || posts.length > 0 || skills.length > 0) && (
+          {hasLinkedInIntel || posts.length > 0 || skills.length > 0 ? (
             <div style={CARD}>
               <LinkedInMismatchBanner contact={contact} onUpdated={setContact} compact />
               <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>LINKEDIN INTELLIGENCE</div>
@@ -743,7 +809,37 @@ export default function ContactCrmDetailPage() {
                 </div>
               )}
             </div>
-          )}
+          ) : enriching ? (
+            <EnrichingSectionSkeleton label="Hledám LinkedIn profil…" />
+          ) : null}
+
+          {hasMessages ? (
+            <div style={CARD}>
+              <div style={{ fontSize: '11px', color: '#f0197d', letterSpacing: '0.08em', marginBottom: '10px' }}>AI MESSAGES</div>
+              <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#999999' }}>
+                Zprávy jsou připravené — otevři chat pro úpravu a odeslání.
+              </p>
+              <button
+                type="button"
+                className="interactive-primary"
+                onClick={() => router.push(`/chat/${contact.id}`)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                💬 Otevřít chat
+              </button>
+            </div>
+          ) : enriching ? (
+            <EnrichingSectionSkeleton label="Připravuji zprávy…" />
+          ) : null}
 
           {(upcoming.length > 0 || past.length > 0 || speaking.length > 0) && (
             <div style={CARD}>

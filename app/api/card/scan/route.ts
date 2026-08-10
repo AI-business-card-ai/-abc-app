@@ -25,11 +25,11 @@ function unreadableCardResponse(status = 422) {
 }
 
 /**
- * Legacy combined scan endpoint (OCR + auto-queues enrichment).
- * Prefer /api/card/scan/quick + /api/card/scan/enrich for the optimistic UI flow.
+ * Phase 1 — Instant scan (target <3s):
+ * OCR only → save PENDING contact → fire-and-forget Phase 2 enrichment.
  */
 export async function POST(req: NextRequest) {
-  console.log('=== SCAN PHASE 1 START ===')
+  console.log('=== SCAN PHASE 1 (OCR) START ===')
 
   try {
     const formData = await req.formData()
@@ -68,7 +68,6 @@ export async function POST(req: NextRequest) {
       .single()
 
     const profile: ABCProfile = (profileRow as ABCProfile | null) ?? userProfile
-
     const used = profile?.scans_used || 0
 
     if (isScanLimitReached(profile)) {
@@ -90,11 +89,6 @@ export async function POST(req: NextRequest) {
 
     const ownerMatch = contactMatchesOwnerProfile(extracted, profile)
     if (ownerMatch.matches) {
-      console.warn('[card/scan] blocked — OCR result matches owner abc_profiles (not a scanned contact)', {
-        userId,
-        matchedFields: ownerMatch.reasons,
-        extracted,
-      })
       return NextResponse.json(
         {
           error:
@@ -123,7 +117,7 @@ export async function POST(req: NextRequest) {
         scan_status: 'basic' as const,
         event_name: null,
         notes: null,
-        enrichment_status: 'ENRICHING' as const,
+        enrichment_status: 'PENDING' as const,
         enrichment_step: 'queued',
       },
     ]
@@ -146,12 +140,12 @@ export async function POST(req: NextRequest) {
       .update({ scans_used: used + 1 })
       .eq('id', userId)
 
-    if (data) {
-      for (const c of data) {
-        await warnIfContactMatchesOwnerProfile(userId, c, 'card/scan')
-        onCardScanned(c.id, userId).catch(console.error)
-        triggerBackgroundEnrichment(c.id, userId)
-      }
+    const contact = data?.[0] ?? null
+    if (contact) {
+      await warnIfContactMatchesOwnerProfile(userId, contact, 'card/scan')
+      onCardScanned(contact.id, userId).catch(console.error)
+      // Phase 2 — fire and forget (never block the OCR response)
+      triggerBackgroundEnrichment(contact.id, userId)
     }
 
     console.log('=== SCAN PHASE 1 DONE — enrichment queued ===')
@@ -159,6 +153,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       phase: 'basic',
+      contactId: contact?.id ?? null,
+      extractedData: extracted,
+      contact,
       contacts: data,
       count: data?.length || 0,
     })
@@ -174,12 +171,6 @@ export async function POST(req: NextRequest) {
       return unreadableCardResponse()
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: message,
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }

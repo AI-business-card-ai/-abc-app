@@ -3,8 +3,8 @@ import { createServerSupabase } from '@/lib/supabase'
 import { triggerBackgroundEnrichment } from '@/lib/enrichment'
 
 /**
- * Queue full enrichment for an existing contact (LinkedIn, Apollo, AI score, messages).
- * Returns immediately — pipeline runs via /api/enrich/run/[id].
+ * Queue Phase 2 enrichment (returns immediately).
+ * Prefer POST /api/card/enrich/[id] for the actual worker.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const supabase = createServerSupabase()
     const { data: contact, error } = await supabase
       .from('scanned_contacts')
-      .select('id, user_id, enrichment_status')
+      .select('id')
       .eq('id', contactId)
       .eq('user_id', userId)
       .maybeSingle()

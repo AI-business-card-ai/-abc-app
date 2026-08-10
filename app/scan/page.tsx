@@ -7,6 +7,7 @@ import { IconX } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
 import { formatScanErrorForUser } from '@/lib/scan-card-validation'
+import { compressImageForScan } from '@/lib/image-compress'
 import ScanBurstQueue, { type BurstQueueItem } from '@/components/mobile/ScanBurstQueue'
 import ScanContextSheet, { type ContextSheetContact } from '@/components/mobile/ScanContextSheet'
 import type { OutreachChannel } from '@/lib/contact-enrichment-ui'
@@ -62,6 +63,36 @@ export default function ScanPage() {
   const [hasCapturedOnce, setHasCapturedOnce] = useState(false)
   const [scansToday, setScansToday] = useState(0)
   const [userId, setUserId] = useState<string | null>(null)
+  const [burstMode, setBurstMode] = useState(false)
+  const [burstCount, setBurstCount] = useState(0)
+  const [toast, setToast] = useState<string | null>(null)
+  const burstModeRef = useRef(false)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('abc-burst-mode')
+      if (saved === '1') {
+        setBurstMode(true)
+        burstModeRef.current = true
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    burstModeRef.current = burstMode
+    try {
+      localStorage.setItem('abc-burst-mode', burstMode ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [burstMode])
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 2200)
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -195,12 +226,16 @@ export default function ScanPage() {
           outreach_language: 'EN',
         }
 
+        // Compress before upload — smaller file = faster OCR
+        const compressed = await compressImageForScan(file)
+
         const formData = new FormData()
-        formData.append('image', file)
+        formData.append('image', compressed)
         formData.append('userId', uid)
         formData.append('userProfile', JSON.stringify(profilePayload))
 
-        const res = await fetch('/api/card/scan/quick', { method: 'POST', body: formData })
+        // Phase 1: OCR only — server also queues Phase 2 enrichment
+        const res = await fetch('/api/card/scan', { method: 'POST', body: formData })
         const data = await res.json()
 
         if (res.status === 403 && data.error === 'SCAN_LIMIT_REACHED') {
@@ -228,17 +263,24 @@ export default function ScanPage() {
           }
         }
 
-        // Fire-and-forget enrichment — keepalive so it survives navigation
-        void fetch('/api/card/scan/enrich', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactId: contact.id, userId: uid }),
-          keepalive: true,
-        }).catch((err) => console.error('[scan] enrich trigger failed', err))
+        updateQueueItem(clientId, {
+          status: burstStatusFromContact(contact),
+          contact,
+        })
 
         hapticSuccess()
-        resetScanUi()
-        router.push(`/contacts/${contact.id}`)
+
+        if (burstModeRef.current) {
+          setBurstCount((n) => n + 1)
+          showToast(`✓ ${contact.name || 'Kontakt'} naskenován`)
+          // Re-open camera for next card — no navigation
+          setTimeout(() => {
+            cameraInputRef.current?.click()
+          }, 400)
+        } else {
+          resetScanUi()
+          router.push(`/contacts/${contact.id}`)
+        }
       } catch (err) {
         const message = formatScanErrorForUser(err instanceof Error ? err.message : 'Scan failed')
         setError(message)
@@ -247,7 +289,7 @@ export default function ScanPage() {
         processingRef.current.delete(clientId)
       }
     },
-    [router, supabase, updateQueueItem, userId, resetScanUi]
+    [router, supabase, updateQueueItem, userId, resetScanUi, showToast]
   )
 
   const enqueueCapture = useCallback(
@@ -268,6 +310,7 @@ export default function ScanPage() {
       const previewUrl = URL.createObjectURL(file)
       const clientId = createClientId()
 
+      // Optimistic queue item — appears before server responds
       setQueue((prev) => [
         ...prev,
         {
@@ -451,14 +494,28 @@ export default function ScanPage() {
             <IconX size={20} style={{ color: '#999999' }} />
           </button>
 
-          {hasCapturedOnce && (
-            <div
-              className="absolute top-4 left-4 z-20 rounded-full px-3 py-1.5 text-xs font-semibold tabular-nums"
-              style={{ background: 'rgba(15,15,15,0.75)', border: '1px solid rgba(0,212,212,0.25)', color: '#00d4d4' }}
+          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
+            {hasCapturedOnce && (
+              <div
+                className="rounded-full px-3 py-1.5 text-xs font-semibold tabular-nums"
+                style={{ background: 'rgba(15,15,15,0.75)', border: '1px solid rgba(0,212,212,0.25)', color: '#00d4d4' }}
+              >
+                {burstMode ? `${burstCount} vizitek naskenováno` : `${scansToday} cards today`}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setBurstMode((v) => !v)}
+              className="interactive rounded-full px-3 py-1.5 text-[11px] font-bold"
+              style={{
+                background: burstMode ? 'rgba(240,25,125,0.2)' : 'rgba(15,15,15,0.75)',
+                border: burstMode ? '1px solid rgba(240,25,125,0.5)' : '1px solid #2a2a2a',
+                color: burstMode ? '#f0197d' : '#999999',
+              }}
             >
-              {scansToday} cards today
-            </div>
-          )}
+              {burstMode ? '⚡ Burst ON' : 'Burst mode'}
+            </button>
+          </div>
 
           <div className="flex-1 relative flex items-center justify-center overflow-hidden min-h-0">
             <div
@@ -523,6 +580,23 @@ export default function ScanPage() {
               borderTop: '1px solid rgba(0, 212, 212, 0.12)',
             }}
           >
+            {burstMode && burstCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  resetScanUi()
+                  setBurstCount(0)
+                  router.push('/contacts')
+                }}
+                className="interactive-primary w-full rounded-xl text-white font-bold text-sm min-h-[44px] mb-2"
+                style={{
+                  background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+                  boxShadow: '0 4px 20px rgba(240,25,125,0.3)',
+                }}
+              >
+                Hotovo → ({burstCount} vizitek)
+              </button>
+            )}
             <div className="flex gap-2 md:flex-col">
               <motion.button
                 whileTap={{ scale: 0.97 }}
@@ -537,7 +611,7 @@ export default function ScanPage() {
                   opacity: scanBlocked ? 0.65 : 1,
                 }}
               >
-                📷 SCAN CARD
+                {burstMode ? '📷 DALŠÍ VIZITKA' : '📷 SCAN CARD'}
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.97 }}
@@ -573,6 +647,25 @@ export default function ScanPage() {
         onSave={saveContext}
         onSkip={closeContextSheet}
       />
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[90] px-4 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap"
+            style={{
+              background: '#1a1a1a',
+              border: '1px solid rgba(34,197,94,0.4)',
+              color: '#22c55e',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+            }}
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {showPaywall && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-6" style={{ background: 'rgba(7,5,14,0.97)' }}>
