@@ -1,60 +1,55 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import QRCode from 'qrcode'
+import Link from 'next/link'
 import { createClientComponent } from '@/lib/supabase'
-
-const SITE_URL = 'https://abccard.io'
+import { CARD_PUBLIC_BASE } from '@/lib/card/types'
+import CardQrModal from '@/components/card/CardQrModal'
 
 export default function DigitalCardQrSection() {
   const supabase = useMemo(() => createClientComponent(), [])
   const [cardUrl, setCardUrl] = useState<string | null>(null)
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [slug, setSlug] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const [userName, setUserName] = useState<string | null>(null)
+  const [qrOpen, setQrOpen] = useState(false)
 
   useEffect(() => {
     let active = true
 
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user || !active) return
 
       const { data: profileRow } = await supabase
         .from('abc_profiles')
-        .select('user_name')
+        .select('card_slug, user_name, card_published')
         .eq('id', user.id)
         .maybeSingle()
       if (!active) return
 
-      const url = profileRow?.user_name
-        ? `${SITE_URL}/u/${profileRow.user_name}`
-        : `${SITE_URL}/card/${user.id}`
-      setCardUrl(url)
-      setUserName(profileRow?.user_name ?? null)
-
-      try {
-        const dataUrl = await QRCode.toDataURL(url, {
-          width: 480,
-          margin: 2,
-          color: { dark: '#0f0f0f', light: '#ffffff' },
-        })
-        if (active) setQrDataUrl(dataUrl)
-      } catch (err) {
-        console.error('[digital-card-qr] QR generation failed:', err)
+      const resolvedSlug = profileRow?.card_slug || profileRow?.user_name || null
+      setSlug(resolvedSlug)
+      if (resolvedSlug) {
+        setCardUrl(`${CARD_PUBLIC_BASE}/${resolvedSlug}`)
+      } else {
+        setCardUrl(`${CARD_PUBLIC_BASE}/…`)
       }
     }
 
     void load()
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [supabase])
 
   if (!cardUrl) return null
 
   async function copyLink() {
-    if (!cardUrl) return
+    if (!slug) return
     try {
-      await navigator.clipboard.writeText(cardUrl)
+      await navigator.clipboard.writeText(`${CARD_PUBLIC_BASE}/${slug}`)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
@@ -62,32 +57,16 @@ export default function DigitalCardQrSection() {
     }
   }
 
-  async function shareLink() {
-    if (!cardUrl) return
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'My ABC Digital Business Card',
-          url: cardUrl,
-        })
-        return
-      } catch (err) {
-        // User cancelled or share failed — fall through to copy
-        if (err instanceof Error && err.name === 'AbortError') return
-      }
-    }
-    await copyLink()
-  }
-
-  function previewCard() {
-    if (!cardUrl) return
-    window.open(cardUrl, '_blank')
-  }
-
-  const hasTrailingNumber = Boolean(userName && /\d+$/.test(userName))
-
   return (
-    <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', marginBottom: '16px' }}>
+    <div
+      style={{
+        background: '#1a1a1a',
+        borderRadius: '12px',
+        border: '1px solid #2a2a2a',
+        padding: '20px',
+        marginBottom: '16px',
+      }}
+    >
       <div
         style={{
           fontSize: '11px',
@@ -99,30 +78,11 @@ export default function DigitalCardQrSection() {
           WebkitTextFillColor: 'transparent',
         }}
       >
-        MY DIGITAL CARD
+        MOJE VIZITKA
       </div>
       <div style={{ fontSize: '12px', color: '#555555', marginBottom: '16px' }}>
-        Let others scan this QR code to save your contact and leave theirs
+        Digitální vizitka, QR a exchange kontaktů
       </div>
-
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-        <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', lineHeight: 0 }}>
-          {qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={qrDataUrl} alt="QR code for your digital business card" style={{ width: 200, height: 200, display: 'block' }} />
-          ) : (
-            <div style={{ width: 200, height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999999', fontSize: 12 }}>
-              Generating…
-            </div>
-          )}
-        </div>
-      </div>
-
-      {hasTrailingNumber && (
-        <p style={{ color: '#6b7280', fontSize: 11, textAlign: 'center', margin: '0 0 12px' }}>
-          💡 Tip: set a custom username below for a cleaner link
-        </p>
-      )}
 
       <div
         style={{
@@ -144,6 +104,7 @@ export default function DigitalCardQrSection() {
         <button
           type="button"
           onClick={() => void copyLink()}
+          disabled={!slug}
           style={{
             padding: '12px',
             borderRadius: '10px',
@@ -152,33 +113,36 @@ export default function DigitalCardQrSection() {
             color: '#00d4d4',
             fontWeight: 700,
             fontSize: '14px',
-            cursor: 'pointer',
+            cursor: slug ? 'pointer' : 'not-allowed',
+            opacity: slug ? 1 : 0.5,
           }}
         >
           {copied ? '✓ Copied!' : 'Copy Link'}
         </button>
         <button
           type="button"
-          onClick={() => void shareLink()}
+          onClick={() => setQrOpen(true)}
+          disabled={!slug}
           style={{
             padding: '12px',
             borderRadius: '10px',
             border: 'none',
-            background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+            background: slug ? 'linear-gradient(135deg,#f0197d,#00d4d4)' : '#2a2a2a',
             color: '#ffffff',
             fontWeight: 700,
             fontSize: '14px',
-            cursor: 'pointer',
+            cursor: slug ? 'pointer' : 'not-allowed',
+            opacity: slug ? 1 : 0.5,
           }}
         >
-          Share
+          QR kód
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={previewCard}
+      <Link
+        href="/profile/card"
         style={{
+          display: 'block',
           width: '100%',
           marginTop: '8px',
           padding: '12px',
@@ -188,11 +152,15 @@ export default function DigitalCardQrSection() {
           color: '#ffffff',
           fontWeight: 700,
           fontSize: '14px',
-          cursor: 'pointer',
+          textAlign: 'center',
+          textDecoration: 'none',
+          boxSizing: 'border-box',
         }}
       >
-        👁 Preview my card
-      </button>
+        Upravit vizitku →
+      </Link>
+
+      {slug ? <CardQrModal slug={slug} open={qrOpen} onClose={() => setQrOpen(false)} /> : null}
     </div>
   )
 }

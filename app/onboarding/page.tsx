@@ -5,9 +5,13 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
 import { normalizeAbcProfile } from '@/lib/profile-defaults'
+import { slugifyName, normalizeCardSlug, isValidCardSlug } from '@/lib/card/slug'
+import { normalizeSocialUrl } from '@/lib/card/social'
+import { uploadCardMedia } from '@/lib/card/media'
+import { CARD_PUBLIC_BASE } from '@/lib/card/types'
 import type { ABCProfile } from '@/lib/types'
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7
 
 const ROLE_CHIPS = ['Founders', 'Sales Directors', 'VPs', 'CTOs', 'Marketing', 'HR']
 const INDUSTRY_CHIPS = ['Tech', 'Finance', 'Healthcare', 'Manufacturing', 'Retail']
@@ -51,8 +55,14 @@ export default function OnboardingPage() {
   const [language, setLanguage] = useState(LANGUAGE_OPTIONS[0])
   const [messageLength, setMessageLength] = useState(LENGTH_OPTIONS[0])
   const [goal, setGoal] = useState(GOAL_OPTIONS[0])
+  const [cardPhotoUrl, setCardPhotoUrl] = useState('')
+  const [cardLinkedin, setCardLinkedin] = useState('')
+  const [cardSlug, setCardSlug] = useState('')
+  const [cardSaving, setCardSaving] = useState(false)
+  const [cardError, setCardError] = useState<string | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
 
-  const progressStep = step >= 1 && step <= 5 ? step : null
+  const progressStep = step >= 1 && step <= 6 ? step : null
   const swipeStart = useRef<{ x: number; y: number } | null>(null)
 
   const combinedIcp = useMemo(() => {
@@ -88,6 +98,14 @@ export default function OnboardingPage() {
         setRole(profile.role || '')
         setProduct(profile.product_description || '')
         setIcp(profile.icp || '')
+        setCardPhotoUrl(profile.card_photo_url || profile.avatar_url || '')
+        setCardLinkedin(profile.linkedin_url || '')
+        setCardSlug(
+          profile.card_slug ||
+            slugifyName(profile.full_name || '') ||
+            profile.user_name ||
+            ''
+        )
         const savedTone =
           profile.communication_style === 'casual'
             ? TONE_OPTIONS[1]
@@ -108,7 +126,7 @@ export default function OnboardingPage() {
     const stepParam = new URLSearchParams(window.location.search).get('step')
     if (!stepParam) return
     const parsed = parseInt(stepParam, 10)
-    if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 6) {
+    if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 7) {
       setStep(parsed as Step)
       if (parsed >= 1) setIsEditing(true)
     }
@@ -116,7 +134,7 @@ export default function OnboardingPage() {
 
   const goNext = useCallback(() => {
     setDirection(1)
-    setStep((s) => Math.min(6, s + 1) as Step)
+    setStep((s) => Math.min(7, s + 1) as Step)
   }, [])
 
   const goBack = useCallback(() => {
@@ -180,12 +198,95 @@ export default function OnboardingPage() {
         return
       }
 
+      // Prefill card slug from name before card step
+      if (!cardSlug.trim() && name.trim()) {
+        setCardSlug(slugifyName(name))
+      }
       goNext()
     } catch (err) {
       console.error('[onboarding] complete request failed', err)
       setError(SAVE_PROFILE_ERROR)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handlePublishCard() {
+    setCardSaving(true)
+    setCardError(null)
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
+      }
+
+      const slug = normalizeCardSlug(cardSlug || slugifyName(name))
+      if (!isValidCardSlug(slug)) {
+        setCardError('Slug musí mít 3–40 znaků (a-z, 0-9, -).')
+        return
+      }
+
+      const linkedin = normalizeSocialUrl('linkedin', cardLinkedin)
+
+      const { error: updateError } = await supabase
+        .from('abc_profiles')
+        .update({
+          card_slug: slug,
+          card_published: true,
+          card_photo_url: cardPhotoUrl || null,
+          avatar_url: cardPhotoUrl || null,
+          linkedin_url: linkedin,
+          job_title: role || null,
+          company_name: company || null,
+          what_i_do: product || null,
+          full_name: name || null,
+        })
+        .eq('id', user.id)
+
+      if (updateError) {
+        console.error('[onboarding] publish card failed:', updateError)
+        if (updateError.code === '23505') {
+          setCardError('Tento slug už někdo používá. Zvol jiný.')
+        } else {
+          setCardError('Nepodařilo se publikovat kartu.')
+        }
+        return
+      }
+
+      setCardSlug(slug)
+      goNext()
+    } catch (err) {
+      console.error('[onboarding] publish card error:', err)
+      setCardError('Nepodařilo se publikovat kartu.')
+    } finally {
+      setCardSaving(false)
+    }
+  }
+
+  async function handleCardPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoUploading(true)
+    setCardError(null)
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+      const result = await uploadCardMedia(supabase, user.id, 'photo', file)
+      if ('error' in result) {
+        setCardError(result.error)
+        return
+      }
+      setCardPhotoUrl(result.url)
+    } catch (err) {
+      console.error('[onboarding] photo upload failed:', err)
+      setCardError('Upload fotky selhal.')
+    } finally {
+      setPhotoUploading(false)
     }
   }
 
@@ -215,14 +316,15 @@ export default function OnboardingPage() {
         swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
       }}
       onTouchEnd={(e) => {
-        if (!swipeStart.current || step === 0 || step === 6) return
+        if (!swipeStart.current || step === 0 || step === 7) return
         const dx = e.changedTouches[0].clientX - swipeStart.current.x
         const dy = Math.abs(e.changedTouches[0].clientY - swipeStart.current.y)
         if (dy > 60) return
-        if (dx < -60 && step < 5) {
+        if (dx < -60 && step < 6) {
           if (step === 1 && !canContinueStep2) return
           if (step === 2 && !canContinueStep3) return
           if (step === 3 && !canContinueStep4) return
+          if (step === 5) return
           goNext()
         } else if (dx > 60) {
           goBack()
@@ -232,7 +334,7 @@ export default function OnboardingPage() {
     >
       {progressStep !== null && (
         <div className="flex justify-center gap-2 mb-4 pt-1 shrink-0">
-          {[1, 2, 3, 4, 5].map((n) => (
+          {[1, 2, 3, 4, 5, 6].map((n) => (
             <span
               key={n}
               className="rounded-full transition-all duration-300"
@@ -355,6 +457,80 @@ export default function OnboardingPage() {
 
             {step === 6 && (
               <>
+                <h2 className="font-bold" style={headlineStyle}>Tvoje vizitka</h2>
+                <p className="text-sm" style={{ color: '#999999' }}>
+                  Doplň foto a LinkedIn — odcházíš s publikovanou digitální kartou.
+                </p>
+                <div className="flex flex-col items-center gap-3 w-full">
+                  <div
+                    className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
+                    style={{
+                      background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+                      border: '3px solid #00d4d4',
+                      color: '#fff',
+                    }}
+                  >
+                    {cardPhotoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={cardPhotoUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      (name || 'AB').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+                    )}
+                  </div>
+                  <label className="glow-btn rounded-xl font-bold text-sm min-h-[44px] px-4 flex items-center justify-center cursor-pointer">
+                    {photoUploading ? 'Nahrávám…' : 'Nahrát foto'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => void handleCardPhoto(e)}
+                    />
+                  </label>
+                </div>
+                <input
+                  value={cardLinkedin}
+                  onChange={(e) => setCardLinkedin(e.target.value)}
+                  placeholder="LinkedIn URL nebo username"
+                  className="onboarding-input"
+                />
+                <div className="w-full">
+                  <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: '#555555' }}>
+                    Tvoje URL
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: '#555', fontSize: 13, whiteSpace: 'nowrap' }}>abccard.io/d/</span>
+                    <input
+                      value={cardSlug}
+                      onChange={(e) => setCardSlug(normalizeCardSlug(e.target.value))}
+                      className="onboarding-input"
+                      placeholder="david-bures"
+                    />
+                  </div>
+                  {cardSlug ? (
+                    <p className="text-xs mt-2" style={{ color: '#00d4d4' }}>
+                      {CARD_PUBLIC_BASE}/{cardSlug}
+                    </p>
+                  ) : null}
+                </div>
+                <NavButtons
+                  onBack={goBack}
+                  onNext={() => void handlePublishCard()}
+                  nextLabel={cardSaving ? 'Publikuji…' : 'Publikovat vizitku →'}
+                  nextDisabled={cardSaving || !normalizeCardSlug(cardSlug || slugifyName(name))}
+                  error={cardError}
+                />
+                <button
+                  type="button"
+                  onClick={goNext}
+                  className="ghost-btn w-full rounded-xl font-medium text-sm min-h-[44px]"
+                >
+                  Přeskočit zatím
+                </button>
+              </>
+            )}
+
+            {step === 7 && (
+              <>
                 <div className="flex flex-col items-center text-center gap-4 py-2 w-full">
                   <motion.div
                     initial={{ scale: 0 }}
@@ -369,8 +545,13 @@ export default function OnboardingPage() {
                     You&apos;re all set, {name.split(' ')[0] || name}!
                   </h2>
                   <p className="text-base leading-relaxed max-w-sm" style={{ color: '#999999' }}>
-                    ABC now knows your style and goals. Every contact you scan gets a personalized message.
+                    ABC teď zná tvůj styl. Každý sken dostane personalizovanou zprávu — a máš digitální vizitku.
                   </p>
+                  {cardSlug ? (
+                    <p className="text-sm font-semibold" style={{ color: '#00d4d4' }}>
+                      {CARD_PUBLIC_BASE}/{cardSlug}
+                    </p>
+                  ) : null}
                 </div>
 
                 <button
@@ -379,6 +560,14 @@ export default function OnboardingPage() {
                   className="glow-btn w-full rounded-xl font-bold text-base min-h-[56px]"
                 >
                   Start Scanning →
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => router.push('/profile/card')}
+                  className="ghost-btn w-full rounded-xl font-medium text-base min-h-[48px]"
+                >
+                  Upravit vizitku →
                 </button>
 
                 <div

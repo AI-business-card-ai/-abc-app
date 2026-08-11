@@ -6,9 +6,10 @@ import { usePathname } from 'next/navigation'
 import {
   IconCamera,
   IconCards,
+  IconId,
   IconLayoutKanban,
   IconMessage,
-  IconUser,
+  IconSettings,
 } from '@tabler/icons-react'
 import { createClientComponent } from '@/lib/supabase'
 
@@ -17,7 +18,8 @@ const NAV = [
   { icon: IconCards, label: 'Contacts', path: '/contacts' },
   { icon: IconLayoutKanban, label: 'Pipeline', path: '/pipeline' },
   { icon: IconMessage, label: 'Chat', path: '/chat' },
-  { icon: IconUser, label: 'Profile', path: '/profile' },
+  { icon: IconId, label: 'Moje vizitka', path: '/profile/card' },
+  { icon: IconSettings, label: 'Settings', path: '/profile' },
 ]
 
 export default function DesktopSidebar() {
@@ -62,7 +64,10 @@ export default function DesktopSidebar() {
 
       <nav className="flex-1 px-3 flex flex-col gap-1">
         {NAV.map((item) => {
-          const active = pathname.startsWith(item.path)
+          const active =
+            item.path === '/profile'
+              ? pathname === '/profile' || pathname === '/settings'
+              : pathname.startsWith(item.path)
           return (
             <Link
               key={item.path}

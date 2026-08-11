@@ -120,6 +120,49 @@ export async function sendQrConnectNotification(opts: {
   })
 }
 
+export async function sendCardExchangeNotification(opts: {
+  to: string
+  ownerName: string
+  contactName: string
+  company?: string
+  email?: string
+  phone?: string
+  role?: string
+  note?: string
+  contactId: string
+}) {
+  const { to, ownerName, contactName, company, email, phone, role, note, contactId } = opts
+  const contactUrl = `${appUrl}/contacts/${contactId}`
+  const firmLabel = company ? ` (${company})` : ''
+
+  await resend.emails.send({
+    from: 'ABC AI Business Card <hello@abccard.io>',
+    to,
+    subject: `Nová vizitka: ${contactName}${firmLabel}`,
+    html: `
+      <div style="font-family:system-ui;max-width:600px;margin:0 auto;background:#0f0f0f;color:#ffffff;padding:40px;border-radius:12px;">
+        <h1 style="background:linear-gradient(90deg,#f0197d,#00d4d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:24px;">
+          Nová vizitka přes tvoji kartu
+        </h1>
+        <p style="color:#999999;font-size:15px;line-height:1.6;">
+          Ahoj ${ownerName}, někdo ti poslal svou vizitku.
+        </p>
+        <div style="background:#1a1a1a;border-radius:8px;padding:20px;margin:24px 0;border:1px solid #2a2a2a;">
+          <p style="color:#ffffff;margin:0 0 8px;font-size:16px;font-weight:700;">${contactName}</p>
+          ${role ? `<p style="color:#999999;margin:0 0 4px;">${role}</p>` : ''}
+          ${company ? `<p style="color:#999999;margin:0 0 4px;">${company}</p>` : ''}
+          ${email ? `<p style="color:#999999;margin:0 0 4px;">${email}</p>` : ''}
+          ${phone ? `<p style="color:#999999;margin:0 0 4px;">${phone}</p>` : ''}
+          ${note ? `<p style="color:#999999;margin:8px 0 0;font-size:14px;"><strong style="color:#00d4d4;">Poznámka:</strong> ${note}</p>` : ''}
+        </div>
+        <a href="${contactUrl}" style="display:inline-block;background:linear-gradient(135deg,#f0197d,#00d4d4);color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;">
+          Otevřít kontakt v ABC →
+        </a>
+      </div>
+    `,
+  })
+}
+
 export async function sendReverseLeadNotification(opts: {
   to: string
   ownerName: string

@@ -188,6 +188,39 @@ export interface ABCProfile {
   linkedin_url: string | null
   website: string | null
   avatar_url: string | null
+  /** Digital card fields */
+  card_slug: string | null
+  card_published: boolean | null
+  card_branding_removed: boolean | null
+  card_accent: string | null
+  card_theme: 'graphite' | 'light' | null
+  card_tagline: string | null
+  what_i_do: string | null
+  looking_for: string | null
+  job_title: string | null
+  company_name: string | null
+  card_photo_url: string | null
+  card_cover_url: string | null
+  company_logo_url: string | null
+  whatsapp: string | null
+  public_email: string | null
+  calendar_url: string | null
+  location: string | null
+  languages: string[] | null
+  show_phone: boolean | null
+  show_whatsapp: boolean | null
+  show_email: boolean | null
+  show_website: boolean | null
+  show_calendar: boolean | null
+  show_location: boolean | null
+  instagram_url: string | null
+  x_url: string | null
+  facebook_url: string | null
+  youtube_url: string | null
+  tiktok_url: string | null
+  github_url: string | null
+  threads_url: string | null
+  social_enabled: Record<string, boolean> | null
   communication_style: 'direct' | 'formal' | 'casual'
   outreach_language: string
   goals: string | null

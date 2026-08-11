@@ -8,8 +8,13 @@ const AUTH_PATHS = ['/login', '/register', '/', '/onboarding']
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isAuthShell = AUTH_PATHS.includes(pathname)
+  const isPublicCard = pathname.startsWith('/d/') || pathname.startsWith('/u/') || pathname.startsWith('/card/')
+  const isAuthShell = AUTH_PATHS.includes(pathname) || isPublicCard
   const isLanding = pathname === '/'
+
+  if (isPublicCard) {
+    return <>{children}</>
+  }
 
   if (isAuthShell) {
     return (

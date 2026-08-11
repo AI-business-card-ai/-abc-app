@@ -114,10 +114,10 @@ export default function ScanPage() {
       }
       setUserId(user.id)
       const { data: profile } = await supabase.from('abc_profiles').select('*').eq('id', user.id).maybeSingle()
-      const loaded = (profile as ABCProfile | null) ?? {
+      const loaded: Partial<ABCProfile> = (profile as ABCProfile | null) ?? {
         id: user.id,
-        communication_style: 'direct' as const,
-        outreach_language: 'EN' as const,
+        communication_style: 'direct',
+        outreach_language: 'EN',
       }
       profileRef.current = loaded
       setIsInternalAccount(isInternalTestPlan(loaded.plan))

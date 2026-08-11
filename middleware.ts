@@ -62,6 +62,9 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/auth') ||
     pathname.startsWith('/card') ||
     pathname.startsWith('/u/') ||
+    pathname.startsWith('/d/') ||
+    pathname.startsWith('/privacy') ||
+    pathname.startsWith('/terms') ||
     pathname.startsWith('/api') ||
     pathname.startsWith('/_next')
 
