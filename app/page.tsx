@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
@@ -17,19 +18,11 @@ import {
   IconBuildingSkyscraper,
   IconMicrophone2,
   IconUsers,
-  IconUsersGroup,
-  IconBriefcase,
-  IconMapPin,
-  IconTargetArrow,
   IconCircleCheck,
   IconCheck,
   IconQrcode,
   IconArrowNarrowRight,
   IconPlayerPlayFilled,
-  IconActivityHeartbeat,
-  IconBrandLinkedin,
-  IconBrandWhatsapp,
-  IconSparkles,
   type TablerIcon,
 } from '@tabler/icons-react'
 
@@ -66,19 +59,6 @@ const FLOW: { Icon: TablerIcon; title: string; desc: string; tone: 'pink' | 'cya
   { Icon: IconMail, title: 'Connect', desc: 'Get personalized LinkedIn, email and WhatsApp follow-ups.', tone: 'cyan' },
   { Icon: IconShieldCheck, title: 'Approve', desc: 'AI prepares. You decide. Nothing is sent without you.', tone: 'cyan' },
   { Icon: IconChartBar, title: 'Convert', desc: 'Follow up, export to your CRM and turn contacts into opportunities.', tone: 'cyan' },
-]
-
-const COMPANY_META: { Icon: TablerIcon; label: string; value: string }[] = [
-  { Icon: IconUsersGroup, label: 'Company size', value: '250–500' },
-  { Icon: IconBriefcase, label: 'Industry', value: 'MedTech' },
-  { Icon: IconMapPin, label: 'Location', value: 'Germany' },
-  { Icon: IconTargetArrow, label: 'Key focus', value: 'Diagnostics, AI' },
-]
-
-const FOLLOW_UPS: { Icon: TablerIcon; channel: string; color: string }[] = [
-  { Icon: IconBrandLinkedin, channel: 'LinkedIn', color: '#00d4d4' },
-  { Icon: IconMail, channel: 'Email', color: '#f0197d' },
-  { Icon: IconBrandWhatsapp, channel: 'WhatsApp', color: '#25D366' },
 ]
 
 const PAIN_POINTS: { Icon: TablerIcon; text: string }[] = [
@@ -164,142 +144,6 @@ function FadeIn({ children, className = '' }: { children: ReactNode; className?:
   return (
     <div ref={ref} className={`landing-fade ${visible ? 'visible' : ''} ${className}`}>
       {children}
-    </div>
-  )
-}
-
-/** The scanned business card — real HTML, stays sharp at every viewport. */
-function ScannedCard() {
-  return (
-    <div className="abc-bizcard">
-      <div className="abc-bizcard-top">
-        <span className="abc-bizcard-mark">
-          <IconActivityHeartbeat size={11} stroke={2.2} color="#ffffff" />
-        </span>
-        <span className="abc-bizcard-co">
-          MedTech <span style={{ fontWeight: 500, color: '#6b7280' }}>GmbH</span>
-        </span>
-      </div>
-      <div className="abc-bizcard-body">
-        <div style={{ minWidth: 0 }}>
-          <p className="abc-bizcard-name">Martin Novák</p>
-          <p className="abc-bizcard-role">Head of Procurement</p>
-          <p className="abc-bizcard-line">+49 170 123 4557</p>
-          <p className="abc-bizcard-line">martin.novak@medtech.de</p>
-          <p className="abc-bizcard-line">www.medtech-gmbh.de</p>
-        </div>
-        <IconQrcode size={30} stroke={1.4} color="#0f0f0f" />
-      </div>
-    </div>
-  )
-}
-
-/**
- * Hero product composition: phone scanning a card → contact intelligence → follow-up.
- * Built entirely from HTML/CSS so the product copy stays real text at any size.
- */
-function HeroStage() {
-  return (
-    <div className="abc-stage">
-      {/* 1 — Scanner */}
-      <div className="abc-stage-phone">
-        <div className="abc-phone">
-          <div className="abc-phone-screen">
-            <div className="abc-phone-bar">
-              <span>9:41</span>
-              <span className="abc-phone-notch" aria-hidden />
-              <span className="abc-phone-signal" aria-hidden>
-                <i /><i /><i /><i />
-              </span>
-            </div>
-            <div className="abc-scan">
-              <span className="abc-scan-corner tl" aria-hidden />
-              <span className="abc-scan-corner tr" aria-hidden />
-              <span className="abc-scan-corner bl" aria-hidden />
-              <span className="abc-scan-corner br" aria-hidden />
-              <span className="abc-scan-line" aria-hidden />
-              <ScannedCard />
-            </div>
-            <p className="abc-phone-caption">
-              <strong>Scanning…</strong>
-              Hold steady
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 2 — Contact captured + AI intelligence */}
-      <div className="abc-stage-intel abc-panel">
-        <span className="abc-panel-label">
-          <span className="abc-live-dot" aria-hidden />
-          Contact captured
-        </span>
-
-        <div className="abc-contact">
-          <span className="abc-contact-avatar" aria-hidden>MN</span>
-          <div style={{ minWidth: 0 }}>
-            <p className="abc-contact-name">Martin Novák</p>
-            <p className="abc-contact-meta">
-              Head of Procurement
-              <br />
-              MedTech GmbH
-            </p>
-          </div>
-          <span className="abc-chip-match">Match 92</span>
-        </div>
-
-        <div>
-          <div className="abc-score-head">
-            <span>Opportunity score</span>
-            <b>92%</b>
-          </div>
-          <div className="abc-score-track">
-            <div className="abc-score-fill" style={{ width: '92%' }} />
-          </div>
-        </div>
-
-        <p className="abc-panel-label" style={{ color: COLORS.cyan, marginTop: 16 }}>
-          <IconSparkles size={12} stroke={2} color={COLORS.cyan} />
-          AI contact intelligence
-        </p>
-        <p className="abc-insight">
-          MedTech GmbH is expanding diagnostics procurement this quarter — Martin is the primary
-          decision-maker.
-        </p>
-
-        <div className="abc-meta-list">
-          {COMPANY_META.map(({ Icon, label, value }) => (
-            <div key={label} className="abc-meta-row">
-              <Icon size={13} stroke={1.6} color="#6b7280" />
-              <span>{label}</span>
-              <b>{value}</b>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 3 — Follow-up ready */}
-      <div className="abc-stage-follow abc-panel">
-        <span className="abc-panel-label">Follow-up ready</span>
-        <div className="abc-follow-list">
-          {FOLLOW_UPS.map(({ Icon, channel, color }) => (
-            <div key={channel} className="abc-follow-row">
-              <span className="abc-follow-icon" style={{ background: `${color}1a` }} aria-hidden>
-                <Icon size={15} stroke={1.8} color={color} />
-              </span>
-              <div style={{ minWidth: 0 }}>
-                <p className="abc-follow-name">{channel}</p>
-                <p className="abc-follow-sub">Personalized</p>
-              </div>
-              <span className="abc-approve">Approve</span>
-            </div>
-          ))}
-        </div>
-        <p className="abc-follow-note">
-          <IconShieldCheck size={13} stroke={1.7} color="#6b7280" />
-          You approve. Nothing is ever auto-sent.
-        </p>
-      </div>
     </div>
   )
 }
@@ -488,7 +332,18 @@ export default function HomePage() {
             </p>
           </div>
 
-          <HeroStage />
+          <div className="abc-hero-visual">
+            <Image
+              src="/hero/abc-hero-visual.webp"
+              alt="ABC Card in use at an event: a phone scans Martin Novák's MedTech GmbH business card, the contact is captured with a 92% opportunity score and AI contact intelligence, and personalized LinkedIn, email and WhatsApp follow-ups wait for approval."
+              width={953}
+              height={507}
+              priority
+              quality={90}
+              sizes="(max-width: 1099px) 92vw, 58vw"
+              className="abc-hero-img"
+            />
+          </div>
         </div>
       </section>
 
@@ -559,7 +414,7 @@ export default function HomePage() {
         <div className="abc-grid-3">
           {PAIN_POINTS.map(({ Icon, text }) => (
             <FadeIn key={text}>
-              <div className="abc-card">
+              <div className="abc-lp-card">
                 <Icon size={26} stroke={1.5} color={COLORS.pink} />
                 <p style={{ margin: '18px 0 0', fontSize: 16, fontWeight: 600, lineHeight: 1.5, color: COLORS.text }}>
                   {text}
