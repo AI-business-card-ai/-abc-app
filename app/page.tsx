@@ -5,11 +5,34 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
+import {
+  IconClock,
+  IconMessage2,
+  IconTrendingDown,
+  IconScan,
+  IconSparkles,
+  IconMail,
+  IconShieldCheck,
+  IconChartBar,
+  IconBuildingSkyscraper,
+  IconMicrophone2,
+  IconUsers,
+  IconBolt,
+  IconTargetArrow,
+  IconLock,
+  IconCheck,
+  IconQrcode,
+  IconBrandLinkedin,
+  IconBrandWhatsapp,
+  type TablerIcon,
+} from '@tabler/icons-react'
 
 const DemoQrCode = dynamic(() => import('@/components/landing/DemoQrCode'), {
   ssr: false,
   loading: () => <div className="skeleton-block w-[180px] h-[180px] rounded-2xl mx-auto" />,
 })
+
+type IconType = TablerIcon
 
 const COLORS = {
   bg: '#0f0f0f',
@@ -30,18 +53,18 @@ const gradientText: CSSProperties = {
   backgroundClip: 'text',
 }
 
-const PAIN_POINTS = [
-  { icon: '⏱', text: '3 hours of manual CRM data entry' },
-  { icon: '💬', text: 'Generic messages nobody replies to' },
-  { icon: '📉', text: '80% of contacts dead within a week' },
+const PAIN_POINTS: { Icon: IconType; text: string }[] = [
+  { Icon: IconClock, text: 'Hours of manual CRM data entry' },
+  { Icon: IconMessage2, text: 'Generic messages nobody replies to' },
+  { Icon: IconTrendingDown, text: 'Valuable contacts go cold within days' },
 ]
 
-const STEPS = [
-  { icon: '📷', title: 'Scan', desc: 'Photo the card with your phone' },
-  { icon: '🤖', title: 'AI enriches', desc: 'LinkedIn, company data, news, match score' },
-  { icon: '✉️', title: 'Messages ready', desc: 'LinkedIn / Email / WhatsApp — personalized' },
-  { icon: '✅', title: 'You approve', desc: 'AI prepares, you decide. Always.' },
-  { icon: '📊', title: 'Export to CRM', desc: 'One click to Salesforce or HubSpot' },
+const STEPS: { Icon: IconType; title: string; desc: string }[] = [
+  { Icon: IconScan, title: 'Scan', desc: 'Capture a business card in seconds.' },
+  { Icon: IconSparkles, title: 'Know', desc: 'AI enriches the contact with person, company and relevant business data.' },
+  { Icon: IconMail, title: 'Connect', desc: 'Get personalized LinkedIn, email and WhatsApp follow-ups.' },
+  { Icon: IconShieldCheck, title: 'Approve', desc: 'AI prepares. You decide. Nothing is sent without you.' },
+  { Icon: IconChartBar, title: 'Convert', desc: 'Follow up, export to your CRM and turn contacts into opportunities.' },
 ]
 
 const PLANS = [
@@ -50,8 +73,8 @@ const PLANS = [
     price: '$0',
     period: '/mo',
     badge: null as string | null,
-    features: ['3 lifetime scans', 'Basic AI messages', 'Contact export'],
-    cta: 'Start free',
+    features: ['3 contacts free', 'Basic AI messages', 'Contact export'],
+    cta: 'Try ABC Card free',
     highlight: false,
   },
   {
@@ -59,7 +82,7 @@ const PLANS = [
     price: '$29',
     period: '/mo',
     badge: 'Most popular',
-    features: ['50 scans/month', 'AI messages + enrichment', 'Follow-up sequences', 'CSV export'],
+    features: ['50 contacts/month', 'AI messages + enrichment', 'Follow-up sequences', 'CSV export'],
     cta: 'Get Starter',
     highlight: true,
   },
@@ -68,7 +91,7 @@ const PLANS = [
     price: '$49',
     period: '/mo',
     badge: null,
-    features: ['100 scans/month', 'Everything in Starter', 'Salesforce & HubSpot export', 'Pipeline analytics'],
+    features: ['100 contacts/month', 'Everything in Starter', 'Salesforce & HubSpot export', 'Pipeline analytics'],
     cta: 'Get Growth',
     highlight: false,
   },
@@ -77,7 +100,7 @@ const PLANS = [
     price: '$89',
     period: '/mo',
     badge: null,
-    features: ['200 scans/month', 'Everything in Growth', 'Priority support', 'Advanced analytics'],
+    features: ['200 contacts/month', 'Everything in Growth', 'Priority support', 'Advanced analytics'],
     cta: 'Get Pro',
     highlight: false,
   },
@@ -86,30 +109,28 @@ const PLANS = [
     price: '$199',
     period: '/mo',
     badge: null,
-    features: ['500 scans/month', '5 users included', 'Shared contacts', 'Admin dashboard'],
+    features: ['500 contacts/month', '5 users included', 'Shared contacts', 'Admin dashboard'],
     cta: 'Contact sales',
     highlight: false,
   },
 ]
 
-const USE_CASES = ['🏭 Trade shows', '🎤 Conferences', '🤝 B2B meetings']
+const USE_CASES: { Icon: IconType; label: string }[] = [
+  { Icon: IconBuildingSkyscraper, label: 'Trade shows' },
+  { Icon: IconMicrophone2, label: 'Conferences' },
+  { Icon: IconUsers, label: 'B2B meetings' },
+]
+
+const HERO_STATS: { Icon: IconType; label: string; sublabel: string }[] = [
+  { Icon: IconBolt, label: '10 sec', sublabel: 'avg. scan to message' },
+  { Icon: IconTargetArrow, label: '3 channels', sublabel: 'LinkedIn · Email · WhatsApp' },
+  { Icon: IconLock, label: 'You approve', sublabel: 'always. never auto-send' },
+]
 
 const MOCK_MESSAGES = [
-  {
-    channel: 'LinkedIn',
-    color: '#00d4d4',
-    text: 'Hi Martin — loved our chat at Medica. Your AI diagnostics work is fascinating. Coffee next week?',
-  },
-  {
-    channel: 'Email',
-    color: '#f0197d',
-    text: 'Subject: Medica follow-up\nHi Martin, great meeting you at the booth...',
-  },
-  {
-    channel: 'WhatsApp',
-    color: '#25D366',
-    text: 'Hey Martin! Great meeting you 👋 Here\u2019s the deck I mentioned...',
-  },
+  { channel: 'LinkedIn', Icon: IconBrandLinkedin, color: '#00d4d4' },
+  { channel: 'Email', Icon: IconMail, color: '#f0197d' },
+  { channel: 'WhatsApp', Icon: IconBrandWhatsapp, color: '#25D366' },
 ]
 
 function FadeIn({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -158,8 +179,8 @@ const btnGradient: CSSProperties = {
 
 const btnOutline: CSSProperties = {
   background: 'transparent',
-  color: COLORS.cyan,
-  border: '1.5px solid rgba(0, 212, 212, 0.5)',
+  color: COLORS.text,
+  border: `1.5px solid ${COLORS.border}`,
   borderRadius: '12px',
   padding: '13px 26px',
   fontWeight: 700,
@@ -172,12 +193,12 @@ const btnOutline: CSSProperties = {
   transition: 'background 0.2s ease, border-color 0.2s ease',
 }
 
-/** Card with #f0197d → #00d4d4 gradient border. */
+/** Card with a thin #f0197d → #00d4d4 gradient border — used sparingly as an accent, not a fill. */
 function GradientBorderCard({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+        background: 'linear-gradient(135deg, #f0197d55, #00d4d455)',
         padding: 1,
         borderRadius: 12,
         height: '100%',
@@ -197,57 +218,74 @@ function GradientBorderCard({ children }: { children: ReactNode }) {
   )
 }
 
-/** Static CSS phone mockup showing a scanned contact with AI messages. */
-function HeroMockup() {
+function IconBadge({ Icon, tone = 'pink' }: { Icon: IconType; tone?: 'pink' | 'cyan' | 'neutral' }) {
+  const bg = tone === 'pink' ? 'rgba(240, 25, 125, 0.1)' : tone === 'cyan' ? 'rgba(0, 212, 212, 0.1)' : COLORS.border
+  const color = tone === 'pink' ? COLORS.pink : tone === 'cyan' ? COLORS.cyan : COLORS.text
   return (
     <div
       style={{
-        width: '100%',
-        maxWidth: 480,
-        borderRadius: 40,
-        background: 'linear-gradient(145deg, #1c1c1c, #0a0a0a)',
-        padding: 10,
-        boxShadow:
-          '0 24px 64px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.06), 0 0 60px #f0197d18, 0 0 120px #00d4d418, inset 0 1px 0 rgba(255,255,255,0.08)',
-        margin: '0 auto',
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        background: bg,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 14,
       }}
     >
+      <Icon size={20} stroke={1.75} color={color} />
+    </div>
+  )
+}
+
+/** Realistic product UI panel — mirrors the actual scanned-contact / enrichment / approve flow. */
+function HeroMockup() {
+  return (
+    <div
+      className="hero-phone-glow-wrap"
+      style={{
+        width: '100%',
+        maxWidth: 460,
+        borderRadius: 20,
+        background: 'linear-gradient(180deg, #161616, #0d0d0d)',
+        border: '1px solid #262626',
+        boxShadow: '0 24px 64px rgba(0, 0, 0, 0.55), 0 0 60px rgba(240,25,125,0.08), 0 0 100px rgba(0,212,212,0.06)',
+        margin: '0 auto',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Window chrome */}
       <div
         style={{
-          borderRadius: 32,
-          background: COLORS.bg,
-          overflow: 'hidden',
-          border: '1px solid transparent',
-          backgroundImage: `linear-gradient(${COLORS.bg}, ${COLORS.bg}), linear-gradient(135deg, rgba(240,25,125,0.3), rgba(0,212,212,0.3))`,
-          backgroundOrigin: 'border-box',
-          backgroundClip: 'padding-box, border-box',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '12px 16px',
+          borderBottom: '1px solid #232323',
         }}
       >
-        {/* Notch */}
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
-          <div style={{ width: 90, height: 18, borderRadius: 999, background: '#0a0a0a' }} />
-        </div>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3a3a3a' }} />
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3a3a3a' }} />
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3a3a3a' }} />
+        <span style={{ marginLeft: 8, fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>
+          ABC Card — Contact captured
+        </span>
+      </div>
 
+      <div style={{ padding: '18px 18px 20px' }}>
         {/* Contact header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '14px 14px 12px',
-            borderBottom: `1px solid ${COLORS.border}`,
-          }}
-        >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <div
             style={{
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               borderRadius: '50%',
               background: GRADIENT,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 800,
               color: '#fff',
               flexShrink: 0,
@@ -256,102 +294,101 @@ function HeroMockup() {
             MN
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: COLORS.text }}>
-              Martin Novak
-            </p>
-            <p style={{ margin: 0, fontSize: 10, color: COLORS.muted }}>MedTech GmbH</p>
-            <p style={{ margin: '2px 0 0', fontSize: 11, color: COLORS.cyan }}>
-              ● AI enriching...
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: COLORS.text }}>Martin Novák</p>
+            <p style={{ margin: '1px 0 0', fontSize: 11.5, color: COLORS.muted }}>
+              Head of Procurement · MedTech GmbH
             </p>
           </div>
           <span
+            className="hero-phone-score-badge"
             style={{
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: 700,
-              padding: '4px 10px',
-              borderRadius: 999,
-              background: 'rgba(240, 25, 125, 0.15)',
+              padding: '5px 10px',
+              borderRadius: 8,
+              background: 'rgba(240, 25, 125, 0.12)',
               color: COLORS.pink,
               whiteSpace: 'nowrap',
             }}
           >
-            Score: 92 🔥
+            Match 92
           </span>
         </div>
 
         {/* Match score bar */}
-        <div style={{ padding: '12px 14px 0' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 6,
-            }}
-          >
-            <span style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>Match Score</span>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>Opportunity score</span>
             <span style={{ fontSize: 11, color: COLORS.text, fontWeight: 700 }}>92%</span>
           </div>
-          <div
-            style={{
-              height: 6,
-              borderRadius: 999,
-              background: COLORS.border,
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                width: '92%',
-                height: '100%',
-                borderRadius: 999,
-                background: GRADIENT,
-              }}
-            />
+          <div style={{ height: 5, borderRadius: 999, background: COLORS.border, overflow: 'hidden' }}>
+            <div style={{ width: '92%', height: '100%', borderRadius: 999, background: GRADIENT }} />
           </div>
         </div>
 
-        {/* Message previews */}
-        <div style={{ padding: '14px 14px 18px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+        {/* AI intelligence */}
+        <div
+          style={{
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: '#151515',
+            border: `1px solid ${COLORS.border}`,
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+            <IconSparkles size={13} stroke={2} color={COLORS.cyan} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.cyan, letterSpacing: '0.04em' }}>
+              AI CONTACT INTELLIGENCE
+            </span>
+          </div>
+          <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.5, color: COLORS.muted }}>
+            MedTech GmbH is expanding diagnostics procurement this quarter — Martin is the primary decision-maker.
+          </p>
+        </div>
+
+        {/* Channel rows */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {MOCK_MESSAGES.map((msg) => (
             <div
               key={msg.channel}
+              className="landing-hero-msg"
               style={{
-                padding: '10px 11px',
-                borderRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                padding: '9px 11px',
+                borderRadius: 9,
                 background: COLORS.card,
                 border: `1px solid ${COLORS.border}`,
-                borderLeft: `3px solid ${msg.color}`,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: msg.color }}>{msg.channel}</span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: '4px 12px',
-                    borderRadius: 7,
-                    background: `${msg.color}1f`,
-                    color: msg.color,
-                  }}
-                >
-                  Send
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <msg.Icon size={15} stroke={1.75} color={msg.color} />
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: COLORS.text }}>{msg.channel} message ready</span>
               </div>
-              <p
+              <span
                 style={{
-                  margin: '6px 0 0',
                   fontSize: 10,
-                  lineHeight: 1.5,
-                  color: COLORS.muted,
-                  whiteSpace: 'pre-wrap',
+                  fontWeight: 700,
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  background: `${msg.color}1f`,
+                  color: msg.color,
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {msg.text}
-              </p>
+                Approve
+              </span>
             </div>
           ))}
+        </div>
+
+        {/* Trust line */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14 }}>
+          <IconShieldCheck size={13} stroke={1.75} color={COLORS.muted} />
+          <span style={{ fontSize: 10.5, color: COLORS.muted }}>You approve. Nothing is ever auto-sent.</span>
         </div>
       </div>
     </div>
@@ -462,21 +499,15 @@ export default function HomePage() {
               Sign in
             </Link>
             <Link href="/register" className="interactive-primary" style={{ ...btnGradient, padding: '10px 20px', fontSize: 14 }}>
-              Start for free
+              Try ABC Card free
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* HERO — split layout, no globe */}
-      <section
-        id="hero"
-        style={{
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Ambient glows */}
+      {/* HERO */}
+      <section id="hero" style={{ position: 'relative', overflow: 'hidden' }}>
+        {/* Ambient glows — restrained */}
         <div
           aria-hidden
           style={{
@@ -486,7 +517,7 @@ export default function HomePage() {
             width: 600,
             height: 600,
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(240,25,125,0.06), transparent 70%)',
+            background: 'radial-gradient(circle, rgba(240,25,125,0.05), transparent 70%)',
             pointerEvents: 'none',
           }}
         />
@@ -499,7 +530,7 @@ export default function HomePage() {
             width: 400,
             height: 400,
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(0,212,212,0.04), transparent 70%)',
+            background: 'radial-gradient(circle, rgba(0,212,212,0.035), transparent 70%)',
             pointerEvents: 'none',
           }}
         />
@@ -521,7 +552,7 @@ export default function HomePage() {
             position: 'relative',
             maxWidth: 1200,
             margin: '0 auto',
-            padding: '72px 20px 64px',
+            padding: '72px 20px 56px',
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
             gap: 48,
@@ -531,28 +562,31 @@ export default function HomePage() {
           <div>
             <span
               style={{
-                display: 'block',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
                 fontSize: 12,
                 fontWeight: 700,
-                letterSpacing: '0.15em',
+                letterSpacing: '0.14em',
                 textTransform: 'uppercase',
+                color: COLORS.muted,
                 marginBottom: 18,
-                ...gradientText,
               }}
             >
-              ✦ AI-Powered Networking
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: GRADIENT, flexShrink: 0 }} />
+              AI-powered networking for B2B events
             </span>
             <h1
               style={{
-                fontSize: 'clamp(2.5rem, 6vw, 3.5rem)',
+                fontSize: 'clamp(2.25rem, 5.2vw, 3.25rem)',
                 fontWeight: 800,
-                lineHeight: 1.1,
+                lineHeight: 1.12,
                 letterSpacing: '-0.03em',
                 margin: '0 0 20px',
+                color: COLORS.text,
               }}
             >
-              From business card to sent message in{' '}
-              <span style={{ ...gradientText, display: 'block' }}>10 seconds</span>
+              Never lose a <span style={{ color: COLORS.pink }}>valuable contact</span> after an event again.
             </h1>
             <p
               style={{
@@ -563,43 +597,41 @@ export default function HomePage() {
                 maxWidth: 520,
               }}
             >
-              AI scans the card, researches the contact, writes personalized LinkedIn/Email/WhatsApp
-              message. You just approve.
+              Scan the business card. AI researches the person and company, finds the right angle, and
+              prepares your personalized follow-up. You just approve.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
               <Link href="/register" className="interactive-primary" style={btnGradient}>
-                Start for free →
+                Try ABC Card free →
               </Link>
               <button type="button" className="interactive" onClick={() => scrollTo('how-it-works')} style={btnOutline}>
                 See how it works
               </button>
             </div>
             <p style={{ fontSize: 13, color: COLORS.muted, margin: '0 0 32px' }}>
-              3 scans free · No credit card · 10 second setup
+              3 contacts free · No credit card · Setup in seconds
             </p>
 
             {/* STATS ROW */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-              {[
-                { icon: '⚡', label: '10 sec', sublabel: 'avg. scan to message' },
-                { icon: '🎯', label: '3 channels', sublabel: 'LinkedIn · Email · WhatsApp' },
-                { icon: '🔒', label: 'You approve', sublabel: 'always. never auto-send' },
-              ].map((stat) => (
+              {HERO_STATS.map((stat) => (
                 <div
                   key={stat.label}
                   style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
                     padding: '10px 16px',
                     borderRadius: 12,
                     background: COLORS.card,
                     border: `1px solid ${COLORS.border}`,
                   }}
                 >
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: COLORS.text }}>
-                    {stat.icon} {stat.label}
-                  </p>
-                  <p style={{ margin: '2px 0 0', fontSize: 11, color: '#6b7280' }}>
-                    {stat.sublabel}
-                  </p>
+                  <stat.Icon size={16} stroke={1.75} color={COLORS.muted} />
+                  <div>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: COLORS.text }}>{stat.label}</p>
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#6b7280' }}>{stat.sublabel}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -607,6 +639,30 @@ export default function HomePage() {
 
           <HeroMockup />
         </div>
+      </section>
+
+      {/* SUPPORTING CLAIM */}
+      <section
+        style={{
+          borderTop: `1px solid ${COLORS.border}`,
+          borderBottom: `1px solid ${COLORS.border}`,
+          padding: '40px 20px',
+          textAlign: 'center',
+        }}
+      >
+        <FadeIn>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 'clamp(1.35rem, 3.4vw, 1.9rem)',
+              fontWeight: 800,
+              letterSpacing: '-0.02em',
+              lineHeight: 1.35,
+            }}
+          >
+            50 business cards. <span style={{ color: COLORS.pink }}>Zero hours</span> of manual follow-up.
+          </p>
+        </FadeIn>
       </section>
 
       {/* PROBLEM */}
@@ -635,7 +691,7 @@ export default function HomePage() {
           {PAIN_POINTS.map((p) => (
             <FadeIn key={p.text}>
               <GradientBorderCard>
-                <span style={{ fontSize: 30, display: 'block', marginBottom: 12 }}>{p.icon}</span>
+                <IconBadge Icon={p.Icon} tone="pink" />
                 <p style={{ margin: 0, fontSize: 16, fontWeight: 600, lineHeight: 1.5, color: COLORS.text }}>
                   {p.text}
                 </p>
@@ -660,7 +716,7 @@ export default function HomePage() {
             Scan. Know. Connect.
           </h2>
           <p style={{ textAlign: 'center', color: COLORS.muted, margin: '0 0 48px' }}>
-            Five steps from handshake to CRM
+            Five steps from handshake to opportunity
           </p>
         </FadeIn>
         <div
@@ -674,8 +730,8 @@ export default function HomePage() {
             <FadeIn key={step.title}>
               <div
                 style={{
-                  textAlign: 'center',
-                  padding: 28,
+                  textAlign: 'left',
+                  padding: 26,
                   borderRadius: 16,
                   background: COLORS.card,
                   border: `1px solid ${COLORS.border}`,
@@ -686,17 +742,17 @@ export default function HomePage() {
                 <span
                   style={{
                     position: 'absolute',
-                    top: 14,
+                    top: 16,
                     right: 18,
-                    fontSize: 22,
-                    fontWeight: 900,
-                    ...gradientText,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#4b5563',
                   }}
                 >
-                  {i + 1}
+                  {String(i + 1).padStart(2, '0')}
                 </span>
-                <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}>{step.icon}</span>
-                <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 700 }}>{step.title}</h3>
+                <IconBadge Icon={step.Icon} tone={i % 2 === 0 ? 'cyan' : 'pink'} />
+                <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700 }}>{step.title}</h3>
                 <p style={{ margin: 0, fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>
                   {step.desc}
                 </p>
@@ -723,6 +779,19 @@ export default function HomePage() {
           >
             <DemoQrCode />
             <div>
+              <span
+                style={{
+                  display: 'block',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: COLORS.cyan,
+                  marginBottom: 12,
+                }}
+              >
+                Beyond the digital card
+              </span>
               <h2
                 style={{
                   fontSize: 'clamp(1.5rem, 4vw, 2.25rem)',
@@ -731,11 +800,33 @@ export default function HomePage() {
                   letterSpacing: '-0.02em',
                 }}
               >
-                Your digital card. <span style={gradientText}>Their lead.</span>
+                Your digital card. <span style={{ color: COLORS.pink }}>Their lead.</span>
               </h2>
-              <p style={{ fontSize: 16, lineHeight: 1.7, color: COLORS.muted, margin: 0 }}>
-                Share your QR code → they scan → they leave their contact → you get a new lead
-                automatically. Every handshake becomes a two-way connection.
+              <p style={{ fontSize: 16, lineHeight: 1.7, color: COLORS.muted, margin: '0 0 20px' }}>
+                Share your QR code. They get your digital card. You capture their details. Every
+                handshake can become a two-way connection.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ marginTop: 1, flexShrink: 0 }}>
+                    <IconScan size={17} stroke={1.75} color={COLORS.cyan} />
+                  </div>
+                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: COLORS.text }}>
+                    <strong>You scan their card</strong> — ABC Card enriches it and prepares your follow-up.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ marginTop: 1, flexShrink: 0 }}>
+                    <IconQrcode size={17} stroke={1.75} color={COLORS.pink} />
+                  </div>
+                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: COLORS.text }}>
+                    <strong>They scan your QR</strong> — they get your digital card, and you capture their details.
+                  </p>
+                </div>
+              </div>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: '#6b7280', fontStyle: 'italic' }}>
+                ABC Card isn&apos;t just a digital business card — it&apos;s an AI-powered networking and
+                follow-up platform.
               </p>
             </div>
           </div>
@@ -771,17 +862,13 @@ export default function HomePage() {
                 style={{
                   padding: 26,
                   borderRadius: 16,
-                  background: plan.highlight
-                    ? 'linear-gradient(160deg, rgba(240,25,125,0.12), rgba(0,212,212,0.08))'
-                    : COLORS.card,
-                  border: plan.highlight
-                    ? '1px solid rgba(240, 25, 125, 0.4)'
-                    : `1px solid ${COLORS.border}`,
+                  background: COLORS.card,
+                  border: plan.highlight ? `1px solid ${COLORS.pink}66` : `1px solid ${COLORS.border}`,
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
                   position: 'relative',
-                  boxShadow: plan.highlight ? '0 8px 40px rgba(240, 25, 125, 0.15)' : 'none',
+                  boxShadow: plan.highlight ? '0 8px 32px rgba(240, 25, 125, 0.1)' : 'none',
                 }}
               >
                 {plan.badge && (
@@ -808,7 +895,7 @@ export default function HomePage() {
                     margin: '0 0 4px',
                     fontSize: 13,
                     fontWeight: 700,
-                    color: COLORS.cyan,
+                    color: COLORS.muted,
                     letterSpacing: '0.08em',
                   }}
                 >
@@ -825,14 +912,15 @@ export default function HomePage() {
                     <li
                       key={f}
                       style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 8,
                         fontSize: 14,
                         color: COLORS.muted,
                         marginBottom: 10,
-                        paddingLeft: 20,
-                        position: 'relative',
                       }}
                     >
-                      <span style={{ position: 'absolute', left: 0, color: COLORS.cyan }}>✓</span>
+                      <IconCheck size={15} stroke={2} color={COLORS.cyan} style={{ marginTop: 2, flexShrink: 0 }} />
                       {f}
                     </li>
                   ))}
@@ -846,10 +934,10 @@ export default function HomePage() {
                     textAlign: 'center',
                     padding: '12px 16px',
                     fontSize: 14,
-                    background: plan.highlight ? GRADIENT : 'rgba(0, 212, 212, 0.1)',
-                    color: plan.highlight ? '#fff' : COLORS.cyan,
-                    border: plan.highlight ? 'none' : '1px solid rgba(0, 212, 212, 0.4)',
-                    boxShadow: plan.highlight ? '0 4px 20px rgba(240, 25, 125, 0.35)' : 'none',
+                    background: plan.highlight ? GRADIENT : 'transparent',
+                    color: plan.highlight ? '#fff' : COLORS.text,
+                    border: plan.highlight ? 'none' : `1px solid ${COLORS.border}`,
+                    boxShadow: plan.highlight ? '0 4px 20px rgba(240, 25, 125, 0.3)' : 'none',
                   }}
                 >
                   {plan.cta}
@@ -875,10 +963,13 @@ export default function HomePage() {
             Built for founders and sales teams at trade shows, conferences, and B2B events.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 12 }}>
-            {USE_CASES.map((label) => (
+            {USE_CASES.map(({ Icon, label }) => (
               <span
                 key={label}
                 style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
                   padding: '10px 20px',
                   borderRadius: 999,
                   background: COLORS.card,
@@ -888,6 +979,7 @@ export default function HomePage() {
                   color: COLORS.text,
                 }}
               >
+                <Icon size={16} stroke={1.75} color={COLORS.muted} />
                 {label}
               </span>
             ))}
@@ -906,11 +998,14 @@ export default function HomePage() {
               letterSpacing: '-0.02em',
             }}
           >
-            Never lose a contact again.
+            Turn your next handshake into your next opportunity.
           </h2>
           <Link href="/register" className="interactive-primary" style={{ ...btnGradient, fontSize: 16, padding: '16px 32px', borderRadius: 14 }}>
-            Start scanning for free →
+            Try ABC Card free →
           </Link>
+          <p style={{ margin: '16px 0 0', fontSize: 13, color: COLORS.muted }}>
+            3 contacts free · No credit card required
+          </p>
         </FadeIn>
       </section>
 
