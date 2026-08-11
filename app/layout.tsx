@@ -1,6 +1,14 @@
 import type { Metadata, Viewport } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import AppShell from '@/components/layout/AppShell'
+
+// latin-ext keeps diacritics (Novák, Bureš) sharp
+const inter = Inter({
+  subsets: ['latin', 'latin-ext'],
+  display: 'swap',
+  variable: '--font-inter',
+})
 
 export const metadata: Metadata = {
   title: 'ABC — Scan. Know. Connect.',
@@ -32,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body className="bg-[#0d0f1a] text-[#f0f0ff]">
         <AppShell>{children}</AppShell>
       </body>
