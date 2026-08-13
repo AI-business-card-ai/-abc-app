@@ -2,21 +2,71 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   ABC CARD — DARK PREMIUM DESIGN SYSTEM
+   Values transcribed from the approved dashboard / card mockups.
+   Legacy variable names below are remapped onto this palette so
+   every existing screen keeps working while the accent moves to gold.
+   ============================================================ */
 :root {
-  --bg-primary: #0f0f0f;
-  --bg-surface: #1a1a1a;
-  --bg-surface-2: #242424;
-  --bg-surface-3: #2a2a2a;
-  --text-primary: #ffffff;
-  --text-secondary: #999999;
-  --text-muted: #555555;
-  --accent-pink: #f0197d;
-  --accent-turquoise: #00d4d4;
-  --accent-gradient: linear-gradient(135deg, #f0197d, #00d4d4);
-  --border: #2a2a2a;
-  --border-subtle: #1f1f1f;
+  /* Surfaces */
+  --abc-bg: #0a0a0b;
+  --abc-card: #121214;
+  --abc-raised: #18181b;
+  --abc-border: #232326;
+  --abc-border-strong: #2e2e33;
 
-  /* Legacy aliases — keep existing class names working */
+  /* Text */
+  --abc-text: #ffffff;
+  --abc-text-secondary: #a1a1aa;
+  --abc-text-muted: #71717a;
+
+  /* Gold */
+  --abc-gold: #e9a62f;
+  --abc-gold-accent: #d9a441;
+  --abc-gold-soft: rgba(233, 166, 47, 0.12);
+  --abc-gold-border: rgba(217, 164, 65, 0.35);
+  --abc-gold-glow: radial-gradient(circle, rgba(233, 166, 47, 0.18), transparent 70%);
+
+  /* Dashboard section accents */
+  --abc-violet: #8b7cf6;
+  --abc-green: #4ade80;
+  --abc-orange: #fb923c;
+  --abc-link: #818cf8;
+
+  /* Follow-up status */
+  --abc-today: #f97316;
+  --abc-upcoming: #facc15;
+  --abc-overdue: #ef4444;
+
+  /* Event chip */
+  --abc-chip-bg: rgba(99, 102, 241, 0.18);
+  --abc-chip-text: #a5b4fc;
+
+  /* Geometry */
+  --abc-radius-card: 22px;
+  --abc-radius-inner: 15px;
+  --abc-radius-btn: 13px;
+
+  /* Elevation + motion */
+  --abc-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --abc-shadow-raised: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --abc-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* ---- Legacy token names, remapped to the approved palette ---- */
+  --bg-primary: var(--abc-bg);
+  --bg-surface: var(--abc-card);
+  --bg-surface-2: var(--abc-raised);
+  --bg-surface-3: var(--abc-border-strong);
+  --text-primary: var(--abc-text);
+  --text-secondary: var(--abc-text-secondary);
+  --text-muted: var(--abc-text-muted);
+  --accent-pink: var(--abc-gold);
+  --accent-turquoise: var(--abc-gold-accent);
+  --accent-gradient: linear-gradient(135deg, #e9a62f, #d9a441);
+  --border: var(--abc-border);
+  --border-subtle: #1b1b1e;
+
   --bg: var(--bg-primary);
   --surface: var(--bg-surface);
   --surface-hover: var(--bg-surface-2);
@@ -28,8 +78,8 @@
   --gradient-analyze: var(--accent-gradient);
   --gradient-text: var(--accent-gradient);
   --gradient-logo: var(--accent-gradient);
-  --glow: 0 4px 20px rgba(240, 25, 125, 0.2);
-  --glow-strong: 0 4px 24px rgba(0, 212, 212, 0.2);
+  --glow: 0 4px 20px rgba(233, 166, 47, 0.18);
+  --glow-strong: 0 6px 26px rgba(233, 166, 47, 0.28);
 }
 
 * { box-sizing: border-box; }
@@ -211,7 +261,7 @@ a,
   }
   .abc-input:focus {
     border-color: var(--accent-turquoise);
-    box-shadow: 0 0 0 3px rgba(0, 212, 212, 0.12);
+    box-shadow: 0 0 0 3px rgba(217, 164, 65, 0.12);
   }
 
   .abc-label {
@@ -232,18 +282,18 @@ a,
   .abc-chip-active {
     border-color: var(--accent-turquoise);
     color: var(--accent-turquoise);
-    background: rgba(0, 212, 212, 0.08);
+    background: rgba(217, 164, 65, 0.08);
   }
 
   .gradient-ring {
     padding: 2px;
     border-radius: 9999px;
     background: var(--accent-gradient);
-    box-shadow: 0 0 12px rgba(0, 212, 212, 0.2);
+    box-shadow: 0 0 12px rgba(217, 164, 65, 0.2);
   }
 
   .score-badge-hot {
-    background: linear-gradient(135deg, #f0197d, #ef4444);
+    background: linear-gradient(135deg, #e9a62f, #ef4444);
     color: #fff;
   }
 
@@ -267,8 +317,8 @@ a,
     inset: 0;
     pointer-events: none;
     background:
-      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(0, 212, 212, 0.06), transparent 55%),
-      radial-gradient(ellipse 60% 40% at 80% 20%, rgba(240, 25, 125, 0.04), transparent 50%);
+      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(217, 164, 65, 0.06), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 80% 20%, rgba(233, 166, 47, 0.04), transparent 50%);
   }
 
   .auth-bg {
@@ -290,17 +340,17 @@ a,
     border-radius: 16px;
     overflow: hidden;
     background: var(--bg-surface);
-    border: 2px solid rgba(0, 212, 212, 0.3);
+    border: 2px solid rgba(217, 164, 65, 0.3);
     box-shadow:
-      inset 0 0 40px rgba(0, 212, 212, 0.04),
-      0 0 24px rgba(0, 212, 212, 0.06);
+      inset 0 0 40px rgba(217, 164, 65, 0.04),
+      0 0 24px rgba(217, 164, 65, 0.06);
   }
   .scan-corner {
     position: absolute;
     width: 22px;
     height: 22px;
-    border-color: #00d4d4;
-    filter: drop-shadow(0 0 6px rgba(0, 212, 212, 0.8));
+    border-color: #d9a441;
+    filter: drop-shadow(0 0 6px rgba(217, 164, 65, 0.8));
   }
   .scan-corner-tl { top: 0; left: 0; border-left: 2px solid; border-top: 2px solid; border-radius: 4px 0 0 0; }
   .scan-corner-tr { top: 0; right: 0; border-right: 2px solid; border-top: 2px solid; border-radius: 0 4px 0 0; }
@@ -352,12 +402,12 @@ a,
     0%, 100% {
       opacity: 0.45;
       transform: scale(0.85);
-      box-shadow: 0 0 0 0 rgba(240, 25, 125, 0.35);
+      box-shadow: 0 0 0 0 rgba(233, 166, 47, 0.35);
     }
     50% {
       opacity: 1;
       transform: scale(1.1);
-      box-shadow: 0 0 8px 2px rgba(0, 212, 212, 0.45);
+      box-shadow: 0 0 8px 2px rgba(217, 164, 65, 0.45);
     }
   }
 
@@ -426,7 +476,7 @@ a,
   }
 
   .hero-phone-scan-active {
-    box-shadow: 0 0 24px rgba(0, 212, 212, 0.2);
+    box-shadow: 0 0 24px rgba(217, 164, 65, 0.2);
   }
 
   .hero-phone-scan-line {
@@ -434,8 +484,8 @@ a,
     left: 14px;
     right: 14px;
     height: 2px;
-    background: linear-gradient(90deg, transparent, #00d4d4, transparent);
-    box-shadow: 0 0 10px rgba(0, 212, 212, 0.9);
+    background: linear-gradient(90deg, transparent, #d9a441, transparent);
+    box-shadow: 0 0 10px rgba(217, 164, 65, 0.9);
     top: 14px;
     animation: hero-phone-scan-sweep 2s ease-in-out infinite;
     z-index: 2;
@@ -484,8 +534,8 @@ a,
     touch-action: manipulation;
   }
   .interactive:hover {
-    border-color: #f0197d66 !important;
-    box-shadow: 0 0 16px rgba(240, 25, 125, 0.15) !important;
+    border-color: #d9a44166 !important;
+    box-shadow: 0 0 16px rgba(233, 166, 47, 0.15) !important;
     background-color: #202020 !important;
   }
   .interactive:active {
@@ -493,8 +543,8 @@ a,
   }
   .interactive:focus-visible {
     outline: none;
-    border-color: #f0197d66 !important;
-    box-shadow: 0 0 0 3px rgba(240, 25, 125, 0.15) !important;
+    border-color: #d9a44166 !important;
+    box-shadow: 0 0 0 3px rgba(233, 166, 47, 0.15) !important;
   }
 
   .interactive-primary {
@@ -504,7 +554,7 @@ a,
     touch-action: manipulation;
   }
   .interactive-primary:hover:not(:disabled) {
-    box-shadow: 0 0 24px rgba(240, 25, 125, 0.45) !important;
+    box-shadow: 0 0 24px rgba(233, 166, 47, 0.45) !important;
     filter: brightness(1.1);
   }
   .interactive-primary:active:not(:disabled) {
@@ -512,7 +562,7 @@ a,
   }
   .interactive-primary:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(240, 25, 125, 0.25), 0 0 24px rgba(240, 25, 125, 0.45) !important;
+    box-shadow: 0 0 0 3px rgba(233, 166, 47, 0.25), 0 0 24px rgba(233, 166, 47, 0.45) !important;
   }
 
   .interactive-input {
@@ -520,8 +570,8 @@ a,
   }
   .interactive-input:focus {
     outline: none;
-    border-color: #f0197d !important;
-    box-shadow: 0 0 0 3px rgba(240, 25, 125, 0.15) !important;
+    border-color: #e9a62f !important;
+    box-shadow: 0 0 0 3px rgba(233, 166, 47, 0.15) !important;
   }
 }
 
@@ -565,13 +615,62 @@ a,
   width: 100%;
   max-width: 1340px;
   margin: 0 auto;
-  padding: 64px 20px;
+  /* Mobile keeps readable breathing room; desktop is the main tighten. */
+  padding: 48px 20px;
 }
-@media (min-width: 768px) { .abc-section { padding: 88px 32px; } }
-@media (min-width: 1180px) { .abc-section { padding: 104px 40px; } }
+@media (min-width: 768px) { .abc-section { padding: 56px 32px; } }
+@media (min-width: 1180px) { .abc-section { padding: 60px 40px; } }
 
+/* Hero: keep approved top rhythm; only tighten the exit into workflow. */
+.abc-section.abc-hero {
+  padding-top: 64px;
+  padding-bottom: 36px;
+}
+@media (min-width: 768px) {
+  .abc-section.abc-hero {
+    padding-top: 88px;
+    padding-bottom: 40px;
+  }
+}
+@media (min-width: 1180px) {
+  .abc-section.abc-hero {
+    padding-top: 104px;
+    padding-bottom: 48px;
+  }
+}
+
+/* Continuity after hero / between related blocks */
 .abc-section-tight { padding-top: 0; }
 @media (min-width: 768px) { .abc-section-tight { padding-top: 0; } }
+
+.abc-section-snug-top {
+  padding-top: 36px;
+}
+@media (min-width: 768px) { .abc-section-snug-top { padding-top: 40px; } }
+@media (min-width: 1180px) { .abc-section-snug-top { padding-top: 44px; } }
+
+.abc-section-snug-bottom {
+  padding-bottom: 36px;
+}
+@media (min-width: 768px) { .abc-section-snug-bottom { padding-bottom: 40px; } }
+@media (min-width: 1180px) { .abc-section-snug-bottom { padding-bottom: 44px; } }
+
+.abc-section-snug {
+  padding-top: 36px;
+  padding-bottom: 36px;
+}
+@media (min-width: 768px) {
+  .abc-section-snug {
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+}
+@media (min-width: 1180px) {
+  .abc-section-snug {
+    padding-top: 44px;
+    padding-bottom: 44px;
+  }
+}
 
 /* --- Type scale --- */
 .abc-eyebrow {
@@ -653,6 +752,9 @@ a,
   border: none;
   transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
+/* Landing keeps its current palette until the Phase 16 rebuild — the page
+   hardcodes matching pink/cyan constants inline, so recolouring only these
+   two rules would leave the public page half gold, half pink. */
 .abc-btn-primary {
   background: linear-gradient(135deg, #f0197d, #00d4d4);
   color: #fff;
@@ -828,3 +930,107 @@ a,
   align-items: center;
 }
 @media (min-width: 860px) { .abc-split { grid-template-columns: auto minmax(0, 1fr); gap: 48px; } }
+
+/* ============================================================
+   ABC CARD — APP SHELL & DASHBOARD PRIMITIVES
+   Motion stays inside the approved 150–350ms band; the scan ring
+   is the one deliberate long loop (breathing, not attention-seeking).
+   ============================================================ */
+
+.abc-app-bg {
+  background: var(--abc-bg);
+}
+
+/* Scan card gold halo — matches the approved dashboard SCAN module */
+.abc-scan-glow {
+  position: absolute;
+  border-radius: 9999px;
+  background: var(--abc-gold-glow);
+  pointer-events: none;
+}
+
+@keyframes abc-ring-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+.abc-ring-pulse {
+  animation: abc-ring-pulse 2.4s ease-in-out infinite;
+}
+
+.abc-ring-pulse-delayed {
+  animation: abc-ring-pulse 2.4s ease-in-out infinite;
+  animation-delay: 0.4s;
+}
+
+/* Card hover: 1px border lift + shadow, no glow, no scale */
+.abc-surface {
+  background: var(--abc-card);
+  border: 1px solid var(--abc-border);
+  border-radius: var(--abc-radius-card);
+  box-shadow: var(--abc-shadow);
+}
+
+.abc-surface-interactive {
+  transition:
+    border-color 220ms var(--abc-ease),
+    box-shadow 220ms var(--abc-ease),
+    transform 220ms var(--abc-ease);
+}
+.abc-surface-interactive:hover {
+  border-color: var(--abc-border-strong);
+  box-shadow: var(--abc-shadow-raised);
+  transform: translateY(-1px);
+}
+
+.abc-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--abc-bg), 0 0 0 4px var(--abc-gold-accent);
+}
+
+/* Truncation helpers — the approved layouts assume two-line clamps */
+.abc-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.abc-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Horizontal scrollers (mobile filter rows) without visible scrollbar */
+.abc-scroll-x {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.abc-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .abc-ring-pulse,
+  .abc-ring-pulse-delayed,
+  .enriching-pulse-dot,
+  .landing-hero-card,
+  .landing-hero-glow,
+  .skeleton-block::after {
+    animation: none !important;
+  }
+  .abc-surface-interactive:hover {
+    transform: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}

@@ -1,31 +1,28 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import AppHeader from '@/components/layout/AppHeader'
 import DesktopSidebar from '@/components/layout/DesktopSidebar'
-import BottomNav from '@/components/ui/BottomNav'
+import MobileNav from '@/components/layout/MobileNav'
 
-const AUTH_PATHS = ['/login', '/register', '/', '/onboarding']
+/** Routes that render without any app chrome. */
+const BARE_PATHS = ['/', '/login', '/register', '/onboarding', '/offline']
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isPublicCard = pathname.startsWith('/d/') || pathname.startsWith('/u/') || pathname.startsWith('/card/')
-  const isAuthShell = AUTH_PATHS.includes(pathname) || isPublicCard
-  const isLanding = pathname === '/'
 
-  if (isPublicCard) {
-    return <>{children}</>
-  }
+  const isPublicCard =
+    pathname.startsWith('/d/') || pathname.startsWith('/u/') || pathname.startsWith('/card/')
 
-  if (isAuthShell) {
+  if (isPublicCard) return <>{children}</>
+
+  if (BARE_PATHS.includes(pathname)) {
+    const isLanding = pathname === '/'
     return (
-      <div className="min-h-screen flex justify-center" style={{ background: '#0f0f0f' }}>
+      <div className="flex min-h-screen justify-center bg-abc-bg">
         <div
-          className={`w-full min-h-screen relative ${
-            isLanding
-              ? ''
-              : pathname === '/onboarding'
-                ? 'max-w-[600px]'
-                : 'max-w-[430px]'
+          className={`relative min-h-screen w-full ${
+            isLanding ? '' : pathname === '/onboarding' ? 'max-w-[600px]' : 'max-w-[430px]'
           }`}
         >
           {children}
@@ -34,19 +31,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
+  // The scanner takes the full viewport on mobile — no top bar over the camera.
+  const immersive = pathname.startsWith('/scan')
+
   return (
-    <div className="flex min-h-screen" style={{ background: '#0f0f0f' }}>
-      <div className="hidden lg:block shrink-0 w-[220px]" aria-hidden>
+    <div className="flex min-h-screen bg-abc-bg">
+      <div className="hidden w-[260px] shrink-0 lg:block" aria-hidden="true">
         <DesktopSidebar />
       </div>
 
-      <main className="flex-1 min-w-0 pb-24 lg:pb-0">
-        {children}
-      </main>
-
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[100]">
-        <BottomNav />
+      <div className="flex min-w-0 flex-1 flex-col">
+        {immersive ? null : <AppHeader />}
+        <main className="min-w-0 flex-1 pb-[calc(72px+env(safe-area-inset-bottom))] lg:pb-0">
+          {children}
+        </main>
       </div>
+
+      <MobileNav />
     </div>
   )
 }
