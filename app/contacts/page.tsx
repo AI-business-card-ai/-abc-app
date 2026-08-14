@@ -1,6 +1,9 @@
-import ContactsClient from '@/components/contacts/ContactsClient'
+import { redirect } from 'next/navigation'
+import ContactsView from '@/components/contacts/ContactsView'
+import { CONTACT_LIST_COLUMNS, type ContactListRow } from '@/lib/contacts-view'
 import { createServerComponentClient } from '@/lib/supabase-server'
-import type { ScannedContact } from '@/lib/types'
+
+export const dynamic = 'force-dynamic'
 
 export default async function ContactsPage() {
   const supabase = createServerComponentClient()
@@ -8,19 +11,24 @@ export default async function ContactsPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Middleware already redirects unauthenticated users — this is a safety net.
-  if (!user) return null
+  // Middleware already gates this route; this is the safety net.
+  if (!user) redirect('/login')
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('scanned_contacts')
-    .select('*')
+    .select(CONTACT_LIST_COLUMNS)
     .eq('user_id', user.id)
     .order('scanned_at', { ascending: false })
 
+  if (error) {
+    console.error('[contacts] load failed:', error)
+  }
+
   return (
-    <ContactsClient
+    <ContactsView
       userId={user.id}
-      initialContacts={(data as ScannedContact[]) ?? []}
+      initialContacts={(data as unknown as ContactListRow[]) ?? []}
+      initialError={Boolean(error)}
     />
   )
 }
