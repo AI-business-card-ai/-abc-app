@@ -79,6 +79,12 @@ export async function POST(req: NextRequest) {
       followupNote?: string
       preferredChannels?: OutreachChannel[]
       recalculateScore?: boolean
+      /** Next step agreed in the meeting. */
+      nextAction?: string
+      /** ISO date the follow-up is due — drives the dashboard counts. */
+      followUpAt?: string | null
+      /** The rebuilt scanner writes context only; no AI message generation. */
+      generateMessages?: boolean
     }
 
     if (!body.contactId) {
@@ -95,11 +101,22 @@ export async function POST(req: NextRequest) {
     const noteParts = [whereMet, topic, followupNote].filter(Boolean)
     const combinedNote = noteParts.length > 0 ? noteParts.join('. ') : null
 
+    const nextAction = (body.nextAction || '').trim() || null
+    const followUpAt = (body.followUpAt || '').trim() || null
+
     const updatePayload: Record<string, unknown> = {
       meeting_topic: topic,
       followup_note: followupNote,
       notes: combinedNote,
       preferred_channels: preferredChannels,
+    }
+
+    if (nextAction !== null) {
+      updatePayload.next_action = nextAction
+      updatePayload.next_step = nextAction
+    }
+    if (followUpAt !== null) {
+      updatePayload.next_action_date = followUpAt
     }
 
     if (whereMet) {
@@ -124,7 +141,7 @@ export async function POST(req: NextRequest) {
 
     let contact = data as ScannedContact
 
-    const hasContext = Boolean(whereMet || topic || followupNote)
+    const hasContext = Boolean(whereMet || topic || followupNote || nextAction)
 
     if (body.recalculateScore !== false && hasContext) {
       contact = await recalculateContactScore(contact, user.id)
@@ -132,7 +149,7 @@ export async function POST(req: NextRequest) {
 
     // Messages were generated without context if enrichment finished before the sheet save.
     // Re-run message generation whenever context is saved on an already-enriched contact.
-    if (contact.enrichment_status === 'DONE') {
+    if (body.generateMessages !== false && contact.enrichment_status === 'DONE') {
       const baseUrl =
         process.env.NEXT_PUBLIC_APP_URL ||
         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')

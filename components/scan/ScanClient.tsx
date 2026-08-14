@@ -1,0 +1,427 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { IconCheck, IconScan } from '@tabler/icons-react'
+import CameraStage from '@/components/scan/CameraStage'
+import QrSheet from '@/components/scan/QrSheet'
+import ScanReview, {
+  type MeetingContextValue,
+  type ReviewFields,
+} from '@/components/scan/ScanReview'
+import Button from '@/components/ui/abc/Button'
+import { createClientComponent } from '@/lib/supabase'
+import { compressImageForScan } from '@/lib/image-compress'
+import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
+import { formatScanErrorForUser } from '@/lib/scan-card-validation'
+import { splitName } from '@/lib/data-model'
+import { hintForMode, qrEnabledForMode, sourceForMode, type CaptureMode } from '@/lib/scan/modes'
+import { parseQrPayload, type QrResult } from '@/lib/scan/qr-parse'
+import { useCamera } from '@/lib/scan/useCamera'
+import { useQrScanner } from '@/lib/scan/useQrScanner'
+import type { ScannedContact } from '@/lib/types'
+
+type Stage = 'capture' | 'processing' | 'review' | 'saved'
+
+const PROCESSING_STEPS = ['Reading contact…', 'Extracting details…', 'Preparing connection…']
+
+function emptyFields(): ReviewFields {
+  return {
+    first_name: '',
+    last_name: '',
+    company: '',
+    role: '',
+    email: '',
+    phone: '',
+    website: '',
+    linkedin_url: '',
+  }
+}
+
+function emptyContext(): MeetingContextValue {
+  return { whereMet: '', discussed: '', nextAction: '', followUpAt: null }
+}
+
+export default function ScanClient() {
+  const router = useRouter()
+  const supabase = useRef(createClientComponent()).current
+
+  const [stage, setStage] = useState<Stage>('capture')
+  const [mode, setMode] = useState<CaptureMode>('auto')
+  const [qrResult, setQrResult] = useState<Exclude<QrResult, { kind: 'contact' }> | null>(null)
+  const [processingStep, setProcessingStep] = useState(0)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [fields, setFields] = useState<ReviewFields>(emptyFields)
+  const [context, setContext] = useState<MeetingContextValue>(emptyContext)
+  const [contactId, setContactId] = useState<string | null>(null)
+  const [savedContact, setSavedContact] = useState<ScannedContact | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [blocked, setBlocked] = useState(false)
+  const [qrDetectedAt, setQrDetectedAt] = useState(0)
+
+  const previewRef = useRef<string | null>(null)
+  const busy = stage === 'processing'
+
+  // Camera runs only while capturing — released during review and on unmount.
+  const cameraActive = stage === 'capture'
+  const { videoRef, status, captureFrame } = useCamera(cameraActive)
+
+  useEffect(() => {
+    return () => {
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current)
+    }
+  }, [])
+
+  const setPreview = useCallback((file: File | null) => {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current)
+    if (!file) {
+      previewRef.current = null
+      setPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(file)
+    previewRef.current = url
+    setPreviewUrl(url)
+  }, [])
+
+  const resetToCapture = useCallback(() => {
+    setPreview(null)
+    setFields(emptyFields())
+    setContext(emptyContext())
+    setContactId(null)
+    setSavedContact(null)
+    setError(null)
+    setQrResult(null)
+    setStage('capture')
+  }, [setPreview])
+
+  /** Image path: existing OCR pipeline, with enrichment explicitly off. */
+  const processImage = useCallback(
+    async (file: File) => {
+      setError(null)
+      setStage('processing')
+      setProcessingStep(0)
+      setPreview(file)
+      hapticMedium()
+
+      const stepTimers = [
+        setTimeout(() => setProcessingStep(1), 700),
+        setTimeout(() => setProcessingStep(2), 1600),
+      ]
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
+
+        const compressed = await compressImageForScan(file)
+
+        const form = new FormData()
+        form.append('image', compressed)
+        form.append('userId', user.id)
+        form.append('userProfile', JSON.stringify({ id: user.id }))
+        form.append('enrich', 'false')
+        form.append('source', sourceForMode(mode))
+
+        const res = await fetch('/api/card/scan', { method: 'POST', body: form })
+        const data = await res.json()
+
+        if (res.status === 403 && data.error === 'SCAN_LIMIT_REACHED') {
+          setBlocked(true)
+          setError('You have used every scan on your plan. Upgrade to keep scanning.')
+          setStage('capture')
+          return
+        }
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Scan failed')
+        }
+
+        const contact = (data.contact as ScannedContact | null) ?? null
+        const extracted = data.extractedData as Partial<ScannedContact> | undefined
+        const name = extracted?.name || contact?.name || ''
+        const parts = splitName(name)
+
+        setContactId(contact?.id ?? null)
+        setFields({
+          first_name: parts.first_name,
+          last_name: parts.last_name,
+          company: extracted?.company || contact?.company || '',
+          role: extracted?.role || contact?.role || '',
+          email: extracted?.email || contact?.email || '',
+          phone: extracted?.phone || contact?.phone || '',
+          website: extracted?.website || contact?.website || '',
+          linkedin_url: extracted?.linkedin_url || contact?.linkedin_url || '',
+        })
+        hapticSuccess()
+        setStage('review')
+      } catch (err) {
+        const message = formatScanErrorForUser(
+          err instanceof Error ? err.message : 'Scan failed'
+        )
+        setError(message)
+        setStage('capture')
+      } finally {
+        stepTimers.forEach(clearTimeout)
+      }
+    },
+    [mode, router, setPreview, supabase]
+  )
+
+  /** QR path: no vision call, no scan credit. */
+  const handleQr = useCallback(
+    (raw: string) => {
+      // Ignore repeat detections of the same frame burst.
+      if (Date.now() - qrDetectedAt < 1500) return
+      setQrDetectedAt(Date.now())
+      hapticSuccess()
+
+      const parsed = parseQrPayload(raw)
+
+      if (parsed.kind === 'contact') {
+        const parts = splitName(parsed.fields.name)
+        setPreview(null)
+        setContactId(null)
+        setFields({
+          first_name: parts.first_name,
+          last_name: parts.last_name,
+          company: parsed.fields.company || '',
+          role: parsed.fields.role || '',
+          email: parsed.fields.email || '',
+          phone: parsed.fields.phone || '',
+          website: parsed.fields.website || '',
+          linkedin_url: parsed.fields.linkedin_url || '',
+        })
+        setError(null)
+        setStage('review')
+        return
+      }
+
+      setQrResult(parsed)
+    },
+    [qrDetectedAt, setPreview]
+  )
+
+  useQrScanner(videoRef, cameraActive && !qrResult && qrEnabledForMode(mode), handleQr)
+
+  const capture = useCallback(async () => {
+    const file = await captureFrame()
+    if (!file) {
+      setError('Could not read a frame from the camera. Try again.')
+      return
+    }
+    void processImage(file)
+  }, [captureFrame, processImage])
+
+  const save = useCallback(async () => {
+    setSaving(true)
+    setError(null)
+
+    try {
+      const identityRes = await fetch('/api/scan/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contactId,
+          source: contactId ? sourceForMode(mode) : 'qr',
+          fields: {
+            name: [fields.first_name, fields.last_name].filter(Boolean).join(' '),
+            first_name: fields.first_name,
+            last_name: fields.last_name,
+            company: fields.company,
+            role: fields.role,
+            email: fields.email,
+            phone: fields.phone,
+            website: fields.website,
+            linkedin_url: fields.linkedin_url,
+          },
+        }),
+      })
+      const identityData = await identityRes.json()
+      if (!identityRes.ok || !identityData.success) {
+        throw new Error(identityData.error || 'Could not save this contact.')
+      }
+
+      const saved = identityData.contact as ScannedContact
+      const hasContext =
+        context.whereMet.trim() ||
+        context.discussed.trim() ||
+        context.nextAction.trim() ||
+        context.followUpAt
+
+      if (hasContext) {
+        const contextRes = await fetch('/api/card/context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contactId: saved.id,
+            whereMet: context.whereMet,
+            topic: context.discussed,
+            nextAction: context.nextAction,
+            followUpAt: context.followUpAt,
+            recalculateScore: false,
+            generateMessages: false,
+          }),
+        })
+        if (!contextRes.ok) {
+          const contextData = await contextRes.json().catch(() => ({}))
+          throw new Error(contextData.error || 'Contact saved, but the meeting notes did not.')
+        }
+      }
+
+      setSavedContact(saved)
+      hapticSuccess()
+      setStage('saved')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save this contact.')
+    } finally {
+      setSaving(false)
+    }
+  }, [contactId, context, fields, mode])
+
+  const statusText =
+    status === 'live'
+      ? mode === 'qr'
+        ? 'Point at a QR code'
+        : hintForMode(mode)
+      : 'Preparing camera…'
+
+  return (
+    <div className="mx-auto flex w-full max-w-[1000px] flex-col px-4 pb-8 pt-4 sm:px-6 lg:px-8 lg:pt-8">
+      {stage === 'capture' || stage === 'processing' ? (
+        <>
+          <header className="shrink-0">
+            <h1 className="text-[24px] font-bold tracking-tight text-abc-text lg:text-[32px]">
+              Scan a connection
+            </h1>
+            <p className="mt-1.5 text-[14px] text-abc-secondary lg:text-[15px]">
+              Scan a business card, badge, QR, flyer or screen.
+            </p>
+          </header>
+
+          {error ? (
+            <p
+              className="mt-4 rounded-inner px-3.5 py-3 text-[13.5px]"
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
+              }}
+              role="alert"
+            >
+              {error}
+            </p>
+          ) : null}
+
+          <div
+            className="mt-4 flex min-h-0 flex-col"
+            style={{ height: 'min(72vh, 640px)' }}
+          >
+            {stage === 'processing' ? (
+              <Processing step={processingStep} previewUrl={previewUrl} />
+            ) : (
+              <CameraStage
+                videoRef={videoRef}
+                status={status}
+                mode={mode}
+                onModeChange={setMode}
+                onCapture={capture}
+                onFile={(file) => void processImage(file)}
+                statusText={statusText}
+                busy={busy}
+                blocked={blocked}
+              />
+            )}
+          </div>
+        </>
+      ) : null}
+
+      {stage === 'review' ? (
+        <ScanReview
+          fields={fields}
+          onFieldsChange={setFields}
+          context={context}
+          onContextChange={setContext}
+          previewUrl={previewUrl}
+          saving={saving}
+          error={error}
+          onSave={() => void save()}
+          onDiscard={resetToCapture}
+        />
+      ) : null}
+
+      {stage === 'saved' && savedContact ? (
+        <Saved
+          name={savedContact.name || 'Connection'}
+          onScanAnother={resetToCapture}
+          onView={() => router.push(`/contacts/${savedContact.id}`)}
+        />
+      ) : null}
+
+      {qrResult ? <QrSheet result={qrResult} onDismiss={() => setQrResult(null)} /> : null}
+    </div>
+  )
+}
+
+function Processing({ step, previewUrl }: { step: number; previewUrl: string | null }) {
+  return (
+    <div className="abc-surface flex min-h-0 flex-1 flex-col items-center justify-center gap-5 p-6 text-center">
+      {previewUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={previewUrl}
+          alt=""
+          className="h-32 w-48 rounded-inner border border-abc-border object-cover opacity-70"
+        />
+      ) : null}
+      <div className="flex flex-col items-center gap-3">
+        <span
+          className="abc-ring-pulse flex h-12 w-12 items-center justify-center rounded-full border-2"
+          style={{ borderColor: 'var(--abc-gold)' }}
+        >
+          <IconScan size={22} stroke={1.6} style={{ color: 'var(--abc-gold-accent)' }} />
+        </span>
+        <p className="text-[15px] font-medium text-abc-text" aria-live="polite">
+          {PROCESSING_STEPS[Math.min(step, PROCESSING_STEPS.length - 1)]}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function Saved({
+  name,
+  onScanAnother,
+  onView,
+}: {
+  name: string
+  onScanAnother: () => void
+  onView: () => void
+}) {
+  return (
+    <div className="abc-surface mt-6 flex flex-col items-center px-6 py-12 text-center">
+      <span
+        className="flex h-14 w-14 items-center justify-center rounded-full"
+        style={{ background: 'var(--abc-gold-soft)', border: '1px solid var(--abc-gold-border)' }}
+      >
+        <IconCheck size={26} stroke={2} style={{ color: 'var(--abc-gold-accent)' }} />
+      </span>
+      <h1 className="mt-4 text-[22px] font-bold tracking-tight text-abc-text">Connection saved.</h1>
+      <p className="mt-1.5 text-[14px] text-abc-secondary">{name} is in your contacts.</p>
+
+      <div className="mt-6 flex w-full max-w-[340px] flex-col gap-2">
+        <Button onClick={onView} size="lg" fullWidth>
+          View contact
+        </Button>
+        <Button onClick={onScanAnother} variant="surface" size="lg" fullWidth>
+          Scan another
+        </Button>
+      </div>
+    </div>
+  )
+}

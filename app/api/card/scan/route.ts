@@ -18,6 +18,14 @@ import {
 } from '@/lib/scan-card-validation'
 import { ABCProfile } from '@/lib/types'
 
+/** Capture sources the scanner can report; anything else is ignored. */
+const CAPTURE_SOURCES = ['business_card', 'badge', 'qr', 'document', 'upload', 'auto'] as const
+
+function normalizeCaptureSource(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== 'string') return null
+  return (CAPTURE_SOURCES as readonly string[]).includes(value) ? value : null
+}
+
 function unreadableCardResponse(status = 422) {
   return NextResponse.json(
     { success: false, error: SCAN_CARD_UNREADABLE_ERROR },
@@ -52,6 +60,12 @@ export async function POST(req: NextRequest) {
     const image = formData.get('image') as File
     const formUserId = formData.get('userId') as string | null
     const userProfileRaw = formData.get('userProfile') as string
+
+    // The rebuilt scanner opts out of external enrichment (Apollo / Enrichlayer)
+    // and records how the contact was captured. Callers that send neither keep
+    // the previous behaviour untouched.
+    const skipEnrichment = formData.get('enrich') === 'false'
+    const captureSource = normalizeCaptureSource(formData.get('source'))
 
     if (!image) return NextResponse.json({ error: 'No image' }, { status: 400 })
 
@@ -184,8 +198,9 @@ export async function POST(req: NextRequest) {
         scan_status: 'basic' as const,
         event_name: null,
         notes: null,
-        enrichment_status: 'PENDING' as const,
-        enrichment_step: 'queued',
+        source: captureSource,
+        enrichment_status: skipEnrichment ? 'DONE' : 'PENDING',
+        enrichment_step: skipEnrichment ? 'none' : 'queued',
       },
     ]
 
@@ -213,8 +228,10 @@ export async function POST(req: NextRequest) {
     const contact = data?.[0] ?? null
     if (contact) {
       await warnIfContactMatchesOwnerProfile(userId, contact, 'card/scan')
-      onCardScanned(contact.id, userId).catch(console.error)
-      triggerBackgroundEnrichment(contact.id, userId)
+      onCardScanned(contact.id, userId, { enrichmentPending: !skipEnrichment }).catch(console.error)
+      if (!skipEnrichment) {
+        triggerBackgroundEnrichment(contact.id, userId)
+      }
     }
 
     console.log('=== SCAN PHASE 1 DONE — enrichment queued ===')

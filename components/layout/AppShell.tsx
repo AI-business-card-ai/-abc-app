@@ -31,9 +31,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // The scanner takes the full viewport on mobile — no top bar over the camera.
-  const immersive = pathname.startsWith('/scan')
-
   return (
     <div className="flex min-h-screen bg-abc-bg">
       <div className="hidden w-[260px] shrink-0 lg:block" aria-hidden="true">
@@ -41,7 +38,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {immersive ? null : <AppHeader />}
+        <AppHeader />
         <main className="min-w-0 flex-1 pb-[calc(72px+env(safe-area-inset-bottom))] lg:pb-0">
           {children}
         </main>

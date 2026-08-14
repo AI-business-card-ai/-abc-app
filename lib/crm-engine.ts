@@ -142,9 +142,18 @@ async function suggestNextAction(contactId: string, userId: string, suggestion: 
     .eq('user_id', userId)
 }
 
-export async function onCardScanned(contactId: string, userId: string) {
+export async function onCardScanned(
+  contactId: string,
+  userId: string,
+  options: { enrichmentPending?: boolean } = {}
+) {
   const supabase = createServiceClient()
   const now = new Date().toISOString()
+
+  // When the caller is not queueing enrichment, the contact must not be left
+  // in PENDING — nothing would ever move it out, and the UI would show an
+  // "enriching" state forever.
+  const enrichmentPending = options.enrichmentPending !== false
 
   await supabase
     .from('scanned_contacts')
@@ -156,7 +165,7 @@ export async function onCardScanned(contactId: string, userId: string) {
       opportunity_stage: 'Prospecting',
       close_probability: 5,
       lead_source: 'ABC AI Business Card',
-      enrichment_status: 'PENDING',
+      enrichment_status: enrichmentPending ? 'PENDING' : 'DONE',
       scanned_at: now,
       last_activity_at: now,
     })
