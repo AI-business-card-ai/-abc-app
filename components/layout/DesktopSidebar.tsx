@@ -25,7 +25,7 @@ const PRIMARY: NavItem[] = [
   { icon: IconHome, label: 'Home', path: '/home' },
   { icon: IconScan, label: 'Scan', path: '/scan' },
   { icon: IconUsers, label: 'Contacts', path: '/contacts' },
-  { icon: IconAddressBook, label: 'My Card', path: '/profile/card' },
+  { icon: IconAddressBook, label: 'My Card', path: '/my-card' },
   { icon: IconSend, label: 'Follow-ups', path: '/follow-ups' },
 ]
 
@@ -38,7 +38,10 @@ const SECONDARY: NavItem[] = [
 ]
 
 function isActive(pathname: string, item: NavItem) {
-  if (item.path === '/profile/card') return pathname.startsWith('/profile/card')
+  // The card editor lives under /profile/card but belongs to the My Card item.
+  if (item.path === '/my-card') {
+    return pathname.startsWith('/my-card') || pathname.startsWith('/profile/card')
+  }
   if (item.path === '/profile') return pathname === '/profile'
   if (item.path === '/settings') return pathname.startsWith('/settings')
   return pathname === item.path || pathname.startsWith(`${item.path}/`)

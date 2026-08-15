@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { createServerSupabase } from '@/lib/supabase'
 import CardNotFound from '@/components/public/CardNotFound'
 import DigitalCardClient from '@/components/public/DigitalCardClient'
@@ -9,7 +10,9 @@ async function getProfile(username: string) {
   const supabase = createServerSupabase()
   const { data: profile, error } = await supabase
     .from('abc_profiles')
-    .select('id, full_name, company, role, phone, email, linkedin_url, website, product_description, goals')
+    .select(
+      'id, card_slug, card_published, full_name, company, role, phone, email, linkedin_url, website, product_description, goals'
+    )
     .eq('user_name', decodeURIComponent(username).toLowerCase())
     .maybeSingle()
   if (error) console.error('getProfile error:', error)
@@ -29,6 +32,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PublicCardByUsernamePage({ params }: Props) {
   const profile = await getProfile(params.username)
+
+  // Legacy alias. Printed /u/ links keep working, but a user who has since
+  // published a card lands on the canonical /d/ card instead of the old view.
+  if (profile?.card_slug && profile.card_published) {
+    redirect(`/d/${profile.card_slug}`)
+  }
 
   if (!profile) {
     return <CardNotFound />

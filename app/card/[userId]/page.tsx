@@ -10,7 +10,9 @@ async function getProfile(userId: string) {
   const supabase = createServerSupabase()
   const { data: profile, error } = await supabase
     .from('abc_profiles')
-    .select('id, user_name, full_name, company, role, phone, email, linkedin_url, website, product_description, goals')
+    .select(
+      'id, user_name, card_slug, card_published, full_name, company, role, phone, email, linkedin_url, website, product_description, goals'
+    )
     .eq('id', userId)
     .maybeSingle()
   if (error) console.error('getProfile error:', error)
@@ -31,7 +33,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PublicCardPage({ params }: Props) {
   const profile = await getProfile(params.userId)
 
-  // Old printed QR codes keep working — forward to the canonical username URL
+  // Old printed QR codes keep working — forward to the canonical card URL,
+  // falling back to the username alias for profiles with no published card.
+  if (profile?.card_slug && profile.card_published) {
+    redirect(`/d/${profile.card_slug}`)
+  }
   if (profile?.user_name) {
     redirect(`/u/${profile.user_name}`)
   }

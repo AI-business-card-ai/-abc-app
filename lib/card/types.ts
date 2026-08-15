@@ -95,12 +95,20 @@ export interface DigitalCardData {
   events: CardEvent[]
 }
 
+/** The ABC accent every card falls back to. */
+export const CARD_ACCENT_DEFAULT = '#d9a441'
+
+/**
+ * Accents from the pre-ABC design (pink / turquoise / purple). Rows still hold
+ * these values, so they are mapped to the ABC gold rather than migrated.
+ */
+export const LEGACY_CARD_ACCENTS = ['#f0197d', '#00d4d4', '#8b5cf6'] as const
+
 export const CARD_ACCENTS = [
-  { key: 'pink', value: '#f0197d', label: 'Pink' },
-  { key: 'turquoise', value: '#00d4d4', label: 'Turquoise' },
-  { key: 'purple', value: '#8b5cf6', label: 'Purple' },
-  { key: 'green', value: '#10b981', label: 'Green' },
-  { key: 'orange', value: '#f97316', label: 'Orange' },
+  { key: 'gold', value: CARD_ACCENT_DEFAULT, label: 'Gold' },
+  { key: 'green', value: '#4ade80', label: 'Green' },
+  { key: 'orange', value: '#fb923c', label: 'Orange' },
+  { key: 'slate', value: '#a1a1aa', label: 'Slate' },
 ] as const
 
 export const LINK_ICON_OPTIONS: { id: CardLinkIcon; label: string; emoji: string }[] = [

@@ -173,6 +173,46 @@ export default function ScanClient() {
     [mode, router, setPreview, supabase]
   )
 
+  /**
+   * ABC-to-ABC: another user's card QR resolves into the same review step a
+   * paper card reaches, so meeting context and saving work identically.
+   * If the card cannot be resolved, the generic QR sheet still offers the link.
+   */
+  const handleAbcCard = useCallback(
+    async (parsed: Extract<QrResult, { kind: 'abc_card' }>) => {
+      try {
+        const res = await fetch(
+          `/api/card/resolve/${encodeURIComponent(parsed.slug)}?ref=${parsed.ref}`
+        )
+        const data = await res.json()
+        if (!res.ok || !data?.ok || !data.card?.name) {
+          setQrResult(parsed)
+          return
+        }
+
+        const card = data.card as Record<string, string | null>
+        setPreview(null)
+        setContactId(null)
+        setFields({
+          first_name: card.first_name || '',
+          last_name: card.last_name || '',
+          company: card.company || '',
+          role: card.role || '',
+          email: card.email || '',
+          phone: card.phone || '',
+          website: card.website || '',
+          linkedin_url: card.linkedin_url || '',
+        })
+        setError(null)
+        setStage('review')
+      } catch (err) {
+        console.error('[scan] ABC card resolve failed:', err)
+        setQrResult(parsed)
+      }
+    },
+    [setPreview]
+  )
+
   /** QR path: no vision call, no scan credit. */
   const handleQr = useCallback(
     (raw: string) => {
@@ -182,6 +222,11 @@ export default function ScanClient() {
       hapticSuccess()
 
       const parsed = parseQrPayload(raw)
+
+      if (parsed.kind === 'abc_card') {
+        void handleAbcCard(parsed)
+        return
+      }
 
       if (parsed.kind === 'contact') {
         const parts = splitName(parsed.fields.name)
@@ -204,7 +249,7 @@ export default function ScanClient() {
 
       setQrResult(parsed)
     },
-    [qrDetectedAt, setPreview]
+    [handleAbcCard, qrDetectedAt, setPreview]
   )
 
   useQrScanner(videoRef, cameraActive && !qrResult && qrEnabledForMode(mode), handleQr)

@@ -22,14 +22,16 @@ export function getCardThemeTokens(theme: CardTheme): CardThemeTokens {
       muted: '#888888',
     }
   }
+  // Matches the approved ABC app palette so a public card reads as the same
+  // product as the scanner that opened it.
   return {
-    bg: '#0f0f0f',
-    surface: '#1a1a1a',
-    surface2: '#242424',
-    border: '#2a2a2a',
+    bg: '#0a0a0b',
+    surface: '#121214',
+    surface2: '#18181b',
+    border: '#232326',
     text: '#ffffff',
-    secondary: '#999999',
-    muted: '#555555',
+    secondary: '#a1a1aa',
+    muted: '#71717a',
   }
 }
 

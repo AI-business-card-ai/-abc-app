@@ -52,6 +52,7 @@ export async function middleware(req: NextRequest) {
 
   const protectedRoutes = [
     '/home',
+    '/my-card',
     '/scan',
     '/contacts',
     '/follow-ups',

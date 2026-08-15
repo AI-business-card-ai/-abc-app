@@ -5,6 +5,9 @@ import { createServerSupabase } from '@/lib/supabase'
 import { loadPublishedCardBySlug, recordCardView } from '@/lib/card/public-data'
 import PublicCardClient from '@/components/card/PublicCardClient'
 
+/** A card must reflect the owner's latest edit the moment a visitor scans it. */
+export const dynamic = 'force-dynamic'
+
 type Props = {
   params: { slug: string }
   searchParams?: { src?: string }

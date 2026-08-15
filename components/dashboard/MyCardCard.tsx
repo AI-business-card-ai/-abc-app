@@ -69,7 +69,7 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
       <header className="flex items-start justify-between">
         <IconUser size={30} stroke={1.5} style={{ color: 'var(--abc-green)' }} />
         <Link
-          href="/profile/card"
+          href="/my-card"
           aria-label="Open your card"
           className="flex h-8 w-8 items-center justify-center rounded-full text-abc-muted transition-colors hover:text-abc-text abc-focus-ring"
         >
@@ -181,7 +181,13 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
       ) : null}
 
       {card.slug ? (
-        <CardQrModal slug={card.slug} open={qrOpen} onClose={() => setQrOpen(false)} />
+        <CardQrModal
+          slug={card.slug}
+          open={qrOpen}
+          onClose={() => setQrOpen(false)}
+          name={card.fullName}
+          company={card.companyName}
+        />
       ) : null}
     </section>
   )

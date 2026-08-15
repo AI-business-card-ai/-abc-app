@@ -1,145 +1,170 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { IconCheck, IconCopy, IconDownload, IconX } from '@tabler/icons-react'
 import { CARD_PUBLIC_BASE } from '@/lib/card/types'
 
 type Props = {
   slug: string
   open: boolean
   onClose: () => void
+  /** Shown under the QR so the other person knows whose card this is. */
+  name?: string | null
+  company?: string | null
 }
 
-export default function CardQrModal({ slug, open, onClose }: Props) {
+/**
+ * Show-QR mode: the screen you hold up at a fair or across a table.
+ *
+ * Priorities, in order: the QR is large, the contrast is absolute (pure white
+ * quiet zone on black), and nothing competes with it. The screen is kept awake
+ * while it is open, because this is held up for minutes at a time.
+ */
+export default function CardQrModal({ slug, open, onClose, name, company }: Props) {
   const [copied, setCopied] = useState(false)
-  const cardUrl = `${CARD_PUBLIC_BASE}/${slug}?src=qr`
-  const qrSrc = slug ? `/api/card/qr/${encodeURIComponent(slug)}?size=512` : ''
+  const closeRef = useRef<HTMLButtonElement>(null)
 
-  useEffect(() => {
-    if (!open) setCopied(false)
-  }, [open])
+  const cardUrl = `${CARD_PUBLIC_BASE}/${slug}`
+  const shareUrl = `${cardUrl}?src=qr`
+  const qrSrc = slug ? `/api/card/qr/${encodeURIComponent(slug)}?size=1024` : ''
 
-  if (!open || !slug) return null
-
-  async function copyLink() {
+  const copyLink = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(cardUrl)
+      await navigator.clipboard.writeText(shareUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('[CardQrModal] copy failed:', err)
     }
-  }
+  }, [shareUrl])
+
+  useEffect(() => {
+    if (!open) {
+      setCopied(false)
+      return
+    }
+    closeRef.current?.focus()
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    // Keep the screen on while the QR is being shown. Unsupported browsers
+    // simply skip this — there is no fallback worth faking.
+    let released = false
+    let sentinel: { release: () => Promise<void> } | null = null
+    const wakeLock = (
+      navigator as Navigator & {
+        wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> }
+      }
+    ).wakeLock
+
+    if (wakeLock) {
+      wakeLock
+        .request('screen')
+        .then((lock) => {
+          if (released) void lock.release()
+          else sentinel = lock
+        })
+        .catch(() => {
+          /* denied or unsupported — not an error worth surfacing */
+        })
+    }
+
+    return () => {
+      released = true
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previousOverflow
+      void sentinel?.release().catch(() => {})
+    }
+  }, [open, onClose])
+
+  if (!open || !slug) return null
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 210,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.7)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        padding: 16,
-      }}
+      aria-label="Your card QR code"
+      className="fixed inset-0 z-[210] flex flex-col"
+      style={{ background: '#000000' }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: 400,
-          background: '#1a1a1a',
-          border: '1px solid #2a2a2a',
-          borderRadius: 16,
-          padding: 24,
-          textAlign: 'center',
-        }}
+      <header
+        className="flex shrink-0 items-center justify-between px-4"
+        style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))', paddingBottom: '0.75rem' }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ margin: 0, color: '#fff', fontSize: 18, fontWeight: 800 }}>QR kód</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ border: 'none', background: 'transparent', color: '#999', fontSize: 22, cursor: 'pointer' }}
-          >
-            ×
-          </button>
-        </div>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-abc-muted">
+          ABC Card
+        </span>
+        <button
+          ref={closeRef}
+          type="button"
+          onClick={onClose}
+          aria-label="Close QR code"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+        >
+          <IconX size={22} stroke={1.8} />
+        </button>
+      </header>
 
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-5">
+        {/* Pure white plate — the quiet zone the scanner needs. */}
         <div
-          style={{
-            background: '#fff',
-            borderRadius: 16,
-            padding: 16,
-            display: 'inline-block',
-            lineHeight: 0,
-          }}
+          className="rounded-[20px] bg-white p-4 sm:p-5"
+          style={{ lineHeight: 0, width: 'min(78vw, 380px)' }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrSrc} alt="QR kód vizitky" width={240} height={240} style={{ display: 'block' }} />
+          <img
+            src={qrSrc}
+            alt={`QR code linking to ${cardUrl}`}
+            width={1024}
+            height={1024}
+            className="block h-auto w-full"
+            style={{ aspectRatio: '1 / 1' }}
+          />
         </div>
 
-        <p style={{ color: '#999', fontSize: 13, margin: '14px 0 18px', lineHeight: 1.4 }}>
-          Vytiskni na roll-up nebo jmenovku na veletrh
-        </p>
+        <div className="mt-6 max-w-[340px] text-center">
+          {name ? (
+            <p className="text-[21px] font-bold leading-tight tracking-tight text-abc-text">{name}</p>
+          ) : null}
+          {company ? (
+            <p className="mt-1 text-[14px] text-abc-secondary">{company}</p>
+          ) : null}
+          <p className="mt-3 break-all text-[12.5px] text-abc-muted">
+            {cardUrl.replace(/^https?:\/\//, '')}
+          </p>
+        </div>
+      </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <a
-            href={`/api/card/qr/${encodeURIComponent(slug)}?size=512`}
-            download={`${slug}-qr.png`}
-            className="interactive"
-            style={{
-              padding: 12,
-              borderRadius: 10,
-              border: '1px solid rgba(0,212,212,0.4)',
-              background: 'rgba(0,212,212,0.1)',
-              color: '#00d4d4',
-              fontWeight: 700,
-              textDecoration: 'none',
-              fontSize: 14,
-            }}
-          >
-            Stáhnout PNG
-          </a>
-          <a
-            href={`/api/card/qr/${encodeURIComponent(slug)}?size=2048`}
-            download={`${slug}-qr-print.png`}
-            className="interactive"
-            style={{
-              padding: 12,
-              borderRadius: 10,
-              border: '1px solid #2a2a2a',
-              background: '#242424',
-              color: '#fff',
-              fontWeight: 700,
-              textDecoration: 'none',
-              fontSize: 14,
-            }}
-          >
-            Stáhnout pro tisk 2048px
-          </a>
+      <div
+        className="shrink-0 px-5"
+        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+      >
+        <p className="mb-3 text-center text-[12.5px] text-abc-muted">
+          Point any phone camera at the code.
+        </p>
+        <div className="mx-auto flex max-w-[420px] gap-2.5">
           <button
             type="button"
             onClick={() => void copyLink()}
-            className="interactive"
-            style={{
-              padding: 12,
-              borderRadius: 10,
-              border: 'none',
-              background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: 'pointer',
-            }}
+            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-btn border border-abc-border bg-abc-raised text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong abc-focus-ring"
           >
-            {copied ? '✓ Zkopírováno' : 'Kopírovat odkaz'}
+            {copied ? <IconCheck size={17} stroke={1.9} /> : <IconCopy size={17} stroke={1.8} />}
+            {copied ? 'Copied' : 'Copy link'}
           </button>
+          <a
+            href={`/api/card/qr/${encodeURIComponent(slug)}?size=2048`}
+            download={`${slug}-qr.png`}
+            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-btn border border-abc-border bg-abc-raised text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong abc-focus-ring"
+          >
+            <IconDownload size={17} stroke={1.8} />
+            Print PNG
+          </a>
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@ type Tab = { icon: TablerIcon; label: string; path: string }
 const TABS: Tab[] = [
   { icon: IconScan, label: 'Scan', path: '/scan' },
   { icon: IconUsers, label: 'Contacts', path: '/contacts' },
-  { icon: IconAddressBook, label: 'My Card', path: '/profile/card' },
+  { icon: IconAddressBook, label: 'My Card', path: '/my-card' },
   { icon: IconSend, label: 'Follow-ups', path: '/follow-ups' },
 ]
 
@@ -29,9 +29,10 @@ export default function MobileNav() {
     >
       <ul className="flex items-stretch justify-around px-2 py-2">
         {TABS.map((tab) => {
+          // The card editor lives under /profile/card but belongs to this tab.
           const active =
-            tab.path === '/profile/card'
-              ? pathname.startsWith('/profile/card')
+            tab.path === '/my-card'
+              ? pathname.startsWith('/my-card') || pathname.startsWith('/profile/card')
               : pathname === tab.path || pathname.startsWith(`${tab.path}/`)
           const TabIcon = tab.icon
 

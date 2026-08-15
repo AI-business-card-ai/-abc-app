@@ -52,7 +52,8 @@ export default function QrSheet({
           <>
             <h2 className="mt-3.5 text-[19px] font-bold text-abc-text">ABC Card detected</h2>
             <p className="mt-1.5 text-[13.5px] leading-[1.55] text-abc-secondary">
-              Open the digital card to see their details and save the contact.
+              Their details could not be read automatically — the card may be unpublished. Open it
+              to see what they share.
             </p>
             <p className="mt-3 truncate rounded-inner border border-abc-border bg-abc-raised px-3 py-2.5 text-[13px] text-abc-secondary">
               {result.url}

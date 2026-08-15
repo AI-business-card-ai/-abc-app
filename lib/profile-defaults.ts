@@ -1,3 +1,4 @@
+import { CARD_ACCENT_DEFAULT } from '@/lib/card/types'
 import { DEFAULT_RESEARCH_PREFERENCES } from '@/lib/research'
 import { getScanLimitForPlan } from '@/lib/scan-limits'
 import type { ABCProfile } from '@/lib/types'
@@ -15,7 +16,7 @@ export const EMPTY_ABC_PROFILE: Omit<ABCProfile, 'id'> = {
   card_slug: null,
   card_published: false,
   card_branding_removed: false,
-  card_accent: '#f0197d',
+  card_accent: CARD_ACCENT_DEFAULT,
   card_theme: 'graphite',
   card_tagline: null,
   what_i_do: null,
@@ -153,7 +154,7 @@ export function normalizeAbcProfile(
     card_slug: asNullableString(data.card_slug),
     card_published: Boolean(data.card_published),
     card_branding_removed: Boolean(data.card_branding_removed),
-    card_accent: asNullableString(data.card_accent) || '#f0197d',
+    card_accent: asNullableString(data.card_accent) || CARD_ACCENT_DEFAULT,
     card_theme: data.card_theme === 'light' ? 'light' : 'graphite',
     card_tagline: asNullableString(data.card_tagline),
     what_i_do: asNullableString(data.what_i_do),

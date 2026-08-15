@@ -7,15 +7,19 @@ import {
   IconBrandLinkedin,
   IconBrandThreads,
   IconBrandTiktok,
+  IconBrandWhatsapp,
   IconBrandX,
   IconBrandYoutube,
   IconCalendarEvent,
   IconChevronRight,
+  IconDownload,
   IconMail,
   IconMapPin,
   IconPhone,
+  IconSend,
   IconWorld,
 } from '@tabler/icons-react'
+import type { TablerIcon } from '@tabler/icons-react'
 import type { DigitalCardData, SocialNetwork } from '@/lib/card/types'
 import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE } from '@/lib/card/types'
 import { isSocialVisible } from '@/lib/card/public-data'
@@ -31,18 +35,15 @@ type Props = {
   onSaveContact?: () => void
 }
 
-const SOCIAL_ICONS: Record<
-  SocialNetwork,
-  { Icon: typeof IconBrandLinkedin; color: string; urlKey: keyof DigitalCardData }
-> = {
-  linkedin: { Icon: IconBrandLinkedin, color: '#0A66C2', urlKey: 'linkedinUrl' },
-  instagram: { Icon: IconBrandInstagram, color: '#E1306C', urlKey: 'instagramUrl' },
-  x: { Icon: IconBrandX, color: '#ffffff', urlKey: 'xUrl' },
-  facebook: { Icon: IconBrandFacebook, color: '#1877F2', urlKey: 'facebookUrl' },
-  youtube: { Icon: IconBrandYoutube, color: '#FF0000', urlKey: 'youtubeUrl' },
-  tiktok: { Icon: IconBrandTiktok, color: '#ffffff', urlKey: 'tiktokUrl' },
-  github: { Icon: IconBrandGithub, color: '#ffffff', urlKey: 'githubUrl' },
-  threads: { Icon: IconBrandThreads, color: '#ffffff', urlKey: 'threadsUrl' },
+const SOCIAL_ICONS: Record<SocialNetwork, { Icon: TablerIcon; label: string; urlKey: keyof DigitalCardData }> = {
+  linkedin: { Icon: IconBrandLinkedin, label: 'LinkedIn', urlKey: 'linkedinUrl' },
+  instagram: { Icon: IconBrandInstagram, label: 'Instagram', urlKey: 'instagramUrl' },
+  x: { Icon: IconBrandX, label: 'X', urlKey: 'xUrl' },
+  facebook: { Icon: IconBrandFacebook, label: 'Facebook', urlKey: 'facebookUrl' },
+  youtube: { Icon: IconBrandYoutube, label: 'YouTube', urlKey: 'youtubeUrl' },
+  tiktok: { Icon: IconBrandTiktok, label: 'TikTok', urlKey: 'tiktokUrl' },
+  github: { Icon: IconBrandGithub, label: 'GitHub', urlKey: 'githubUrl' },
+  threads: { Icon: IconBrandThreads, label: 'Threads', urlKey: 'threadsUrl' },
 }
 
 function linkEmoji(icon: string): string {
@@ -53,7 +54,7 @@ function formatEventDates(from: string | null, to: string | null): string {
   if (!from && !to) return ''
   const fmt = (d: string) => {
     try {
-      return new Date(d + 'T12:00:00').toLocaleDateString('cs-CZ', {
+      return new Date(`${d}T12:00:00`).toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
@@ -66,6 +67,13 @@ function formatEventDates(from: string | null, to: string | null): string {
   return fmt(from || to || '')
 }
 
+/**
+ * The public digital card — what a visitor sees straight after scanning.
+ *
+ * Deliberately shallow: who this is, then one primary action (save the
+ * contact), then the handful of ways to reach them. Nothing from the CRM side
+ * of the product appears here — no scores, stages, notes or meeting context.
+ */
 export default function DigitalCardView({
   card,
   preview = false,
@@ -74,7 +82,7 @@ export default function DigitalCardView({
   onSaveContact,
 }: Props) {
   const t = getCardThemeTokens(card.theme)
-  const accent = card.accent || '#f0197d'
+  const accent = card.accent
   const initials = initialsFromName(card.fullName)
   const subtitle = [card.jobTitle, card.companyName].filter(Boolean).join(' · ')
 
@@ -83,66 +91,88 @@ export default function DigitalCardView({
       const meta = SOCIAL_ICONS[key]
       const url = card[meta.urlKey] as string | null
       if (!isSocialVisible(card, key, url)) return null
-      return { key, url: url!, ...meta }
+      return { key, url: url as string, ...meta }
     })
     .filter(Boolean) as {
     key: SocialNetwork
     url: string
-    Icon: typeof IconBrandLinkedin
-    color: string
+    Icon: TablerIcon
+    label: string
   }[]
 
-  const contactTiles: {
+  /** Only genuinely saved channels become actions. */
+  const actions: {
     key: string
     label: string
+    value: string
     href: string
-    Icon: typeof IconPhone
-    highlight?: boolean
+    Icon: TablerIcon
+    external?: boolean
   }[] = []
 
   if (card.showPhone && card.phone) {
-    contactTiles.push({
-      key: 'phone',
-      label: card.phone,
+    actions.push({
+      key: 'call',
+      label: 'Call',
+      value: card.phone,
       href: `tel:${card.phone}`,
       Icon: IconPhone,
     })
   }
-  if (card.showWhatsapp && card.whatsapp) {
-    contactTiles.push({
-      key: 'whatsapp',
-      label: 'WhatsApp',
-      href: whatsappMeUrl(card.whatsapp),
-      Icon: IconPhone,
-    })
-  }
   if (card.showEmail && card.email) {
-    contactTiles.push({
+    actions.push({
       key: 'email',
-      label: card.email,
+      label: 'Email',
+      value: card.email,
       href: `mailto:${card.email}`,
       Icon: IconMail,
     })
   }
+  if (card.showWhatsapp && card.whatsapp) {
+    actions.push({
+      key: 'whatsapp',
+      label: 'WhatsApp',
+      value: card.whatsapp,
+      href: whatsappMeUrl(card.whatsapp),
+      Icon: IconBrandWhatsapp,
+      external: true,
+    })
+  }
   if (card.showWebsite && card.website) {
-    contactTiles.push({
-      key: 'web',
-      label: card.website.replace(/^https?:\/\//i, ''),
+    actions.push({
+      key: 'website',
+      label: 'Website',
+      value: card.website.replace(/^https?:\/\//i, '').replace(/\/$/, ''),
       href: card.website,
       Icon: IconWorld,
+      external: true,
+    })
+  }
+  const linkedin = socials.find((s) => s.key === 'linkedin')
+  if (linkedin) {
+    actions.push({
+      key: 'linkedin',
+      label: 'LinkedIn',
+      value: linkedin.url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''),
+      href: linkedin.url,
+      Icon: IconBrandLinkedin,
+      external: true,
     })
   }
   if (card.showCalendar && card.calendarUrl) {
-    contactTiles.push({
+    actions.push({
       key: 'calendar',
-      label: 'Rezervovat čas',
+      label: 'Book a time',
+      value: card.calendarUrl.replace(/^https?:\/\//i, ''),
       href: card.calendarUrl,
       Icon: IconCalendarEvent,
-      highlight: true,
+      external: true,
     })
   }
 
-  async function handleSave() {
+  const otherSocials = socials.filter((s) => s.key !== 'linkedin')
+
+  function handleSave() {
     if (onSaveContact) {
       onSaveContact()
       return
@@ -150,20 +180,32 @@ export default function DigitalCardView({
     window.location.href = `/api/card/vcard/${encodeURIComponent(card.slug)}`
   }
 
+  const meta = [
+    card.showLocation && card.location ? card.location : null,
+    ...card.languages,
+  ].filter(Boolean) as string[]
+
   return (
     <div
       style={{
         width: '100%',
-        maxWidth: 480,
+        maxWidth: 460,
         margin: '0 auto',
         minHeight: preview ? '100%' : '100vh',
         background: t.bg,
         color: t.text,
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily:
+          'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       }}
     >
-      {/* Cover */}
-      <div style={{ position: 'relative', height: card.coverUrl ? 140 : 72, background: t.surface }}>
+      {/* Cover — a saved image, otherwise a restrained accent wash */}
+      <div
+        style={{
+          position: 'relative',
+          height: card.coverUrl ? 148 : 96,
+          background: t.surface,
+        }}
+      >
         {card.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -173,10 +215,11 @@ export default function DigitalCardView({
           />
         ) : (
           <div
+            aria-hidden
             style={{
               width: '100%',
               height: '100%',
-              background: `linear-gradient(135deg, ${accent}33, transparent)`,
+              background: `radial-gradient(120% 140% at 50% 0%, ${accent}26, transparent 70%)`,
             }}
           />
         )}
@@ -185,22 +228,35 @@ export default function DigitalCardView({
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(180deg, transparent 40%, ${t.bg})`,
+            background: `linear-gradient(180deg, transparent 30%, ${t.bg})`,
           }}
         />
+        <span
+          style={{
+            position: 'absolute',
+            top: 16,
+            left: 20,
+            fontSize: 10.5,
+            fontWeight: 700,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: t.muted,
+          }}
+        >
+          ABC Card
+        </span>
       </div>
 
-      <div style={{ padding: '0 20px 40px', marginTop: -48 }}>
-        {/* Photo */}
+      <div style={{ padding: '0 20px 40px', marginTop: -40 }}>
+        {/* Identity */}
         <div
           style={{
-            width: 96,
-            height: 96,
+            width: 92,
+            height: 92,
             borderRadius: '50%',
-            border: `3px solid ${accent}`,
-            boxShadow: `0 0 24px ${accent}55`,
             overflow: 'hidden',
-            background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+            background: t.surface2,
+            boxShadow: `inset 0 0 0 2px ${accent}, 0 10px 28px rgba(0,0,0,0.45)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -208,52 +264,68 @@ export default function DigitalCardView({
         >
           {card.photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={card.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img
+              src={card.photoUrl}
+              alt={card.fullName}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
           ) : (
-            <span style={{ color: '#fff', fontSize: 28, fontWeight: 800 }}>{initials}</span>
+            <span style={{ color: t.secondary, fontSize: 30, fontWeight: 700 }}>{initials}</span>
           )}
         </div>
 
-        <div style={{ marginTop: 14 }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>
+        <div style={{ marginTop: 16 }}>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 26,
+              lineHeight: 1.15,
+              fontWeight: 700,
+              letterSpacing: '-0.02em',
+            }}
+          >
             {card.fullName}
           </h1>
+
           {subtitle ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <p style={{ margin: 0, fontSize: 14, color: t.secondary }}>{subtitle}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 7 }}>
+              <p style={{ margin: 0, fontSize: 14.5, color: t.secondary, lineHeight: 1.45 }}>
+                {subtitle}
+              </p>
               {card.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={card.logoUrl}
                   alt=""
-                  style={{ height: 18, width: 'auto', maxWidth: 48, objectFit: 'contain' }}
+                  style={{ height: 20, width: 'auto', maxWidth: 56, objectFit: 'contain' }}
                 />
               ) : null}
             </div>
           ) : null}
+
           {card.tagline ? (
-            <p style={{ margin: '8px 0 0', fontSize: 15, color: accent, fontWeight: 600 }}>
+            <p style={{ margin: '12px 0 0', fontSize: 15, lineHeight: 1.5, fontWeight: 500 }}>
               {card.tagline}
             </p>
           ) : null}
 
-          {(card.showLocation && card.location) || card.languages.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+          {meta.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
               {card.showLocation && card.location ? (
                 <span
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: 5,
                     fontSize: 12,
                     color: t.secondary,
                     background: t.surface,
                     border: `1px solid ${t.border}`,
                     borderRadius: 999,
-                    padding: '4px 10px',
+                    padding: '5px 11px',
                   }}
                 >
-                  <IconMapPin size={12} />
+                  <IconMapPin size={13} stroke={1.8} />
                   {card.location}
                 </span>
               ) : null}
@@ -266,7 +338,7 @@ export default function DigitalCardView({
                     background: t.surface,
                     border: `1px solid ${t.border}`,
                     borderRadius: 999,
-                    padding: '4px 10px',
+                    padding: '5px 11px',
                   }}
                 >
                   {lang}
@@ -276,112 +348,126 @@ export default function DigitalCardView({
           ) : null}
         </div>
 
-        {/* Primary CTAs */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 20 }}>
+        {/* Primary action */}
+        <div style={{ marginTop: 24 }}>
           <button
             type="button"
             className="interactive"
-            onClick={() => void handleSave()}
+            onClick={handleSave}
             style={{
-              minHeight: 48,
-              borderRadius: 12,
+              width: '100%',
+              minHeight: 54,
+              borderRadius: 13,
               border: 'none',
-              background: `linear-gradient(135deg, ${accent}, #00d4d4)`,
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 13,
+              background: accent,
+              color: '#1a1205',
+              fontWeight: 600,
+              fontSize: 15.5,
               cursor: 'pointer',
-              padding: '10px 8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 9,
             }}
           >
-            💾 Uložit kontakt
+            <IconDownload size={19} stroke={1.9} />
+            Save contact
           </button>
-          <button
-            type="button"
-            className="interactive"
-            onClick={() => onExchange?.()}
+          <p
             style={{
-              minHeight: 48,
-              borderRadius: 12,
-              border: `1px solid ${accent}`,
-              background: t.surface,
-              color: t.text,
-              fontWeight: 700,
-              fontSize: 13,
-              cursor: preview && !onExchange ? 'default' : 'pointer',
-              padding: '10px 8px',
+              margin: '9px 0 0',
+              fontSize: 12,
+              lineHeight: 1.45,
+              color: t.muted,
+              textAlign: 'center',
             }}
           >
-            🔄 Poslat mi svou vizitku
-          </button>
+            Downloads a .vcf card — your phone asks where to save it.
+          </p>
         </div>
 
-        {/* Socials */}
-        {socials.length > 0 ? (
+        {/* Genuine reach-me actions */}
+        {actions.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 }}>
+            {actions.map((action) => (
+              <a
+                key={action.key}
+                href={action.href}
+                target={action.external ? '_blank' : undefined}
+                rel={action.external ? 'noopener noreferrer' : undefined}
+                className="interactive"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 13,
+                  padding: '13px 15px',
+                  borderRadius: 13,
+                  background: t.surface,
+                  border: `1px solid ${t.border}`,
+                  color: t.text,
+                  textDecoration: 'none',
+                  minHeight: 54,
+                }}
+              >
+                <action.Icon size={19} stroke={1.75} style={{ color: accent, flexShrink: 0 }} />
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600 }}>
+                    {action.label}
+                  </span>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 12.5,
+                      color: t.secondary,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      marginTop: 1,
+                    }}
+                  >
+                    {action.value}
+                  </span>
+                </span>
+                <IconChevronRight size={17} stroke={1.8} style={{ color: t.muted, flexShrink: 0 }} />
+              </a>
+            ))}
+          </div>
+        ) : null}
+
+        {/* Remaining social profiles */}
+        {otherSocials.length > 0 ? (
           <div
             style={{
               display: 'flex',
               flexWrap: 'wrap',
-              gap: 10,
+              gap: 9,
               marginTop: 18,
               justifyContent: 'center',
             }}
           >
-            {socials.map((s) => (
+            {otherSocials.map((s) => (
               <a
                 key={s.key}
                 href={s.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={s.key}
+                aria-label={s.label}
+                title={s.label}
                 className="interactive"
                 style={{
-                  width: 40,
-                  height: 40,
+                  width: 44,
+                  height: 44,
                   borderRadius: '50%',
                   background: t.surface,
                   border: `1px solid ${t.border}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: s.color === '#ffffff' && card.theme === 'graphite' ? t.text : s.color,
+                  color: t.secondary,
                   textDecoration: 'none',
                 }}
               >
-                <s.Icon size={18} />
-              </a>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Contact tiles */}
-        {contactTiles.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 }}>
-            {contactTiles.map((tile) => (
-              <a
-                key={tile.key}
-                href={tile.href}
-                target={tile.key === 'web' || tile.key === 'calendar' || tile.key === 'whatsapp' ? '_blank' : undefined}
-                rel="noopener noreferrer"
-                className="interactive"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '14px 16px',
-                  borderRadius: 12,
-                  background: tile.highlight ? `${accent}18` : t.surface,
-                  border: `1px solid ${tile.highlight ? accent : t.border}`,
-                  color: t.text,
-                  textDecoration: 'none',
-                  fontSize: 14,
-                  fontWeight: tile.highlight ? 700 : 500,
-                }}
-              >
-                <tile.Icon size={18} style={{ color: accent, flexShrink: 0 }} />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {tile.label}
-                </span>
+                <s.Icon size={19} stroke={1.7} />
               </a>
             ))}
           </div>
@@ -389,19 +475,22 @@ export default function DigitalCardView({
 
         {/* About */}
         {card.whatIDo ? (
-          <section style={{ marginTop: 24 }}>
+          <section style={{ marginTop: 26 }}>
             <h2
               style={{
-                margin: '0 0 8px',
+                margin: '0 0 9px',
                 fontSize: 11,
-                letterSpacing: '0.08em',
-                color: accent,
-                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: t.muted,
+                fontWeight: 600,
               }}
             >
-              O MNĚ
+              About
             </h2>
-            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: t.secondary }}>{card.whatIDo}</p>
+            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: t.secondary }}>
+              {card.whatIDo}
+            </p>
           </section>
         ) : null}
 
@@ -410,28 +499,30 @@ export default function DigitalCardView({
           <section
             style={{
               marginTop: 20,
-              padding: '14px 16px',
-              borderRadius: 12,
+              padding: '15px 17px',
+              borderRadius: 15,
               background: t.surface,
+              border: `1px solid ${t.border}`,
               borderLeft: `3px solid ${accent}`,
             }}
           >
             <h2
               style={{
-                margin: '0 0 6px',
+                margin: '0 0 7px',
                 fontSize: 11,
-                letterSpacing: '0.08em',
-                color: accent,
-                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: t.muted,
+                fontWeight: 600,
               }}
             >
-              CO HLEDÁM
+              Looking for
             </h2>
-            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: t.text }}>{card.lookingFor}</p>
+            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>{card.lookingFor}</p>
           </section>
         ) : null}
 
-        {/* Custom links */}
+        {/* Saved links */}
         {card.links.length > 0 ? (
           <section style={{ marginTop: 24 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -450,59 +541,71 @@ export default function DigitalCardView({
                     alignItems: 'center',
                     gap: 12,
                     padding: '14px 16px',
-                    borderRadius: 12,
+                    borderRadius: 13,
                     background: t.surface,
                     border: `1px solid ${t.border}`,
                     color: t.text,
                     textDecoration: 'none',
                     fontSize: 14,
                     fontWeight: 600,
+                    minHeight: 54,
                   }}
                 >
-                  <span style={{ fontSize: 18 }}>{linkEmoji(link.icon)}</span>
-                  <span style={{ flex: 1 }}>{link.label}</span>
-                  <IconChevronRight size={16} style={{ color: t.muted }} />
+                  <span style={{ fontSize: 18 }} aria-hidden>
+                    {linkEmoji(link.icon)}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>{link.label}</span>
+                  <IconChevronRight size={17} stroke={1.8} style={{ color: t.muted }} />
                 </a>
               ))}
             </div>
           </section>
         ) : null}
 
-        {/* Events */}
+        {/* Where to meet them */}
         {card.events.length > 0 ? (
-          <section style={{ marginTop: 24 }}>
+          <section style={{ marginTop: 26 }}>
             <h2
               style={{
                 margin: '0 0 12px',
                 fontSize: 11,
-                letterSpacing: '0.08em',
-                color: accent,
-                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: t.muted,
+                fontWeight: 600,
               }}
             >
-              KDE MĚ POTKÁŠ
+              Where to meet me
             </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
               {card.events.map((ev) => (
                 <div
                   key={ev.id}
                   style={{
                     display: 'flex',
                     gap: 12,
-                    padding: '12px 14px',
-                    borderRadius: 12,
+                    padding: '13px 15px',
+                    borderRadius: 13,
                     background: t.surface,
                     border: `1px solid ${t.border}`,
                   }}
                 >
-                  <IconCalendarEvent size={18} style={{ color: accent, marginTop: 2, flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{ev.name}</div>
-                    <div style={{ fontSize: 12, color: t.secondary, marginTop: 2 }}>
-                      {[ev.city, formatEventDates(ev.date_from, ev.date_to)].filter(Boolean).join(' · ')}
+                  <IconCalendarEvent
+                    size={18}
+                    stroke={1.75}
+                    style={{ color: accent, marginTop: 2, flexShrink: 0 }}
+                  />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{ev.name}</div>
+                    <div style={{ fontSize: 12.5, color: t.secondary, marginTop: 3 }}>
+                      {[ev.city, formatEventDates(ev.date_from, ev.date_to)]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </div>
                     {ev.booth ? (
-                      <div style={{ fontSize: 12, color: accent, marginTop: 2 }}>Stánek {ev.booth}</div>
+                      <div style={{ fontSize: 12.5, color: accent, marginTop: 3 }}>
+                        Stand {ev.booth}
+                      </div>
                     ) : null}
                   </div>
                 </div>
@@ -511,18 +614,40 @@ export default function DigitalCardView({
           </section>
         ) : null}
 
-        {/* Footer branding */}
+        {/* Reciprocal exchange — secondary by design */}
+        <div style={{ marginTop: 26 }}>
+          <button
+            type="button"
+            className="interactive"
+            onClick={() => onExchange?.()}
+            style={{
+              width: '100%',
+              minHeight: 52,
+              borderRadius: 13,
+              border: `1px solid ${t.border}`,
+              background: t.surface,
+              color: t.text,
+              fontWeight: 600,
+              fontSize: 14.5,
+              cursor: preview && !onExchange ? 'default' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 9,
+            }}
+          >
+            <IconSend size={18} stroke={1.75} style={{ color: t.secondary }} />
+            Send {card.fullName.split(' ')[0]} my details
+          </button>
+        </div>
+
         {!card.brandingRemoved ? (
-          <footer style={{ marginTop: 36, textAlign: 'center' }}>
+          <footer style={{ marginTop: 34, textAlign: 'center' }}>
             <a
               href={`https://abccard.io?ref=card_${encodeURIComponent(card.slug)}`}
-              style={{
-                color: t.muted,
-                fontSize: 12,
-                textDecoration: 'none',
-              }}
+              style={{ color: t.muted, fontSize: 12, textDecoration: 'none' }}
             >
-              ⚡ Powered by ABC — vytvoř si svou vizitku zdarma
+              Powered by ABC Card
             </a>
           </footer>
         ) : null}

@@ -7,6 +7,7 @@ import type {
   SocialEnabledMap,
   SocialNetwork,
 } from '@/lib/card/types'
+import { CARD_ACCENT_DEFAULT, LEGACY_CARD_ACCENTS } from '@/lib/card/types'
 import { normalizeSocialUrl, normalizeWebsiteUrl } from '@/lib/card/social'
 
 type ProfileRow = Record<string, unknown>
@@ -35,6 +36,14 @@ function asSocialEnabled(v: unknown): SocialEnabledMap {
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
+}
+
+/** Legacy pink / turquoise / purple accents render as ABC gold. */
+function normalizeAccent(value: string | null): string {
+  if (!value) return CARD_ACCENT_DEFAULT
+  const hex = value.trim().toLowerCase()
+  if ((LEGACY_CARD_ACCENTS as readonly string[]).includes(hex)) return CARD_ACCENT_DEFAULT
+  return hex
 }
 
 export function mapProfileToCardData(
@@ -87,7 +96,7 @@ export function mapProfileToCardData(
     githubUrl: normalizeSocialUrl('github', asString(profile.github_url)),
     threadsUrl: normalizeSocialUrl('threads', asString(profile.threads_url)),
     socialEnabled,
-    accent: asString(profile.card_accent) || '#f0197d',
+    accent: normalizeAccent(asString(profile.card_accent)),
     theme: ((asString(profile.card_theme) as CardTheme) || 'graphite') === 'light' ? 'light' : 'graphite',
     brandingRemoved: asBool(profile.card_branding_removed, false),
     published: asBool(profile.card_published, false),

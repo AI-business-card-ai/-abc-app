@@ -15,14 +15,17 @@ export type QrContactFields = {
   linkedin_url: string | null
 }
 
+/** Which ABC card URL shape was scanned — the identifier means a different column in each. */
+export type AbcCardRef = 'd' | 'u' | 'card'
+
 export type QrResult =
-  | { kind: 'abc_card'; url: string; slug: string }
+  | { kind: 'abc_card'; url: string; slug: string; ref: AbcCardRef }
   | { kind: 'contact'; fields: QrContactFields; format: 'vcard' | 'mecard' }
   | { kind: 'url'; url: string; host: string }
   | { kind: 'text'; text: string }
 
 const ABC_HOSTS = ['abccard.io', 'www.abccard.io']
-const ABC_CARD_PATH = /^\/(?:d|u|card)\/([^/?#]+)/
+const ABC_CARD_PATH = /^\/(d|u|card)\/([^/?#]+)/
 
 function emptyFields(): QrContactFields {
   return {
@@ -135,7 +138,12 @@ export function parseQrPayload(raw: string): QrResult {
       if (ABC_HOSTS.includes(url.hostname.toLowerCase())) {
         const match = url.pathname.match(ABC_CARD_PATH)
         if (match) {
-          return { kind: 'abc_card', url: url.toString(), slug: decodeURIComponent(match[1]) }
+          return {
+            kind: 'abc_card',
+            url: url.toString(),
+            ref: match[1] as AbcCardRef,
+            slug: decodeURIComponent(match[2]),
+          }
         }
       }
       return { kind: 'url', url: url.toString(), host: url.hostname }
