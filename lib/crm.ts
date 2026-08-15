@@ -15,6 +15,10 @@ export type ActivityType =
   | 'MESSAGE_GENERATED'
   | 'RESPONSE_RECEIVED'
   | 'DEAL_WON'
+  // Follow-up inbox. Neither appears in STATUS_TRANSITIONS, so completing or
+  // snoozing a follow-up deliberately does not move the contact's crm_status.
+  | 'FOLLOWUP_COMPLETED'
+  | 'FOLLOWUP_SNOOZED'
 
 export type CrmStatus =
   | 'NEW'

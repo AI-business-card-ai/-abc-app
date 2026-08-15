@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   IconArrowsExchange,
+  IconCheck,
+  IconClockPause,
   IconDatabaseExport,
   IconDeviceFloppy,
   IconMail,
@@ -34,6 +36,8 @@ const ICONS: Record<string, { icon: TablerIcon; label: string }> = {
   STAGE_CHANGED: { icon: IconArrowsExchange, label: 'Status changed' },
   VCARD_SAVED: { icon: IconDeviceFloppy, label: 'Saved to phone' },
   EXPORTED_CSV: { icon: IconDatabaseExport, label: 'Exported' },
+  FOLLOWUP_COMPLETED: { icon: IconCheck, label: 'Follow-up completed' },
+  FOLLOWUP_SNOOZED: { icon: IconClockPause, label: 'Follow-up moved' },
 }
 
 function describe(item: Activity) {
