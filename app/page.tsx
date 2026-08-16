@@ -348,7 +348,7 @@ export default function HomePage() {
       </section>
 
       {/* WORKFLOW — one continuous process */}
-      <section id="how-it-works" className="abc-section" style={{ paddingTop: 0 }}>
+      <section id="how-it-works" className="abc-section abc-section-tight abc-section-snug-bottom">
         <FadeIn>
           <div className="abc-flow">
             {FLOW.map(({ Icon, title, desc, tone }, i) => (
@@ -404,9 +404,9 @@ export default function HomePage() {
       </section>
 
       {/* PROBLEM */}
-      <section id="problem" className="abc-section">
+      <section id="problem" className="abc-section abc-section-snug-top">
         <FadeIn>
-          <h2 className="abc-h2" style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 44px' }}>
+          <h2 className="abc-h2" style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto 28px' }}>
             You come back from every event with{' '}
             <span style={{ color: COLORS.pink }}>50 business cards</span>.
           </h2>
@@ -426,7 +426,7 @@ export default function HomePage() {
       </section>
 
       {/* DIGITAL CARD / QR — reverse lead capture */}
-      <section id="digital-card" className="abc-section" style={{ maxWidth: 1120 }}>
+      <section id="digital-card" className="abc-section abc-section-snug-bottom" style={{ maxWidth: 1120 }}>
         <FadeIn>
           <div
             style={{
@@ -476,9 +476,9 @@ export default function HomePage() {
       </section>
 
       {/* PRICING */}
-      <section id="pricing" className="abc-section">
+      <section id="pricing" className="abc-section abc-section-snug-top abc-section-snug-bottom">
         <FadeIn>
-          <h2 className="abc-h2" style={{ textAlign: 'center', margin: '0 0 44px' }}>
+          <h2 className="abc-h2" style={{ textAlign: 'center', margin: '0 0 28px' }}>
             Simple pricing
           </h2>
         </FadeIn>
@@ -564,7 +564,7 @@ export default function HomePage() {
       </section>
 
       {/* TARGET AUDIENCE */}
-      <section id="use-cases" className="abc-section" style={{ maxWidth: 900, textAlign: 'center' }}>
+      <section id="use-cases" className="abc-section abc-section-snug" style={{ maxWidth: 900, textAlign: 'center' }}>
         <FadeIn>
           <p
             style={{
@@ -573,7 +573,7 @@ export default function HomePage() {
               fontWeight: 600,
               lineHeight: 1.55,
               letterSpacing: '-0.02em',
-              margin: '0 0 30px',
+              margin: '0 0 22px',
             }}
           >
             Built for founders and sales teams at trade shows, conferences, and B2B events.
@@ -604,11 +604,11 @@ export default function HomePage() {
       </section>
 
       {/* FINAL CTA */}
-      <section id="cta" className="abc-section" style={{ maxWidth: 860, textAlign: 'center' }}>
+      <section id="cta" className="abc-section abc-section-snug" style={{ maxWidth: 860, textAlign: 'center' }}>
         <FadeIn>
           <h2
             className="abc-h2"
-            style={{ fontSize: 'clamp(28px, 3.8vw, 46px)', margin: '0 0 28px' }}
+            style={{ fontSize: 'clamp(28px, 3.8vw, 46px)', margin: '0 0 22px' }}
           >
             Turn your next handshake into your next opportunity.
           </h2>
@@ -620,14 +620,14 @@ export default function HomePage() {
             Try ABC Card free
             <IconArrowNarrowRight size={19} stroke={2} />
           </Link>
-          <p style={{ margin: '18px 0 0', fontSize: 13, color: COLORS.muted }}>
+          <p style={{ margin: '16px 0 0', fontSize: 13, color: COLORS.muted }}>
             3 contacts free · No credit card required
           </p>
         </FadeIn>
       </section>
 
       {/* FOOTER */}
-      <footer style={{ borderTop: `1px solid ${COLORS.border}`, padding: '40px 20px', textAlign: 'center' }}>
+      <footer style={{ borderTop: `1px solid ${COLORS.border}`, padding: '28px 20px 36px', textAlign: 'center' }}>
         <p style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em' }}>
           ABC AI Business Card · Scan. Know. Connect.
         </p>
