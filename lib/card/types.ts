@@ -1,5 +1,32 @@
 export type CardTheme = 'graphite' | 'light'
 
+/** How the cover image fills its header area. */
+export type CardCoverFit = 'fill' | 'fit'
+
+export const COVER_FIT_DEFAULT: CardCoverFit = 'fill'
+export const COVER_POSITION_DEFAULT = 'center center'
+
+export const COVER_POSITIONS_Y = ['top', 'center', 'bottom'] as const
+export const COVER_POSITIONS_X = ['left', 'center', 'right'] as const
+
+/**
+ * A portrait's subject sits above the middle of the frame, so centring the
+ * source crops the face. Every circular avatar on a card uses this instead.
+ */
+export const PHOTO_OBJECT_POSITION = '50% 30%'
+
+export function normalizeCoverPosition(value: unknown): string {
+  if (typeof value !== 'string') return COVER_POSITION_DEFAULT
+  const parts = value.trim().toLowerCase().split(/\s+/)
+  const x = (COVER_POSITIONS_X as readonly string[]).includes(parts[0]) ? parts[0] : 'center'
+  const y = (COVER_POSITIONS_Y as readonly string[]).includes(parts[1]) ? parts[1] : 'center'
+  return `${x} ${y}`
+}
+
+export function normalizeCoverFit(value: unknown): CardCoverFit {
+  return value === 'fit' ? 'fit' : COVER_FIT_DEFAULT
+}
+
 export type CardLinkIcon =
   | 'presentation'
   | 'video'
@@ -100,6 +127,9 @@ export interface DigitalCardData {
   lookingFor: string | null
   photoUrl: string | null
   coverUrl: string | null
+  /** CSS object-position for the cover — one stored value, used by every renderer. */
+  coverPosition: string
+  coverFit: CardCoverFit
   logoUrl: string | null
   phone: string | null
   whatsapp: string | null

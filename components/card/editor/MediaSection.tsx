@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { IconAlertTriangle, IconCheck, IconPhotoPlus, IconTrash, IconUpload } from '@tabler/icons-react'
 import { CARD_MEDIA_LABELS, removeCardMedia, uploadCardMedia, type CardMediaKind } from '@/lib/card/media'
 import { initialsFromName } from '@/lib/card/theme'
+import { COVER_POSITIONS_X, COVER_POSITIONS_Y, type CardCoverFit } from '@/lib/card/types'
 
 type MediaState = { status: 'idle' | 'uploading' | 'done' | 'error'; message?: string }
 
@@ -17,14 +18,24 @@ export default function MediaSection({
   photoUrl,
   coverUrl,
   logoUrl,
+  coverPosition,
+  coverFit,
   fullName,
   onChange,
 }: {
   photoUrl: string
   coverUrl: string
   logoUrl: string
+  coverPosition: string
+  coverFit: CardCoverFit
   fullName: string
-  onChange: (patch: { card_photo_url?: string; card_cover_url?: string; company_logo_url?: string }) => void
+  onChange: (patch: {
+    card_photo_url?: string
+    card_cover_url?: string
+    company_logo_url?: string
+    card_cover_position?: string
+    card_cover_fit?: CardCoverFit
+  }) => void
 }) {
   const [state, setState] = useState<Record<CardMediaKind, MediaState>>({
     photo: { status: 'idle' },
@@ -96,6 +107,15 @@ export default function MediaSection({
         onFile={(f) => void handleFile('logo', f)}
         onRemove={() => handleRemove('logo')}
       />
+
+      {coverUrl ? (
+        <CoverFraming
+          position={coverPosition}
+          fit={coverFit}
+          onPosition={(card_cover_position) => onChange({ card_cover_position })}
+          onFit={(card_cover_fit) => onChange({ card_cover_fit })}
+        />
+      ) : null}
 
       <p className="text-[12px] leading-[1.5] text-abc-muted">
         JPG, PNG or WebP, up to 10 MB. Large photos are resized before upload.
@@ -233,5 +253,121 @@ function MediaThumb({
         </span>
       )}
     </div>
+  )
+}
+
+/**
+ * Cover framing. object-fit: cover keeps the middle of the image and throws
+ * the rest away, which ruins a branded header whose wordmark sits off-centre.
+ * "Fit" shows the whole image on the card background instead, and the position
+ * picker chooses which part survives when filling.
+ */
+function CoverFraming({
+  position,
+  fit,
+  onPosition,
+  onFit,
+}: {
+  position: string
+  fit: CardCoverFit
+  onPosition: (value: string) => void
+  onFit: (value: CardCoverFit) => void
+}) {
+  const [x, y] = position.split(' ')
+
+  return (
+    <div className="rounded-inner border border-abc-border bg-abc-raised p-3.5">
+      <p className="text-[13.5px] font-semibold text-abc-text">Cover framing</p>
+
+      <fieldset className="mt-3">
+        <legend className="text-[12px] text-abc-muted">Fit</legend>
+        <div className="mt-1.5 flex gap-2">
+          {(
+            [
+              { id: 'fill', label: 'Fill', hint: 'Crops to fill the header' },
+              { id: 'fit', label: 'Fit', hint: 'Shows the whole image' },
+            ] as const
+          ).map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => onFit(option.id)}
+              aria-pressed={fit === option.id}
+              title={option.hint}
+              className="min-h-[44px] flex-1 rounded-btn border px-3 text-[13px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
+              style={{
+                background: fit === option.id ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
+                borderColor: fit === option.id ? 'var(--abc-gold-border)' : 'var(--abc-border)',
+                color: fit === option.id ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      {fit === 'fill' ? (
+        <>
+          <fieldset className="mt-3.5">
+            <legend className="text-[12px] text-abc-muted">Vertical</legend>
+            <div className="mt-1.5 flex gap-2">
+              {COVER_POSITIONS_Y.map((value) => (
+                <PositionButton
+                  key={value}
+                  label={value}
+                  active={y === value}
+                  onClick={() => onPosition(`${x} ${value}`)}
+                />
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="mt-3">
+            <legend className="text-[12px] text-abc-muted">Horizontal</legend>
+            <div className="mt-1.5 flex gap-2">
+              {COVER_POSITIONS_X.map((value) => (
+                <PositionButton
+                  key={value}
+                  label={value}
+                  active={x === value}
+                  onClick={() => onPosition(`${value} ${y}`)}
+                />
+              ))}
+            </div>
+          </fieldset>
+        </>
+      ) : (
+        <p className="mt-3 text-[12px] leading-[1.45] text-abc-muted">
+          The whole cover is shown, letterboxed against your card background.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function PositionButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className="min-h-[44px] flex-1 rounded-btn border px-2 text-[13px] font-medium capitalize transition-colors duration-200 ease-abc abc-focus-ring"
+      style={{
+        background: active ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
+        borderColor: active ? 'var(--abc-gold-border)' : 'var(--abc-border)',
+        color: active ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
+      }}
+    >
+      {label}
+    </button>
   )
 }

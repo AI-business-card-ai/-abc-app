@@ -7,7 +7,13 @@ import type {
   SocialEnabledMap,
   SocialNetwork,
 } from '@/lib/card/types'
-import { CARD_ACCENT_DEFAULT, LEGACY_CARD_ACCENTS, normalizeCardEventRow } from '@/lib/card/types'
+import {
+  CARD_ACCENT_DEFAULT,
+  LEGACY_CARD_ACCENTS,
+  normalizeCardEventRow,
+  normalizeCoverFit,
+  normalizeCoverPosition,
+} from '@/lib/card/types'
 import { normalizeSocialUrl, normalizeWebsiteUrl } from '@/lib/card/social'
 
 type ProfileRow = Record<string, unknown>
@@ -73,6 +79,8 @@ export function mapProfileToCardData(
       asString(profile.avatar_url) ||
       asString(profile.photo_url),
     coverUrl: asString(profile.card_cover_url) || asString(profile.cover_url),
+    coverPosition: normalizeCoverPosition(profile.card_cover_position),
+    coverFit: normalizeCoverFit(profile.card_cover_fit),
     logoUrl: asString(profile.company_logo_url) || asString(profile.logo_url),
     phone: asString(profile.phone),
     whatsapp: asString(profile.whatsapp) || asString(profile.whatsapp_number),

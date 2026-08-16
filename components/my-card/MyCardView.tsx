@@ -130,7 +130,7 @@ export default function MyCardView({ data }: { data: MyCardData }) {
 
       {/* Same renderer the editor previews with, so the two cannot drift. */}
       <div className="mt-6">
-        <CompactCardPreview card={card} />
+        <CompactCardPreview card={card} size="large" />
       </div>
 
       {/* ── No slug: the card has never been set up ── */}
@@ -189,54 +189,31 @@ export default function MyCardView({ data }: { data: MyCardData }) {
         </div>
       ) : null}
 
-      {/* ── Live: QR is the hero ── */}
+      {/* ── Live: the card leads, the QR is one tap away ── */}
       {live && slug ? (
         <>
-          <section className="mt-6 rounded-card border border-abc-border bg-abc-card p-5 sm:p-6">
-            <div className="flex flex-col items-center">
-              <div
-                className="rounded-[18px] bg-white p-3.5"
-                style={{ lineHeight: 0, width: 'min(62vw, 236px)' }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/card/qr/${encodeURIComponent(slug)}?size=512`}
-                  alt={`QR code linking to your public card at ${publicUrl}`}
-                  width={512}
-                  height={512}
-                  className="block h-auto w-full"
-                  style={{ aspectRatio: '1 / 1' }}
-                />
-              </div>
+          <section className="mt-5">
+            <Button onClick={() => setQrOpen(true)} size="lg" fullWidth>
+              <IconQrcode size={19} stroke={1.8} />
+              Show QR code
+            </Button>
 
-              <p className="mt-4 text-center text-[13px] leading-[1.5] text-abc-secondary">
-                Anyone can scan this with a phone camera — no app needed.
-              </p>
-
-              <div className="mt-5 w-full">
-                <Button onClick={() => setQrOpen(true)} size="lg" fullWidth>
-                  <IconQrcode size={19} stroke={1.8} />
-                  Show QR
-                </Button>
-              </div>
-
-              <div className="mt-2.5 grid w-full grid-cols-2 gap-2.5">
-                <Button onClick={() => void share()} variant="surface" size="lg" fullWidth>
-                  <IconShare size={18} stroke={1.8} />
-                  Share
-                </Button>
-                <Button onClick={() => void copyLink()} variant="surface" size="lg" fullWidth>
-                  {copied ? <IconCheck size={18} stroke={1.9} /> : <IconCopy size={18} stroke={1.8} />}
-                  {copied ? 'Copied' : 'Copy link'}
-                </Button>
-              </div>
-
-              {shareNote ? (
-                <p className="mt-3 text-center text-[12.5px] text-abc-muted" role="status">
-                  {shareNote}
-                </p>
-              ) : null}
+            <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+              <Button onClick={() => void share()} variant="surface" size="lg" fullWidth>
+                <IconShare size={18} stroke={1.8} />
+                Share
+              </Button>
+              <Button onClick={() => void copyLink()} variant="surface" size="lg" fullWidth>
+                {copied ? <IconCheck size={18} stroke={1.9} /> : <IconCopy size={18} stroke={1.8} />}
+                {copied ? 'Copied' : 'Copy link'}
+              </Button>
             </div>
+
+            {shareNote ? (
+              <p className="mt-3 text-center text-[12.5px] text-abc-muted" role="status">
+                {shareNote}
+              </p>
+            ) : null}
           </section>
 
           <section className="mt-4 rounded-card border border-abc-border bg-abc-card p-5">

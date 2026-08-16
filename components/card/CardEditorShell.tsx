@@ -31,7 +31,9 @@ import StatusBar from '@/components/card/editor/StatusBar'
 import Button from '@/components/ui/abc/Button'
 import { mapProfileToCardData } from '@/lib/card/public-data'
 import {
+  buildCoverFramingPayload,
   buildSavePayload,
+  isMissingColumnError,
   defaultForm,
   formToProfileRow,
   normalizedFormAfterSave,
@@ -76,6 +78,7 @@ export default function CardEditorShell() {
   const [qrOpen, setQrOpen] = useState(false)
   const [fullPreview, setFullPreview] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [coverFramingStored, setCoverFramingStored] = useState(true)
 
   const [open, setOpen] = useState<Record<string, boolean>>({
     media: true,
@@ -248,6 +251,15 @@ export default function CardEditorShell() {
         .eq('id', userId)
       if (profileError) throw profileError
 
+      // Cover framing lives in later columns. If they are not there yet the
+      // card still saved — only the framing choice could not be stored.
+      const { error: framingError } = await supabase
+        .from('abc_profiles')
+        .update(buildCoverFramingPayload(form))
+        .eq('id', userId)
+      if (framingError && !isMissingColumnError(framingError)) throw framingError
+      setCoverFramingStored(!framingError)
+
       /* Links — delete removed rows, then upsert the rest in display order */
       const keptLinks = new Set(links.map((l) => l.id))
       const removedLinks = originalLinkIds.current.filter((id) => !keptLinks.has(id))
@@ -419,9 +431,17 @@ export default function CardEditorShell() {
               photoUrl={form.card_photo_url}
               coverUrl={form.card_cover_url}
               logoUrl={form.company_logo_url}
+              coverPosition={form.card_cover_position}
+              coverFit={form.card_cover_fit}
               fullName={form.full_name}
               onChange={patch}
             />
+            {!coverFramingStored ? (
+              <p className="mt-3 text-[12px] leading-[1.45] text-abc-muted">
+                Cover framing could not be stored — your database is missing the
+                card_cover_position and card_cover_fit columns. Everything else saved.
+              </p>
+            ) : null}
           </Section>
 
           <Section

@@ -21,7 +21,7 @@ import {
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
 import type { DigitalCardData, SocialNetwork } from '@/lib/card/types'
-import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE } from '@/lib/card/types'
+import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE, PHOTO_OBJECT_POSITION } from '@/lib/card/types'
 import { isSocialVisible } from '@/lib/card/public-data'
 import { whatsappMeUrl } from '@/lib/card/social'
 import { getCardThemeTokens, initialsFromName } from '@/lib/card/theme'
@@ -211,7 +211,13 @@ export default function DigitalCardView({
           <img
             src={card.coverUrl}
             alt=""
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: card.coverFit === 'fit' ? 'contain' : 'cover',
+              objectPosition: card.coverPosition,
+              display: 'block',
+            }}
           />
         ) : (
           <div
@@ -267,7 +273,12 @@ export default function DigitalCardView({
             <img
               src={card.photoUrl}
               alt={card.fullName}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                objectPosition: PHOTO_OBJECT_POSITION,
+              }}
             />
           ) : (
             <span style={{ color: t.secondary, fontSize: 30, fontWeight: 700 }}>{initials}</span>

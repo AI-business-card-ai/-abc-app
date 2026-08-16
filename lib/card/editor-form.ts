@@ -2,6 +2,11 @@ import { normalizeSocialUrl, normalizeWebsiteUrl } from '@/lib/card/social'
 import { normalizeCardSlug, slugifyName } from '@/lib/card/slug'
 import {
   CARD_ACCENT_DEFAULT,
+  COVER_FIT_DEFAULT,
+  COVER_POSITION_DEFAULT,
+  normalizeCoverFit,
+  normalizeCoverPosition,
+  type CardCoverFit,
   type CardTheme,
   type SocialEnabledMap,
   type SocialNetwork,
@@ -16,6 +21,8 @@ export type EditorForm = {
   looking_for: string
   card_photo_url: string
   card_cover_url: string
+  card_cover_position: string
+  card_cover_fit: CardCoverFit
   company_logo_url: string
   phone: string
   whatsapp: string
@@ -90,6 +97,8 @@ export function defaultForm(): EditorForm {
     looking_for: '',
     card_photo_url: '',
     card_cover_url: '',
+    card_cover_position: COVER_POSITION_DEFAULT,
+    card_cover_fit: COVER_FIT_DEFAULT,
     company_logo_url: '',
     phone: '',
     whatsapp: '',
@@ -137,6 +146,8 @@ export function profileToForm(profile: Record<string, unknown>): EditorForm {
     looking_for: str(profile.looking_for) || str(profile.goals),
     card_photo_url: str(profile.card_photo_url) || str(profile.avatar_url),
     card_cover_url: str(profile.card_cover_url),
+    card_cover_position: normalizeCoverPosition(profile.card_cover_position),
+    card_cover_fit: normalizeCoverFit(profile.card_cover_fit),
     company_logo_url: str(profile.company_logo_url),
     phone: str(profile.phone),
     whatsapp: str(profile.whatsapp),
@@ -189,6 +200,8 @@ export function formToProfileRow(form: EditorForm, userId: string): Record<strin
     card_photo_url: form.card_photo_url || null,
     avatar_url: form.card_photo_url || form.avatar_url || null,
     card_cover_url: form.card_cover_url || null,
+    card_cover_position: form.card_cover_position,
+    card_cover_fit: form.card_cover_fit,
     company_logo_url: form.company_logo_url || null,
     phone: form.phone || null,
     whatsapp: form.whatsapp || null,
@@ -267,6 +280,27 @@ export function buildSavePayload(form: EditorForm): Record<string, unknown> {
   if (form.card_photo_url) payload.avatar_url = form.card_photo_url
 
   return payload
+}
+
+/**
+ * Cover framing is written separately from the main payload on purpose.
+ * These columns arrived in a later migration, and folding them into the main
+ * update would mean one missing column fails the entire card save — which is
+ * exactly how the editor broke before. The caller writes this second, and
+ * treats a schema error as "framing not stored yet" rather than a failed save.
+ */
+export function buildCoverFramingPayload(form: EditorForm): Record<string, unknown> {
+  return {
+    card_cover_position: form.card_cover_position,
+    card_cover_fit: form.card_cover_fit,
+  }
+}
+
+/** True when the database has not had the cover-framing migration applied. */
+export function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  if (error.code === '42703' || error.code === 'PGRST204') return true
+  return /column .* does not exist|could not find the .* column/i.test(error.message || '')
 }
 
 /** Values the save normalizes, folded back so the form matches what was stored. */

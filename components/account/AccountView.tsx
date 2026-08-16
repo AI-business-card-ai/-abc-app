@@ -11,7 +11,6 @@ import {
   IconLoader2,
   IconLogout,
   IconMessage2,
-  IconSearch,
   IconTarget,
   IconUser,
 } from '@tabler/icons-react'
@@ -33,26 +32,11 @@ import type { ABCProfile } from '@/lib/types'
  * wrote those same columns from a second form, so opening it with stale values
  * and pressing Save silently overwrote whatever the card editor had stored.
  *
- * What remains is genuinely account-level: how AI writes on your behalf, what
- * it researches, your plan, and signing out.
+ * What remains is genuinely account-level: the context and tone AI writes your
+ * follow-ups with, your plan, and signing out. The old "What AI researches"
+ * toggles are gone — enrichment is no longer part of the product, and nothing
+ * in follow-up generation ever read them. Their columns are left untouched.
  */
-
-type ResearchToggle = { key: keyof ABCProfile; label: string }
-
-const RESEARCH_TOGGLES: ResearchToggle[] = [
-  { key: 'research_company_size', label: 'Company size & headcount' },
-  { key: 'research_revenue', label: 'Revenue & financials' },
-  { key: 'research_location', label: 'HQ location & offices' },
-  { key: 'research_news', label: 'Latest news & press' },
-  { key: 'research_events', label: 'Trade shows they attend' },
-  { key: 'research_linkedin', label: 'LinkedIn activity' },
-  { key: 'research_funding', label: 'Funding & investors' },
-  { key: 'research_competitors', label: 'Competitors & market position' },
-  { key: 'research_tech', label: 'Technology stack' },
-  { key: 'research_hiring', label: 'Job openings & hiring plans' },
-  { key: 'research_products', label: 'Products & services' },
-  { key: 'research_pain_points', label: 'Pain points & challenges' },
-]
 
 /** Only these reach the database — the save validates against the same list. */
 const COMMUNICATION_STYLES = ['Direct', 'Formal', 'Casual'] as const
@@ -76,8 +60,6 @@ const SNAPSHOT_KEYS = [
   'outreach_language',
   'message_goal',
   'message_length',
-  'research_custom',
-  ...RESEARCH_TOGGLES.map((t) => t.key as string),
 ]
 
 function snapshotOf(profile: Record<string, unknown>): string {
@@ -103,7 +85,6 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
   const [open, setOpen] = useState<Record<string, boolean>>({
     goals: true,
     messages: false,
-    research: false,
   })
 
   const snapshot = snapshotOf
@@ -172,10 +153,6 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
         outreach_language: profile.outreach_language || 'EN',
         message_length: profile.message_length || 'medium',
         message_goal: profile.message_goal || 'Schedule a meeting',
-        research_custom: profile.research_custom || null,
-      }
-      for (const toggle of RESEARCH_TOGGLES) {
-        payload[toggle.key as string] = Boolean(profile[toggle.key as string])
       }
 
       const { error: saveError } = await supabase
@@ -413,44 +390,6 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
           </div>
         </Section>
 
-        <Section
-          id="research"
-          title="What AI researches"
-          description="Applied to every contact you scan"
-          icon={IconSearch}
-          open={open.research}
-          onToggle={() => setOpen((o) => ({ ...o, research: !o.research }))}
-        >
-          <div className="flex flex-col gap-1">
-            {RESEARCH_TOGGLES.map((item) => {
-              const on = Boolean(profile[item.key as string])
-              return (
-                <div
-                  key={item.key as string}
-                  className="flex items-center justify-between gap-3 border-b border-abc-border py-2 last:border-b-0"
-                >
-                  <span className="min-w-0 flex-1 text-[13.5px] text-abc-text">{item.label}</span>
-                  <Toggle
-                    label={item.label}
-                    checked={on}
-                    onChange={(next) => patch({ [item.key as string]: next })}
-                    onLabel="On"
-                    offLabel="Off"
-                  />
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="mt-4">
-            <Field
-              label="Anything else to research"
-              value={String(profile.research_custom || '')}
-              onChange={(research_custom) => patch({ research_custom })}
-              placeholder="Recent partnerships, sustainability commitments…"
-            />
-          </div>
-        </Section>
       </div>
 
       {/* Save */}
