@@ -1,7 +1,6 @@
 import { ABC_LEAD_SOURCE } from '@/lib/crm-constants'
 import { onCardScanned } from '@/lib/crm-engine'
 import { sendQrConnectNotification } from '@/lib/email'
-import { triggerBackgroundEnrichment } from '@/lib/enrichment'
 import { createServerSupabase } from '@/lib/supabase'
 
 const UUID_RE =
@@ -66,8 +65,8 @@ export async function handleQrConnect(
       notes: 'Connected by joining ABC from their digital card.',
       source: 'qr_connect',
       lead_source: ABC_LEAD_SOURCE,
-      enrichment_status: 'ENRICHING',
-      enrichment_step: 'queued',
+      enrichment_status: 'DONE',
+      enrichment_step: 'none',
     })
     .select('id')
     .single()
@@ -77,8 +76,7 @@ export async function handleQrConnect(
     return
   }
 
-  onCardScanned(inserted.id, newUserId).catch(console.error)
-  triggerBackgroundEnrichment(inserted.id, newUserId)
+  onCardScanned(inserted.id, newUserId, { enrichmentPending: false }).catch(console.error)
 
   let ownerEmail = owner.email
   if (!ownerEmail) {

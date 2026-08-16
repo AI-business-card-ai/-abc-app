@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ABC_LEAD_SOURCE } from '@/lib/crm-constants'
 import { onCardScanned } from '@/lib/crm-engine'
 import { sendReverseLeadNotification } from '@/lib/email'
-import { triggerBackgroundEnrichment } from '@/lib/enrichment'
 import { createServerSupabase } from '@/lib/supabase'
 
 const UUID_RE =
@@ -66,8 +65,8 @@ export async function POST(req: NextRequest) {
         meeting_topic: contextText,
         source: 'reverse_qr',
         lead_source: ABC_LEAD_SOURCE,
-        enrichment_status: 'ENRICHING',
-        enrichment_step: 'queued',
+        enrichment_status: 'DONE',
+        enrichment_step: 'none',
       })
       .select('id')
       .single()
@@ -82,8 +81,7 @@ export async function POST(req: NextRequest) {
 
     const contactId = inserted.id
 
-    onCardScanned(contactId, userId).catch(console.error)
-    triggerBackgroundEnrichment(contactId, userId)
+    onCardScanned(contactId, userId, { enrichmentPending: false }).catch(console.error)
 
     let ownerEmail = ownerProfile.email
     if (!ownerEmail) {

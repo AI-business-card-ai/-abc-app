@@ -7,7 +7,6 @@ import {
   ClaudeAnalysisError,
 } from '@/lib/claude'
 import { onCardScanned } from '@/lib/crm-engine'
-import { triggerBackgroundEnrichment } from '@/lib/enrichment'
 import { contactMatchesOwnerProfile, warnIfContactMatchesOwnerProfile } from '@/lib/contact-owner-guard'
 import { isScanLimitReached, getScanLimitForPlan } from '@/lib/scan-limits'
 import {
@@ -61,10 +60,9 @@ export async function POST(req: NextRequest) {
     const formUserId = formData.get('userId') as string | null
     const userProfileRaw = formData.get('userProfile') as string
 
-    // The rebuilt scanner opts out of external enrichment (Apollo / Enrichlayer)
-    // and records how the contact was captured. Callers that send neither keep
-    // the previous behaviour untouched.
-    const skipEnrichment = formData.get('enrich') === 'false'
+    // Enrichment is no longer part of the product, so a scan never queues one
+    // regardless of what the caller asks for. The legacy `enrich` field is
+    // still accepted and ignored so older clients do not error.
     const captureSource = normalizeCaptureSource(formData.get('source'))
 
     if (!image) return NextResponse.json({ error: 'No image' }, { status: 400 })
@@ -199,8 +197,8 @@ export async function POST(req: NextRequest) {
         event_name: null,
         notes: null,
         source: captureSource,
-        enrichment_status: skipEnrichment ? 'DONE' : 'PENDING',
-        enrichment_step: skipEnrichment ? 'none' : 'queued',
+        enrichment_status: 'DONE',
+        enrichment_step: 'none',
       },
     ]
 
@@ -228,13 +226,8 @@ export async function POST(req: NextRequest) {
     const contact = data?.[0] ?? null
     if (contact) {
       await warnIfContactMatchesOwnerProfile(userId, contact, 'card/scan')
-      onCardScanned(contact.id, userId, { enrichmentPending: !skipEnrichment }).catch(console.error)
-      if (!skipEnrichment) {
-        triggerBackgroundEnrichment(contact.id, userId)
-      }
+      onCardScanned(contact.id, userId, { enrichmentPending: false }).catch(console.error)
     }
-
-    console.log('=== SCAN PHASE 1 DONE — enrichment queued ===')
 
     return NextResponse.json({
       success: true,

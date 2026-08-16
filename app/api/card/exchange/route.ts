@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ABC_LEAD_SOURCE } from '@/lib/crm-constants'
 import { onCardScanned } from '@/lib/crm-engine'
 import { sendCardExchangeNotification } from '@/lib/email'
-import { triggerBackgroundEnrichment } from '@/lib/enrichment'
 import { createServerSupabase } from '@/lib/supabase'
 
 const UUID_RE =
@@ -111,8 +110,8 @@ export async function POST(req: NextRequest) {
         source: 'card_exchange',
         lead_source: ABC_LEAD_SOURCE,
         crm_status: 'NEW',
-        enrichment_status: 'ENRICHING',
-        enrichment_step: 'queued',
+        enrichment_status: 'DONE',
+        enrichment_step: 'none',
       })
       .select('id')
       .single()
@@ -127,8 +126,7 @@ export async function POST(req: NextRequest) {
 
     const contactId = inserted.id as string
 
-    onCardScanned(contactId, ownerUserId).catch(console.error)
-    triggerBackgroundEnrichment(contactId, ownerUserId)
+    onCardScanned(contactId, ownerUserId, { enrichmentPending: false }).catch(console.error)
 
     let ownerEmail = (ownerProfile.public_email || ownerProfile.email) as string | null
     if (!ownerEmail) {
