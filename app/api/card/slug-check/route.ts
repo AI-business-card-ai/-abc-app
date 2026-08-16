@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         available: false,
         slug,
-        reason: 'Slug musí mít 3–40 znaků: a-z, 0-9, pomlčka.',
+        reason: 'Use 3-40 characters: letters, numbers and dashes.',
       })
     }
 
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       available: !takenByOther,
       slug,
-      reason: takenByOther ? 'Tento slug už někdo používá.' : null,
+      reason: takenByOther ? 'That address is already taken.' : null,
     })
   } catch (err) {
     console.error('[card/slug-check] error:', err)

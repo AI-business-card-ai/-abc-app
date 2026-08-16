@@ -16,7 +16,7 @@ import {
   IconWallet,
 } from '@tabler/icons-react'
 import CardQrModal from '@/components/card/CardQrModal'
-import CardPreview from '@/components/my-card/CardPreview'
+import CompactCardPreview from '@/components/card/CompactCardPreview'
 import Button from '@/components/ui/abc/Button'
 import { EmptyState, SectionLabel } from '@/components/ui/abc/Bits'
 import { createClientComponent } from '@/lib/supabase'
@@ -128,8 +128,9 @@ export default function MyCardView({ data }: { data: MyCardData }) {
         This is what someone receives when they scan you.
       </p>
 
+      {/* Same renderer the editor previews with, so the two cannot drift. */}
       <div className="mt-6">
-        <CardPreview card={card} />
+        <CompactCardPreview card={card} />
       </div>
 
       {/* ── No slug: the card has never been set up ── */}

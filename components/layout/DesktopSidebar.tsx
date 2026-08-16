@@ -29,10 +29,10 @@ const PRIMARY: NavItem[] = [
   { icon: IconSend, label: 'Follow-ups', path: '/follow-ups' },
 ]
 
-// Integrations points at Settings, where the live HubSpot / Salesforce
-// connection panel already lives. Pipeline is preserved but demoted.
+// Integrations is not listed: the HubSpot / Salesforce / email connections it
+// pointed at are not functional, and they get their own phase. Pipeline is
+// preserved but demoted.
 const SECONDARY: NavItem[] = [
-  { icon: IconPlugConnected, label: 'Integrations', path: '/settings' },
   { icon: IconLayoutKanban, label: 'Pipeline', path: '/pipeline' },
   { icon: IconSettings, label: 'Settings', path: '/profile' },
 ]
@@ -42,8 +42,7 @@ function isActive(pathname: string, item: NavItem) {
   if (item.path === '/my-card') {
     return pathname.startsWith('/my-card') || pathname.startsWith('/profile/card')
   }
-  if (item.path === '/profile') return pathname === '/profile'
-  if (item.path === '/settings') return pathname.startsWith('/settings')
+  if (item.path === '/profile') return pathname === '/profile' || pathname.startsWith('/settings')
   return pathname === item.path || pathname.startsWith(`${item.path}/`)
 }
 

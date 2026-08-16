@@ -17,7 +17,7 @@ import {
 import CardQrModal from '@/components/card/CardQrModal'
 import DigitalCardView from '@/components/card/DigitalCardView'
 import AppearanceSection from '@/components/card/editor/AppearanceSection'
-import CompactCardPreview from '@/components/card/editor/CompactCardPreview'
+import CompactCardPreview from '@/components/card/CompactCardPreview'
 import ContactSection from '@/components/card/editor/ContactSection'
 import EventsSection from '@/components/card/editor/EventsSection'
 import IdentitySection from '@/components/card/editor/IdentitySection'
@@ -299,6 +299,8 @@ export default function CardEditorShell() {
       setLinks(orderedLinks)
       setSavedAt(snapshotOf(normalized, orderedLinks, events))
       setSaveStatus('saved')
+      // "Saved" is a confirmation, not a resting state — settle back to clean.
+      setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 2500)
     } catch (err) {
       console.error('[card-editor] save failed:', err)
       setSaveStatus('error')

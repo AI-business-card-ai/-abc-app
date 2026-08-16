@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     const ip = getClientIp(req)
     if (isRateLimited(ip)) {
       return NextResponse.json(
-        { ok: false, error: 'Příliš mnoho požadavků. Zkus to za chvíli.' },
+        { ok: false, error: 'Too many requests. Try again shortly.' },
         { status: 429 }
       )
     }
@@ -59,16 +59,16 @@ export async function POST(req: NextRequest) {
     const gdpr = body.gdpr === true
 
     if (!ownerUserId || !UUID_RE.test(ownerUserId)) {
-      return NextResponse.json({ ok: false, error: 'Neplatná karta.' }, { status: 400 })
+      return NextResponse.json({ ok: false, error: 'That card is not valid.' }, { status: 400 })
     }
     if (!name || !email) {
-      return NextResponse.json({ ok: false, error: 'Jméno a e-mail jsou povinné.' }, { status: 400 })
+      return NextResponse.json({ ok: false, error: 'Name and email are required.' }, { status: 400 })
     }
     if (!EMAIL_RE.test(email)) {
-      return NextResponse.json({ ok: false, error: 'Neplatný e-mail.' }, { status: 400 })
+      return NextResponse.json({ ok: false, error: 'That email address is not valid.' }, { status: 400 })
     }
     if (!gdpr) {
-      return NextResponse.json({ ok: false, error: 'Je potřeba souhlas GDPR.' }, { status: 400 })
+      return NextResponse.json({ ok: false, error: 'Consent is required before sending.' }, { status: 400 })
     }
 
     const supabase = createServerSupabase()
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (!ownerProfile || ownerProfile.card_published === false) {
-      return NextResponse.json({ ok: false, error: 'Karta nenalezena.' }, { status: 404 })
+      return NextResponse.json({ ok: false, error: 'Card not found.' }, { status: 404 })
     }
 
     const { data: inserted, error } = await supabase
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
     if (error || !inserted) {
       console.error('[card/exchange] insert failed:', error)
       return NextResponse.json(
-        { ok: false, error: 'Nepodařilo se uložit vizitku.' },
+        { ok: false, error: 'Your details could not be saved. Try again.' },
         { status: 500 }
       )
     }
@@ -153,6 +153,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[card/exchange] error:', err)
-    return NextResponse.json({ ok: false, error: 'Něco se pokazilo.' }, { status: 500 })
+    return NextResponse.json({ ok: false, error: 'Something went wrong. Try again.' }, { status: 500 })
   }
 }

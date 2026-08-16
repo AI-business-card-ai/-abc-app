@@ -37,7 +37,7 @@ export default function SaveBar({
               <IconAlertTriangle size={14} stroke={1.9} className="mt-px shrink-0" />
               <span>{error || 'Could not save. Try again.'}</span>
             </p>
-          ) : status === 'saved' && !dirty ? (
+          ) : status === 'saved' ? (
             <p
               className="inline-flex items-center gap-1.5 text-[12.5px]"
               style={{ color: 'var(--abc-green)' }}
@@ -52,11 +52,16 @@ export default function SaveBar({
           )}
         </div>
 
+        {/* Gold only when pressing it would actually do something. */}
         <button
           type="button"
           onClick={onSave}
           disabled={saving || !dirty}
-          className="inline-flex h-[48px] shrink-0 items-center justify-center gap-2 rounded-btn bg-abc-gold px-5 text-[15px] font-semibold text-[#1a1205] transition-[filter] duration-200 ease-abc hover:brightness-[1.06] disabled:opacity-45 abc-focus-ring"
+          className={`inline-flex h-[48px] shrink-0 items-center justify-center gap-2 rounded-btn px-5 text-[15px] font-semibold transition-colors duration-200 ease-abc abc-focus-ring ${
+            dirty && !saving
+              ? 'bg-abc-gold text-[#1a1205] hover:brightness-[1.06]'
+              : 'cursor-not-allowed border border-abc-border bg-abc-raised text-abc-muted'
+          }`}
         >
           {saving ? <IconLoader2 size={17} stroke={2} className="animate-spin" /> : null}
           {saving ? 'Saving…' : 'Save changes'}
