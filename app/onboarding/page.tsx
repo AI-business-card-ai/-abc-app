@@ -272,11 +272,7 @@ export default function OnboardingPage() {
     setPhotoUploading(true)
     setCardError(null)
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return
-      const result = await uploadCardMedia(supabase, user.id, 'photo', file)
+      const result = await uploadCardMedia('photo', file)
       if ('error' in result) {
         setCardError(result.error)
         return
@@ -284,7 +280,7 @@ export default function OnboardingPage() {
       setCardPhotoUrl(result.url)
     } catch (err) {
       console.error('[onboarding] photo upload failed:', err)
-      setCardError('Upload fotky selhal.')
+      setCardError('The upload did not complete. Try again.')
     } finally {
       setPhotoUploading(false)
     }

@@ -7,7 +7,7 @@ import type {
   SocialEnabledMap,
   SocialNetwork,
 } from '@/lib/card/types'
-import { CARD_ACCENT_DEFAULT, LEGACY_CARD_ACCENTS } from '@/lib/card/types'
+import { CARD_ACCENT_DEFAULT, LEGACY_CARD_ACCENTS, normalizeCardEventRow } from '@/lib/card/types'
 import { normalizeSocialUrl, normalizeWebsiteUrl } from '@/lib/card/social'
 
 type ProfileRow = Record<string, unknown>
@@ -146,15 +146,54 @@ export async function loadPublishedCardBySlug(
         .order('date_from', { ascending: true }),
     ])
 
-    return mapProfileToCardData(
-      profile as ProfileRow,
-      (links || []) as CardLink[],
-      (events || []) as CardEvent[]
+    return redactHiddenFields(
+      mapProfileToCardData(
+        profile as ProfileRow,
+        (links || []) as CardLink[],
+        (events || []).map((row) => normalizeCardEventRow(row as Record<string, unknown>))
+      )
     )
   } catch (err) {
     console.error('[card/public-data] unexpected error:', err)
     return null
   }
+}
+
+/**
+ * Drops the values the owner has switched off before the card leaves the
+ * server. Hiding a row in the UI is not enough: this object is serialized into
+ * the page payload and is the source the vCard and OG image are built from, so
+ * a hidden phone number would otherwise still be readable in the page source
+ * and land in anyone's address book.
+ */
+export function redactHiddenFields(card: DigitalCardData): DigitalCardData {
+  const socials: [SocialNetwork, keyof DigitalCardData][] = [
+    ['linkedin', 'linkedinUrl'],
+    ['instagram', 'instagramUrl'],
+    ['x', 'xUrl'],
+    ['facebook', 'facebookUrl'],
+    ['youtube', 'youtubeUrl'],
+    ['tiktok', 'tiktokUrl'],
+    ['github', 'githubUrl'],
+    ['threads', 'threadsUrl'],
+  ]
+
+  const redacted: DigitalCardData = {
+    ...card,
+    phone: card.showPhone ? card.phone : null,
+    whatsapp: card.showWhatsapp ? card.whatsapp : null,
+    email: card.showEmail ? card.email : null,
+    website: card.showWebsite ? card.website : null,
+    calendarUrl: card.showCalendar ? card.calendarUrl : null,
+    location: card.showLocation ? card.location : null,
+  }
+
+  const writable = redacted as unknown as Record<string, unknown>
+  for (const [network, key] of socials) {
+    if (card.socialEnabled[network] === false) writable[key] = null
+  }
+
+  return redacted
 }
 
 export async function recordCardView(

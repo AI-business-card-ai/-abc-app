@@ -1,7 +1,7 @@
 'use client'
 
-import CardEditor from '@/components/card/CardEditor'
+import CardEditorShell from '@/components/card/CardEditorShell'
 
 export default function ProfileCardPage() {
-  return <CardEditor />
+  return <CardEditorShell />
 }

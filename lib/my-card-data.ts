@@ -1,6 +1,11 @@
 import { mapProfileToCardData } from '@/lib/card/public-data'
 import { createServerComponentClient } from '@/lib/supabase-server'
-import { CARD_PUBLIC_BASE, type CardEvent, type CardLink, type DigitalCardData } from '@/lib/card/types'
+import {
+  CARD_PUBLIC_BASE,
+  normalizeCardEventRow,
+  type CardLink,
+  type DigitalCardData,
+} from '@/lib/card/types'
 
 export type MyCardData = {
   userId: string
@@ -59,7 +64,7 @@ export async function getMyCard(): Promise<MyCardData | null> {
   const card = mapProfileToCardData(
     profile as Record<string, unknown>,
     (links || []) as CardLink[],
-    (events || []) as CardEvent[]
+    (events || []).map((row) => normalizeCardEventRow(row as Record<string, unknown>))
   )
 
   const slug = typeof profile.card_slug === 'string' && profile.card_slug.trim()

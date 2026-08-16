@@ -45,6 +45,42 @@ export interface CardEvent {
   created_at?: string
 }
 
+/**
+ * The deployed card_events table names the title column `event_name`, while
+ * the original migration declared `name`. Rather than spread that split across
+ * the UI, every read goes through here and every write through
+ * cardEventToRow — the app only ever sees `name`.
+ */
+export function normalizeCardEventRow(row: Record<string, unknown>): CardEvent {
+  const title =
+    (typeof row.event_name === 'string' && row.event_name) ||
+    (typeof row.name === 'string' && row.name) ||
+    ''
+
+  return {
+    id: String(row.id),
+    user_id: String(row.user_id ?? ''),
+    name: title,
+    city: (row.city as string | null) ?? null,
+    date_from: (row.date_from as string | null) ?? null,
+    date_to: (row.date_to as string | null) ?? null,
+    booth: (row.booth as string | null) ?? null,
+    created_at: typeof row.created_at === 'string' ? row.created_at : undefined,
+  }
+}
+
+export function cardEventToRow(event: CardEvent, userId: string): Record<string, unknown> {
+  return {
+    id: event.id,
+    user_id: userId,
+    event_name: event.name.trim() || 'Event',
+    city: event.city?.trim() || null,
+    date_from: event.date_from || null,
+    date_to: event.date_to || null,
+    booth: event.booth?.trim() || null,
+  }
+}
+
 export interface CardAnalytics {
   views: number
   vcardSaves: number
@@ -111,16 +147,27 @@ export const CARD_ACCENTS = [
   { key: 'slate', value: '#a1a1aa', label: 'Slate' },
 ] as const
 
+// Ids are stored in card_links.icon — only the labels are presentational.
 export const LINK_ICON_OPTIONS: { id: CardLinkIcon; label: string; emoji: string }[] = [
-  { id: 'presentation', label: 'Prezentace', emoji: '📊' },
+  { id: 'presentation', label: 'Presentation', emoji: '📊' },
   { id: 'video', label: 'Video', emoji: '🎥' },
   { id: 'portfolio', label: 'Portfolio', emoji: '📁' },
-  { id: 'pricing', label: 'Ceník', emoji: '💰' },
+  { id: 'pricing', label: 'Pricing', emoji: '💰' },
   { id: 'case', label: 'Case study', emoji: '📄' },
-  { id: 'shop', label: 'E-shop', emoji: '🛒' },
-  { id: 'booking', label: 'Rezervace', emoji: '📅' },
-  { id: 'link', label: 'Ostatní', emoji: '🔗' },
+  { id: 'shop', label: 'Shop', emoji: '🛒' },
+  { id: 'booking', label: 'Booking', emoji: '📅' },
+  { id: 'link', label: 'Other', emoji: '🔗' },
 ]
+
+/** Quick-insert suggestions for "Looking for" — generic, not event-specific. */
+export const LOOKING_FOR_SUGGESTIONS = [
+  'Investors',
+  'Distributors',
+  'B2B partners',
+  'Clients',
+  'Suppliers',
+  'Talent',
+] as const
 
 export const LANGUAGE_OPTIONS = ['CZ', 'EN', 'DE', 'SK', 'PL', 'FR', 'ES'] as const
 

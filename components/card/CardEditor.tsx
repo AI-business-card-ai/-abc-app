@@ -1005,8 +1005,7 @@ export default function CardEditor() {
     if (!file || !userId) return
     setUploading(kind)
     try {
-      const supabase = createClientComponent()
-      const result = await uploadCardMedia(supabase, userId, kind, file)
+      const result = await uploadCardMedia(kind, file)
       if ('error' in result) {
         setSaveStatus('error')
         setSaveError(result.error)
