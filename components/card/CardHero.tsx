@@ -201,13 +201,19 @@ export default function CardHero({
         ) : null}
       </header>
 
-      {/* Identity, pulled up so the classic portrait straddles the hero edge */}
+      {/*
+        Identity. In classic it is pulled up so the circular portrait straddles
+        the hero edge. In hero it is pulled up too, but for the opposite
+        reason: the scrim already fades the artwork into the card background,
+        so overlapping slightly lets the name sit in that fade instead of
+        starting after a hard horizontal seam.
+      */}
       <div
         style={{
           position: 'relative',
           zIndex: 4,
           padding: s.padding,
-          marginTop: hero ? 14 : `calc(${PORTRAIT_WIDTH} * -${PORTRAIT_OVERLAP})`,
+          marginTop: hero ? -18 : `calc(${PORTRAIT_WIDTH} * -${PORTRAIT_OVERLAP})`,
         }}
       >
         {!hero ? (

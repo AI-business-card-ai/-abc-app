@@ -416,12 +416,16 @@ export function portraitSourceUrl(
 }
 
 /**
- * A person composed into the hero needs more room than a circular avatar
- * clipped to the top of it, so hero mode gets a taller frame. Both are
- * width-derived rather than fixed heights, so one number governs the shape at
- * every viewport and in every renderer.
+ * A person composed into the hero needs room for a head, shoulders and torso,
+ * not a banner with a face wedged into it. Hero mode therefore gets a nearly
+ * square frame — at 390px that is a 372px stage, enough for a chest-up
+ * portrait with air above the head, which is what makes the composition read
+ * as a photograph rather than a cover image.
+ *
+ * Both ratios are width-derived rather than fixed heights, so one number
+ * governs the shape at every viewport and in every renderer.
  */
-export const HERO_ASPECT_RATIO_PERSON = 1.5
+export const HERO_ASPECT_RATIO_PERSON = 1.05
 
 export function heroAspectRatio(portrait: PortraitTransform): number {
   return isHeroPortrait(portrait) ? HERO_ASPECT_RATIO_PERSON : HERO_ASPECT_RATIO

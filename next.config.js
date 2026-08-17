@@ -8,6 +8,20 @@ const withPWA = require('@ducanh2912/next-pwa').default({
   },
   workboxOptions: {
     disableDevLogs: true,
+    /*
+      The background-removal runtime must never be precached. Workbox already
+      skips the 24 MB wasm for size, but the two onnxruntime .mjs files are
+      small enough to slip into the precache manifest — which would make every
+      visitor download the machinery for a feature only card owners use, at
+      service-worker install time, before anyone has asked for it.
+
+      It also removes the service worker from the path entirely for these
+      assets, which matters because the editor behaves differently in
+      production (where the worker is active) than in development (where it is
+      disabled) — the one environmental difference between the desktop runs
+      that passed and the iPhone run that failed.
+    */
+    exclude: [/ort[.\-].*\.mjs$/, /\.wasm$/],
     runtimeCaching: [
       {
         urlPattern: /^https?.*\.(?:js|css|woff2?|ttf|otf|eot)$/i,

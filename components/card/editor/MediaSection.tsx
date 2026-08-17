@@ -345,6 +345,7 @@ function PortraitStyle({
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorDetail, setErrorDetail] = useState<string | null>(null)
 
   const [progress, setProgress] = useState<CutoutProgress | null>(null)
   const pendingBlob = useRef<Blob | null>(null)
@@ -379,8 +380,9 @@ function PortraitStyle({
   async function createCutout() {
     if (!photoUrl) return
     setError(null)
+    setErrorDetail(null)
     setBusy(true)
-    setProgress({ stage: 'loading-model', percent: null, label: 'Preparing…' })
+    setProgress({ stage: 'checking', percent: null, label: 'Preparing…' })
 
     const result = await generateCutout(photoUrl, setProgress)
 
@@ -389,6 +391,7 @@ function PortraitStyle({
 
     if ('error' in result) {
       setError(result.error)
+      setErrorDetail(result.detail)
       return
     }
 
@@ -466,15 +469,16 @@ function PortraitStyle({
           ] as const
         ).map((option) => {
           const active = mode === option.id
-          const blocked = option.id === 'hero' && !hasCutout
+          // Hero stays selectable without a cutout: choosing it is how the
+          // owner asks for the setup steps. A permanently greyed-out tab reads
+          // as "not for you" rather than "needs one more thing".
           return (
             <button
               key={option.id}
               type="button"
               onClick={() => setMode(option.id)}
-              disabled={blocked}
               aria-pressed={active}
-              title={blocked ? 'Add a portrait with the background removed first' : option.hint}
+              title={option.hint}
               className="min-h-[44px] flex-1 rounded-btn border px-3 text-[13px] font-medium transition-colors duration-200 ease-abc disabled:opacity-45 abc-focus-ring"
               style={{
                 background: active ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
@@ -489,11 +493,27 @@ function PortraitStyle({
       </div>
 
       <div className="mt-3">
-        <p className="text-[12.5px] leading-[1.5] text-abc-muted">
-          {mode === 'hero'
-            ? 'Your portrait sits in front of the cover artwork.'
-            : 'Hero style places you in front of your cover, with the background removed.'}
-        </p>
+        {/*
+          Hero selected without a cutout is a setup state, not an error: the
+          owner has chosen the mode and now needs the one thing it requires.
+        */}
+        {mode === 'hero' && !hasCutout ? (
+          <div className="rounded-inner border border-abc-gold-border bg-abc-gold-soft p-3">
+            <p className="text-[13px] font-semibold text-abc-gold">
+              Hero needs a background-free portrait
+            </p>
+            <p className="mt-1 text-[12.5px] leading-[1.5] text-abc-secondary">
+              Create one from your photo, or upload a portrait that already has its background
+              removed.
+            </p>
+          </div>
+        ) : (
+          <p className="text-[12.5px] leading-[1.5] text-abc-muted">
+            {mode === 'hero'
+              ? 'Your portrait sits in front of the cover artwork.'
+              : 'Hero style places you in front of your cover, with the background removed.'}
+          </p>
+        )}
 
         {/* Progress, never a frozen button. The first run downloads a model. */}
         {busy && progress ? (
@@ -606,14 +626,30 @@ function PortraitStyle({
 
         <div aria-live="polite">
           {error ? (
-            <p
-              className="mt-2 flex items-start gap-1.5 text-[12px] leading-[1.45]"
-              style={{ color: 'var(--abc-overdue)' }}
-              role="alert"
-            >
-              <IconAlertTriangle size={14} stroke={1.9} className="mt-px shrink-0" />
-              <span>{error}</span>
-            </p>
+            <div className="mt-2" role="alert">
+              <p
+                className="flex items-start gap-1.5 text-[12px] leading-[1.45]"
+                style={{ color: 'var(--abc-overdue)' }}
+              >
+                <IconAlertTriangle size={14} stroke={1.9} className="mt-px shrink-0" />
+                <span>{error}</span>
+              </p>
+              {/*
+                The technical stage stays folded away. An owner never needs to
+                read it, but when a device fails in a way we cannot reproduce,
+                it is the difference between a bug report and a guess.
+              */}
+              {errorDetail ? (
+                <details className="mt-1.5">
+                  <summary className="cursor-pointer text-[11.5px] text-abc-muted">
+                    Details
+                  </summary>
+                  <code className="mt-1 block break-all rounded-inner bg-abc-card px-2 py-1.5 text-[11px] text-abc-secondary">
+                    {errorDetail}
+                  </code>
+                </details>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
