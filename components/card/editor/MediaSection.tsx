@@ -1,7 +1,16 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { IconAlertTriangle, IconCheck, IconPhotoPlus, IconTrash, IconUpload } from '@tabler/icons-react'
+import {
+  IconAlertTriangle,
+  IconCheck,
+  IconPhotoPlus,
+  IconRefresh,
+  IconSparkles,
+  IconTrash,
+  IconUpload,
+} from '@tabler/icons-react'
+import { generateCutout, isPendingCutout, type CutoutProgress } from '@/lib/card/cutout'
 import {
   CARD_MEDIA_LABELS,
   removeCardMedia,
@@ -12,12 +21,13 @@ import { initialsFromName } from '@/lib/card/theme'
 import HeroFramingEditor from '@/components/card/editor/HeroFramingEditor'
 import {
   BACKGROUND_TRANSFORM_DEFAULT,
-  COVER_POSITIONS_X,
-  COVER_POSITIONS_Y,
   PORTRAIT_TRANSFORM_DEFAULT,
+  backgroundScaleLimits,
+  portraitScaleLimits,
   type CardCoverFit,
   type CardMediaTransforms,
   type CardTheme,
+  type PortraitMode,
 } from '@/lib/card/types'
 
 type MediaState = { status: 'idle' | 'uploading' | 'done' | 'error'; message?: string }
@@ -129,39 +139,46 @@ export default function MediaSection({
 
       {coverUrl ? (
         <>
-          {coverFit === 'fill' ? (
-            <HeroFramingEditor
-              label="Background framing"
-              imageUrl={coverUrl}
-              theme={theme}
-              transform={transforms.background}
-              onChange={(background) => onChange({ card_media_transforms: { ...transforms, background } })}
-              onReset={() =>
-                onChange({
-                  card_media_transforms: { ...transforms, background: BACKGROUND_TRANSFORM_DEFAULT },
-                })
-              }
-            />
-          ) : null}
           <CoverFraming
-            position={coverPosition}
             fit={coverFit}
-            onPosition={(card_cover_position) => onChange({ card_cover_position })}
-            onFit={(card_cover_fit) => onChange({ card_cover_fit })}
+            onFit={(card_cover_fit) => {
+              // Fit allows the image to be smaller than the frame; fill does
+              // not. Switching back must not leave a card with a visible gap,
+              // so the stored scale is re-clamped to the new mode's floor.
+              const limits = backgroundScaleLimits(card_cover_fit)
+              const scale = Math.min(limits.max, Math.max(limits.min, transforms.background.scale))
+              onChange({
+                card_cover_fit,
+                card_media_transforms: {
+                  ...transforms,
+                  background: { ...transforms.background, scale },
+                },
+              })
+            }}
+          />
+          <HeroFramingEditor
+            label="Background framing"
+            imageUrl={coverUrl}
+            theme={theme}
+            contain={coverFit === 'fit'}
+            limits={backgroundScaleLimits(coverFit)}
+            transform={transforms.background}
+            onChange={(background) => onChange({ card_media_transforms: { ...transforms, background } })}
+            onReset={() =>
+              onChange({
+                card_media_transforms: { ...transforms, background: BACKGROUND_TRANSFORM_DEFAULT },
+              })
+            }
           />
         </>
       ) : null}
 
       {photoUrl ? (
-        <HeroFramingEditor
-          label="Portrait framing"
-          imageUrl={photoUrl}
-          shape="circle"
-          transform={transforms.portrait}
-          onChange={(portrait) => onChange({ card_media_transforms: { ...transforms, portrait } })}
-          onReset={() =>
-            onChange({ card_media_transforms: { ...transforms, portrait: PORTRAIT_TRANSFORM_DEFAULT } })
-          }
+        <PortraitStyle
+          transforms={transforms}
+          photoUrl={photoUrl}
+          theme={theme}
+          onChange={onChange}
         />
       ) : null}
 
@@ -305,117 +322,390 @@ function MediaThumb({
 }
 
 /**
- * Cover framing. object-fit: cover keeps the middle of the image and throws
- * the rest away, which ruins a branded header whose wordmark sits off-centre.
- * "Fit" shows the whole image on the card background instead, and the position
- * picker chooses which part survives when filling.
+ * Portrait presentation.
+ *
+ * Two genuinely different compositions, not a style switch: Classic clips the
+ * photograph into a circle that straddles the hero edge, Hero places the person
+ * into the artwork as a foreground layer. Hero only works with a transparent
+ * source, so it stays unavailable — and says why — until one exists, rather
+ * than letting the owner select a mode that would paste a rectangle over their
+ * own branding.
  */
-function CoverFraming({
-  position,
-  fit,
-  onPosition,
-  onFit,
+function PortraitStyle({
+  transforms,
+  photoUrl,
+  theme,
+  onChange,
 }: {
-  position: string
-  fit: CardCoverFit
-  onPosition: (value: string) => void
-  onFit: (value: CardCoverFit) => void
+  transforms: CardMediaTransforms
+  photoUrl: string
+  theme: CardTheme
+  onChange: (patch: { card_media_transforms?: CardMediaTransforms }) => void
 }) {
-  const [x, y] = position.split(' ')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const [progress, setProgress] = useState<CutoutProgress | null>(null)
+  const pendingBlob = useRef<Blob | null>(null)
+
+  const portrait = transforms.portrait
+  const hasCutout = Boolean(portrait.cutoutUrl)
+  const pending = isPendingCutout(portrait.cutoutUrl)
+  const mode = portrait.mode
+
+  function setMode(next: PortraitMode) {
+    const limits = portraitScaleLimits(next)
+    const scale = Math.min(limits.max, Math.max(limits.min, portrait.scale))
+    onChange({ card_media_transforms: { ...transforms, portrait: { ...portrait, mode: next, scale } } })
+  }
+
+  function applyCutout(url: string | null, nextMode: PortraitMode) {
+    onChange({
+      card_media_transforms: {
+        ...transforms,
+        portrait: { ...portrait, cutoutUrl: url, mode: nextMode },
+      },
+    })
+  }
+
+  /**
+   * Generate on-device, then show the result in the real card preview before
+   * anything is uploaded. The object URL goes into form state so CardHero —
+   * the same renderer the public card uses — draws it immediately; the write
+   * boundary refuses to persist a blob URL, so an unaccepted attempt cannot
+   * leak into the database.
+   */
+  async function createCutout() {
+    if (!photoUrl) return
+    setError(null)
+    setBusy(true)
+    setProgress({ stage: 'loading-model', percent: null, label: 'Preparing…' })
+
+    const result = await generateCutout(photoUrl, setProgress)
+
+    setBusy(false)
+    setProgress(null)
+
+    if ('error' in result) {
+      setError(result.error)
+      return
+    }
+
+    // Replace any previous unaccepted attempt so object URLs do not pile up.
+    if (isPendingCutout(portrait.cutoutUrl)) URL.revokeObjectURL(portrait.cutoutUrl as string)
+    pendingBlob.current = result.blob
+    applyCutout(result.url, 'hero')
+  }
+
+  /** Accepting uploads the transparent PNG and swaps in its stored URL. */
+  async function acceptCutout() {
+    const blob = pendingBlob.current
+    if (!blob) return
+    setError(null)
+    setBusy(true)
+
+    const file = new File([blob], 'portrait-cutout.png', { type: 'image/png' })
+    const previous = portrait.cutoutUrl
+    const result = await uploadCardMedia('cutout', file)
+    setBusy(false)
+
+    if ('error' in result) {
+      setError(result.error)
+      return
+    }
+
+    if (isPendingCutout(previous)) URL.revokeObjectURL(previous as string)
+    pendingBlob.current = null
+    applyCutout(result.url, 'hero')
+  }
+
+  function discardCutout() {
+    if (isPendingCutout(portrait.cutoutUrl)) URL.revokeObjectURL(portrait.cutoutUrl as string)
+    pendingBlob.current = null
+    applyCutout(null, 'classic')
+  }
+
+  async function handleCutout(file: File | undefined) {
+    if (!file) return
+    setError(null)
+    setBusy(true)
+    const previous = portrait.cutoutUrl
+    const result = await uploadCardMedia('cutout', file)
+    setBusy(false)
+
+    if ('error' in result) {
+      setError(result.error)
+      return
+    }
+    onChange({
+      card_media_transforms: {
+        ...transforms,
+        portrait: { ...portrait, cutoutUrl: result.url, mode: 'hero' },
+      },
+    })
+    if (previous && previous !== result.url) void removeCardMedia(previous)
+  }
+
+  function removeCutout() {
+    const current = portrait.cutoutUrl
+    discardCutout()
+    // Only a stored object needs deleting; a pending one never reached storage.
+    if (current && !isPendingCutout(current)) void removeCardMedia(current)
+  }
 
   return (
     <div className="rounded-inner border border-abc-border bg-abc-raised p-3.5">
-      <p className="text-[13.5px] font-semibold text-abc-text">Cover framing</p>
+      <p className="text-[13.5px] font-semibold text-abc-text">Portrait style</p>
 
-      <fieldset className="mt-3">
-        <legend className="text-[12px] text-abc-muted">Fit</legend>
-        <div className="mt-1.5 flex gap-2">
-          {(
-            [
-              { id: 'fill', label: 'Fill', hint: 'Crops to fill the header' },
-              { id: 'fit', label: 'Fit', hint: 'Shows the whole image' },
-            ] as const
-          ).map((option) => (
+      <div className="mt-2.5 flex gap-2">
+        {(
+          [
+            { id: 'classic', label: 'Classic', hint: 'Circular portrait' },
+            { id: 'hero', label: 'Hero', hint: 'Person composed into the artwork' },
+          ] as const
+        ).map((option) => {
+          const active = mode === option.id
+          const blocked = option.id === 'hero' && !hasCutout
+          return (
             <button
               key={option.id}
               type="button"
-              onClick={() => onFit(option.id)}
-              aria-pressed={fit === option.id}
-              title={option.hint}
-              className="min-h-[44px] flex-1 rounded-btn border px-3 text-[13px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
+              onClick={() => setMode(option.id)}
+              disabled={blocked}
+              aria-pressed={active}
+              title={blocked ? 'Add a portrait with the background removed first' : option.hint}
+              className="min-h-[44px] flex-1 rounded-btn border px-3 text-[13px] font-medium transition-colors duration-200 ease-abc disabled:opacity-45 abc-focus-ring"
               style={{
-                background: fit === option.id ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
-                borderColor: fit === option.id ? 'var(--abc-gold-border)' : 'var(--abc-border)',
-                color: fit === option.id ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
+                background: active ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
+                borderColor: active ? 'var(--abc-gold-border)' : 'var(--abc-border)',
+                color: active ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
               }}
             >
               {option.label}
             </button>
-          ))}
-        </div>
-      </fieldset>
+          )
+        })}
+      </div>
 
-      {fit === 'fill' ? (
-        <>
-          <fieldset className="mt-3.5">
-            <legend className="text-[12px] text-abc-muted">Vertical</legend>
-            <div className="mt-1.5 flex gap-2">
-              {COVER_POSITIONS_Y.map((value) => (
-                <PositionButton
-                  key={value}
-                  label={value}
-                  active={y === value}
-                  onClick={() => onPosition(`${x} ${value}`)}
-                />
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="mt-3">
-            <legend className="text-[12px] text-abc-muted">Horizontal</legend>
-            <div className="mt-1.5 flex gap-2">
-              {COVER_POSITIONS_X.map((value) => (
-                <PositionButton
-                  key={value}
-                  label={value}
-                  active={x === value}
-                  onClick={() => onPosition(`${value} ${y}`)}
-                />
-              ))}
-            </div>
-          </fieldset>
-        </>
-      ) : (
-        <p className="mt-3 text-[12px] leading-[1.45] text-abc-muted">
-          The whole cover is shown, letterboxed against your card background.
+      <div className="mt-3">
+        <p className="text-[12.5px] leading-[1.5] text-abc-muted">
+          {mode === 'hero'
+            ? 'Your portrait sits in front of the cover artwork.'
+            : 'Hero style places you in front of your cover, with the background removed.'}
         </p>
-      )}
+
+        {/* Progress, never a frozen button. The first run downloads a model. */}
+        {busy && progress ? (
+          <div className="mt-2.5" role="status" aria-live="polite">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[12.5px] text-abc-text">{progress.label}</span>
+              {progress.percent !== null ? (
+                <span className="text-[11.5px] tabular-nums text-abc-secondary">
+                  {progress.percent}%
+                </span>
+              ) : null}
+            </div>
+            <div
+              className="mt-1.5 h-[6px] overflow-hidden rounded-full"
+              style={{ background: 'var(--abc-border)' }}
+              role="progressbar"
+              aria-valuenow={progress.percent ?? undefined}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div
+                className="h-full rounded-full transition-[width] duration-200 ease-abc"
+                style={{
+                  width: progress.percent !== null ? `${progress.percent}%` : '40%',
+                  background: 'var(--abc-gold-accent)',
+                  opacity: progress.percent === null ? 0.5 : 1,
+                }}
+              />
+            </div>
+            <p className="mt-1.5 text-[11.5px] leading-[1.45] text-abc-muted">
+              This runs on your device — your photo is not uploaded anywhere for this.
+            </p>
+          </div>
+        ) : null}
+
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          {!hasCutout ? (
+            <button
+              type="button"
+              onClick={() => void createCutout()}
+              disabled={busy}
+              className="inline-flex h-[44px] items-center gap-2 rounded-btn border px-3.5 text-[13.5px] font-semibold transition-colors duration-200 ease-abc disabled:opacity-50 abc-focus-ring"
+              style={{
+                background: 'var(--abc-gold-soft)',
+                borderColor: 'var(--abc-gold-border)',
+                color: 'var(--abc-gold-accent)',
+              }}
+            >
+              <IconSparkles size={16} stroke={1.8} />
+              {busy ? 'Working…' : 'Create cutout'}
+            </button>
+          ) : null}
+
+          {pending ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void acceptCutout()}
+                disabled={busy}
+                className="inline-flex h-[44px] items-center gap-2 rounded-btn border px-3.5 text-[13.5px] font-semibold transition-colors duration-200 ease-abc disabled:opacity-50 abc-focus-ring"
+                style={{
+                  background: 'var(--abc-gold-soft)',
+                  borderColor: 'var(--abc-gold-border)',
+                  color: 'var(--abc-gold-accent)',
+                }}
+              >
+                <IconCheck size={16} stroke={2} />
+                {busy ? 'Saving…' : 'Use cutout'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void createCutout()}
+                disabled={busy}
+                className="inline-flex h-[44px] items-center gap-2 rounded-btn border border-abc-border bg-abc-card px-3.5 text-[13.5px] font-medium text-abc-text transition-colors duration-200 ease-abc disabled:opacity-50 abc-focus-ring"
+              >
+                <IconRefresh size={16} stroke={1.8} />
+                Try again
+              </button>
+            </>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={busy}
+            className="inline-flex h-[44px] items-center gap-2 rounded-btn border border-abc-border bg-abc-card px-3.5 text-[13.5px] font-medium text-abc-text transition-colors duration-200 ease-abc hover:border-abc-border-strong disabled:opacity-50 abc-focus-ring"
+          >
+            <IconUpload size={16} stroke={1.8} />
+            {hasCutout ? 'Upload instead' : 'Upload cutout'}
+          </button>
+
+          {hasCutout && !busy ? (
+            <button
+              type="button"
+              onClick={removeCutout}
+              className="inline-flex h-[44px] items-center gap-2 rounded-btn border border-abc-border px-3.5 text-[13.5px] font-medium text-abc-secondary transition-colors duration-200 ease-abc hover:text-abc-text abc-focus-ring"
+            >
+              <IconTrash size={16} stroke={1.8} />
+              Remove
+            </button>
+          ) : null}
+        </div>
+
+        {pending && !busy ? (
+          <p className="mt-2 text-[12px] leading-[1.45] text-abc-muted">
+            Previewing your cutout below. Choose <strong className="font-semibold text-abc-text">Use cutout</strong> to
+            keep it — it is not stored until you do.
+          </p>
+        ) : null}
+
+        <div aria-live="polite">
+          {error ? (
+            <p
+              className="mt-2 flex items-start gap-1.5 text-[12px] leading-[1.45]"
+              style={{ color: 'var(--abc-overdue)' }}
+              role="alert"
+            >
+              <IconAlertTriangle size={14} stroke={1.9} className="mt-px shrink-0" />
+              <span>{error}</span>
+            </p>
+          ) : null}
+        </div>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/webp"
+          className="sr-only"
+          aria-label="Choose a portrait with the background removed"
+          onChange={(e) => {
+            void handleCutout(e.target.files?.[0])
+            e.target.value = ''
+          }}
+        />
+      </div>
+
+      <div className="mt-4">
+        <HeroFramingEditor
+          label={mode === 'hero' ? 'Position in the hero' : 'Portrait framing'}
+          imageUrl={mode === 'hero' && portrait.cutoutUrl ? portrait.cutoutUrl : photoUrl}
+          shape={mode === 'hero' ? 'hero' : 'circle'}
+          contain={mode === 'hero'}
+          theme={theme}
+          limits={portraitScaleLimits(mode)}
+          transform={portrait}
+          onChange={(next) => onChange({ card_media_transforms: { ...transforms, portrait: next } })}
+          onReset={() =>
+            onChange({
+              card_media_transforms: {
+                ...transforms,
+                // Reset means framing, not the mode or the uploaded cutout.
+                portrait: { ...PORTRAIT_TRANSFORM_DEFAULT, mode, cutoutUrl: portrait.cutoutUrl },
+              },
+            })
+          }
+        />
+      </div>
     </div>
   )
 }
 
-function PositionButton({
-  label,
-  active,
-  onClick,
+/**
+ * Cover display.
+ *
+ * Fill crops the artwork to cover the hero; Fit shows all of it against the
+ * card's own background, which is what a wordmark or a poster needs. The
+ * nine-point position picker that used to live here is gone: dragging the
+ * image in the framing editor below sets the same two numbers directly, and
+ * asking an owner to think in "left top" while a live preview sits under
+ * their thumb was the worse of the two ways to say it.
+ */
+function CoverFraming({
+  fit,
+  onFit,
 }: {
-  label: string
-  active: boolean
-  onClick: () => void
+  fit: CardCoverFit
+  onFit: (value: CardCoverFit) => void
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className="min-h-[44px] flex-1 rounded-btn border px-2 text-[13px] font-medium capitalize transition-colors duration-200 ease-abc abc-focus-ring"
-      style={{
-        background: active ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
-        borderColor: active ? 'var(--abc-gold-border)' : 'var(--abc-border)',
-        color: active ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
-      }}
-    >
-      {label}
-    </button>
+    <div className="rounded-inner border border-abc-border bg-abc-raised p-3.5">
+      <p className="text-[13.5px] font-semibold text-abc-text">Cover display</p>
+
+      <div className="mt-2.5 flex gap-2">
+        {(
+          [
+            { id: 'fill', label: 'Fill', hint: 'Crops to fill the hero' },
+            { id: 'fit', label: 'Fit', hint: 'Shows the whole image' },
+          ] as const
+        ).map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => onFit(option.id)}
+            aria-pressed={fit === option.id}
+            title={option.hint}
+            className="min-h-[44px] flex-1 rounded-btn border px-3 text-[13px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
+            style={{
+              background: fit === option.id ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
+              borderColor: fit === option.id ? 'var(--abc-gold-border)' : 'var(--abc-border)',
+              color: fit === option.id ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-2 text-[12px] leading-[1.45] text-abc-muted">
+        {fit === 'fit'
+          ? 'The whole cover is shown against your card background.'
+          : 'The cover fills the hero. Drag below to choose what stays in frame.'}
+      </p>
+    </div>
   )
 }

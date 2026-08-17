@@ -13,6 +13,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@ducanh2912/next-pwa": "^10.2.9",
+    "@imgly/background-removal": "^1.7.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.107.0",
     "@tabler/icons-react": "^3.21.0",

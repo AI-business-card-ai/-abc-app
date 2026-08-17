@@ -25,16 +25,12 @@ import {
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
 import type { DigitalCardData, SocialNetwork } from '@/lib/card/types'
-import {
-  LINK_ICON_OPTIONS,
-  CARD_PUBLIC_BASE,
-  HERO_ASPECT_RATIO,
-  transformStyle,
-} from '@/lib/card/types'
+import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE } from '@/lib/card/types'
+import CardHero from '@/components/card/CardHero'
 import ShowcaseGallery from '@/components/card/ShowcaseGallery'
 import { isSocialVisible } from '@/lib/card/public-data'
 import { whatsappMeUrl } from '@/lib/card/social'
-import { getCardThemeTokens, heroScrimGradient, initialsFromName } from '@/lib/card/theme'
+import { getCardThemeTokens } from '@/lib/card/theme'
 
 type Props = {
   card: DigitalCardData
@@ -57,21 +53,6 @@ const SOCIAL_ICONS: Record<SocialNetwork, { Icon: TablerIcon; label: string; url
   github: { Icon: IconBrandGithub, label: 'GitHub', urlKey: 'githubUrl' },
   threads: { Icon: IconBrandThreads, label: 'Threads', urlKey: 'threadsUrl' },
 }
-
-/**
- * Hero geometry — the portrait is a foreground element, not an avatar.
- *
- * Both dimensions track the viewport rather than sitting at one pixel value,
- * so the person keeps the same weight in the composition on a 375px phone and
- * a 430px one, and stops growing once the card reaches its 460px ceiling. The
- * portrait is published as a custom property because the identity block has to
- * pull itself up by a share of whatever the portrait currently measures.
- */
-const HERO_HEIGHT = `clamp(190px, calc(min(100vw, 460px) / ${HERO_ASPECT_RATIO}), 249px)`
-const PORTRAIT_SIZE = 'clamp(152px, 43vw, 196px)'
-const PORTRAIT_VAR = '--abc-card-portrait'
-/** Just over half the portrait sits inside the hero, so it reads as foreground. */
-const PORTRAIT_OVERLAP = `calc(var(${PORTRAIT_VAR}) * 0.52)`
 
 function linkEmoji(icon: string): string {
   return LINK_ICON_OPTIONS.find((o) => o.id === icon)?.emoji || '🔗'
@@ -112,11 +93,6 @@ export default function DigitalCardView({
   const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
   const t = getCardThemeTokens(card.theme)
   const accent = card.accent
-  const initials = initialsFromName(card.fullName)
-  const subtitle = [card.jobTitle, card.companyName].filter(Boolean).join(' · ')
-
-  // Owner-controlled scrim: 0 leaves the image untouched, 100 is near-solid.
-  const scrim = heroScrimGradient(card.media.background.overlay, t)
 
   const socials = (Object.keys(SOCIAL_ICONS) as SocialNetwork[])
     .map((key) => {
@@ -236,215 +212,48 @@ export default function DigitalCardView({
 
   return (
     <div
-      style={
-        {
-          width: '100%',
-          maxWidth: 460,
-          margin: '0 auto',
-          minHeight: preview ? '100%' : '100vh',
-          background: t.bg,
-          color: t.text,
-          [PORTRAIT_VAR]: PORTRAIT_SIZE,
-          fontFamily:
-            'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-        } as React.CSSProperties
-      }
+      style={{
+        width: '100%',
+        maxWidth: 460,
+        margin: '0 auto',
+        minHeight: preview ? '100%' : '100vh',
+        background: t.bg,
+        color: t.text,
+        fontFamily:
+          'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      }}
     >
       {/*
-        Hero, in three explicit layers. The previous version relied on document
-        order: the cover was a positioned element and the identity below it was
-        static, so the cover's absolutely-positioned scrim painted over the top
-        of the portrait. `isolation: isolate` plus real z-indexes makes the
-        order background → overlay → portrait a property of the markup rather
-        than an accident of the layout.
+        Hero, person, logo and identity all come from CardHero — the same
+        component /my-card and the editor preview use, so a card cannot look
+        one way here and another way on its owner's dashboard.
       */}
-      <header
-        style={{
-          position: 'relative',
-          height: HERO_HEIGHT,
-          background: t.surface,
-          isolation: 'isolate',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Layer 0 — background */}
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
-          {card.coverUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={card.coverUrl}
-              alt=""
-              style={
-                card.coverFit === 'fit'
-                  ? {
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain',
-                      objectPosition: card.coverPosition,
-                      display: 'block',
-                    }
-                  : { ...transformStyle(card.media.background), display: 'block' }
-              }
-            />
-          ) : (
-            <div
-              aria-hidden
-              style={{
-                width: '100%',
-                height: '100%',
-                background: `radial-gradient(120% 140% at 50% 0%, ${accent}26, transparent 70%)`,
-              }}
-            />
-          )}
-        </div>
+      <CardHero card={card} size="full">
+        {card.tagline ? (
+          <p style={{ margin: '4px 0 0', fontSize: 15, lineHeight: 1.5, fontWeight: 500 }}>
+            {card.tagline}
+          </p>
+        ) : null}
 
-        {/* Layer 1 — readability scrim, strength chosen by the owner */}
-        <div
-          aria-hidden
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 1,
-            background: scrim,
-          }}
-        />
-
-        <span
-          style={{
-            position: 'absolute',
-            zIndex: 2,
-            top: 16,
-            left: 20,
-            fontSize: 10.5,
-            fontWeight: 700,
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            color: 'rgba(255,255,255,0.75)',
-          }}
-        >
-          ABC Card
-        </span>
-      </header>
-
-      {/* Layer 2 — portrait and identity, always above the hero */}
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 3,
-          padding: '0 20px 40px',
-          marginTop: `calc(${PORTRAIT_OVERLAP} * -1)`,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
-          <div
-            style={{
-              width: `var(${PORTRAIT_VAR})`,
-              height: `var(${PORTRAIT_VAR})`,
-              borderRadius: '50%',
-              overflow: 'hidden',
-              background: t.surface2,
-              boxShadow: `inset 0 0 0 3px ${accent}, 0 18px 44px rgba(0,0,0,0.6)`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            {card.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={card.photoUrl}
-                alt={card.fullName}
-                style={transformStyle(card.media.portrait)}
-              />
-            ) : (
-              <span style={{ color: t.secondary, fontSize: 'clamp(38px, 14vw, 52px)', fontWeight: 700 }}>
-                {initials}
+        {card.languages.length > 0 ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+            {card.languages.map((lang) => (
+              <span
+                key={lang}
+                style={{
+                  fontSize: 12,
+                  color: t.secondary,
+                  background: t.surface,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 999,
+                  padding: '5px 11px',
+                }}
+              >
+                {lang}
               </span>
-            )}
+            ))}
           </div>
-
-          {card.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={card.logoUrl}
-              alt={card.companyName || ''}
-              style={{
-                height: 34,
-                width: 'auto',
-                maxWidth: 120,
-                objectFit: 'contain',
-                marginBottom: 6,
-              }}
-            />
-          ) : null}
-        </div>
-
-        <div style={{ marginTop: 16 }}>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 'clamp(26px, 7.4vw, 30px)',
-              lineHeight: 1.15,
-              fontWeight: 700,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {card.fullName}
-          </h1>
-
-          {subtitle ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 7 }}>
-              <p style={{ margin: 0, fontSize: 14.5, color: t.secondary, lineHeight: 1.45 }}>
-                {subtitle}
-              </p>
-            </div>
-          ) : null}
-
-          {card.tagline ? (
-            <p style={{ margin: '12px 0 0', fontSize: 15, lineHeight: 1.5, fontWeight: 500 }}>
-              {card.tagline}
-            </p>
-          ) : null}
-
-          {meta.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-              {card.showLocation && card.location ? (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    fontSize: 12,
-                    color: t.secondary,
-                    background: t.surface,
-                    border: `1px solid ${t.border}`,
-                    borderRadius: 999,
-                    padding: '5px 11px',
-                  }}
-                >
-                  <IconMapPin size={13} stroke={1.8} />
-                  {card.location}
-                </span>
-              ) : null}
-              {card.languages.map((lang) => (
-                <span
-                  key={lang}
-                  style={{
-                    fontSize: 12,
-                    color: t.secondary,
-                    background: t.surface,
-                    border: `1px solid ${t.border}`,
-                    borderRadius: 999,
-                    padding: '5px 11px',
-                  }}
-                >
-                  {lang}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        ) : null}
 
         {/*
           How to reach them comes before what to do with the card. A visitor
@@ -826,7 +635,9 @@ export default function DigitalCardView({
             {CARD_PUBLIC_BASE}/{card.slug}
           </p>
         ) : null}
-      </div>
+
+        <div style={{ height: 40 }} aria-hidden />
+      </CardHero>
     </div>
   )
 }

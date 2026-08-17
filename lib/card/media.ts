@@ -19,20 +19,34 @@ export type UploadResult = { url: string } | { error: string }
 const DIRECT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const HEIC_TYPES = new Set(['image/heic', 'image/heif'])
 
-/** Transparency is worth preserving on a logo; a portrait is not worth the bytes. */
+/**
+ * Transparency is worth preserving on a logo and mandatory on a hero cutout;
+ * an ordinary portrait is not worth the bytes.
+ *
+ * Getting this wrong is silent and fatal: JPEG has no alpha, so a cutout
+ * re-encoded as JPEG comes back as a person on a white rectangle, which is
+ * exactly the pasted-on look hero mode exists to avoid.
+ */
 function outputTypeFor(kind: CardMediaKind, sourceType: string): 'image/png' | 'image/jpeg' {
+  if (kind === 'cutout') return 'image/png'
   if (kind === 'logo' && (sourceType === 'image/png' || sourceType === 'image/webp')) {
     return 'image/png'
   }
   return 'image/jpeg'
 }
 
-export function validateCardImage(file: File): string | null {
+export function validateCardImage(file: File, kind?: CardMediaKind): string | null {
   const type = (file.type || '').toLowerCase()
 
   if (!DIRECT_TYPES.has(type) && !HEIC_TYPES.has(type)) {
     // An empty type happens on some Android pickers — let the decoder decide.
     if (type) return 'That image format is not supported. Use JPG, PNG or WebP.'
+  }
+
+  // A JPEG cannot carry transparency, so accepting one here would produce a
+  // person on a white block and look like a bug rather than a wrong file.
+  if (kind === 'cutout' && type && type !== 'image/png' && type !== 'image/webp') {
+    return 'A hero portrait needs a transparent background — use a PNG or WebP file.'
   }
   if (file.size > CARD_MEDIA_MAX_BYTES) {
     return 'That image is too large. Keep it under 10 MB.'
@@ -113,7 +127,7 @@ async function prepare(file: File, kind: CardMediaKind): Promise<File> {
  * copy of the previous image.
  */
 export async function uploadCardMedia(kind: CardMediaKind, file: File): Promise<UploadResult> {
-  const validation = validateCardImage(file)
+  const validation = validateCardImage(file, kind)
   if (validation) return { error: validation }
 
   let prepared: File

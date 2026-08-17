@@ -159,7 +159,8 @@ export function profileToForm(profile: Record<string, unknown>): EditorForm {
     card_cover_fit: normalizeCoverFit(profile.card_cover_fit),
     card_media_transforms: normalizeMediaTransforms(
       profile.card_media_transforms,
-      normalizeCoverPosition(profile.card_cover_position)
+      normalizeCoverPosition(profile.card_cover_position),
+      normalizeCoverFit(profile.card_cover_fit)
     ),
     company_logo_url: str(profile.company_logo_url),
     phone: str(profile.phone),
@@ -322,7 +323,23 @@ export function buildCoverFramingPayload(form: EditorForm): Record<string, unkno
  * as a whole on the one column Postgres could not find.
  */
 export function buildMediaTransformPayload(form: EditorForm): Record<string, unknown> {
-  return { card_media_transforms: form.card_media_transforms }
+  const media = form.card_media_transforms
+  const cutoutUrl = media.portrait.cutoutUrl
+
+  // A freshly generated cutout is an in-memory object URL until the owner
+  // accepts it and it is uploaded. Persisting one would store a reference that
+  // is dead the moment the tab closes, so the write boundary drops it — and
+  // with it the hero mode that has nothing left to render.
+  const pending = typeof cutoutUrl === 'string' && cutoutUrl.startsWith('blob:')
+
+  return {
+    card_media_transforms: pending
+      ? {
+          ...media,
+          portrait: { ...media.portrait, cutoutUrl: null, mode: 'classic' },
+        }
+      : media,
+  }
 }
 
 /**

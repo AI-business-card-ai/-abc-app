@@ -4,12 +4,16 @@ import { useCallback, useRef, useState } from 'react'
 import { IconArrowBackUp } from '@tabler/icons-react'
 import {
   HERO_ASPECT_RATIO,
-  MEDIA_TRANSFORM_LIMITS,
+  HERO_ASPECT_RATIO_PERSON,
+  SCALE_LIMITS,
   transformStyle,
   type BackgroundTransform,
   type CardTheme,
   type MediaTransform,
+  type ScaleLimits,
 } from '@/lib/card/types'
+
+const MEDIA_TRANSFORM_LIMITS_DEFAULT: ScaleLimits = SCALE_LIMITS.backgroundFill
 import { getCardThemeTokens, heroScrimGradient } from '@/lib/card/theme'
 
 /**
@@ -31,6 +35,8 @@ export default function HeroFramingEditor<T extends MediaTransform>({
   onReset,
   shape = 'wide',
   theme = 'graphite',
+  limits = MEDIA_TRANSFORM_LIMITS_DEFAULT,
+  contain = false,
   children,
 }: {
   label: string
@@ -38,9 +44,16 @@ export default function HeroFramingEditor<T extends MediaTransform>({
   transform: T
   onChange: (next: T) => void
   onReset: () => void
-  shape?: 'wide' | 'circle'
+  shape?: 'wide' | 'circle' | 'hero'
   /** The card's own theme, so the preview darkens against the real backdrop. */
   theme?: CardTheme
+  /**
+   * Zoom range for this particular image. A frame that must stay covered
+   * cannot go below 1; one that may show the card behind it can.
+   */
+  limits?: ScaleLimits
+  /** Show the whole image rather than filling the frame — "fit" and cutouts. */
+  contain?: boolean
   children?: React.ReactNode
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
@@ -111,11 +124,14 @@ export default function HeroFramingEditor<T extends MediaTransform>({
         aria-label={`${label}: drag to reposition`}
         className="relative mt-3 select-none overflow-hidden border border-abc-border bg-abc-card"
         style={{
-          // The background preview carries the hero's ratio rather than a
+          // The preview carries the real frame's ratio rather than a
           // convenient box height, so what is cropped away here is what is
           // cropped away on the card.
           height: shape === 'circle' ? 168 : undefined,
-          aspectRatio: shape === 'circle' ? undefined : String(HERO_ASPECT_RATIO),
+          aspectRatio:
+            shape === 'circle'
+              ? undefined
+              : String(shape === 'hero' ? HERO_ASPECT_RATIO_PERSON : HERO_ASPECT_RATIO),
           width: shape === 'circle' ? 168 : '100%',
           borderRadius: shape === 'circle' ? '50%' : 14,
           margin: shape === 'circle' ? '12px auto 0' : undefined,
@@ -123,8 +139,39 @@ export default function HeroFramingEditor<T extends MediaTransform>({
           touchAction: 'none',
         }}
       >
+        {/*
+          The scrim sits under the image for a hero cutout and over it for a
+          background, which is the same order the card itself paints in — an
+          owner darkening the artwork must not watch their own face dim.
+        */}
+        {overlay === null && shape === 'hero' ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{ background: heroScrimGradient(55, getCardThemeTokens(theme)) }}
+          />
+        ) : null}
+
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={imageUrl} alt="" draggable={false} style={transformStyle(transform)} />
+        <img
+          src={imageUrl}
+          alt=""
+          draggable={false}
+          style={
+            contain
+              ? {
+                  position: 'relative',
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  objectPosition: `${transform.x}% ${transform.y}%`,
+                  transform: `scale(${transform.scale})`,
+                  transformOrigin: shape === 'hero' ? 'center bottom' : 'center',
+                }
+              : transformStyle(transform)
+          }
+        />
+
         {overlay !== null ? (
           <div
             aria-hidden
@@ -139,8 +186,8 @@ export default function HeroFramingEditor<T extends MediaTransform>({
       <Slider
         label="Zoom"
         value={transform.scale}
-        min={MEDIA_TRANSFORM_LIMITS.minScale}
-        max={MEDIA_TRANSFORM_LIMITS.maxScale}
+        min={limits.min}
+        max={limits.max}
         step={0.05}
         format={(v) => `${v.toFixed(2)}×`}
         onChange={(scale) => onChange({ ...transform, scale })}

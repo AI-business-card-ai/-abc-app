@@ -3,13 +3,21 @@
 export const CARD_MEDIA_BUCKET = 'card-media'
 export const CARD_MEDIA_MAX_BYTES = 10 * 1024 * 1024
 
-export type CardMediaKind = 'photo' | 'cover' | 'logo' | 'showcase'
+export type CardMediaKind = 'photo' | 'cover' | 'logo' | 'showcase' | 'cutout'
 
 /**
  * The three images stored directly on the profile row. Showcase images are
- * rows in their own table, so anything keyed "one per card" means these.
+ * rows in their own table and the cutout lives inside card_media_transforms,
+ * so anything keyed "one per card field" means these.
  */
-export type CardProfileMediaKind = Exclude<CardMediaKind, 'showcase'>
+export type CardProfileMediaKind = Exclude<CardMediaKind, 'showcase' | 'cutout'>
+
+/**
+ * Kinds whose transparency must survive the upload. Everything else is
+ * re-encoded to JPEG for weight; these would lose the alpha channel that is
+ * the entire point of them.
+ */
+export const ALPHA_MEDIA_KINDS: CardMediaKind[] = ['cutout', 'logo']
 
 const KINDS: CardMediaKind[] = ['photo', 'cover', 'logo', 'showcase']
 
@@ -34,6 +42,10 @@ export const CARD_MEDIA_LABELS: Record<CardMediaKind, { title: string; help: str
     title: 'Showcase image',
     help: 'A photo of your work — a project, a product, an installation.',
   },
+  cutout: {
+    title: 'Hero portrait',
+    help: 'A portrait with the background already removed, as PNG or WebP.',
+  },
 }
 
 /** Longest edge each kind is resized to before upload. */
@@ -44,6 +56,9 @@ export const CARD_MEDIA_MAX_EDGE: Record<CardMediaKind, number> = {
   // Big enough to stay sharp full-screen on a modern phone, small enough that
   // eight of them over fair wifi is not a punishment.
   showcase: 1600,
+  // A hero cutout is displayed large but never full-bleed, and PNG with alpha
+  // is heavy — this keeps a person crisp without shipping a 4 MB layer.
+  cutout: 1400,
 }
 
 /**
@@ -54,5 +69,8 @@ export const CARD_MEDIA_MAX_EDGE: Record<CardMediaKind, number> = {
 export function cardMediaPath(userId: string, kind: CardMediaKind, ext: string): string {
   const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   if (kind === 'showcase') return `${userId}/showcase/${unique}.${ext}`
+  // The cutout is a second asset beside the original, never a replacement for
+  // it: photo-… and photo-cutout-… coexist, so the owner can always go back.
+  if (kind === 'cutout') return `${userId}/photo-cutout-${unique}.${ext}`
   return `${userId}/${kind}-${Date.now()}.${ext}`
 }

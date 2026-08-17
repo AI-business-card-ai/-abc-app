@@ -239,9 +239,25 @@ export const CARD_PUBLIC_BASE = 'https://abccard.io/d'
 export type MediaTransform = { scale: number; x: number; y: number }
 export type BackgroundTransform = MediaTransform & { overlay: number }
 
+/**
+ * How the owner's photograph is presented.
+ *
+ * `classic` is the circular portrait every existing card already uses, and
+ * stays the default so nobody's card changes because this type gained a field.
+ * `hero` treats the person as a foreground layer composed into the artwork,
+ * which only looks right with a transparent source — hence `cutoutUrl`, kept
+ * separate from card_photo_url so the original is never overwritten.
+ */
+export type PortraitMode = 'classic' | 'hero'
+
+export type PortraitTransform = MediaTransform & {
+  mode: PortraitMode
+  cutoutUrl: string | null
+}
+
 export type CardMediaTransforms = {
   background: BackgroundTransform
-  portrait: MediaTransform
+  portrait: PortraitTransform
 }
 
 export const BACKGROUND_TRANSFORM_DEFAULT: BackgroundTransform = {
@@ -252,9 +268,48 @@ export const BACKGROUND_TRANSFORM_DEFAULT: BackgroundTransform = {
 }
 
 /** Portraits sit above centre, so the default keeps the face in frame. */
-export const PORTRAIT_TRANSFORM_DEFAULT: MediaTransform = { scale: 1, x: 50, y: 30 }
+export const PORTRAIT_TRANSFORM_DEFAULT: PortraitTransform = {
+  scale: 1,
+  x: 50,
+  y: 30,
+  mode: 'classic',
+  cutoutUrl: null,
+}
 
-export const MEDIA_TRANSFORM_LIMITS = { minScale: 1, maxScale: 3 } as const
+/**
+ * Zoom range depends on what the image has to cover, so one pair of numbers
+ * cannot serve all four cases.
+ *
+ * A `fill` background and a `classic` portrait both have to leave no gap in
+ * their frame, and at scale 1 an object-fit: cover image exactly covers it —
+ * so 1 is the mathematical floor, not a preference. Going below it would
+ * expose the surface behind the image.
+ *
+ * A `fit` background is meant to show the whole artwork, and a `hero` portrait
+ * is a subject floating on the composition; both may legitimately be smaller
+ * than their frame, and the space around them is the card's own background.
+ * Those are the two cases where the owner can genuinely zoom out — which is
+ * what a wordmark cover and a full-length person actually need.
+ */
+export const SCALE_LIMITS = {
+  backgroundFill: { min: 1, max: 3 },
+  backgroundFit: { min: 0.4, max: 3 },
+  portraitClassic: { min: 1, max: 3 },
+  portraitHero: { min: 0.45, max: 2 },
+} as const
+
+export type ScaleLimits = { min: number; max: number }
+
+export function backgroundScaleLimits(fit: CardCoverFit): ScaleLimits {
+  return fit === 'fit' ? SCALE_LIMITS.backgroundFit : SCALE_LIMITS.backgroundFill
+}
+
+export function portraitScaleLimits(mode: PortraitMode): ScaleLimits {
+  return mode === 'hero' ? SCALE_LIMITS.portraitHero : SCALE_LIMITS.portraitClassic
+}
+
+/** Kept for callers that only need the widest possible span. */
+export const MEDIA_TRANSFORM_LIMITS = { minScale: 0.4, maxScale: 3 } as const
 
 /**
  * Width ÷ height of the hero. The public card derives its hero height from
@@ -277,7 +332,8 @@ function clamp(value: unknown, min: number, max: number, fallback: number): numb
  */
 export function normalizeMediaTransforms(
   raw: unknown,
-  coverPosition?: string
+  coverPosition?: string,
+  coverFit?: CardCoverFit
 ): CardMediaTransforms {
   const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
   const bg = (source.background || {}) as Record<string, unknown>
@@ -285,17 +341,47 @@ export function normalizeMediaTransforms(
 
   const seeded = seedFromCoverPosition(coverPosition)
 
+  // A card saved as "fit" at 0.6 and later switched to "fill" would otherwise
+  // render with a gap, so each scale is clamped to the range its own mode
+  // allows rather than to one global range.
+  const mode: PortraitMode = portrait.mode === 'hero' ? 'hero' : 'classic'
+  const bgLimits = backgroundScaleLimits(normalizeCoverFit(coverFit))
+
+  const cutoutUrl =
+    typeof portrait.cutoutUrl === 'string' && portrait.cutoutUrl.trim()
+      ? portrait.cutoutUrl.trim()
+      : null
+
+  /*
+    Clamp against the mode that will actually be drawn, not the one that was
+    asked for. Hero mode falls back to the circular portrait when its cutout is
+    missing — a failed removal, an image the owner deleted — and a hero-range
+    scale of 0.45 inside a circle that must stay covered would leave a visible
+    gap where the photograph stops.
+  */
+  const effectiveMode: PortraitMode = mode === 'hero' && cutoutUrl ? 'hero' : 'classic'
+  const portraitLimits = portraitScaleLimits(effectiveMode)
+
   return {
     background: {
-      scale: clamp(bg.scale, MEDIA_TRANSFORM_LIMITS.minScale, MEDIA_TRANSFORM_LIMITS.maxScale, BACKGROUND_TRANSFORM_DEFAULT.scale),
+      scale: clamp(bg.scale, bgLimits.min, bgLimits.max, BACKGROUND_TRANSFORM_DEFAULT.scale),
       x: clamp(bg.x, 0, 100, seeded.x),
       y: clamp(bg.y, 0, 100, seeded.y),
       overlay: clamp(bg.overlay, 0, 100, BACKGROUND_TRANSFORM_DEFAULT.overlay),
     },
     portrait: {
-      scale: clamp(portrait.scale, MEDIA_TRANSFORM_LIMITS.minScale, MEDIA_TRANSFORM_LIMITS.maxScale, PORTRAIT_TRANSFORM_DEFAULT.scale),
+      scale: clamp(
+        portrait.scale,
+        portraitLimits.min,
+        portraitLimits.max,
+        PORTRAIT_TRANSFORM_DEFAULT.scale
+      ),
       x: clamp(portrait.x, 0, 100, PORTRAIT_TRANSFORM_DEFAULT.x),
       y: clamp(portrait.y, 0, 100, PORTRAIT_TRANSFORM_DEFAULT.y),
+      mode,
+      // Hero mode without a transparent source would paste a rectangle over
+      // the artwork, so the renderer falls back to classic when it is absent.
+      cutoutUrl,
     },
   }
 }
@@ -308,6 +394,56 @@ function seedFromCoverPosition(position?: string): { x: number; y: number } {
   return {
     x: rawX in map ? map[rawX] : BACKGROUND_TRANSFORM_DEFAULT.x,
     y: rawY in map ? map[rawY] : BACKGROUND_TRANSFORM_DEFAULT.y,
+  }
+}
+
+/**
+ * Hero presentation engages only when a transparent source actually exists.
+ * Choosing "Hero" with an ordinary photograph would paste a rectangle over the
+ * artwork, so the renderer falls back to the circular portrait until a cutout
+ * is provided. One check, used by every renderer, so they cannot disagree.
+ */
+export function isHeroPortrait(portrait: PortraitTransform): boolean {
+  return portrait.mode === 'hero' && Boolean(portrait.cutoutUrl)
+}
+
+/** The image a card should show for the person, given the chosen mode. */
+export function portraitSourceUrl(
+  portrait: PortraitTransform,
+  photoUrl: string | null
+): string | null {
+  return isHeroPortrait(portrait) ? portrait.cutoutUrl : photoUrl
+}
+
+/**
+ * A person composed into the hero needs more room than a circular avatar
+ * clipped to the top of it, so hero mode gets a taller frame. Both are
+ * width-derived rather than fixed heights, so one number governs the shape at
+ * every viewport and in every renderer.
+ */
+export const HERO_ASPECT_RATIO_PERSON = 1.5
+
+export function heroAspectRatio(portrait: PortraitTransform): number {
+  return isHeroPortrait(portrait) ? HERO_ASPECT_RATIO_PERSON : HERO_ASPECT_RATIO
+}
+
+/** Background rendering, honouring fill/fit as well as the owner's framing. */
+export function backgroundStyle(
+  t: BackgroundTransform,
+  fit: CardCoverFit
+): {
+  width: string
+  height: string
+  objectFit: 'cover' | 'contain'
+  objectPosition: string
+  transform: string
+} {
+  return {
+    width: '100%',
+    height: '100%',
+    objectFit: fit === 'fit' ? 'contain' : 'cover',
+    objectPosition: `${t.x}% ${t.y}%`,
+    transform: `scale(${t.scale})`,
   }
 }
 

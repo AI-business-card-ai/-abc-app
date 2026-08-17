@@ -92,7 +92,10 @@ export function mapProfileToCardData(
     coverFit: normalizeCoverFit(profile.card_cover_fit),
     media: normalizeMediaTransforms(
       profile.card_media_transforms,
-      normalizeCoverPosition(profile.card_cover_position)
+      normalizeCoverPosition(profile.card_cover_position),
+      // Without the fit, a "fit" cover would be clamped to the "fill" floor of
+      // 1 and the owner's zoom-out would be silently discarded on every read.
+      normalizeCoverFit(profile.card_cover_fit)
     ),
     logoUrl: asString(profile.company_logo_url) || asString(profile.logo_url),
     phone: asString(profile.phone),
