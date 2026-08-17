@@ -14,6 +14,19 @@ import {
 } from '@/lib/card/types'
 
 const MEDIA_TRANSFORM_LIMITS_DEFAULT: ScaleLimits = SCALE_LIMITS.backgroundFill
+
+/** Reading order, so the rendered grid matches the nine positions visually. */
+const POSITION_PRESETS = [
+  { label: 'Top left', x: 0, y: 0 },
+  { label: 'Top center', x: 50, y: 0 },
+  { label: 'Top right', x: 100, y: 0 },
+  { label: 'Center left', x: 0, y: 50 },
+  { label: 'Center', x: 50, y: 50 },
+  { label: 'Center right', x: 100, y: 50 },
+  { label: 'Bottom left', x: 0, y: 100 },
+  { label: 'Bottom center', x: 50, y: 100 },
+  { label: 'Bottom right', x: 100, y: 100 },
+] as const
 import { getCardThemeTokens, heroScrimGradient } from '@/lib/card/theme'
 
 /**
@@ -37,6 +50,7 @@ export default function HeroFramingEditor<T extends MediaTransform>({
   theme = 'graphite',
   limits = MEDIA_TRANSFORM_LIMITS_DEFAULT,
   contain = false,
+  showPositionGrid = false,
   children,
 }: {
   label: string
@@ -54,6 +68,8 @@ export default function HeroFramingEditor<T extends MediaTransform>({
   limits?: ScaleLimits
   /** Show the whole image rather than filling the frame — "fit" and cutouts. */
   contain?: boolean
+  /** Nine-position shortcut. Offered for the background, not the person. */
+  showPositionGrid?: boolean
   children?: React.ReactNode
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
@@ -182,6 +198,46 @@ export default function HeroFramingEditor<T extends MediaTransform>({
       </div>
 
       <p className="mt-2 text-center text-[11.5px] text-abc-muted">Drag the image to reposition</p>
+
+      {/*
+        A shortcut, not a replacement for dragging: nine taps that cover the
+        placements most owners actually want, for the times when nudging a
+        photograph with a thumb is the slower way to say "top left".
+      */}
+      {showPositionGrid ? (
+        <div className="mt-3">
+          <p className="text-[12px] text-abc-muted">Position</p>
+          <div className="mt-1.5 grid grid-cols-3 gap-1.5" role="group" aria-label="Position presets">
+            {POSITION_PRESETS.map((preset) => {
+              const active =
+                Math.round(transform.x) === preset.x && Math.round(transform.y) === preset.y
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  aria-label={preset.label}
+                  aria-pressed={active}
+                  onClick={() => onChange({ ...transform, x: preset.x, y: preset.y })}
+                  className="flex h-[44px] items-center justify-center rounded-btn border transition-colors duration-200 ease-abc abc-focus-ring"
+                  style={{
+                    background: active ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
+                    borderColor: active ? 'var(--abc-gold-border)' : 'var(--abc-border)',
+                  }}
+                >
+                  <span
+                    className="block rounded-full"
+                    style={{
+                      width: active ? 11 : 7,
+                      height: active ? 11 : 7,
+                      background: active ? 'var(--abc-gold-accent)' : 'var(--abc-text-muted)',
+                    }}
+                  />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <Slider
         label="Zoom"

@@ -25,7 +25,7 @@ import {
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
 import type { DigitalCardData, SocialNetwork } from '@/lib/card/types'
-import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE } from '@/lib/card/types'
+import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE, isHeroPortrait } from '@/lib/card/types'
 import CardHero from '@/components/card/CardHero'
 import ShowcaseGallery from '@/components/card/ShowcaseGallery'
 import { isSocialVisible } from '@/lib/card/public-data'
@@ -93,6 +93,7 @@ export default function DigitalCardView({
   const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
   const t = getCardThemeTokens(card.theme)
   const accent = card.accent
+  const hero = isHeroPortrait(card.media.portrait)
 
   const socials = (Object.keys(SOCIAL_ICONS) as SocialNetwork[])
     .map((key) => {
@@ -235,7 +236,11 @@ export default function DigitalCardView({
           </p>
         ) : null}
 
-        {card.languages.length > 0 ? (
+        {/*
+          Languages are metadata, not identity. In hero they move below the
+          actions so nothing sits between the name and how to reach the person.
+        */}
+        {card.languages.length > 0 && !hero ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
             {card.languages.map((lang) => (
               <span
@@ -256,11 +261,102 @@ export default function DigitalCardView({
         ) : null}
 
         {/*
-          How to reach them comes before what to do with the card. A visitor
-          who has just scanned is answering "who is this and how do I contact
-          them" first; saving, sharing and wallet are the second question.
+          Hero presents the same actions as a composed set rather than a list:
+          a compact icon row for reaching the person, then one family of rows
+          for what to do with the card. Classic keeps the list it already has,
+          so an existing card is not restyled underneath its owner.
         */}
-        {actions.length > 0 ? (
+        {hero ? (
+          <>
+            {actions.length > 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  justifyContent: actions.length > 4 ? 'space-between' : 'flex-start',
+                  gap: 10,
+                  marginTop: 20,
+                }}
+              >
+                {actions.map((action) => (
+                  <a
+                    key={action.key}
+                    href={action.href}
+                    target={action.external ? '_blank' : undefined}
+                    rel={action.external ? 'noopener noreferrer' : undefined}
+                    className="interactive"
+                    aria-label={action.label}
+                    style={{
+                      flex: '1 1 60px',
+                      minWidth: 58,
+                      maxWidth: 84,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 6,
+                      textDecoration: 'none',
+                      color: t.secondary,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 52,
+                        height: 52,
+                        borderRadius: '50%',
+                        background: t.surface,
+                        border: `1px solid ${t.border}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: accent,
+                      }}
+                    >
+                      <action.Icon size={21} stroke={1.7} />
+                    </span>
+                    <span style={{ fontSize: 11.5, fontWeight: 500, textAlign: 'center' }}>
+                      {action.label}
+                    </span>
+                  </a>
+                ))}
+              </div>
+            ) : null}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 22 }}>
+              <ActionRow
+                Icon={IconBrandApple}
+                title="Add to Apple Wallet"
+                subtitle="Not available yet"
+                tokens={t}
+                accent={accent}
+              />
+              <ActionRow
+                Icon={IconBrandGoogle}
+                title="Add to Google Wallet"
+                subtitle="Not available yet"
+                tokens={t}
+                accent={accent}
+              />
+              <ActionRow
+                Icon={IconDownload}
+                title="Save Contact"
+                subtitle="Save to your phone"
+                tokens={t}
+                accent={accent}
+                onClick={handleSave}
+              />
+              <ActionRow
+                Icon={IconShare2}
+                title={shareState === 'copied' ? 'Link copied' : 'Share Card'}
+                subtitle="Share link or QR code"
+                tokens={t}
+                accent={accent}
+                onClick={() => void handleShare()}
+              />
+            </div>
+          </>
+        ) : null}
+
+        {!hero && actions.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 22 }}>
             {actions.map((action) => (
               <a
@@ -346,8 +442,31 @@ export default function DigitalCardView({
           </div>
         ) : null}
 
-        {/* Save / add — four distinct concepts, never conflated */}
-        <div style={{ marginTop: 24 }}>
+        {hero && card.languages.length > 0 ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 18 }}>
+            {card.languages.map((lang) => (
+              <span
+                key={lang}
+                style={{
+                  fontSize: 11.5,
+                  color: t.muted,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 999,
+                  padding: '4px 10px',
+                }}
+              >
+                {lang}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {/*
+          Classic's save/share block. Hero renders the same four concepts as
+          one row family above, so showing this too would give the card two
+          competing Save buttons.
+        */}
+        <div style={{ marginTop: 24, display: hero ? 'none' : undefined }}>
           <button
             type="button"
             className="interactive"
@@ -639,6 +758,96 @@ export default function DigitalCardView({
         <div style={{ height: 40 }} aria-hidden />
       </CardHero>
     </div>
+  )
+}
+
+/**
+ * One premium row, used for the whole save/share/wallet family so they read as
+ * siblings rather than four unrelated controls.
+ *
+ * A row without an `onClick` is not merely styled as unavailable — it renders
+ * as a non-interactive element with `aria-disabled`, so a Wallet row cannot be
+ * tapped, focused or activated into pretending a pass was added.
+ */
+function ActionRow({
+  Icon,
+  title,
+  subtitle,
+  tokens,
+  accent,
+  onClick,
+}: {
+  Icon: TablerIcon
+  title: string
+  subtitle: string
+  tokens: { surface: string; surface2: string; border: string; text: string; muted: string }
+  accent: string
+  onClick?: () => void
+}) {
+  const available = Boolean(onClick)
+
+  const inner = (
+    <>
+      <span
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 11,
+          background: tokens.surface2,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: available ? accent : tokens.muted,
+          flexShrink: 0,
+        }}
+      >
+        <Icon size={20} stroke={1.7} />
+      </span>
+      <span style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+        <span
+          style={{
+            display: 'block',
+            fontSize: 14.5,
+            fontWeight: 600,
+            color: available ? tokens.text : tokens.muted,
+          }}
+        >
+          {title}
+        </span>
+        <span style={{ display: 'block', fontSize: 12.5, color: tokens.muted, marginTop: 1 }}>
+          {subtitle}
+        </span>
+      </span>
+      {available ? (
+        <IconChevronRight size={17} stroke={1.8} style={{ color: tokens.muted, flexShrink: 0 }} />
+      ) : null}
+    </>
+  )
+
+  const shared: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 13,
+    width: '100%',
+    padding: '12px 15px',
+    borderRadius: 14,
+    background: tokens.surface,
+    border: `1px solid ${tokens.border}`,
+    minHeight: 64,
+  }
+
+  if (!available) {
+    return (
+      <span aria-disabled="true" style={{ ...shared, opacity: 0.6 }}>
+        {inner}
+      </span>
+    )
+  }
+
+  return (
+    <button type="button" className="interactive" onClick={onClick} style={{ ...shared, cursor: 'pointer' }}>
+      {inner}
+    </button>
   )
 }
 

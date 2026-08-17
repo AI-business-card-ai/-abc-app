@@ -505,11 +505,15 @@ export default function CardEditorShell() {
         </p>
       </header>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-start lg:gap-8">
-        {/* Preview first on mobile, right column on desktop */}
-        <div className="lg:order-2 lg:sticky lg:top-6">{preview}</div>
+      {/*
+        Desktop puts the card on the left and its controls on the right, so the
+        thing being changed stays in front of the person changing it. Mobile
+        keeps the preview first and the controls beneath — same order, stacked.
+      */}
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[0.85fr_1.15fr] lg:items-start lg:gap-8">
+        <div className="lg:order-1 lg:sticky lg:top-6">{preview}</div>
 
-        <div className="flex flex-col gap-3 lg:order-1">
+        <div className="flex flex-col gap-3 lg:order-2">
           <StatusBar
             published={form.card_published}
             slug={slug}
@@ -536,6 +540,7 @@ export default function CardEditorShell() {
               transforms={form.card_media_transforms}
               theme={form.card_theme}
               fullName={form.full_name}
+              previewCard={previewCard}
               onChange={patch}
             />
             {!coverFramingStored ? (
@@ -721,6 +726,20 @@ export default function CardEditorShell() {
           </Section>
 
           <SaveBar dirty={dirty} status={saveStatus} error={saveError} onSave={() => void save()} />
+
+          {/*
+            Clearance under the sticky save bar, sized from the bar rather than
+            guessed. The bar is held 72px above the viewport bottom and measures
+            ~70px tall, so its top edge sits ~142px up; anything shorter than
+            that leaves the last control behind it at maximum scroll, which is
+            what the owner hit on a real iPhone. 160px covers the bar with a
+            small margin, and the inset keeps the home indicator out of it.
+          */}
+          <div
+            aria-hidden
+            className="lg:hidden"
+            style={{ height: 'calc(160px + env(safe-area-inset-bottom))' }}
+          />
         </div>
       </div>
 
