@@ -3,11 +3,14 @@
 import { useCallback, useRef, useState } from 'react'
 import { IconArrowBackUp } from '@tabler/icons-react'
 import {
+  HERO_ASPECT_RATIO,
   MEDIA_TRANSFORM_LIMITS,
   transformStyle,
   type BackgroundTransform,
+  type CardTheme,
   type MediaTransform,
 } from '@/lib/card/types'
+import { getCardThemeTokens, heroScrimGradient } from '@/lib/card/theme'
 
 /**
  * Visual framing for one hero image.
@@ -27,6 +30,7 @@ export default function HeroFramingEditor<T extends MediaTransform>({
   onChange,
   onReset,
   shape = 'wide',
+  theme = 'graphite',
   children,
 }: {
   label: string
@@ -35,6 +39,8 @@ export default function HeroFramingEditor<T extends MediaTransform>({
   onChange: (next: T) => void
   onReset: () => void
   shape?: 'wide' | 'circle'
+  /** The card's own theme, so the preview darkens against the real backdrop. */
+  theme?: CardTheme
   children?: React.ReactNode
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
@@ -105,8 +111,12 @@ export default function HeroFramingEditor<T extends MediaTransform>({
         aria-label={`${label}: drag to reposition`}
         className="relative mt-3 select-none overflow-hidden border border-abc-border bg-abc-card"
         style={{
-          height: shape === 'circle' ? 150 : 132,
-          width: shape === 'circle' ? 150 : '100%',
+          // The background preview carries the hero's ratio rather than a
+          // convenient box height, so what is cropped away here is what is
+          // cropped away on the card.
+          height: shape === 'circle' ? 168 : undefined,
+          aspectRatio: shape === 'circle' ? undefined : String(HERO_ASPECT_RATIO),
+          width: shape === 'circle' ? 168 : '100%',
           borderRadius: shape === 'circle' ? '50%' : 14,
           margin: shape === 'circle' ? '12px auto 0' : undefined,
           cursor: dragging ? 'grabbing' : 'grab',
@@ -119,7 +129,7 @@ export default function HeroFramingEditor<T extends MediaTransform>({
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
-            style={{ background: `rgba(0,0,0,${(overlay / 100) * 0.8})` }}
+            style={{ background: heroScrimGradient(overlay, getCardThemeTokens(theme)) }}
           />
         ) : null}
       </div>

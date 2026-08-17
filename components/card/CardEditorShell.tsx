@@ -32,6 +32,7 @@ import Button from '@/components/ui/abc/Button'
 import { mapProfileToCardData } from '@/lib/card/public-data'
 import {
   buildCoverFramingPayload,
+  buildMediaTransformPayload,
   buildSavePayload,
   isMissingColumnError,
   defaultForm,
@@ -79,6 +80,7 @@ export default function CardEditorShell() {
   const [fullPreview, setFullPreview] = useState(false)
   const [copied, setCopied] = useState(false)
   const [coverFramingStored, setCoverFramingStored] = useState(true)
+  const [heroFramingStored, setHeroFramingStored] = useState(true)
 
   const [open, setOpen] = useState<Record<string, boolean>>({
     media: true,
@@ -251,14 +253,22 @@ export default function CardEditorShell() {
         .eq('id', userId)
       if (profileError) throw profileError
 
-      // Cover framing lives in later columns. If they are not there yet the
-      // card still saved — only the framing choice could not be stored.
+      // Cover framing and hero transforms live in later columns, and in
+      // separate statements from each other: a database with one migration but
+      // not the other must still store the half it can.
       const { error: framingError } = await supabase
         .from('abc_profiles')
         .update(buildCoverFramingPayload(form))
         .eq('id', userId)
       if (framingError && !isMissingColumnError(framingError)) throw framingError
       setCoverFramingStored(!framingError)
+
+      const { error: transformError } = await supabase
+        .from('abc_profiles')
+        .update(buildMediaTransformPayload(form))
+        .eq('id', userId)
+      if (transformError && !isMissingColumnError(transformError)) throw transformError
+      setHeroFramingStored(!transformError)
 
       /* Links — delete removed rows, then upsert the rest in display order */
       const keptLinks = new Set(links.map((l) => l.id))
@@ -434,6 +444,7 @@ export default function CardEditorShell() {
               coverPosition={form.card_cover_position}
               coverFit={form.card_cover_fit}
               transforms={form.card_media_transforms}
+              theme={form.card_theme}
               fullName={form.full_name}
               onChange={patch}
             />
@@ -441,6 +452,12 @@ export default function CardEditorShell() {
               <p className="mt-3 text-[12px] leading-[1.45] text-abc-muted">
                 Cover framing could not be stored — your database is missing the
                 card_cover_position and card_cover_fit columns. Everything else saved.
+              </p>
+            ) : null}
+            {!heroFramingStored ? (
+              <p className="mt-3 text-[12px] leading-[1.45] text-abc-muted">
+                Zoom, position and darkening could not be stored — your database is missing the
+                card_media_transforms column. Everything else saved.
               </p>
             ) : null}
           </Section>

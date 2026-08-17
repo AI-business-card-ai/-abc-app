@@ -302,8 +302,18 @@ export function buildCoverFramingPayload(form: EditorForm): Record<string, unkno
   return {
     card_cover_position: form.card_cover_position,
     card_cover_fit: form.card_cover_fit,
-    card_media_transforms: form.card_media_transforms,
   }
+}
+
+/**
+ * Hero transforms come from a migration later still, so they get their own
+ * statement for the same reason. Sharing one update with the cover columns
+ * meant a database that had the cover migration but not this one silently
+ * dropped the position and fit the owner had just chosen — the update failed
+ * as a whole on the one column Postgres could not find.
+ */
+export function buildMediaTransformPayload(form: EditorForm): Record<string, unknown> {
+  return { card_media_transforms: form.card_media_transforms }
 }
 
 /** True when the database has not had the cover-framing migration applied. */

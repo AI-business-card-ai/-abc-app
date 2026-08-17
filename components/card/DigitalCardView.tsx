@@ -25,10 +25,15 @@ import {
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
 import type { DigitalCardData, SocialNetwork } from '@/lib/card/types'
-import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE, transformStyle } from '@/lib/card/types'
+import {
+  LINK_ICON_OPTIONS,
+  CARD_PUBLIC_BASE,
+  HERO_ASPECT_RATIO,
+  transformStyle,
+} from '@/lib/card/types'
 import { isSocialVisible } from '@/lib/card/public-data'
 import { whatsappMeUrl } from '@/lib/card/social'
-import { getCardThemeTokens, initialsFromName } from '@/lib/card/theme'
+import { getCardThemeTokens, heroScrimGradient, initialsFromName } from '@/lib/card/theme'
 
 type Props = {
   card: DigitalCardData
@@ -52,10 +57,20 @@ const SOCIAL_ICONS: Record<SocialNetwork, { Icon: TablerIcon; label: string; url
   threads: { Icon: IconBrandThreads, label: 'Threads', urlKey: 'threadsUrl' },
 }
 
-/** Hero geometry — the portrait is a foreground element, not an avatar. */
-const HERO_HEIGHT = 208
-const PORTRAIT_SIZE = 132
-const PORTRAIT_OVERLAP = 66
+/**
+ * Hero geometry — the portrait is a foreground element, not an avatar.
+ *
+ * Both dimensions track the viewport rather than sitting at one pixel value,
+ * so the person keeps the same weight in the composition on a 375px phone and
+ * a 430px one, and stops growing once the card reaches its 460px ceiling. The
+ * portrait is published as a custom property because the identity block has to
+ * pull itself up by a share of whatever the portrait currently measures.
+ */
+const HERO_HEIGHT = `clamp(190px, calc(min(100vw, 460px) / ${HERO_ASPECT_RATIO}), 249px)`
+const PORTRAIT_SIZE = 'clamp(152px, 43vw, 196px)'
+const PORTRAIT_VAR = '--abc-card-portrait'
+/** Just over half the portrait sits inside the hero, so it reads as foreground. */
+const PORTRAIT_OVERLAP = `calc(var(${PORTRAIT_VAR}) * 0.52)`
 
 function linkEmoji(icon: string): string {
   return LINK_ICON_OPTIONS.find((o) => o.id === icon)?.emoji || '🔗'
@@ -100,9 +115,7 @@ export default function DigitalCardView({
   const subtitle = [card.jobTitle, card.companyName].filter(Boolean).join(' · ')
 
   // Owner-controlled scrim: 0 leaves the image untouched, 100 is near-solid.
-  const overlayStrength = card.media.background.overlay / 100
-  const overlayTop = (overlayStrength * 0.55).toFixed(3)
-  const overlayMid = (overlayStrength * 0.8).toFixed(3)
+  const scrim = heroScrimGradient(card.media.background.overlay, t)
 
   const socials = (Object.keys(SOCIAL_ICONS) as SocialNetwork[])
     .map((key) => {
@@ -222,16 +235,19 @@ export default function DigitalCardView({
 
   return (
     <div
-      style={{
-        width: '100%',
-        maxWidth: 460,
-        margin: '0 auto',
-        minHeight: preview ? '100%' : '100vh',
-        background: t.bg,
-        color: t.text,
-        fontFamily:
-          'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-      }}
+      style={
+        {
+          width: '100%',
+          maxWidth: 460,
+          margin: '0 auto',
+          minHeight: preview ? '100%' : '100vh',
+          background: t.bg,
+          color: t.text,
+          [PORTRAIT_VAR]: PORTRAIT_SIZE,
+          fontFamily:
+            'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+        } as React.CSSProperties
+      }
     >
       {/*
         Hero, in three explicit layers. The previous version relied on document
@@ -288,7 +304,7 @@ export default function DigitalCardView({
             position: 'absolute',
             inset: 0,
             zIndex: 1,
-            background: `linear-gradient(180deg, rgba(0,0,0,${overlayTop}) 0%, rgba(0,0,0,${overlayMid}) 45%, ${t.bg} 100%)`,
+            background: scrim,
           }}
         />
 
@@ -315,18 +331,18 @@ export default function DigitalCardView({
           position: 'relative',
           zIndex: 3,
           padding: '0 20px 40px',
-          marginTop: -PORTRAIT_OVERLAP,
+          marginTop: `calc(${PORTRAIT_OVERLAP} * -1)`,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
           <div
             style={{
-              width: PORTRAIT_SIZE,
-              height: PORTRAIT_SIZE,
+              width: `var(${PORTRAIT_VAR})`,
+              height: `var(${PORTRAIT_VAR})`,
               borderRadius: '50%',
               overflow: 'hidden',
               background: t.surface2,
-              boxShadow: `inset 0 0 0 3px ${accent}, 0 14px 36px rgba(0,0,0,0.55)`,
+              boxShadow: `inset 0 0 0 3px ${accent}, 0 18px 44px rgba(0,0,0,0.6)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -341,7 +357,9 @@ export default function DigitalCardView({
                 style={transformStyle(card.media.portrait)}
               />
             ) : (
-              <span style={{ color: t.secondary, fontSize: 40, fontWeight: 700 }}>{initials}</span>
+              <span style={{ color: t.secondary, fontSize: 'clamp(38px, 14vw, 52px)', fontWeight: 700 }}>
+                {initials}
+              </span>
             )}
           </div>
 
@@ -365,7 +383,7 @@ export default function DigitalCardView({
           <h1
             style={{
               margin: 0,
-              fontSize: 26,
+              fontSize: 'clamp(26px, 7.4vw, 30px)',
               lineHeight: 1.15,
               fontWeight: 700,
               letterSpacing: '-0.02em',
@@ -426,6 +444,97 @@ export default function DigitalCardView({
             </div>
           ) : null}
         </div>
+
+        {/*
+          How to reach them comes before what to do with the card. A visitor
+          who has just scanned is answering "who is this and how do I contact
+          them" first; saving, sharing and wallet are the second question.
+        */}
+        {actions.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 22 }}>
+            {actions.map((action) => (
+              <a
+                key={action.key}
+                href={action.href}
+                target={action.external ? '_blank' : undefined}
+                rel={action.external ? 'noopener noreferrer' : undefined}
+                className="interactive"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 13,
+                  padding: '13px 15px',
+                  borderRadius: 13,
+                  background: t.surface,
+                  border: `1px solid ${t.border}`,
+                  color: t.text,
+                  textDecoration: 'none',
+                  minHeight: 54,
+                }}
+              >
+                <action.Icon size={19} stroke={1.75} style={{ color: accent, flexShrink: 0 }} />
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600 }}>
+                    {action.label}
+                  </span>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 12.5,
+                      color: t.secondary,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      marginTop: 1,
+                    }}
+                  >
+                    {action.value}
+                  </span>
+                </span>
+                <IconChevronRight size={17} stroke={1.8} style={{ color: t.muted, flexShrink: 0 }} />
+              </a>
+            ))}
+          </div>
+        ) : null}
+
+        {/* Remaining social profiles */}
+        {otherSocials.length > 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 9,
+              marginTop: 14,
+              justifyContent: 'center',
+            }}
+          >
+            {otherSocials.map((s) => (
+              <a
+                key={s.key}
+                href={s.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={s.label}
+                title={s.label}
+                className="interactive"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  background: t.surface,
+                  border: `1px solid ${t.border}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: t.secondary,
+                  textDecoration: 'none',
+                }}
+              >
+                <s.Icon size={19} stroke={1.7} />
+              </a>
+            ))}
+          </div>
+        ) : null}
 
         {/* Save / add — four distinct concepts, never conflated */}
         <div style={{ marginTop: 24 }}>
@@ -521,93 +630,6 @@ export default function DigitalCardView({
             </p>
           ) : null}
         </div>
-
-        {/* Genuine reach-me actions */}
-        {actions.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 }}>
-            {actions.map((action) => (
-              <a
-                key={action.key}
-                href={action.href}
-                target={action.external ? '_blank' : undefined}
-                rel={action.external ? 'noopener noreferrer' : undefined}
-                className="interactive"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 13,
-                  padding: '13px 15px',
-                  borderRadius: 13,
-                  background: t.surface,
-                  border: `1px solid ${t.border}`,
-                  color: t.text,
-                  textDecoration: 'none',
-                  minHeight: 54,
-                }}
-              >
-                <action.Icon size={19} stroke={1.75} style={{ color: accent, flexShrink: 0 }} />
-                <span style={{ minWidth: 0, flex: 1 }}>
-                  <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600 }}>
-                    {action.label}
-                  </span>
-                  <span
-                    style={{
-                      display: 'block',
-                      fontSize: 12.5,
-                      color: t.secondary,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      marginTop: 1,
-                    }}
-                  >
-                    {action.value}
-                  </span>
-                </span>
-                <IconChevronRight size={17} stroke={1.8} style={{ color: t.muted, flexShrink: 0 }} />
-              </a>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Remaining social profiles */}
-        {otherSocials.length > 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 9,
-              marginTop: 18,
-              justifyContent: 'center',
-            }}
-          >
-            {otherSocials.map((s) => (
-              <a
-                key={s.key}
-                href={s.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={s.label}
-                title={s.label}
-                className="interactive"
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: '50%',
-                  background: t.surface,
-                  border: `1px solid ${t.border}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: t.secondary,
-                  textDecoration: 'none',
-                }}
-              >
-                <s.Icon size={19} stroke={1.7} />
-              </a>
-            ))}
-          </div>
-        ) : null}
 
         {/* About */}
         {card.whatIDo ? (

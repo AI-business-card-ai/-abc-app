@@ -12,6 +12,7 @@ import {
   PORTRAIT_TRANSFORM_DEFAULT,
   type CardCoverFit,
   type CardMediaTransforms,
+  type CardTheme,
 } from '@/lib/card/types'
 
 type MediaState = { status: 'idle' | 'uploading' | 'done' | 'error'; message?: string }
@@ -29,6 +30,7 @@ export default function MediaSection({
   coverPosition,
   coverFit,
   transforms,
+  theme,
   fullName,
   onChange,
 }: {
@@ -38,6 +40,7 @@ export default function MediaSection({
   coverPosition: string
   coverFit: CardCoverFit
   transforms: CardMediaTransforms
+  theme: CardTheme
   fullName: string
   onChange: (patch: {
     card_photo_url?: string
@@ -125,6 +128,7 @@ export default function MediaSection({
             <HeroFramingEditor
               label="Background framing"
               imageUrl={coverUrl}
+              theme={theme}
               transform={transforms.background}
               onChange={(background) => onChange({ card_media_transforms: { ...transforms, background } })}
               onReset={() =>

@@ -246,6 +246,14 @@ export const PORTRAIT_TRANSFORM_DEFAULT: MediaTransform = { scale: 1, x: 50, y: 
 
 export const MEDIA_TRANSFORM_LIMITS = { minScale: 1, maxScale: 3 } as const
 
+/**
+ * Width ÷ height of the hero. The public card derives its hero height from
+ * this and the framing editor shapes its background preview with it, so the
+ * crop the owner lines up is the crop a visitor sees. Changing it in one place
+ * would silently make the editor lie.
+ */
+export const HERO_ASPECT_RATIO = 1.85
+
 function clamp(value: unknown, min: number, max: number, fallback: number): number {
   const n = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(n)) return fallback

@@ -35,6 +35,22 @@ export function getCardThemeTokens(theme: CardTheme): CardThemeTokens {
   }
 }
 
+/**
+ * The hero's readability scrim, from the owner's 0–100 darkening setting.
+ *
+ * One function for both renderers: the framing editor previewed a flat wash
+ * while the card painted a gradient, so an owner who darkened just enough to
+ * read the name was looking at a different photo from the one their visitors
+ * got. The bottom stop is the card background, which is what lets the hero
+ * meet the identity block without a seam.
+ */
+export function heroScrimGradient(overlay: number, tokens: CardThemeTokens): string {
+  const strength = Math.min(100, Math.max(0, overlay)) / 100
+  const top = (strength * 0.55).toFixed(3)
+  const mid = (strength * 0.8).toFixed(3)
+  return `linear-gradient(180deg, rgba(0,0,0,${top}) 0%, rgba(0,0,0,${mid}) 45%, ${tokens.bg} 100%)`
+}
+
 export function initialsFromName(name: string | null | undefined): string {
   const parts = (name || 'ABC').trim().split(/\s+/).filter(Boolean)
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
