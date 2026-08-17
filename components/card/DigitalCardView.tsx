@@ -1,7 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import {
+  IconBrandApple,
   IconBrandFacebook,
+  IconBrandGoogle,
   IconBrandGithub,
   IconBrandInstagram,
   IconBrandLinkedin,
@@ -17,11 +20,12 @@ import {
   IconMapPin,
   IconPhone,
   IconSend,
+  IconShare2,
   IconWorld,
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
 import type { DigitalCardData, SocialNetwork } from '@/lib/card/types'
-import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE, PHOTO_OBJECT_POSITION } from '@/lib/card/types'
+import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE, transformStyle } from '@/lib/card/types'
 import { isSocialVisible } from '@/lib/card/public-data'
 import { whatsappMeUrl } from '@/lib/card/social'
 import { getCardThemeTokens, initialsFromName } from '@/lib/card/theme'
@@ -33,6 +37,8 @@ type Props = {
   onExchange?: () => void
   onLinkClick?: (linkId: string, url: string) => void
   onSaveContact?: () => void
+  /** Which wallets can actually issue a pass in this deployment. */
+  wallet?: { apple: boolean; google: boolean }
 }
 
 const SOCIAL_ICONS: Record<SocialNetwork, { Icon: TablerIcon; label: string; urlKey: keyof DigitalCardData }> = {
@@ -45,6 +51,11 @@ const SOCIAL_ICONS: Record<SocialNetwork, { Icon: TablerIcon; label: string; url
   github: { Icon: IconBrandGithub, label: 'GitHub', urlKey: 'githubUrl' },
   threads: { Icon: IconBrandThreads, label: 'Threads', urlKey: 'threadsUrl' },
 }
+
+/** Hero geometry — the portrait is a foreground element, not an avatar. */
+const HERO_HEIGHT = 208
+const PORTRAIT_SIZE = 132
+const PORTRAIT_OVERLAP = 66
 
 function linkEmoji(icon: string): string {
   return LINK_ICON_OPTIONS.find((o) => o.id === icon)?.emoji || '🔗'
@@ -80,11 +91,18 @@ export default function DigitalCardView({
   onExchange,
   onLinkClick,
   onSaveContact,
+  wallet = { apple: false, google: false },
 }: Props) {
+  const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
   const t = getCardThemeTokens(card.theme)
   const accent = card.accent
   const initials = initialsFromName(card.fullName)
   const subtitle = [card.jobTitle, card.companyName].filter(Boolean).join(' · ')
+
+  // Owner-controlled scrim: 0 leaves the image untouched, 100 is near-solid.
+  const overlayStrength = card.media.background.overlay / 100
+  const overlayTop = (overlayStrength * 0.55).toFixed(3)
+  const overlayMid = (overlayStrength * 0.8).toFixed(3)
 
   const socials = (Object.keys(SOCIAL_ICONS) as SocialNetwork[])
     .map((key) => {
@@ -180,6 +198,23 @@ export default function DigitalCardView({
     window.location.href = `/api/card/vcard/${encodeURIComponent(card.slug)}`
   }
 
+  /** Native share where the browser has it, clipboard everywhere else. */
+  async function handleShare() {
+    const url = `${CARD_PUBLIC_BASE}/${card.slug}`
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: card.fullName, text: `${card.fullName} — ABC Card`, url })
+        return
+      }
+      await navigator.clipboard.writeText(url)
+      setShareState('copied')
+      setTimeout(() => setShareState('idle'), 2000)
+    } catch (err) {
+      // A dismissed share sheet is not a failure worth reporting.
+      if ((err as Error)?.name !== 'AbortError') console.error('[card] share failed:', err)
+    }
+  }
+
   const meta = [
     card.showLocation && card.location ? card.location : null,
     ...card.languages,
@@ -198,91 +233,132 @@ export default function DigitalCardView({
           'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       }}
     >
-      {/* Cover — a saved image, otherwise a restrained accent wash */}
-      <div
+      {/*
+        Hero, in three explicit layers. The previous version relied on document
+        order: the cover was a positioned element and the identity below it was
+        static, so the cover's absolutely-positioned scrim painted over the top
+        of the portrait. `isolation: isolate` plus real z-indexes makes the
+        order background → overlay → portrait a property of the markup rather
+        than an accident of the layout.
+      */}
+      <header
         style={{
           position: 'relative',
-          height: card.coverUrl ? 148 : 96,
+          height: HERO_HEIGHT,
           background: t.surface,
+          isolation: 'isolate',
+          overflow: 'hidden',
         }}
       >
-        {card.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={card.coverUrl}
-            alt=""
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: card.coverFit === 'fit' ? 'contain' : 'cover',
-              objectPosition: card.coverPosition,
-              display: 'block',
-            }}
-          />
-        ) : (
-          <div
-            aria-hidden
-            style={{
-              width: '100%',
-              height: '100%',
-              background: `radial-gradient(120% 140% at 50% 0%, ${accent}26, transparent 70%)`,
-            }}
-          />
-        )}
+        {/* Layer 0 — background */}
+        <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+          {card.coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={card.coverUrl}
+              alt=""
+              style={
+                card.coverFit === 'fit'
+                  ? {
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      objectPosition: card.coverPosition,
+                      display: 'block',
+                    }
+                  : { ...transformStyle(card.media.background), display: 'block' }
+              }
+            />
+          ) : (
+            <div
+              aria-hidden
+              style={{
+                width: '100%',
+                height: '100%',
+                background: `radial-gradient(120% 140% at 50% 0%, ${accent}26, transparent 70%)`,
+              }}
+            />
+          )}
+        </div>
+
+        {/* Layer 1 — readability scrim, strength chosen by the owner */}
         <div
           aria-hidden
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(180deg, transparent 30%, ${t.bg})`,
+            zIndex: 1,
+            background: `linear-gradient(180deg, rgba(0,0,0,${overlayTop}) 0%, rgba(0,0,0,${overlayMid}) 45%, ${t.bg} 100%)`,
           }}
         />
+
         <span
           style={{
             position: 'absolute',
+            zIndex: 2,
             top: 16,
             left: 20,
             fontSize: 10.5,
             fontWeight: 700,
             letterSpacing: '0.18em',
             textTransform: 'uppercase',
-            color: t.muted,
+            color: 'rgba(255,255,255,0.75)',
           }}
         >
           ABC Card
         </span>
-      </div>
+      </header>
 
-      <div style={{ padding: '0 20px 40px', marginTop: -40 }}>
-        {/* Identity */}
-        <div
-          style={{
-            width: 92,
-            height: 92,
-            borderRadius: '50%',
-            overflow: 'hidden',
-            background: t.surface2,
-            boxShadow: `inset 0 0 0 2px ${accent}, 0 10px 28px rgba(0,0,0,0.45)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {card.photoUrl ? (
+      {/* Layer 2 — portrait and identity, always above the hero */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 3,
+          padding: '0 20px 40px',
+          marginTop: -PORTRAIT_OVERLAP,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
+          <div
+            style={{
+              width: PORTRAIT_SIZE,
+              height: PORTRAIT_SIZE,
+              borderRadius: '50%',
+              overflow: 'hidden',
+              background: t.surface2,
+              boxShadow: `inset 0 0 0 3px ${accent}, 0 14px 36px rgba(0,0,0,0.55)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {card.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={card.photoUrl}
+                alt={card.fullName}
+                style={transformStyle(card.media.portrait)}
+              />
+            ) : (
+              <span style={{ color: t.secondary, fontSize: 40, fontWeight: 700 }}>{initials}</span>
+            )}
+          </div>
+
+          {card.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={card.photoUrl}
-              alt={card.fullName}
+              src={card.logoUrl}
+              alt={card.companyName || ''}
               style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                objectPosition: PHOTO_OBJECT_POSITION,
+                height: 34,
+                width: 'auto',
+                maxWidth: 120,
+                objectFit: 'contain',
+                marginBottom: 6,
               }}
             />
-          ) : (
-            <span style={{ color: t.secondary, fontSize: 30, fontWeight: 700 }}>{initials}</span>
-          )}
+          ) : null}
         </div>
 
         <div style={{ marginTop: 16 }}>
@@ -303,14 +379,6 @@ export default function DigitalCardView({
               <p style={{ margin: 0, fontSize: 14.5, color: t.secondary, lineHeight: 1.45 }}>
                 {subtitle}
               </p>
-              {card.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={card.logoUrl}
-                  alt=""
-                  style={{ height: 20, width: 'auto', maxWidth: 56, objectFit: 'contain' }}
-                />
-              ) : null}
             </div>
           ) : null}
 
@@ -359,7 +427,7 @@ export default function DigitalCardView({
           ) : null}
         </div>
 
-        {/* Primary action */}
+        {/* Save / add — four distinct concepts, never conflated */}
         <div style={{ marginTop: 24 }}>
           <button
             type="button"
@@ -395,6 +463,63 @@ export default function DigitalCardView({
           >
             Downloads a .vcf card — your phone asks where to save it.
           </p>
+
+          <button
+            type="button"
+            className="interactive"
+            onClick={() => void handleShare()}
+            style={{
+              width: '100%',
+              minHeight: 52,
+              marginTop: 10,
+              borderRadius: 13,
+              border: `1px solid ${t.border}`,
+              background: t.surface,
+              color: t.text,
+              fontWeight: 600,
+              fontSize: 14.5,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 9,
+            }}
+          >
+            <IconShare2 size={18} stroke={1.8} />
+            {shareState === 'copied' ? 'Link copied' : 'Share card'}
+          </button>
+
+          {/* Wallet — shown only where a real pass can be issued */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+            <WalletButton
+              label="Apple Wallet"
+              Icon={IconBrandApple}
+              href={`/api/card/wallet/apple/${encodeURIComponent(card.slug)}`}
+              available={wallet.apple}
+              tokens={t}
+            />
+            <WalletButton
+              label="Google Wallet"
+              Icon={IconBrandGoogle}
+              href={`/api/card/wallet/google/${encodeURIComponent(card.slug)}`}
+              available={wallet.google}
+              tokens={t}
+            />
+          </div>
+
+          {!wallet.apple && !wallet.google ? (
+            <p
+              style={{
+                margin: '8px 0 0',
+                fontSize: 11.5,
+                lineHeight: 1.45,
+                color: t.muted,
+                textAlign: 'center',
+              }}
+            >
+              Wallet passes are not available yet.
+            </p>
+          ) : null}
         </div>
 
         {/* Genuine reach-me actions */}
@@ -670,5 +795,63 @@ export default function DigitalCardView({
         ) : null}
       </div>
     </div>
+  )
+}
+
+/**
+ * A wallet action is rendered only as honestly as it can behave. When the
+ * deployment has no signing credentials the control is visibly unavailable and
+ * says so — it is never wired to a vCard download to appear functional.
+ */
+function WalletButton({
+  label,
+  Icon,
+  href,
+  available,
+  tokens,
+}: {
+  label: string
+  Icon: TablerIcon
+  href: string
+  available: boolean
+  tokens: { surface: string; border: string; text: string; muted: string }
+}) {
+  const shared = {
+    minHeight: 50,
+    borderRadius: 13,
+    border: `1px solid ${tokens.border}`,
+    fontWeight: 600,
+    fontSize: 13.5,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    textDecoration: 'none',
+  } as const
+
+  if (!available) {
+    return (
+      <span
+        aria-disabled="true"
+        title={`${label} is not available yet`}
+        style={{
+          ...shared,
+          background: 'transparent',
+          color: tokens.muted,
+          cursor: 'not-allowed',
+          opacity: 0.65,
+        }}
+      >
+        <Icon size={17} stroke={1.8} />
+        {label}
+      </span>
+    )
+  }
+
+  return (
+    <a href={href} className="interactive" style={{ ...shared, background: tokens.surface, color: tokens.text }}>
+      <Icon size={17} stroke={1.8} />
+      {label}
+    </a>
   )
 }

@@ -13,6 +13,7 @@ import {
   normalizeCardEventRow,
   normalizeCoverFit,
   normalizeCoverPosition,
+  normalizeMediaTransforms,
 } from '@/lib/card/types'
 import { normalizeSocialUrl, normalizeWebsiteUrl } from '@/lib/card/social'
 
@@ -81,6 +82,10 @@ export function mapProfileToCardData(
     coverUrl: asString(profile.card_cover_url) || asString(profile.cover_url),
     coverPosition: normalizeCoverPosition(profile.card_cover_position),
     coverFit: normalizeCoverFit(profile.card_cover_fit),
+    media: normalizeMediaTransforms(
+      profile.card_media_transforms,
+      normalizeCoverPosition(profile.card_cover_position)
+    ),
     logoUrl: asString(profile.company_logo_url) || asString(profile.logo_url),
     phone: asString(profile.phone),
     whatsapp: asString(profile.whatsapp) || asString(profile.whatsapp_number),

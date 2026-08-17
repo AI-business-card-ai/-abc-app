@@ -433,6 +433,7 @@ export default function CardEditorShell() {
               logoUrl={form.company_logo_url}
               coverPosition={form.card_cover_position}
               coverFit={form.card_cover_fit}
+              transforms={form.card_media_transforms}
               fullName={form.full_name}
               onChange={patch}
             />

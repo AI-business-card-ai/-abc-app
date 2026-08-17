@@ -4,7 +4,15 @@ import { useRef, useState } from 'react'
 import { IconAlertTriangle, IconCheck, IconPhotoPlus, IconTrash, IconUpload } from '@tabler/icons-react'
 import { CARD_MEDIA_LABELS, removeCardMedia, uploadCardMedia, type CardMediaKind } from '@/lib/card/media'
 import { initialsFromName } from '@/lib/card/theme'
-import { COVER_POSITIONS_X, COVER_POSITIONS_Y, type CardCoverFit } from '@/lib/card/types'
+import HeroFramingEditor from '@/components/card/editor/HeroFramingEditor'
+import {
+  BACKGROUND_TRANSFORM_DEFAULT,
+  COVER_POSITIONS_X,
+  COVER_POSITIONS_Y,
+  PORTRAIT_TRANSFORM_DEFAULT,
+  type CardCoverFit,
+  type CardMediaTransforms,
+} from '@/lib/card/types'
 
 type MediaState = { status: 'idle' | 'uploading' | 'done' | 'error'; message?: string }
 
@@ -20,6 +28,7 @@ export default function MediaSection({
   logoUrl,
   coverPosition,
   coverFit,
+  transforms,
   fullName,
   onChange,
 }: {
@@ -28,6 +37,7 @@ export default function MediaSection({
   logoUrl: string
   coverPosition: string
   coverFit: CardCoverFit
+  transforms: CardMediaTransforms
   fullName: string
   onChange: (patch: {
     card_photo_url?: string
@@ -35,6 +45,7 @@ export default function MediaSection({
     company_logo_url?: string
     card_cover_position?: string
     card_cover_fit?: CardCoverFit
+    card_media_transforms?: CardMediaTransforms
   }) => void
 }) {
   const [state, setState] = useState<Record<CardMediaKind, MediaState>>({
@@ -109,11 +120,39 @@ export default function MediaSection({
       />
 
       {coverUrl ? (
-        <CoverFraming
-          position={coverPosition}
-          fit={coverFit}
-          onPosition={(card_cover_position) => onChange({ card_cover_position })}
-          onFit={(card_cover_fit) => onChange({ card_cover_fit })}
+        <>
+          {coverFit === 'fill' ? (
+            <HeroFramingEditor
+              label="Background framing"
+              imageUrl={coverUrl}
+              transform={transforms.background}
+              onChange={(background) => onChange({ card_media_transforms: { ...transforms, background } })}
+              onReset={() =>
+                onChange({
+                  card_media_transforms: { ...transforms, background: BACKGROUND_TRANSFORM_DEFAULT },
+                })
+              }
+            />
+          ) : null}
+          <CoverFraming
+            position={coverPosition}
+            fit={coverFit}
+            onPosition={(card_cover_position) => onChange({ card_cover_position })}
+            onFit={(card_cover_fit) => onChange({ card_cover_fit })}
+          />
+        </>
+      ) : null}
+
+      {photoUrl ? (
+        <HeroFramingEditor
+          label="Portrait framing"
+          imageUrl={photoUrl}
+          shape="circle"
+          transform={transforms.portrait}
+          onChange={(portrait) => onChange({ card_media_transforms: { ...transforms, portrait } })}
+          onReset={() =>
+            onChange({ card_media_transforms: { ...transforms, portrait: PORTRAIT_TRANSFORM_DEFAULT } })
+          }
         />
       ) : null}
 

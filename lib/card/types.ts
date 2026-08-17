@@ -130,6 +130,8 @@ export interface DigitalCardData {
   /** CSS object-position for the cover — one stored value, used by every renderer. */
   coverPosition: string
   coverFit: CardCoverFit
+  /** Zoom/pan/overlay framing for the hero images — same source for every renderer. */
+  media: CardMediaTransforms
   logoUrl: string | null
   phone: string | null
   whatsapp: string | null
@@ -220,3 +222,90 @@ export const LOOKING_FOR_CHIPS = [
 
 export const MAX_CARD_LINKS = 10
 export const CARD_PUBLIC_BASE = 'https://abccard.io/d'
+
+/* ─── Hero image framing ─── */
+
+/** scale is a multiplier (1 = fit); x/y are object-position percentages. */
+export type MediaTransform = { scale: number; x: number; y: number }
+export type BackgroundTransform = MediaTransform & { overlay: number }
+
+export type CardMediaTransforms = {
+  background: BackgroundTransform
+  portrait: MediaTransform
+}
+
+export const BACKGROUND_TRANSFORM_DEFAULT: BackgroundTransform = {
+  scale: 1,
+  x: 50,
+  y: 50,
+  overlay: 55,
+}
+
+/** Portraits sit above centre, so the default keeps the face in frame. */
+export const PORTRAIT_TRANSFORM_DEFAULT: MediaTransform = { scale: 1, x: 50, y: 30 }
+
+export const MEDIA_TRANSFORM_LIMITS = { minScale: 1, maxScale: 3 } as const
+
+function clamp(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(max, Math.max(min, n))
+}
+
+/**
+ * Reads the stored framing, tolerating a missing column, a null value, or
+ * partial JSON. `coverPosition` is the previous nine-point setting and seeds
+ * the background pan so cards framed before this existed look unchanged.
+ */
+export function normalizeMediaTransforms(
+  raw: unknown,
+  coverPosition?: string
+): CardMediaTransforms {
+  const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const bg = (source.background || {}) as Record<string, unknown>
+  const portrait = (source.portrait || {}) as Record<string, unknown>
+
+  const seeded = seedFromCoverPosition(coverPosition)
+
+  return {
+    background: {
+      scale: clamp(bg.scale, MEDIA_TRANSFORM_LIMITS.minScale, MEDIA_TRANSFORM_LIMITS.maxScale, BACKGROUND_TRANSFORM_DEFAULT.scale),
+      x: clamp(bg.x, 0, 100, seeded.x),
+      y: clamp(bg.y, 0, 100, seeded.y),
+      overlay: clamp(bg.overlay, 0, 100, BACKGROUND_TRANSFORM_DEFAULT.overlay),
+    },
+    portrait: {
+      scale: clamp(portrait.scale, MEDIA_TRANSFORM_LIMITS.minScale, MEDIA_TRANSFORM_LIMITS.maxScale, PORTRAIT_TRANSFORM_DEFAULT.scale),
+      x: clamp(portrait.x, 0, 100, PORTRAIT_TRANSFORM_DEFAULT.x),
+      y: clamp(portrait.y, 0, 100, PORTRAIT_TRANSFORM_DEFAULT.y),
+    },
+  }
+}
+
+/** "left top" → { x: 0, y: 0 }, so the earlier nine-point choice is preserved. */
+function seedFromCoverPosition(position?: string): { x: number; y: number } {
+  if (!position) return { x: BACKGROUND_TRANSFORM_DEFAULT.x, y: BACKGROUND_TRANSFORM_DEFAULT.y }
+  const [rawX, rawY] = position.trim().toLowerCase().split(/\s+/)
+  const map: Record<string, number> = { left: 0, top: 0, center: 50, right: 100, bottom: 100 }
+  return {
+    x: rawX in map ? map[rawX] : BACKGROUND_TRANSFORM_DEFAULT.x,
+    y: rawY in map ? map[rawY] : BACKGROUND_TRANSFORM_DEFAULT.y,
+  }
+}
+
+/** The CSS an image needs to honour a transform inside an overflow-hidden frame. */
+export function transformStyle(t: MediaTransform): {
+  width: string
+  height: string
+  objectFit: 'cover'
+  objectPosition: string
+  transform: string
+} {
+  return {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    objectPosition: `${t.x}% ${t.y}%`,
+    transform: `scale(${t.scale})`,
+  }
+}

@@ -5,7 +5,13 @@ import DigitalCardView from '@/components/card/DigitalCardView'
 import CardExchangeModal from '@/components/card/CardExchangeModal'
 import type { DigitalCardData } from '@/lib/card/types'
 
-export default function PublicCardClient({ card }: { card: DigitalCardData }) {
+export default function PublicCardClient({
+  card,
+  wallet,
+}: {
+  card: DigitalCardData
+  wallet: { apple: boolean; google: boolean }
+}) {
   const [exchangeOpen, setExchangeOpen] = useState(false)
 
   function handleLinkClick(linkId: string) {
@@ -20,6 +26,7 @@ export default function PublicCardClient({ card }: { card: DigitalCardData }) {
     <>
       <DigitalCardView
         card={card}
+        wallet={wallet}
         onExchange={() => setExchangeOpen(true)}
         onLinkClick={handleLinkClick}
       />

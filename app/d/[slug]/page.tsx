@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { createServerSupabase } from '@/lib/supabase'
 import { loadPublishedCardBySlug, recordCardView } from '@/lib/card/public-data'
 import PublicCardClient from '@/components/card/PublicCardClient'
+import { walletCapabilities } from '@/lib/card/wallet'
 
 /** A card must reflect the owner's latest edit the moment a visitor scans it. */
 export const dynamic = 'force-dynamic'
@@ -53,13 +54,18 @@ export default async function PublicDigitalCardPage({ params, searchParams }: Pr
 
   if (!card) notFound()
 
+  const capabilities = walletCapabilities()
+
   // Fire-and-forget tracking — never block / crash the page
   const referer = headers().get('referer')
   void recordCardView(supabase, card.userId, searchParams?.src || null, referer)
 
   return (
     <div style={{ minHeight: '100vh', background: card.theme === 'light' ? '#ffffff' : '#0f0f0f' }}>
-      <PublicCardClient card={card} />
+      <PublicCardClient
+        card={card}
+        wallet={{ apple: capabilities.apple.configured, google: capabilities.google.configured }}
+      />
     </div>
   )
 }

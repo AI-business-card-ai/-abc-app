@@ -6,6 +6,8 @@ import {
   COVER_POSITION_DEFAULT,
   normalizeCoverFit,
   normalizeCoverPosition,
+  normalizeMediaTransforms,
+  type CardMediaTransforms,
   type CardCoverFit,
   type CardTheme,
   type SocialEnabledMap,
@@ -23,6 +25,7 @@ export type EditorForm = {
   card_cover_url: string
   card_cover_position: string
   card_cover_fit: CardCoverFit
+  card_media_transforms: CardMediaTransforms
   company_logo_url: string
   phone: string
   whatsapp: string
@@ -99,6 +102,7 @@ export function defaultForm(): EditorForm {
     card_cover_url: '',
     card_cover_position: COVER_POSITION_DEFAULT,
     card_cover_fit: COVER_FIT_DEFAULT,
+    card_media_transforms: normalizeMediaTransforms(null),
     company_logo_url: '',
     phone: '',
     whatsapp: '',
@@ -148,6 +152,10 @@ export function profileToForm(profile: Record<string, unknown>): EditorForm {
     card_cover_url: str(profile.card_cover_url),
     card_cover_position: normalizeCoverPosition(profile.card_cover_position),
     card_cover_fit: normalizeCoverFit(profile.card_cover_fit),
+    card_media_transforms: normalizeMediaTransforms(
+      profile.card_media_transforms,
+      normalizeCoverPosition(profile.card_cover_position)
+    ),
     company_logo_url: str(profile.company_logo_url),
     phone: str(profile.phone),
     whatsapp: str(profile.whatsapp),
@@ -202,6 +210,7 @@ export function formToProfileRow(form: EditorForm, userId: string): Record<strin
     card_cover_url: form.card_cover_url || null,
     card_cover_position: form.card_cover_position,
     card_cover_fit: form.card_cover_fit,
+    card_media_transforms: form.card_media_transforms,
     company_logo_url: form.company_logo_url || null,
     phone: form.phone || null,
     whatsapp: form.whatsapp || null,
@@ -293,6 +302,7 @@ export function buildCoverFramingPayload(form: EditorForm): Record<string, unkno
   return {
     card_cover_position: form.card_cover_position,
     card_cover_fit: form.card_cover_fit,
+    card_media_transforms: form.card_media_transforms,
   }
 }
 
