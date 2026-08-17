@@ -9,6 +9,7 @@ import {
   IconLink,
   IconPalette,
   IconPhoto,
+  IconPhotoPlus,
   IconTarget,
   IconUser,
   IconWorld,
@@ -25,6 +26,7 @@ import LinksSection from '@/components/card/editor/LinksSection'
 import MediaSection from '@/components/card/editor/MediaSection'
 import PublishSection, { type SlugStatus } from '@/components/card/editor/PublishSection'
 import SaveBar, { type SaveStatus } from '@/components/card/editor/SaveBar'
+import ShowcaseSection from '@/components/card/editor/ShowcaseSection'
 import SocialSection from '@/components/card/editor/SocialSection'
 import { Chip, Section, TextArea } from '@/components/card/editor/EditorPrimitives'
 import StatusBar from '@/components/card/editor/StatusBar'
@@ -34,6 +36,7 @@ import {
   buildCoverFramingPayload,
   buildMediaTransformPayload,
   buildSavePayload,
+  buildShowcasePayload,
   isMissingColumnError,
   defaultForm,
   formToProfileRow,
@@ -42,6 +45,13 @@ import {
   type EditorForm,
 } from '@/lib/card/editor-form'
 import { isValidCardSlug, normalizeCardSlug } from '@/lib/card/slug'
+import {
+  SHOWCASE_MAX_ITEMS,
+  normalizeShowcaseRow,
+  showcaseItemToRow,
+  sortShowcaseItems,
+  type ShowcaseItem,
+} from '@/lib/card/showcase'
 import { isValidIntlPhone } from '@/lib/card/social'
 import {
   CARD_PUBLIC_BASE,
@@ -54,10 +64,13 @@ import {
 } from '@/lib/card/types'
 import { createClientComponent } from '@/lib/supabase'
 
-type Snapshot = { form: EditorForm; links: CardLink[]; events: CardEvent[] }
-
-function snapshotOf(form: EditorForm, links: CardLink[], events: CardEvent[]): string {
-  return JSON.stringify({ form, links, events })
+function snapshotOf(
+  form: EditorForm,
+  links: CardLink[],
+  events: CardEvent[],
+  showcase: ShowcaseItem[]
+): string {
+  return JSON.stringify({ form, links, events, showcase })
 }
 
 export default function CardEditorShell() {
@@ -81,12 +94,15 @@ export default function CardEditorShell() {
   const [copied, setCopied] = useState(false)
   const [coverFramingStored, setCoverFramingStored] = useState(true)
   const [heroFramingStored, setHeroFramingStored] = useState(true)
+  const [showcaseItems, setShowcaseItems] = useState<ShowcaseItem[]>([])
+  const [showcaseStored, setShowcaseStored] = useState(true)
 
   const [open, setOpen] = useState<Record<string, boolean>>({
     media: true,
     identity: true,
     contact: false,
     social: false,
+    showcase: false,
     links: false,
     looking: false,
     events: false,
@@ -96,6 +112,7 @@ export default function CardEditorShell() {
 
   const originalLinkIds = useRef<string[]>([])
   const originalEventIds = useRef<string[]>([])
+  const originalShowcaseIds = useRef<string[]>([])
   const savingRef = useRef(false)
 
   /* ── Load ── */
@@ -117,7 +134,7 @@ export default function CardEditorShell() {
           return
         }
 
-        const [profileRes, linkRes, eventRes] = await Promise.all([
+        const [profileRes, linkRes, eventRes, showcaseRes] = await Promise.all([
           supabase.from('abc_profiles').select('*').eq('id', user.id).maybeSingle(),
           supabase
             .from('card_links')
@@ -129,6 +146,14 @@ export default function CardEditorShell() {
             .select('*')
             .eq('user_id', user.id)
             .order('date_from', { ascending: true }),
+          // Its own query, and its error is never thrown: an editor that
+          // refuses to open because one later migration is missing is a worse
+          // failure than a card with no gallery.
+          supabase
+            .from('card_showcase_items')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('sort_order', { ascending: true }),
         ])
 
         if (cancelled) return
@@ -140,14 +165,24 @@ export default function CardEditorShell() {
           normalizeCardEventRow(row as Record<string, unknown>)
         )
 
+        const nextShowcase = sortShowcaseItems(
+          (showcaseRes.data || []).map((row) => normalizeShowcaseRow(row as Record<string, unknown>))
+        )
+        if (showcaseRes.error) {
+          console.error('[card-editor] showcase load skipped:', showcaseRes.error.message)
+          setShowcaseStored(false)
+        }
+
         originalLinkIds.current = nextLinks.map((l) => l.id)
         originalEventIds.current = nextEvents.map((e) => e.id)
+        originalShowcaseIds.current = nextShowcase.map((s) => s.id)
 
         setUserId(user.id)
         setForm(nextForm)
         setLinks(nextLinks)
         setEvents(nextEvents)
-        setSavedAt(snapshotOf(nextForm, nextLinks, nextEvents))
+        setShowcaseItems(nextShowcase)
+        setSavedAt(snapshotOf(nextForm, nextLinks, nextEvents, nextShowcase))
         setLoading(false)
       } catch (err) {
         console.error('[card-editor] load failed:', err)
@@ -209,7 +244,7 @@ export default function CardEditorShell() {
     return () => window.clearTimeout(timer)
   }, [form.card_slug, loading])
 
-  const dirty = !loading && snapshotOf(form, links, events) !== savedAt
+  const dirty = !loading && snapshotOf(form, links, events, showcaseItems) !== savedAt
 
   /* ── Save ── */
   const save = useCallback(async () => {
@@ -304,6 +339,49 @@ export default function CardEditorShell() {
         if (error) throw error
       }
 
+      /*
+        Showcase — settings and rows, both quarantined.
+
+        Everything above this point has already been written by the time we get
+        here, so a database without the Showcase migration costs the owner the
+        gallery and nothing else. The section reports it in place rather than
+        failing the save, and sort_order is rewritten from array position so
+        the stored order always matches what the editor showed.
+      */
+      let showcaseOk = true
+
+      const { error: showcaseSettingsError } = await supabase
+        .from('abc_profiles')
+        .update(buildShowcasePayload(form))
+        .eq('id', userId)
+      if (showcaseSettingsError) {
+        if (!isMissingColumnError(showcaseSettingsError)) throw showcaseSettingsError
+        showcaseOk = false
+      }
+
+      const keptShowcase = new Set(showcaseItems.map((s) => s.id))
+      const removedShowcase = originalShowcaseIds.current.filter((id) => !keptShowcase.has(id))
+      if (removedShowcase.length) {
+        const { error } = await supabase
+          .from('card_showcase_items')
+          .delete()
+          .in('id', removedShowcase)
+        if (error) showcaseOk = false
+      }
+      if (showcaseItems.length) {
+        const rows = showcaseItems
+          .slice(0, SHOWCASE_MAX_ITEMS)
+          .map((item, index) => showcaseItemToRow(item, userId, index))
+        const { error } = await supabase
+          .from('card_showcase_items')
+          .upsert(rows, { onConflict: 'id' })
+        if (error) {
+          console.error('[card-editor] showcase save failed:', error.message)
+          showcaseOk = false
+        }
+      }
+      setShowcaseStored(showcaseOk)
+
       // Fold normalized values (https://, canonical social URLs, clean slug)
       // back in, so the form matches what is now stored and stops reading dirty.
       const normalized = { ...form, ...normalizedFormAfterSave(form) }
@@ -314,12 +392,18 @@ export default function CardEditorShell() {
         label: l.label.trim() || 'Link',
       }))
 
+      const orderedShowcase = showcaseItems
+        .slice(0, SHOWCASE_MAX_ITEMS)
+        .map((item, index) => ({ ...item, user_id: userId, sort_order: index }))
+
       originalLinkIds.current = orderedLinks.map((l) => l.id)
       originalEventIds.current = events.map((e) => e.id)
+      originalShowcaseIds.current = orderedShowcase.map((s) => s.id)
 
       setForm(normalized)
       setLinks(orderedLinks)
-      setSavedAt(snapshotOf(normalized, orderedLinks, events))
+      setShowcaseItems(orderedShowcase)
+      setSavedAt(snapshotOf(normalized, orderedLinks, events, orderedShowcase))
       setSaveStatus('saved')
       // "Saved" is a confirmation, not a resting state — settle back to clean.
       setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 2500)
@@ -330,14 +414,20 @@ export default function CardEditorShell() {
     } finally {
       savingRef.current = false
     }
-  }, [events, form, links, slugStatus, userId])
+  }, [events, form, links, showcaseItems, slugStatus, userId])
 
   // No beforeunload guard: it does not fire on in-app navigation anyway, and
   // the sticky save bar states plainly whether there are unsaved changes.
 
   const previewCard = useMemo(
-    () => mapProfileToCardData(formToProfileRow(form, userId || 'preview'), links, events),
-    [events, form, links, userId]
+    () =>
+      mapProfileToCardData(
+        formToProfileRow(form, userId || 'preview'),
+        links,
+        events,
+        showcaseItems
+      ),
+    [events, form, links, showcaseItems, userId]
   )
 
   const slug = normalizeCardSlug(form.card_slug)
@@ -509,6 +599,41 @@ export default function CardEditorShell() {
             onToggle={() => toggle('social')}
           >
             <SocialSection form={form} patch={patch} />
+          </Section>
+
+          <Section
+            id="showcase"
+            title="Showcase"
+            description="Optional — photos of your work"
+            icon={IconPhotoPlus}
+            open={open.showcase}
+            onToggle={() => toggle('showcase')}
+            badge={
+              form.showcase_enabled && showcaseItems.length > 0 ? (
+                <span className="rounded-full border border-abc-gold-border bg-abc-gold-soft px-2 py-0.5 text-[11px] font-medium text-abc-gold">
+                  {showcaseItems.length}
+                </span>
+              ) : null
+            }
+          >
+            <ShowcaseSection
+              enabled={form.showcase_enabled}
+              title={form.showcase_title}
+              items={showcaseItems}
+              userId={userId || ''}
+              onToggle={(showcase_enabled) => patch({ showcase_enabled })}
+              onTitle={(showcase_title) => patch({ showcase_title })}
+              onItems={(next) => {
+                setShowcaseItems(next)
+                setSaveStatus('idle')
+              }}
+            />
+            {!showcaseStored ? (
+              <p className="mt-3 text-[12px] leading-[1.45] text-abc-muted">
+                Showcase could not be saved — your database is missing the Showcase
+                migration. Everything else on your card saved normally.
+              </p>
+            ) : null}
           </Section>
 
           <Section

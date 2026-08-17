@@ -1,5 +1,6 @@
 import { normalizeSocialUrl, normalizeWebsiteUrl } from '@/lib/card/social'
 import { normalizeCardSlug, slugifyName } from '@/lib/card/slug'
+import { SHOWCASE_TITLE_DEFAULT, normalizeShowcaseTitle } from '@/lib/card/showcase'
 import {
   CARD_ACCENT_DEFAULT,
   COVER_FIT_DEFAULT,
@@ -54,6 +55,8 @@ export type EditorForm = {
   card_slug: string
   card_published: boolean
   card_branding_removed: boolean
+  showcase_enabled: boolean
+  showcase_title: string
   email: string
   avatar_url: string
 }
@@ -131,6 +134,8 @@ export function defaultForm(): EditorForm {
     card_slug: '',
     card_published: false,
     card_branding_removed: false,
+    showcase_enabled: false,
+    showcase_title: SHOWCASE_TITLE_DEFAULT,
     email: '',
     avatar_url: '',
   }
@@ -184,6 +189,8 @@ export function profileToForm(profile: Record<string, unknown>): EditorForm {
     card_slug: existingSlug || (fullName ? slugifyName(fullName) : ''),
     card_published: bool(profile.card_published, false),
     card_branding_removed: bool(profile.card_branding_removed, false),
+    showcase_enabled: bool(profile.showcase_enabled, false),
+    showcase_title: normalizeShowcaseTitle(profile.showcase_title),
     email: str(profile.email),
     avatar_url: str(profile.avatar_url),
   }
@@ -240,6 +247,8 @@ export function formToProfileRow(form: EditorForm, userId: string): Record<strin
     card_slug: form.card_slug || null,
     card_published: form.card_published,
     card_branding_removed: form.card_branding_removed,
+    showcase_enabled: form.showcase_enabled,
+    showcase_title: form.showcase_title,
   }
 }
 
@@ -314,6 +323,19 @@ export function buildCoverFramingPayload(form: EditorForm): Record<string, unkno
  */
 export function buildMediaTransformPayload(form: EditorForm): Record<string, unknown> {
   return { card_media_transforms: form.card_media_transforms }
+}
+
+/**
+ * Showcase settings, written in their own statement for the same reason as the
+ * two above. A database without the Showcase migration must still save a name,
+ * a phone number and a cover image — the section simply reports that it could
+ * not store itself.
+ */
+export function buildShowcasePayload(form: EditorForm): Record<string, unknown> {
+  return {
+    showcase_enabled: form.showcase_enabled,
+    showcase_title: normalizeShowcaseTitle(form.showcase_title),
+  }
 }
 
 /** True when the database has not had the cover-framing migration applied. */

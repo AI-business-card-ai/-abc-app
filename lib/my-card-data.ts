@@ -1,4 +1,4 @@
-import { mapProfileToCardData } from '@/lib/card/public-data'
+import { loadShowcaseItems, mapProfileToCardData } from '@/lib/card/public-data'
 import { createServerComponentClient } from '@/lib/supabase-server'
 import {
   CARD_PUBLIC_BASE,
@@ -47,7 +47,7 @@ export async function getMyCard(): Promise<MyCardData | null> {
   }
   if (!profile) return null
 
-  const [{ data: links }, { data: events }] = await Promise.all([
+  const [{ data: links }, { data: events }, showcase] = await Promise.all([
     supabase
       .from('card_links')
       .select('*')
@@ -59,12 +59,16 @@ export async function getMyCard(): Promise<MyCardData | null> {
       .select('*')
       .eq('user_id', user.id)
       .order('date_from', { ascending: true }),
+    // Only the count is shown here, and a missing table must not cost the
+    // owner their card page.
+    loadShowcaseItems(supabase, user.id),
   ])
 
   const card = mapProfileToCardData(
     profile as Record<string, unknown>,
     (links || []) as CardLink[],
-    (events || []).map((row) => normalizeCardEventRow(row as Record<string, unknown>))
+    (events || []).map((row) => normalizeCardEventRow(row as Record<string, unknown>)),
+    showcase
   )
 
   const slug = typeof profile.card_slug === 'string' && profile.card_slug.trim()

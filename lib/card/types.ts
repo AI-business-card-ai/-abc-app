@@ -1,3 +1,5 @@
+import type { ShowcaseItem } from '@/lib/card/showcase'
+
 export type CardTheme = 'graphite' | 'light'
 
 /** How the cover image fills its header area. */
@@ -161,6 +163,14 @@ export interface DigitalCardData {
   published: boolean
   links: CardLink[]
   events: CardEvent[]
+  /**
+   * The owner's optional gallery. `showcaseItems` is emptied server-side when
+   * the section is switched off, so a hidden gallery is absent from the page
+   * payload rather than merely unrendered.
+   */
+  showcaseEnabled: boolean
+  showcaseTitle: string
+  showcaseItems: ShowcaseItem[]
 }
 
 /** The ABC accent every card falls back to. */

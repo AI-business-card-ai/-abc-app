@@ -2,7 +2,12 @@
 
 import { useRef, useState } from 'react'
 import { IconAlertTriangle, IconCheck, IconPhotoPlus, IconTrash, IconUpload } from '@tabler/icons-react'
-import { CARD_MEDIA_LABELS, removeCardMedia, uploadCardMedia, type CardMediaKind } from '@/lib/card/media'
+import {
+  CARD_MEDIA_LABELS,
+  removeCardMedia,
+  uploadCardMedia,
+  type CardProfileMediaKind,
+} from '@/lib/card/media'
 import { initialsFromName } from '@/lib/card/theme'
 import HeroFramingEditor from '@/components/card/editor/HeroFramingEditor'
 import {
@@ -51,25 +56,25 @@ export default function MediaSection({
     card_media_transforms?: CardMediaTransforms
   }) => void
 }) {
-  const [state, setState] = useState<Record<CardMediaKind, MediaState>>({
+  const [state, setState] = useState<Record<CardProfileMediaKind, MediaState>>({
     photo: { status: 'idle' },
     cover: { status: 'idle' },
     logo: { status: 'idle' },
   })
 
-  const urls: Record<CardMediaKind, string> = {
+  const urls: Record<CardProfileMediaKind, string> = {
     photo: photoUrl,
     cover: coverUrl,
     logo: logoUrl,
   }
 
-  function applyUrl(kind: CardMediaKind, url: string) {
+  function applyUrl(kind: CardProfileMediaKind, url: string) {
     if (kind === 'photo') onChange({ card_photo_url: url })
     else if (kind === 'cover') onChange({ card_cover_url: url })
     else onChange({ company_logo_url: url })
   }
 
-  async function handleFile(kind: CardMediaKind, file: File | undefined) {
+  async function handleFile(kind: CardProfileMediaKind, file: File | undefined) {
     if (!file) return
     const previous = urls[kind]
 
@@ -88,7 +93,7 @@ export default function MediaSection({
     if (previous && previous !== result.url) void removeCardMedia(previous)
   }
 
-  function handleRemove(kind: CardMediaKind) {
+  function handleRemove(kind: CardProfileMediaKind) {
     const current = urls[kind]
     applyUrl(kind, '')
     setState((s) => ({ ...s, [kind]: { status: 'idle' } }))
@@ -175,7 +180,7 @@ function MediaTile({
   onFile,
   onRemove,
 }: {
-  kind: CardMediaKind
+  kind: CardProfileMediaKind
   url: string
   state: MediaState
   fullName: string
@@ -267,7 +272,7 @@ function MediaThumb({
   fullName,
   busy,
 }: {
-  kind: CardMediaKind
+  kind: CardProfileMediaKind
   url: string
   fullName: string
   busy: boolean

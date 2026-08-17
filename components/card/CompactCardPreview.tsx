@@ -141,6 +141,18 @@ export default function CompactCardPreview({
           Save contact
         </div>
 
+        {/*
+          A count, not a gallery. This preview exists to be glanced at; eight
+          thumbnails here would make the owner's own page heavier than the card
+          it is previewing. The full public preview is where the work is shown.
+        */}
+        {card.showcaseEnabled && card.showcaseItems.length > 0 ? (
+          <p className="mt-2 text-[11.5px]" style={{ color: t.muted }}>
+            {card.showcaseTitle} · {card.showcaseItems.length}{' '}
+            {card.showcaseItems.length === 1 ? 'image' : 'images'}
+          </p>
+        ) : null}
+
         {actions.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {actions.map((action) => (

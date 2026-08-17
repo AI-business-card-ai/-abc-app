@@ -16,6 +16,13 @@ import {
   normalizeMediaTransforms,
 } from '@/lib/card/types'
 import { normalizeSocialUrl, normalizeWebsiteUrl } from '@/lib/card/social'
+import {
+  SHOWCASE_TITLE_DEFAULT,
+  normalizeShowcaseRow,
+  normalizeShowcaseTitle,
+  sortShowcaseItems,
+  type ShowcaseItem,
+} from '@/lib/card/showcase'
 
 type ProfileRow = Record<string, unknown>
 
@@ -56,7 +63,8 @@ function normalizeAccent(value: string | null): string {
 export function mapProfileToCardData(
   profile: ProfileRow,
   links: CardLink[] = [],
-  events: CardEvent[] = []
+  events: CardEvent[] = [],
+  showcase: ShowcaseItem[] = []
 ): DigitalCardData {
   const fullName = asString(profile.full_name) || 'ABC User'
   const slug =
@@ -121,6 +129,38 @@ export function mapProfileToCardData(
       .filter((e) => !e.date_to || e.date_to >= todayISO())
       .slice()
       .sort((a, b) => (a.date_from || '').localeCompare(b.date_from || '')),
+    showcaseEnabled: asBool(profile.showcase_enabled, false),
+    showcaseTitle: normalizeShowcaseTitle(profile.showcase_title),
+    showcaseItems: sortShowcaseItems(showcase.filter((item) => item.image_url)),
+  }
+}
+
+/**
+ * Showcase rows, or none.
+ *
+ * A card that has worked for months must not start 500-ing because a later
+ * migration has not reached this database yet. A missing table is a card
+ * without a gallery, not a card that fails to load.
+ */
+export async function loadShowcaseItems(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<ShowcaseItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from('card_showcase_items')
+      .select('*')
+      .eq('user_id', userId)
+      .order('sort_order', { ascending: true })
+
+    if (error) {
+      console.error('[card/public-data] showcase load skipped:', error.message)
+      return []
+    }
+    return (data || []).map((row) => normalizeShowcaseRow(row as Record<string, unknown>))
+  } catch (err) {
+    console.error('[card/public-data] showcase load failed:', err)
+    return []
   }
 }
 
@@ -144,7 +184,7 @@ export async function loadPublishedCardBySlug(
 
     const userId = profile.id as string
 
-    const [{ data: links }, { data: events }] = await Promise.all([
+    const [{ data: links }, { data: events }, showcase] = await Promise.all([
       supabase
         .from('card_links')
         .select('*')
@@ -157,13 +197,15 @@ export async function loadPublishedCardBySlug(
         .eq('user_id', userId)
         .gte('date_to', todayISO())
         .order('date_from', { ascending: true }),
+      loadShowcaseItems(supabase, userId),
     ])
 
     return redactHiddenFields(
       mapProfileToCardData(
         profile as ProfileRow,
         (links || []) as CardLink[],
-        (events || []).map((row) => normalizeCardEventRow(row as Record<string, unknown>))
+        (events || []).map((row) => normalizeCardEventRow(row as Record<string, unknown>)),
+        showcase
       )
     )
   } catch (err) {
@@ -193,6 +235,11 @@ export function redactHiddenFields(card: DigitalCardData): DigitalCardData {
 
   const redacted: DigitalCardData = {
     ...card,
+    // A switched-off Showcase leaves no trace in the payload. Rendering the
+    // gallery conditionally would still ship every image URL and caption in
+    // the page source, which is the same mistake the contact toggles made.
+    showcaseItems: card.showcaseEnabled ? card.showcaseItems : [],
+    showcaseTitle: card.showcaseEnabled ? card.showcaseTitle : SHOWCASE_TITLE_DEFAULT,
     phone: card.showPhone ? card.phone : null,
     whatsapp: card.showWhatsapp ? card.whatsapp : null,
     email: card.showEmail ? card.email : null,

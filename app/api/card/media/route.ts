@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServerSupabase } from '@/lib/supabase'
-import { CARD_MEDIA_BUCKET, CARD_MEDIA_MAX_BYTES, isCardMediaKind } from '@/lib/card/media-shared'
+import {
+  CARD_MEDIA_BUCKET,
+  CARD_MEDIA_MAX_BYTES,
+  cardMediaPath,
+  isCardMediaKind,
+} from '@/lib/card/media-shared'
 
 /**
  * Card media upload.
@@ -75,7 +80,7 @@ export async function POST(req: NextRequest) {
 
     // A fresh object name per upload means the public URL always changes, so a
     // replaced image can never be masked by a cached copy of the old one.
-    const path = `${user.id}/${kind}-${Date.now()}.${ext}`
+    const path = cardMediaPath(user.id, kind, ext)
     const supabase = createServerSupabase()
 
     const { error } = await supabase.storage

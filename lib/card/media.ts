@@ -6,7 +6,7 @@ import {
   type CardMediaKind,
 } from '@/lib/card/media-shared'
 
-export type { CardMediaKind } from '@/lib/card/media-shared'
+export type { CardMediaKind, CardProfileMediaKind } from '@/lib/card/media-shared'
 export { CARD_MEDIA_LABELS } from '@/lib/card/media-shared'
 
 export type UploadResult = { url: string } | { error: string }

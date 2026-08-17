@@ -31,6 +31,7 @@ import {
   HERO_ASPECT_RATIO,
   transformStyle,
 } from '@/lib/card/types'
+import ShowcaseGallery from '@/components/card/ShowcaseGallery'
 import { isSocialVisible } from '@/lib/card/public-data'
 import { whatsappMeUrl } from '@/lib/card/social'
 import { getCardThemeTokens, heroScrimGradient, initialsFromName } from '@/lib/card/theme'
@@ -678,6 +679,16 @@ export default function DigitalCardView({
             </h2>
             <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>{card.lookingFor}</p>
           </section>
+        ) : null}
+
+        {/* What they actually do — below identity and contact, never above */}
+        {card.showcaseEnabled && card.showcaseItems.length > 0 ? (
+          <ShowcaseGallery
+            title={card.showcaseTitle}
+            items={card.showcaseItems}
+            tokens={t}
+            accent={accent}
+          />
         ) : null}
 
         {/* Saved links */}
