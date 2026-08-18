@@ -215,7 +215,16 @@ export function formToProfileRow(form: EditorForm, userId: string): Record<strin
     what_i_do: form.what_i_do || null,
     looking_for: form.looking_for || null,
     card_photo_url: form.card_photo_url || null,
-    avatar_url: form.card_photo_url || form.avatar_url || null,
+    /*
+      The card photo, or nothing. This used to fall back to form.avatar_url,
+      which is loaded once from the profile and never cleared — so the moment
+      an owner removed their photo, the preview read the empty card_photo_url,
+      fell through to the stale avatar, and drew the picture they had just
+      deleted. The two fields hold the same asset (avatar_url is only ever
+      written from the card photo), so there is nothing here worth falling
+      back to: an empty photo means an empty photo.
+    */
+    avatar_url: form.card_photo_url || null,
     card_cover_url: form.card_cover_url || null,
     card_cover_position: form.card_cover_position,
     card_cover_fit: form.card_cover_fit,
@@ -296,8 +305,15 @@ export function buildSavePayload(form: EditorForm): Record<string, unknown> {
     card_published: form.card_published,
   }
 
-  // Keeps the app-wide avatar in step with the card photo, but never clears it.
-  if (form.card_photo_url) payload.avatar_url = form.card_photo_url
+  /*
+    Always written, including when empty. "Never clears it" was the bug: the
+    field was omitted whenever the photo was empty, so removing a photo wrote
+    card_photo_url = null while avatar_url kept the old URL — and every reader
+    that falls back to avatar_url, including profileToForm below, brought the
+    photo straight back on the next reload. Omitting a field means "leave it
+    alone"; an explicit removal is not that.
+  */
+  payload.avatar_url = form.card_photo_url || null
 
   return payload
 }

@@ -147,6 +147,7 @@ export default function MediaSection({
             transforms={transforms}
             photoUrl={photoUrl}
             coverUrl={coverUrl}
+            logoUrl={logoUrl}
             coverFit={coverFit}
             theme={theme}
             onChange={onChange}

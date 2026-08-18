@@ -15,6 +15,8 @@ import { generateCutout, isPendingCutout, type CutoutProgress } from '@/lib/card
 import { removeCardMedia, uploadCardMedia } from '@/lib/card/media'
 import {
   BACKGROUND_TRANSFORM_DEFAULT,
+  LOGO_SCALE_LIMITS,
+  LOGO_TRANSFORM_DEFAULT,
   PORTRAIT_TRANSFORM_DEFAULT,
   backgroundScaleLimits,
   portraitScaleLimits,
@@ -22,6 +24,7 @@ import {
   type CardMediaTransforms,
   type CardTheme,
   type DigitalCardData,
+  type LogoTransform,
   type PortraitMode,
 } from '@/lib/card/types'
 
@@ -42,6 +45,7 @@ export default function CustomizeHero({
   transforms,
   photoUrl,
   coverUrl,
+  logoUrl,
   coverFit,
   theme,
   onChange,
@@ -51,6 +55,7 @@ export default function CustomizeHero({
   transforms: CardMediaTransforms
   photoUrl: string
   coverUrl: string
+  logoUrl: string
   coverFit: CardCoverFit
   theme: CardTheme
   onChange: (patch: {
@@ -86,6 +91,10 @@ export default function CustomizeHero({
       ) : (
         <Empty text="Add a cover image above to design the background." />
       )}
+
+      {logoUrl && mode === 'hero' ? (
+        <LogoSection transforms={transforms} logoUrl={logoUrl} theme={theme} onChange={onChange} />
+      ) : null}
 
       {photoUrl ? (
         <PersonSection
@@ -279,6 +288,99 @@ function BackgroundSection({
           }
         />
       </div>
+    </Panel>
+  )
+}
+
+/**
+ * The company logo, as a layer the owner places rather than a fixed corner.
+ *
+ * Hero only. In classic the logo sits in the identity row beside the circular
+ * portrait, where there is nothing to position it against.
+ */
+function LogoSection({
+  transforms,
+  logoUrl,
+  theme,
+  onChange,
+}: {
+  transforms: CardMediaTransforms
+  logoUrl: string
+  theme: CardTheme
+  onChange: (patch: { card_media_transforms?: CardMediaTransforms }) => void
+}) {
+  const logo = transforms.logo
+
+  function set(next: Partial<LogoTransform>) {
+    onChange({ card_media_transforms: { ...transforms, logo: { ...logo, ...next } } })
+  }
+
+  return (
+    <Panel title="Logo">
+      <div className="mt-2.5 flex items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logoUrl}
+          alt=""
+          className="h-[48px] w-[64px] shrink-0 rounded-inner border border-abc-border bg-abc-card object-contain"
+        />
+        <button
+          type="button"
+          onClick={() => set({ visible: !logo.visible })}
+          aria-pressed={logo.visible}
+          className="min-h-[44px] flex-1 rounded-btn border px-3 text-[13px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
+          style={{
+            background: logo.visible ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
+            borderColor: logo.visible ? 'var(--abc-gold-border)' : 'var(--abc-border)',
+            color: logo.visible ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
+          }}
+        >
+          {logo.visible ? 'Shown on the card' : 'Hidden'}
+        </button>
+      </div>
+
+      {logo.visible ? (
+        <div className="mt-4">
+          <HeroFramingEditor
+            label="Position the logo"
+            imageUrl={logoUrl}
+            shape="hero"
+            contain
+            subject
+            showPositionGrid
+            theme={theme}
+            limits={LOGO_SCALE_LIMITS}
+            transform={{ x: logo.x, y: logo.y, scale: logo.scale }}
+            onChange={(next) => set({ x: next.x, y: next.y, scale: next.scale })}
+            onReset={() =>
+              onChange({ card_media_transforms: { ...transforms, logo: LOGO_TRANSFORM_DEFAULT } })
+            }
+          >
+            <label className="mt-3 block">
+              <span className="flex items-baseline justify-between">
+                <span className="text-[12px] text-abc-muted">Opacity</span>
+                <span className="text-[11.5px] tabular-nums text-abc-secondary">
+                  {Math.round(logo.opacity * 100)}%
+                </span>
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={logo.opacity}
+                onChange={(e) => set({ opacity: Number(e.target.value) })}
+                className="mt-1.5 h-[36px] w-full accent-[color:var(--abc-gold-accent)]"
+                aria-label="Logo opacity"
+              />
+            </label>
+          </HeroFramingEditor>
+        </div>
+      ) : (
+        <p className="mt-2.5 text-[12.5px] leading-[1.5] text-abc-muted">
+          Your logo is hidden on the hero. The rest of the card is unchanged.
+        </p>
+      )}
     </Panel>
   )
 }
@@ -588,6 +690,8 @@ function PersonSection({
             imageUrl={portrait.cutoutUrl as string}
             shape="hero"
             contain
+            subject
+            showPositionGrid
             theme={theme}
             limits={portraitScaleLimits('hero')}
             transform={portrait}

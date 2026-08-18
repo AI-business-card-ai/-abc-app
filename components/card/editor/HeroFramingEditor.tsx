@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { IconArrowBackUp } from '@tabler/icons-react'
+import { getCardThemeTokens, heroScrimGradient } from '@/lib/card/theme'
 import {
   HERO_ASPECT_RATIO,
   HERO_ASPECT_RATIO_PERSON,
@@ -27,7 +28,26 @@ const POSITION_PRESETS = [
   { label: 'Bottom center', x: 50, y: 100 },
   { label: 'Bottom right', x: 100, y: 100 },
 ] as const
-import { getCardThemeTokens, heroScrimGradient } from '@/lib/card/theme'
+
+/**
+ * The same nine placements for a floating subject, inset from the edges.
+ *
+ * A person or a logo pinned to a literal 0 or 100 sits hard against the card's
+ * edge with nothing around it. Twenty percent in reads as "top left" while
+ * still leaving the subject framed, and the grid stays symmetrical, so the
+ * corners remain mirror images of each other.
+ */
+const SUBJECT_PRESETS = [
+  { label: 'Top left', x: 20, y: 20 },
+  { label: 'Top center', x: 50, y: 20 },
+  { label: 'Top right', x: 80, y: 20 },
+  { label: 'Center left', x: 20, y: 50 },
+  { label: 'Center', x: 50, y: 50 },
+  { label: 'Center right', x: 80, y: 50 },
+  { label: 'Bottom left', x: 20, y: 80 },
+  { label: 'Bottom center', x: 50, y: 80 },
+  { label: 'Bottom right', x: 80, y: 80 },
+] as const
 
 /**
  * Visual framing for one hero image.
@@ -51,6 +71,7 @@ export default function HeroFramingEditor<T extends MediaTransform>({
   limits = MEDIA_TRANSFORM_LIMITS_DEFAULT,
   contain = false,
   showPositionGrid = false,
+  subject = false,
   children,
 }: {
   label: string
@@ -68,8 +89,14 @@ export default function HeroFramingEditor<T extends MediaTransform>({
   limits?: ScaleLimits
   /** Show the whole image rather than filling the frame — "fit" and cutouts. */
   contain?: boolean
-  /** Nine-position shortcut. Offered for the background, not the person. */
+  /** Nine-position shortcut. */
   showPositionGrid?: boolean
+  /**
+   * This layer floats inside the frame rather than filling it — a cutout or a
+   * logo. Changes the drag direction, and insets the nine presets so an edge
+   * preset still leaves the subject fully on the card.
+   */
+  subject?: boolean
   children?: React.ReactNode
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
@@ -77,43 +104,81 @@ export default function HeroFramingEditor<T extends MediaTransform>({
 
   const applyDrag = useCallback(
     (dx: number, dy: number, rect: DOMRect) => {
-      // A drag moves the visible window, so the object-position moves opposite
-      // to the pointer. Dividing by the frame size keeps the feel consistent
-      // at any preview width.
-      const nextX = Math.min(100, Math.max(0, transform.x - (dx / rect.width) * 100))
-      const nextY = Math.min(100, Math.max(0, transform.y - (dy / rect.height) * 100))
+      /*
+        Two different gestures wearing the same two numbers.
+
+        Panning a cropped background moves the visible window, so the image
+        travels opposite the pointer — drag left, see further right. A subject
+        that floats inside its frame is a sticker, and a sticker has to come
+        with the finger or it feels broken. Same stored x/y either way; only
+        the sign differs.
+      */
+      const direction = subject ? 1 : -1
+      const nextX = Math.min(100, Math.max(0, transform.x + direction * (dx / rect.width) * 100))
+      const nextY = Math.min(100, Math.max(0, transform.y + direction * (dy / rect.height) * 100))
       onChange({ ...transform, x: Math.round(nextX), y: Math.round(nextY) })
     },
-    [onChange, transform]
+    [onChange, subject, transform]
   )
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     const frame = frameRef.current
     if (!frame) return
-    frame.setPointerCapture(e.pointerId)
+
+    /*
+      Capture is an optimisation, not a precondition.
+
+      setPointerCapture throws NotFoundError if the pointer is no longer
+      active — a gesture the browser already cancelled, a touch that ended
+      between the event and this handler. It used to be the first statement
+      here, so that throw took the whole handler with it and the listeners
+      below were never attached: the owner pressed the image and dragging
+      simply did nothing, with no error they could see.
+
+      Now the drag is wired up either way, and the target is chosen to match:
+      with capture the element keeps receiving moves past its own edges; if
+      capture was refused, window does the same job.
+    */
+    let captured = false
+    try {
+      frame.setPointerCapture(e.pointerId)
+      captured = true
+    } catch {
+      // Dragging still works; it is merely not pinned to this element.
+    }
+
+    const target: EventTarget = captured ? frame : window
     setDragging(true)
 
     let lastX = e.clientX
     let lastY = e.clientY
 
-    function move(ev: PointerEvent) {
+    function move(ev: Event) {
+      const pe = ev as PointerEvent
       const rect = frame!.getBoundingClientRect()
-      applyDrag(ev.clientX - lastX, ev.clientY - lastY, rect)
-      lastX = ev.clientX
-      lastY = ev.clientY
+      applyDrag(pe.clientX - lastX, pe.clientY - lastY, rect)
+      lastX = pe.clientX
+      lastY = pe.clientY
     }
 
-    function up(ev: PointerEvent) {
+    function up(ev: Event) {
+      const pe = ev as PointerEvent
       setDragging(false)
-      frame!.releasePointerCapture(ev.pointerId)
-      frame!.removeEventListener('pointermove', move)
-      frame!.removeEventListener('pointerup', up)
-      frame!.removeEventListener('pointercancel', up)
+      if (captured) {
+        try {
+          frame!.releasePointerCapture(pe.pointerId)
+        } catch {
+          // Already released — the pointer is gone either way.
+        }
+      }
+      target.removeEventListener('pointermove', move)
+      target.removeEventListener('pointerup', up)
+      target.removeEventListener('pointercancel', up)
     }
 
-    frame.addEventListener('pointermove', move)
-    frame.addEventListener('pointerup', up)
-    frame.addEventListener('pointercancel', up)
+    target.addEventListener('pointermove', move)
+    target.addEventListener('pointerup', up)
+    target.addEventListener('pointercancel', up)
   }
 
   const overlay = 'overlay' in transform ? (transform as unknown as BackgroundTransform).overlay : null
@@ -125,7 +190,7 @@ export default function HeroFramingEditor<T extends MediaTransform>({
         <button
           type="button"
           onClick={onReset}
-          className="inline-flex h-[36px] items-center gap-1.5 rounded-btn px-2.5 text-[12.5px] font-medium text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+          className="inline-flex h-[44px] items-center gap-1.5 rounded-btn px-3 text-[12.5px] font-medium text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
         >
           <IconArrowBackUp size={15} stroke={1.8} />
           Reset
@@ -208,7 +273,7 @@ export default function HeroFramingEditor<T extends MediaTransform>({
         <div className="mt-3">
           <p className="text-[12px] text-abc-muted">Position</p>
           <div className="mt-1.5 grid grid-cols-3 gap-1.5" role="group" aria-label="Position presets">
-            {POSITION_PRESETS.map((preset) => {
+            {(subject ? SUBJECT_PRESETS : POSITION_PRESETS).map((preset) => {
               const active =
                 Math.round(transform.x) === preset.x && Math.round(transform.y) === preset.y
               return (

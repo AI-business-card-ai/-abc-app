@@ -255,9 +255,32 @@ export type PortraitTransform = MediaTransform & {
   cutoutUrl: string | null
 }
 
+/**
+ * The company logo as a placed layer rather than a fixed corner ornament.
+ *
+ * x/y are anchor percentages read the way a background-position is: the point
+ * named on the logo is put at the same point of the hero's padded box, so 0
+ * pins its left edge to the left inset and 100 pins its right edge to the
+ * right inset. That is what lets the default reproduce the old hardcoded
+ * top-right placement exactly, rather than approximately.
+ *
+ * scale multiplies the surface's own logo height, so a logo stays proportional
+ * between the full card and the compact preview instead of being pinned to a
+ * pixel size that only looks right on one of them.
+ */
+export type LogoTransform = {
+  x: number
+  y: number
+  scale: number
+  /** 0–1. */
+  opacity: number
+  visible: boolean
+}
+
 export type CardMediaTransforms = {
   background: BackgroundTransform
   portrait: PortraitTransform
+  logo: LogoTransform
 }
 
 export const BACKGROUND_TRANSFORM_DEFAULT: BackgroundTransform = {
@@ -266,6 +289,22 @@ export const BACKGROUND_TRANSFORM_DEFAULT: BackgroundTransform = {
   y: 50,
   overlay: 55,
 }
+
+/**
+ * Top right, full size, fully opaque — the placement every existing hero card
+ * already has. A card saved before this existed normalizes to exactly this,
+ * so nobody's logo moves because the control was added.
+ */
+export const LOGO_TRANSFORM_DEFAULT: LogoTransform = {
+  x: 100,
+  y: 0,
+  scale: 1,
+  opacity: 1,
+  visible: true,
+}
+
+/** How far the logo may be scaled against the surface's own logo height. */
+export const LOGO_SCALE_LIMITS: ScaleLimits = { min: 0.5, max: 2.5 }
 
 /** Portraits sit above centre, so the default keeps the face in frame. */
 export const PORTRAIT_TRANSFORM_DEFAULT: PortraitTransform = {
@@ -338,6 +377,7 @@ export function normalizeMediaTransforms(
   const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
   const bg = (source.background || {}) as Record<string, unknown>
   const portrait = (source.portrait || {}) as Record<string, unknown>
+  const logo = (source.logo || {}) as Record<string, unknown>
 
   const seeded = seedFromCoverPosition(coverPosition)
 
@@ -380,6 +420,26 @@ export function normalizeMediaTransforms(
       // Legitimately null under hero: the renderer then draws the hero
       // composition with no foreground person, never a circular portrait.
       cutoutUrl,
+    },
+    /*
+      Absent on every card saved before the logo became a layer, which is the
+      normal case rather than the exception — so each field falls back to the
+      value that reproduces the old fixed placement. An existing card
+      normalizes to the corner it is already in.
+    */
+    logo: {
+      x: clamp(logo.x, 0, 100, LOGO_TRANSFORM_DEFAULT.x),
+      y: clamp(logo.y, 0, 100, LOGO_TRANSFORM_DEFAULT.y),
+      scale: clamp(
+        logo.scale,
+        LOGO_SCALE_LIMITS.min,
+        LOGO_SCALE_LIMITS.max,
+        LOGO_TRANSFORM_DEFAULT.scale
+      ),
+      opacity: clamp(logo.opacity, 0, 1, LOGO_TRANSFORM_DEFAULT.opacity),
+      // Only an explicit false hides it; anything else is a card that predates
+      // the setting and must keep showing the logo it has always shown.
+      visible: logo.visible === false ? false : true,
     },
   }
 }

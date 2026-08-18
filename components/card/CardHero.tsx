@@ -94,6 +94,7 @@ export default function CardHero({
   */
   const hero = isHeroLayout(portrait)
   const person = hasHeroSubject(portrait)
+  const logo = card.media.logo
   const subtitle = [card.jobTitle, card.companyName].filter(Boolean).join(' · ')
   const scrim = heroScrimGradient(card.media.background.overlay, t)
 
@@ -192,26 +193,43 @@ export default function CardHero({
         ) : null}
 
         {/*
-          In hero mode the logo belongs inside the composition, opposite the
-          person. It keeps its own layer and its own object-contain — it never
-          inherits the person's or the background's scaling.
+          In hero mode the logo is a placed layer, not a corner ornament. It
+          keeps its own z-index above the person and its own object-contain, so
+          it never inherits the person's or the background's scaling, and the
+          scrim below never dims it.
+
+          Position is an anchor: the point named on the logo is placed at the
+          same point of the padded box, so 0 pins its left edge to the left
+          inset and 100 pins its right edge to the right inset. At the default
+          (100, 0) that is precisely the top-right placement this had before it
+          was adjustable — an existing card renders identically.
         */}
-        {hero && card.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={card.logoUrl}
-            alt={card.companyName || ''}
+        {hero && card.logoUrl && logo.visible ? (
+          <div
             style={{
               position: 'absolute',
               zIndex: 3,
-              top: size === 'full' ? 18 : 12,
-              right: size === 'full' ? 20 : 16,
-              height: s.logoHeight,
-              width: 'auto',
-              maxWidth: '38%',
-              objectFit: 'contain',
+              inset: size === 'full' ? '18px 20px' : '12px 16px',
+              pointerEvents: 'none',
             }}
-          />
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={card.logoUrl}
+              alt={card.companyName || ''}
+              style={{
+                position: 'absolute',
+                left: `${logo.x}%`,
+                top: `${logo.y}%`,
+                transform: `translate(-${logo.x}%, -${logo.y}%)`,
+                height: s.logoHeight * logo.scale,
+                width: 'auto',
+                maxWidth: '60%',
+                objectFit: 'contain',
+                opacity: logo.opacity,
+              }}
+            />
+          </div>
         ) : null}
       </header>
 
