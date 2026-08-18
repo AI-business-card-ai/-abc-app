@@ -3,7 +3,11 @@
 import {
   CARD_MEDIA_MAX_BYTES,
   CARD_MEDIA_MAX_EDGE,
+  IMAGE_SNIFF_BYTES,
+  isSupportedImageType,
+  sniffImageType,
   type CardMediaKind,
+  type SupportedImageType,
 } from '@/lib/card/media-shared'
 
 export type { CardMediaKind, CardProfileMediaKind } from '@/lib/card/media-shared'
@@ -12,12 +16,72 @@ export { CARD_MEDIA_LABELS } from '@/lib/card/media-shared'
 export type UploadResult = { url: string } | { error: string }
 
 /**
- * Formats a browser can hand us directly. HEIC/HEIF from an iPhone is not on
- * this list on purpose — it is decoded and re-encoded to JPEG below, because
- * Safari can decode it but most other browsers cannot display it.
+ * HEIC/HEIF is never stored as-is: Safari can decode it but most other
+ * browsers cannot display it, so it is re-encoded to JPEG below. It has no
+ * signature this pipeline reads, which is why it is named here explicitly.
  */
-const DIRECT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const HEIC_TYPES = new Set(['image/heic', 'image/heif'])
+
+/**
+ * What this file really is.
+ *
+ * The browser's `File.type` is a hint, not a fact, and on iOS it is often
+ * neither: a transparent sticker or a pick from Files can arrive with an empty
+ * type or `application/octet-stream`. The old check read that metadata and
+ * refused anything it did not recognise, which rejected genuine iPhone cutouts
+ * before they were ever decoded.
+ *
+ * So the claim is used only when it names a format we support, and otherwise
+ * the first bytes decide. Nothing here proves the file is a usable image —
+ * that is what decoding it does — this only stops metadata from being the
+ * reason a valid cutout is turned away.
+ */
+async function resolveImageType(file: File): Promise<SupportedImageType | null> {
+  const claimed = (file.type || '').toLowerCase()
+  if (isSupportedImageType(claimed)) return claimed
+
+  try {
+    const head = new Uint8Array(await file.slice(0, IMAGE_SNIFF_BYTES).arrayBuffer())
+    return sniffImageType(head)
+  } catch {
+    return null
+  }
+}
+
+/** An error carrying a message meant for the owner, not for a log. */
+class ImageError extends Error {
+  constructor(readonly userMessage: string) {
+    super(userMessage)
+  }
+}
+
+/**
+ * Whether the image actually has transparency, or merely the ability to.
+ *
+ * A PNG exported flattened is still a PNG, and hero mode would paste it over
+ * the artwork as a rectangle. Catching it here lets the owner be told the true
+ * problem — that the background is still there — instead of being handed a
+ * format error about a file whose format was never wrong.
+ *
+ * A pixel is treated as transparent below 250 rather than below 255 because a
+ * real cutout's edge is anti-aliased, and some encoders round the outermost
+ * fully-clear pixels a shade off zero.
+ */
+function hasTransparency(ctx: CanvasRenderingContext2D, width: number, height: number): boolean {
+  let data: Uint8ClampedArray
+  try {
+    data = ctx.getImageData(0, 0, width, height).data
+  } catch {
+    // A tainted canvas cannot be read. Never block an upload over it — the
+    // check is a courtesy, and refusing here would be a worse failure than
+    // the one it is trying to describe.
+    return true
+  }
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] < 250) return true
+  }
+  return false
+}
 
 /**
  * Transparency is worth preserving on a logo and mandatory on a hero cutout;
@@ -35,25 +99,38 @@ function outputTypeFor(kind: CardMediaKind, sourceType: string): 'image/png' | '
   return 'image/jpeg'
 }
 
-export function validateCardImage(file: File, kind?: CardMediaKind): string | null {
-  const type = (file.type || '').toLowerCase()
-
-  if (!DIRECT_TYPES.has(type) && !HEIC_TYPES.has(type)) {
-    // An empty type happens on some Android pickers — let the decoder decide.
-    if (type) return 'That image format is not supported. Use JPG, PNG or WebP.'
-  }
-
-  // A JPEG cannot carry transparency, so accepting one here would produce a
-  // person on a white block and look like a bug rather than a wrong file.
-  if (kind === 'cutout' && type && type !== 'image/png' && type !== 'image/webp') {
-    return 'A hero portrait needs a transparent background — use a PNG or WebP file.'
-  }
+export async function validateCardImage(
+  file: File,
+  kind?: CardMediaKind
+): Promise<string | null> {
+  // Size first: it needs no bytes read, and a 40 MB file should be refused
+  // before anything tries to slice it.
   if (file.size > CARD_MEDIA_MAX_BYTES) {
     return 'That image is too large. Keep it under 10 MB.'
   }
   if (file.size === 0) {
     return 'That image looks empty. Try another file.'
   }
+
+  const claimed = (file.type || '').toLowerCase()
+  const resolved = await resolveImageType(file)
+
+  // HEIC has no signature we read, and Safari can still decode it — the
+  // re-encode below is what makes an iPhone photo usable elsewhere.
+  if (!resolved && !HEIC_TYPES.has(claimed)) {
+    return 'That file is not an image we can read. Use a PNG, WebP or JPG.'
+  }
+
+  // A JPEG cannot carry transparency, so accepting one for a cutout would
+  // produce a person on a white block — a wrong file, stated as such. This
+  // now judges the bytes, so an iPhone PNG with no MIME metadata gets through.
+  if (kind === 'cutout' && resolved === 'image/jpeg') {
+    return 'A hero portrait needs a transparent background — use a PNG or WebP file.'
+  }
+  if (kind === 'cutout' && !resolved) {
+    return 'A hero portrait needs a transparent background — use a PNG or WebP file.'
+  }
+
   return null
 }
 
@@ -86,7 +163,8 @@ async function decode(file: File): Promise<ImageBitmap | HTMLImageElement> {
  * usable: Safari decodes it, and what leaves here is always JPEG or PNG.
  */
 async function prepare(file: File, kind: CardMediaKind): Promise<File> {
-  const outputType = outputTypeFor(kind, (file.type || '').toLowerCase())
+  const resolved = await resolveImageType(file)
+  const outputType = outputTypeFor(kind, resolved || (file.type || '').toLowerCase())
   const maxEdge = CARD_MEDIA_MAX_EDGE[kind]
 
   const source = await decode(file)
@@ -112,6 +190,13 @@ async function prepare(file: File, kind: CardMediaKind): Promise<File> {
   ctx.drawImage(source as CanvasImageSource, 0, 0, targetW, targetH)
   if ('close' in source && typeof source.close === 'function') source.close()
 
+  // The whole point of a hero cutout is the absence of a background. A
+  // supported image that simply still has one is not an unreadable file, and
+  // saying so is the difference between the owner fixing it and giving up.
+  if (kind === 'cutout' && !hasTransparency(ctx, targetW, targetH)) {
+    throw new ImageError('This image does not have a transparent background.')
+  }
+
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, outputType, outputType === 'image/jpeg' ? 0.86 : undefined)
   )
@@ -127,13 +212,17 @@ async function prepare(file: File, kind: CardMediaKind): Promise<File> {
  * copy of the previous image.
  */
 export async function uploadCardMedia(kind: CardMediaKind, file: File): Promise<UploadResult> {
-  const validation = validateCardImage(file, kind)
+  const validation = await validateCardImage(file, kind)
   if (validation) return { error: validation }
 
   let prepared: File
   try {
     prepared = await prepare(file, kind)
   } catch (err) {
+    // A judgement about the image, already worded for the owner, is passed
+    // through rather than flattened into "could not be read".
+    if (err instanceof ImageError) return { error: err.userMessage }
+
     console.error('[card/media] could not process image:', err)
     if (HEIC_TYPES.has((file.type || '').toLowerCase())) {
       return {

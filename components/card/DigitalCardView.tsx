@@ -25,7 +25,7 @@ import {
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
 import type { DigitalCardData, SocialNetwork } from '@/lib/card/types'
-import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE, isHeroPortrait } from '@/lib/card/types'
+import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE, isHeroLayout } from '@/lib/card/types'
 import CardHero from '@/components/card/CardHero'
 import ShowcaseGallery from '@/components/card/ShowcaseGallery'
 import { isSocialVisible } from '@/lib/card/public-data'
@@ -93,7 +93,9 @@ export default function DigitalCardView({
   const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
   const t = getCardThemeTokens(card.theme)
   const accent = card.accent
-  const hero = isHeroPortrait(card.media.portrait)
+  // The action hierarchy follows the chosen composition, not the cutout: a
+  // hero card whose subject is missing is still a hero card.
+  const hero = isHeroLayout(card.media.portrait)
 
   const socials = (Object.keys(SOCIAL_ICONS) as SocialNetwork[])
     .map((key) => {

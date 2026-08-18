@@ -23,6 +23,27 @@ const withPWA = require('@ducanh2912/next-pwa').default({
     */
     exclude: [/ort[.\-].*\.mjs$/, /\.wasm$/],
     runtimeCaching: [
+      /*
+        The background-removal runtime must reach the network untouched.
+
+        A real iPhone reported "Response served by service worker is opaque"
+        during inference. An opaque response is one whose body cannot be read,
+        and WebAssembly rejects it outright — so the moment the worker answers
+        one of these requests from a cache, or proxies it without CORS,
+        background removal cannot start. Excluding them from the precache was
+        not enough: exclude governs precaching only and says nothing about what
+        the worker does at runtime.
+
+        NetworkOnly, registered before every other rule because Workbox matches
+        in order, keeps the worker out of the way for the model, its runtime
+        and the wasm binary. None of it is worth caching here: the browser's
+        own HTTP cache already handles them, and they are fetched only when an
+        owner asks for a cutout.
+      */
+      {
+        urlPattern: /ort[.\-].*\.mjs$|\.wasm$|staticimgly\.com/i,
+        handler: 'NetworkOnly',
+      },
       {
         urlPattern: /^https?.*\.(?:js|css|woff2?|ttf|otf|eot)$/i,
         handler: 'CacheFirst',
@@ -32,7 +53,7 @@ const withPWA = require('@ducanh2912/next-pwa').default({
             maxEntries: 128,
             maxAgeSeconds: 30 * 24 * 60 * 60,
           },
-          cacheableResponse: { statuses: [0, 200] },
+          cacheableResponse: { statuses: [200] },
         },
       },
       {
@@ -44,7 +65,7 @@ const withPWA = require('@ducanh2912/next-pwa').default({
             maxEntries: 128,
             maxAgeSeconds: 30 * 24 * 60 * 60,
           },
-          cacheableResponse: { statuses: [0, 200] },
+          cacheableResponse: { statuses: [200] },
         },
       },
       {
@@ -57,7 +78,7 @@ const withPWA = require('@ducanh2912/next-pwa').default({
             maxEntries: 64,
             maxAgeSeconds: 24 * 60 * 60,
           },
-          cacheableResponse: { statuses: [0, 200] },
+          cacheableResponse: { statuses: [200] },
         },
       },
       {
@@ -70,16 +91,30 @@ const withPWA = require('@ducanh2912/next-pwa').default({
             maxEntries: 64,
             maxAgeSeconds: 24 * 60 * 60,
           },
-          cacheableResponse: { statuses: [0, 200] },
+          cacheableResponse: { statuses: [200] },
         },
       },
     ],
   },
 })
 
+/*
+  Which build is actually running, readable from the page itself.
+
+  Answering "is the fix deployed?" took a git remote check, a service-worker
+  download and a byte comparison, because nothing the browser could see named
+  the commit it came from. Vercel already knows the sha; exposing it as a meta
+  tag turns that investigation into one request. Outside Vercel there is no sha
+  to report, and 'dev' is the honest answer rather than a fabricated one.
+*/
+const BUILD_SHA = (process.env.VERCEL_GIT_COMMIT_SHA || 'dev').slice(0, 12)
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  env: {
+    NEXT_PUBLIC_BUILD_SHA: BUILD_SHA,
+  },
   images: {
     remotePatterns: [
       {

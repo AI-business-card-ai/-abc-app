@@ -19,11 +19,99 @@ export type CardProfileMediaKind = Exclude<CardMediaKind, 'showcase' | 'cutout'>
  */
 export const ALPHA_MEDIA_KINDS: CardMediaKind[] = ['cutout', 'logo']
 
-const KINDS: CardMediaKind[] = ['photo', 'cover', 'logo', 'showcase']
+/**
+ * Every kind the upload route will accept.
+ *
+ * A record rather than an array, and deliberately so. This was an array that
+ * listed four of the five kinds — `cutout` was added to the union when hero
+ * portraits arrived and never added here — so the route rejected every single
+ * cutout upload, automatic and manual alike, with "Unknown image type." An
+ * array of a union type accepts a partial list without complaint; a record
+ * keyed by the union does not compile until every kind is present, which is
+ * the only version of this list that cannot silently fall behind again.
+ */
+const KINDS: Record<CardMediaKind, true> = {
+  photo: true,
+  cover: true,
+  logo: true,
+  showcase: true,
+  cutout: true,
+}
 
 export function isCardMediaKind(value: string): value is CardMediaKind {
-  return (KINDS as string[]).includes(value)
+  return Object.prototype.hasOwnProperty.call(KINDS, value)
 }
+
+/* ─── Image identification ─── */
+
+/** The three encodings the card pipeline stores. */
+export type SupportedImageType = 'image/png' | 'image/jpeg' | 'image/webp'
+
+export const EXT_BY_IMAGE_TYPE: Record<SupportedImageType, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+}
+
+export function isSupportedImageType(value: string): value is SupportedImageType {
+  return value === 'image/png' || value === 'image/jpeg' || value === 'image/webp'
+}
+
+/**
+ * What the bytes actually are, regardless of what the browser claimed.
+ *
+ * MIME metadata is not evidence. An iPhone handing over a transparent sticker
+ * or a file picked out of Files can arrive with an empty `type`, with
+ * `application/octet-stream`, or with something non-canonical — none of which
+ * says anything about the content. Rejecting on that metadata turned away
+ * perfectly good cutouts, so the signature is read instead and the claimed
+ * type is used only when it happens to agree with a format we support.
+ *
+ * This identifies; it does not validate. Bytes that pass here are still
+ * decoded before anything is stored, so a file that merely starts with the
+ * right eight bytes cannot masquerade as an image.
+ */
+export function sniffImageType(bytes: Uint8Array): SupportedImageType | null {
+  // PNG signature: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return 'image/png'
+  }
+
+  // JPEG: SOI marker, then any segment.
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg'
+  }
+
+  // RIFF....WEBP — the four size bytes between the two tags are skipped.
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return 'image/webp'
+  }
+
+  return null
+}
+
+/** Bytes enough for the longest signature above, with room to spare. */
+export const IMAGE_SNIFF_BYTES = 16
 
 export const CARD_MEDIA_LABELS: Record<CardMediaKind, { title: string; help: string }> = {
   photo: {

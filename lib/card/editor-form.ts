@@ -5,6 +5,7 @@ import {
   CARD_ACCENT_DEFAULT,
   COVER_FIT_DEFAULT,
   COVER_POSITION_DEFAULT,
+  isPendingCutoutUrl,
   normalizeCoverFit,
   normalizeCoverPosition,
   normalizeMediaTransforms,
@@ -324,20 +325,22 @@ export function buildCoverFramingPayload(form: EditorForm): Record<string, unkno
  */
 export function buildMediaTransformPayload(form: EditorForm): Record<string, unknown> {
   const media = form.card_media_transforms
-  const cutoutUrl = media.portrait.cutoutUrl
 
-  // A freshly generated cutout is an in-memory object URL until the owner
-  // accepts it and it is uploaded. Persisting one would store a reference that
-  // is dead the moment the tab closes, so the write boundary drops it — and
-  // with it the hero mode that has nothing left to render.
-  const pending = typeof cutoutUrl === 'string' && cutoutUrl.startsWith('blob:')
+  /*
+    A freshly generated cutout is an in-memory object URL until the owner
+    accepts it and it is uploaded. Persisting one would store a reference that
+    is dead the moment the tab closes, so the write boundary drops it.
 
+    It drops the URL only. The mode is the owner's design decision and is not
+    rewritten here — a save that reached this point with an unaccepted cutout
+    would previously have stored `classic`, quietly replacing the hero card
+    they were composing with a circular portrait. `canPersistHero` stops such
+    a save before it starts and says why; this is the last line behind it, and
+    what it leaves behind renders as a hero with no person, never a circle.
+  */
   return {
-    card_media_transforms: pending
-      ? {
-          ...media,
-          portrait: { ...media.portrait, cutoutUrl: null, mode: 'classic' },
-        }
+    card_media_transforms: isPendingCutoutUrl(media.portrait.cutoutUrl)
+      ? { ...media, portrait: { ...media.portrait, cutoutUrl: null } }
       : media,
   }
 }

@@ -41,6 +41,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
+      <head>
+        {/*
+          The running build, in the markup. `curl` it, or read it from a
+          phone's console, and the "which version am I on" question is closed
+          before anyone starts theorising about caches.
+        */}
+        <meta name="abc-build" content={process.env.NEXT_PUBLIC_BUILD_SHA || 'dev'} />
+      </head>
       <body className="bg-abc-bg text-abc-text">
         <AppShell>{children}</AppShell>
       </body>

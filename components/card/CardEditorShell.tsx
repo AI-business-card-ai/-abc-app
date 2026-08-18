@@ -57,7 +57,9 @@ import {
   CARD_PUBLIC_BASE,
   LANGUAGE_OPTIONS,
   LOOKING_FOR_SUGGESTIONS,
+  canPersistHero,
   cardEventToRow,
+  isPendingCutoutUrl,
   normalizeCardEventRow,
   type CardEvent,
   type CardLink,
@@ -272,6 +274,27 @@ export default function CardEditorShell() {
       setSaveStatus('error')
       setSaveError('That card address is not available.')
       setOpen((o) => ({ ...o, publish: true }))
+      return
+    }
+
+    /*
+      Hero is a requested design until there is a subject that survives the
+      save; only then can it become the card people actually receive. The
+      alternative — storing hero and letting the public card cope — would put
+      an owner's name on a composition with a hole in it, so activation is
+      blocked here and the reason is stated plainly. Nothing about the mode is
+      rewritten behind their back: everything they set stays in the editor,
+      waiting for the portrait.
+    */
+    const portrait = form.card_media_transforms.portrait
+    if (!canPersistHero(portrait)) {
+      setSaveStatus('error')
+      setSaveError(
+        isPendingCutoutUrl(portrait.cutoutUrl)
+          ? 'Choose “Use result” to keep your background-free portrait, then save.'
+          : 'Add a background-free portrait to use Hero.'
+      )
+      setOpen((o) => ({ ...o, media: true }))
       return
     }
 

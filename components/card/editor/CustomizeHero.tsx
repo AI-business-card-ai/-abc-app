@@ -131,10 +131,10 @@ function StyleSection({
   onChange: (patch: { card_media_transforms?: CardMediaTransforms }) => void
 }) {
   function setMode(next: PortraitMode) {
-    // Selecting Hero before a cutout exists still renders the circle, so the
-    // scale floor has to follow what is drawn rather than what was asked for.
-    const effective: PortraitMode = next === 'hero' && hasCutout ? 'hero' : 'classic'
-    const limits = portraitScaleLimits(effective)
+    // Clamp to the mode being switched to. Hero draws the hero composition
+    // whether or not a cutout exists yet, so there is no circle whose cover
+    // floor the scale would have to respect.
+    const limits = portraitScaleLimits(next)
     const scale = Math.min(limits.max, Math.max(limits.min, transforms.portrait.scale))
     onChange({
       card_media_transforms: {
@@ -180,8 +180,8 @@ function StyleSection({
             Hero needs a background-free portrait
           </p>
           <p className="mt-1 text-[12.5px] leading-[1.5] text-abc-secondary">
-            Create one from your photo, or upload a portrait that already has its background
-            removed. You will find both under Person below.
+            Use Create automatically below to lift you out of your photo, or upload an image
+            that already has its background removed.
           </p>
         </div>
       ) : (
@@ -306,18 +306,17 @@ function PersonSection({
   const hasCutout = Boolean(portrait.cutoutUrl)
   const pending = isPendingCutout(portrait.cutoutUrl)
   const mode = portrait.mode
+  /** Hero only truly engages once there is a subject to place. */
+  const heroActive = mode === 'hero' && hasCutout
 
   function apply(url: string | null, nextMode: PortraitMode) {
     /*
-      Clamp to the mode that will actually be drawn, not the one requested.
-      Removing a cutout drops the card back to the circular portrait, and a
-      hero-range scale of 0.8 inside a circle that must stay covered leaves a
-      visible gap. Normalization repairs this on reload, so without this the
-      defect would appear only in the live preview — the one place the owner is
-      looking while they work.
+      Clamp to the mode being applied. Each mode has its own floor — classic
+      must keep a circle covered, hero may float a subject smaller than its
+      frame — and the two are no longer entangled, because losing a cutout no
+      longer drops the card back into a circle.
     */
-    const effective: PortraitMode = nextMode === 'hero' && url ? 'hero' : 'classic'
-    const limits = portraitScaleLimits(effective)
+    const limits = portraitScaleLimits(nextMode)
     const scale = Math.min(limits.max, Math.max(limits.min, portrait.scale))
 
     onChange({
@@ -389,15 +388,22 @@ function PersonSection({
   }
 
   function removeCutout() {
+    /*
+      Removing the subject is not the same as abandoning the design. The mode
+      is left exactly as the owner set it: under Hero the preview keeps the
+      hero composition and returns to its setup state, so a delete never
+      silently switches them back to the circular card. Leaving Hero is a
+      deliberate act, and it has its own control in Style.
+    */
     const current = portrait.cutoutUrl
     if (isPendingCutout(current)) URL.revokeObjectURL(current as string)
     pendingBlob.current = null
-    apply(null, 'classic')
+    apply(null, mode)
     if (current && !isPendingCutout(current)) void removeCardMedia(current)
   }
 
   return (
-    <Panel title="Person">
+    <Panel title={heroActive ? 'Person' : mode === 'hero' ? 'Person — needs a cutout' : 'Portrait'}>
       <div className="mt-2.5 flex items-center gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -407,7 +413,11 @@ function PersonSection({
         />
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] leading-[1.45] text-abc-secondary">
-            {hasCutout ? 'Background-free portrait ready.' : 'Using your original profile photo.'}
+            {hasCutout
+              ? 'Background-free portrait ready.'
+              : mode === 'hero'
+                ? 'No person in the hero yet — this photo is the source.'
+                : 'Using your original profile photo.'}
           </p>
           <p className="mt-0.5 text-[11.5px] leading-[1.45] text-abc-muted">
             Your original photo is always kept.
@@ -549,7 +559,13 @@ function PersonSection({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/webp"
+        /*
+          Broad on purpose. iOS hands transparent stickers and Files picks over
+          with an empty or generic type, and a narrow accept list makes the
+          picker hide the very file the owner is trying to choose. What the
+          file actually is gets decided from its bytes after it is chosen.
+        */
+        accept="image/*"
         className="sr-only"
         aria-label="Choose a portrait with the background removed"
         onChange={(e) => {
@@ -558,28 +574,58 @@ function PersonSection({
         }}
       />
 
-      {/* Placement. Hero moves the subject layer; classic crops the circle. */}
-      <div className="mt-4">
-        <HeroFramingEditor
-          label={mode === 'hero' && hasCutout ? 'Position in the hero' : 'Portrait framing'}
-          imageUrl={mode === 'hero' && portrait.cutoutUrl ? portrait.cutoutUrl : photoUrl}
-          shape={mode === 'hero' && hasCutout ? 'hero' : 'circle'}
-          contain={mode === 'hero' && hasCutout}
-          theme={theme}
-          limits={portraitScaleLimits(mode === 'hero' && hasCutout ? 'hero' : 'classic')}
-          transform={portrait}
-          onChange={(next) => onChange({ card_media_transforms: { ...transforms, portrait: next } })}
-          onReset={() =>
-            onChange({
-              card_media_transforms: {
-                ...transforms,
-                // Reset framing, not the mode or the cutout the owner made.
-                portrait: { ...PORTRAIT_TRANSFORM_DEFAULT, mode, cutoutUrl: portrait.cutoutUrl },
-              },
-            })
-          }
-        />
-      </div>
+      {/*
+        Placement. Hero never falls back to the circular editor: a round crop
+        frame is the Classic mental model, and showing it while the owner is
+        composing a Hero card is what made Hero feel like Classic in disguise.
+        Without a cutout there is no subject to place yet, so the section shows
+        the setup state above and no framing control at all.
+      */}
+      {heroActive ? (
+        <div className="mt-4">
+          <HeroFramingEditor
+            label="Position the person"
+            imageUrl={portrait.cutoutUrl as string}
+            shape="hero"
+            contain
+            theme={theme}
+            limits={portraitScaleLimits('hero')}
+            transform={portrait}
+            onChange={(next) => onChange({ card_media_transforms: { ...transforms, portrait: next } })}
+            onReset={() =>
+              onChange({
+                card_media_transforms: {
+                  ...transforms,
+                  // Reset placement, not the mode or the cutout the owner made.
+                  portrait: { ...PORTRAIT_TRANSFORM_DEFAULT, mode, cutoutUrl: portrait.cutoutUrl },
+                },
+              })
+            }
+          />
+        </div>
+      ) : null}
+
+      {mode === 'classic' ? (
+        <div className="mt-4">
+          <HeroFramingEditor
+            label="Portrait framing"
+            imageUrl={photoUrl}
+            shape="circle"
+            theme={theme}
+            limits={portraitScaleLimits('classic')}
+            transform={portrait}
+            onChange={(next) => onChange({ card_media_transforms: { ...transforms, portrait: next } })}
+            onReset={() =>
+              onChange({
+                card_media_transforms: {
+                  ...transforms,
+                  portrait: { ...PORTRAIT_TRANSFORM_DEFAULT, mode, cutoutUrl: portrait.cutoutUrl },
+                },
+              })
+            }
+          />
+        </div>
+      ) : null}
     </Panel>
   )
 }

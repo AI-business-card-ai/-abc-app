@@ -353,14 +353,12 @@ export function normalizeMediaTransforms(
       : null
 
   /*
-    Clamp against the mode that will actually be drawn, not the one that was
-    asked for. Hero mode falls back to the circular portrait when its cutout is
-    missing — a failed removal, an image the owner deleted — and a hero-range
-    scale of 0.45 inside a circle that must stay covered would leave a visible
-    gap where the photograph stops.
+    Clamp against the chosen mode. Hero no longer degrades into the circular
+    portrait, so a hero transform stays a hero transform even when its cutout
+    is missing — forcing it into the classic range would rewrite placement the
+    owner set, purely because the subject had not been restored yet.
   */
-  const effectiveMode: PortraitMode = mode === 'hero' && cutoutUrl ? 'hero' : 'classic'
-  const portraitLimits = portraitScaleLimits(effectiveMode)
+  const portraitLimits = portraitScaleLimits(mode)
 
   return {
     background: {
@@ -379,8 +377,8 @@ export function normalizeMediaTransforms(
       x: clamp(portrait.x, 0, 100, PORTRAIT_TRANSFORM_DEFAULT.x),
       y: clamp(portrait.y, 0, 100, PORTRAIT_TRANSFORM_DEFAULT.y),
       mode,
-      // Hero mode without a transparent source would paste a rectangle over
-      // the artwork, so the renderer falls back to classic when it is absent.
+      // Legitimately null under hero: the renderer then draws the hero
+      // composition with no foreground person, never a circular portrait.
       cutoutUrl,
     },
   }
@@ -398,13 +396,50 @@ function seedFromCoverPosition(position?: string): { x: number; y: number } {
 }
 
 /**
- * Hero presentation engages only when a transparent source actually exists.
- * Choosing "Hero" with an ordinary photograph would paste a rectangle over the
- * artwork, so the renderer falls back to the circular portrait until a cutout
- * is provided. One check, used by every renderer, so they cannot disagree.
+ * The composition a card is drawn in — hero or classic — and nothing else.
+ *
+ * This deliberately ignores the cutout. Hero used to mean "hero mode AND a
+ * transparent source", which quietly turned every hero card missing its cutout
+ * back into a circular portrait: a failed removal, a deleted image, or simply
+ * an owner who had just chosen Hero. A circle is Classic's shape and belongs
+ * to Classic alone, so a hero card without a subject is a hero card with
+ * nobody standing in it — never a circle.
+ *
+ * Which layout to draw is one question; whether there is a person to place is
+ * another. Keeping them apart is what lets the editor show the real
+ * composition while the owner is still setting it up.
  */
-export function isHeroPortrait(portrait: PortraitTransform): boolean {
-  return portrait.mode === 'hero' && Boolean(portrait.cutoutUrl)
+export function isHeroLayout(portrait: PortraitTransform): boolean {
+  return portrait.mode === 'hero'
+}
+
+/**
+ * Whether a transparent subject exists to paint in front of the artwork. Only
+ * the foreground layer asks this; the composition around it does not care.
+ */
+export function hasHeroSubject(portrait: PortraitTransform): boolean {
+  return isHeroLayout(portrait) && Boolean(portrait.cutoutUrl)
+}
+
+/**
+ * A generated cutout is an in-memory object URL until the owner accepts it and
+ * it is uploaded. It renders, but it dies with the tab — so it may be shown
+ * and never stored. The test lives here, next to the type, so the write
+ * boundary can use it without importing the client-only cutout module.
+ */
+export function isPendingCutoutUrl(url: string | null): boolean {
+  return typeof url === 'string' && url.startsWith('blob:')
+}
+
+/**
+ * Whether Hero can genuinely be turned on: a subject that will still exist
+ * after the save. Hero with nothing durable behind it must not become the
+ * publicly active card, and the owner is told why rather than quietly handed
+ * a different design.
+ */
+export function canPersistHero(portrait: PortraitTransform): boolean {
+  if (!isHeroLayout(portrait)) return true
+  return Boolean(portrait.cutoutUrl) && !isPendingCutoutUrl(portrait.cutoutUrl)
 }
 
 /** The image a card should show for the person, given the chosen mode. */
@@ -412,7 +447,7 @@ export function portraitSourceUrl(
   portrait: PortraitTransform,
   photoUrl: string | null
 ): string | null {
-  return isHeroPortrait(portrait) ? portrait.cutoutUrl : photoUrl
+  return hasHeroSubject(portrait) ? portrait.cutoutUrl : photoUrl
 }
 
 /**
@@ -428,7 +463,10 @@ export function portraitSourceUrl(
 export const HERO_ASPECT_RATIO_PERSON = 1.05
 
 export function heroAspectRatio(portrait: PortraitTransform): number {
-  return isHeroPortrait(portrait) ? HERO_ASPECT_RATIO_PERSON : HERO_ASPECT_RATIO
+  // Follows the chosen layout, not the presence of a cutout: the frame a hero
+  // card is composed into must not change shape the moment its subject is
+  // missing, or the setup state would preview a card nobody will receive.
+  return isHeroLayout(portrait) ? HERO_ASPECT_RATIO_PERSON : HERO_ASPECT_RATIO
 }
 
 /** Background rendering, honouring fill/fit as well as the owner's framing. */

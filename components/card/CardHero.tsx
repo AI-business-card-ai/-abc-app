@@ -4,8 +4,9 @@ import { IconMapPin } from '@tabler/icons-react'
 import type { DigitalCardData } from '@/lib/card/types'
 import {
   backgroundStyle,
+  hasHeroSubject,
   heroAspectRatio,
-  isHeroPortrait,
+  isHeroLayout,
   transformStyle,
 } from '@/lib/card/types'
 import { getCardThemeTokens, heroScrimGradient, initialsFromName } from '@/lib/card/theme'
@@ -79,7 +80,20 @@ export default function CardHero({
   const t = getCardThemeTokens(card.theme)
   const accent = card.accent
   const portrait = card.media.portrait
-  const hero = isHeroPortrait(portrait)
+  /*
+    Two separate questions, never collapsed into one.
+
+    `hero` is the composition the owner chose. It decides the frame, the logo
+    placement and the identity block, and it holds even when there is no
+    cutout — a hero card missing its subject renders as a hero card with an
+    empty foreground, not as a circular portrait. The circle is Classic's, and
+    showing it under Hero is what made the two designs indistinguishable.
+
+    `person` is only ever about whether there is a transparent subject to
+    paint. It gates one layer.
+  */
+  const hero = isHeroLayout(portrait)
+  const person = hasHeroSubject(portrait)
   const subtitle = [card.jobTitle, card.companyName].filter(Boolean).join(' · ')
   const scrim = heroScrimGradient(card.media.background.overlay, t)
 
@@ -132,7 +146,7 @@ export default function CardHero({
           artwork's readability; darkening the human being would defeat the
           entire composition.
         */}
-        {hero ? (
+        {person ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={portrait.cutoutUrl as string}
@@ -203,10 +217,11 @@ export default function CardHero({
 
       {/*
         Identity. In classic it is pulled up so the circular portrait straddles
-        the hero edge. In hero it is pulled up too, but for the opposite
-        reason: the scrim already fades the artwork into the card background,
-        so overlapping slightly lets the name sit in that fade instead of
-        starting after a hard horizontal seam.
+        the hero edge — and that circle is classic's alone, gated on the layout
+        below, so hero can never produce one. In hero it is pulled up too, but
+        for the opposite reason: the scrim already fades the artwork into the
+        card background, so overlapping slightly lets the name sit in that fade
+        instead of starting after a hard horizontal seam.
       */}
       <div
         style={{
