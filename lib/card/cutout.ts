@@ -14,6 +14,7 @@
  * function and only runs when the owner presses the button.
  */
 
+import { cutoutAssetUrl } from '@/lib/card/cutout-assets'
 import { CARD_MEDIA_MAX_BYTES } from '@/lib/card/media-shared'
 
 export type CutoutStage =
@@ -94,6 +95,56 @@ const GENERIC_MESSAGE =
   "The background couldn't be removed. You can try again, or upload a background-free portrait instead."
 
 /**
+ * Runs the removal with onnxruntime pointed at real URLs instead of `blob:`.
+ *
+ * The library loads its runtime like this, and offers no option to change it:
+ *
+ *   const wasmPath = await loadAsUrl(`${base}.wasm`, config)   // blob:…
+ *   const mjsPath  = await loadAsUrl(`${base}.mjs`, config)    // blob:…
+ *   ort.env.wasm.wasmPaths = { mjs: mjsPath, wasm: wasmPath }
+ *
+ * On a page a service worker controls, WebKit routes `blob:` fetches through
+ * the worker and answers with an opaque response. WebAssembly cannot read an
+ * opaque body, which is the exact TypeError a real iPhone reported — and it
+ * arrives at stage=processing, after every download has already succeeded,
+ * which is why it looked like a caching problem and survived a fix aimed at
+ * cross-origin caching. The model's own downloads are plain readable CORS
+ * responses; they were never the failure.
+ *
+ * `loadAsBlob` types each asset from the upstream manifest, and only these two
+ * carry these mime types — the models come through as application/octet-steam
+ * (the upstream's spelling) and never reach this function. So the two object
+ * URLs can be swapped for same-origin ones without guessing, and anything else
+ * still gets a real object URL.
+ *
+ * The wasm is consequently fetched twice on a first run: once by the library
+ * into a blob it will not use, once by onnxruntime from our origin. That costs
+ * about 11 MB, once per device, against a feature that otherwise cannot run at
+ * all on the phone it was built for.
+ */
+async function withSameOriginOrtRuntime<T>(run: () => Promise<T>): Promise<T> {
+  const original = URL.createObjectURL.bind(URL)
+
+  URL.createObjectURL = ((source: Blob | MediaSource): string => {
+    if (typeof Blob !== 'undefined' && source instanceof Blob) {
+      if (source.type === 'application/wasm') {
+        return cutoutAssetUrl('ort-wasm-simd-threaded.wasm')
+      }
+      if (source.type === 'text/javascript') {
+        return cutoutAssetUrl('ort-wasm-simd-threaded.mjs')
+      }
+    }
+    return original(source)
+  }) as typeof URL.createObjectURL
+
+  try {
+    return await run()
+  } finally {
+    URL.createObjectURL = original
+  }
+}
+
+/**
  * Produces a transparent PNG of the subject.
  *
  * Returns a readable failure rather than throwing: every case here is one an
@@ -120,24 +171,27 @@ export async function generateCutout(
     const { removeBackground } = await import('@imgly/background-removal')
 
     reached = 'loading-model'
-    const blob = await removeBackground(source, {
-      // Explicit rather than defaulted: the worker proxy and the WebGPU
-      // provider are the two paths most likely to behave differently on
-      // Safari, and neither buys anything here.
-      device: 'cpu',
-      proxyToWorker: false,
-      model: preferSmallModel() ? 'isnet_quint8' : 'isnet_fp16',
-      output: { format: OUTPUT_FORMAT },
-      progress: (key: string, current: number, total: number) => {
-        const { stage, label } = labelFor(key)
-        reached = stage
-        const percent =
-          Number.isFinite(current) && Number.isFinite(total) && total > 0
-            ? Math.min(100, Math.round((current / total) * 100))
-            : null
-        onProgress({ stage, percent, label })
-      },
-    })
+    const blob = await withSameOriginOrtRuntime(() =>
+      removeBackground(source, {
+        // Explicit rather than defaulted: the worker proxy and the WebGPU
+        // provider are the two paths most likely to behave differently on
+        // Safari, and neither buys anything here. Keeping WebGPU off also
+        // pins the runtime to the non-jsep build the asset route serves.
+        device: 'cpu',
+        proxyToWorker: false,
+        model: preferSmallModel() ? 'isnet_quint8' : 'isnet_fp16',
+        output: { format: OUTPUT_FORMAT },
+        progress: (key: string, current: number, total: number) => {
+          const { stage, label } = labelFor(key)
+          reached = stage
+          const percent =
+            Number.isFinite(current) && Number.isFinite(total) && total > 0
+              ? Math.min(100, Math.round((current / total) * 100))
+              : null
+          onProgress({ stage, percent, label })
+        },
+      })
+    )
 
     if (!blob || blob.size === 0) {
       return { error: GENERIC_MESSAGE, detail: 'empty result blob' }

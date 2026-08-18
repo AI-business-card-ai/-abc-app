@@ -39,9 +39,24 @@ const withPWA = require('@ducanh2912/next-pwa').default({
         and the wasm binary. None of it is worth caching here: the browser's
         own HTTP cache already handles them, and they are fetched only when an
         owner asks for a cutout.
+
+        A callback, not a RegExp, and that distinction is the whole point. A
+        RegExp route in Workbox 7 is applied to a cross-origin request only
+        when the match begins at index 0 of the full href:
+
+          const s = t.exec(e.href);
+          if (s && (e.origin === location.origin || 0 === s.index)) ...
+
+        The previous pattern found "staticimgly.com" at index 8 of
+        "https://staticimgly.com/…", so for the one host it was written for it
+        never applied at all. A callback is evaluated as written, every origin.
       */
       {
-        urlPattern: /ort[.\-].*\.mjs$|\.wasm$|staticimgly\.com/i,
+        urlPattern: ({ url }) =>
+          url.host === 'staticimgly.com' ||
+          url.pathname.startsWith('/cutout-assets/') ||
+          /ort[.\-].*\.mjs$/i.test(url.pathname) ||
+          /\.wasm$/i.test(url.pathname),
         handler: 'NetworkOnly',
       },
       {
