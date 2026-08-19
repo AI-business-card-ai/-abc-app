@@ -10,7 +10,13 @@ import {
   transformStyle,
   type GraphicLayer,
 } from '@/lib/card/types'
-import { getCardThemeTokens, heroScrimGradient, initialsFromName } from '@/lib/card/theme'
+import {
+  getCardThemeTokens,
+  heroBleedScrimGradient,
+  heroContentScrimGradient,
+  heroScrimGradient,
+  initialsFromName,
+} from '@/lib/card/theme'
 
 /**
  * The card's media identity surface — background, person, logo, identity —
@@ -131,6 +137,14 @@ const LOGO_BASE_HEIGHT_ANCHOR = 9
 const PERSON_FADE =
   'linear-gradient(180deg, #000 0%, #000 88%, rgba(0,0,0,0.45) 96%, transparent 100%)'
 
+/**
+ * How the crisp hero artwork hands over to the softened continuation beneath
+ * it. A cut would put a visible line across the card at the hero's edge, which
+ * is the exact seam the full-bleed treatment exists to remove.
+ */
+const COVER_DISSOLVE =
+  'linear-gradient(180deg, #000 0%, #000 62%, rgba(0,0,0,0.55) 86%, transparent 100%)'
+
 export default function CardHero({
   card,
   size = 'full',
@@ -169,15 +183,119 @@ export default function CardHero({
   const graphicsFront = hero ? graphics.filter((g) => g.layer.placement === 'front-person') : []
   const subtitle = [card.jobTitle, card.companyName].filter(Boolean).join(' · ')
   const scrim = heroScrimGradient(card.media.background.overlay, t)
+  /*
+    Hero with a cover runs the picture through the entire card. Without a
+    cover there is nothing to run, and classic's composition depends on the
+    artwork ending where the circle straddles it — so both keep the original
+    treatment.
+  */
+  const fullBleed = hero && Boolean(card.coverUrl)
+  const bleedScrim = heroBleedScrimGradient(card.media.background.overlay, t)
+  const contentScrim = heroContentScrimGradient(t)
 
   return (
-    <div style={{ position: 'relative' }}>
+    /*
+      isolate, but deliberately not overflow:hidden. The artwork's own wrapper
+      already clips the blurred, scaled continuation, and clipping here would
+      quietly crop anything a caller renders that reaches past the card — the
+      kind of regression nobody notices until a focus ring or a menu disappears.
+    */
+    <div style={{ position: 'relative', isolation: 'isolate' }}>
+      {/*
+        In hero the artwork belongs to the whole card, not to a band at the top
+        of it.
+
+        It used to live inside the header, in a box with a fixed ratio and its
+        own overflow, under a scrim that closed on solid card background. That
+        made the picture end on an invisible horizontal line and everything
+        below it read as a separate dark panel — a photograph with a form
+        bolted underneath rather than one composition. Lifting it to the root
+        lets it run behind the name, the location, the actions and the rows,
+        which is what makes the card read as a single poster.
+
+        Classic keeps its artwork inside the header, where a circular portrait
+        straddling the hero edge needs it.
+      */}
+      {fullBleed ? (
+        <>
+          <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+            {/*
+              The same picture, carried down the card as atmosphere.
+
+              Cropping it to the full height instead would have wrecked the
+              thing it is meant to continue: a card is roughly three times
+              taller than the hero, so covering it leaves about a fifth of the
+              image's width visible — a wide cover the owner framed carefully
+              would come out as a narrow vertical strip. Softening it sidesteps
+              that entirely. It is not competing for legibility with the crisp
+              framing above; it is the colour and light of that artwork,
+              continuing, so the card reads as one composition instead of a
+              photograph with a panel bolted underneath.
+
+              The scale hides the blur's own soft edges, which would otherwise
+              show as a pale border along the card.
+            */}
+{/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={card.coverUrl as string}
+              alt=""
+              aria-hidden
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'block',
+                /*
+                  Cover, always — the owner's Fill/Fit choice deliberately does
+                  not reach this layer.
+
+                  Fit is a statement about the crisp hero: show the whole
+                  artwork, letterboxing it if that is what the composition
+                  needs. Applied to a layer whose entire job is to fill a card
+                  three times taller, it does the opposite of its purpose —
+                  contain painted a band of picture across the middle with
+                  plain background above and below, which is a worse seam than
+                  the one this replaced.
+                */
+                objectFit: 'cover',
+                objectPosition: `${card.media.background.x}% ${card.media.background.y}%`,
+                filter: 'blur(26px) saturate(1.15)',
+                /*
+                  The owner's zoom is honoured only where it can add coverage.
+                  Below 1 it would shrink the layer back off the edges — the
+                  same gap by another route — so it floors at 1, and the extra
+                  1.14 keeps the blur's own soft edges outside the card.
+
+                  Nothing here is written back: this is a rendering treatment,
+                  and the stored background transform is untouched.
+                */
+                transform: `scale(${Math.max(1, card.media.background.scale) * 1.14})`,
+              }}
+            />
+          </div>
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 1,
+              background: bleedScrim,
+              pointerEvents: 'none',
+            }}
+          />
+        </>
+      ) : null}
+
       {/*
         The hero, in explicit layers: background 0, scrim 1, graphics-behind 2,
         person 3, graphics-front 4, logo 5, identity above all of them. The
         order is a property of the markup rather than of document flow, so a
         scrim can never paint over a face, and no design layer can ever land on
         top of the name or the actions.
+
+        The frame keeps its ratio and its coordinates whether or not the
+        artwork sits inside it, because every saved person, logo and graphic
+        position is measured against this box. Moving the picture out from
+        under them must not move them.
 
         The data-hero-layer attributes are how the editor's canvas finds a
         layer to hit-test against. They are inert everywhere else.
@@ -188,20 +306,42 @@ export default function CardHero({
           position: 'relative',
           width: '100%',
           aspectRatio: String(heroAspectRatio(portrait)),
-          // The card's own surface shows through wherever a "fit" background
-          // or a transparent person does not cover it — never a checkerboard.
-          background: t.surface,
+          /*
+            Transparent once the artwork is at the root — painting the card's
+            surface here would hide the very picture this frame now sits on.
+            Otherwise the card's own surface shows through wherever a "fit"
+            background or a transparent person does not cover it, which is what
+            keeps a checkerboard off the card.
+          */
+          background: fullBleed ? 'transparent' : t.surface,
+          zIndex: 2,
           isolation: 'isolate',
           overflow: 'hidden',
         }}
       >
         <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
           {card.coverUrl ? (
+            /*
+              The owner's framing, exactly as they set it, at full sharpness.
+              This is the crop they dragged and zoomed, and it does not change
+              because the artwork now continues past it — the hero region is
+              pixel-for-pixel what it was.
+
+              Under full bleed its bottom edge is dissolved rather than cut, so
+              it melts into the softened continuation below instead of ending
+              on a line.
+            */
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={card.coverUrl}
               alt=""
-              style={{ ...backgroundStyle(card.media.background, card.coverFit), display: 'block' }}
+              style={{
+                ...backgroundStyle(card.media.background, card.coverFit),
+                display: 'block',
+                ...(fullBleed
+                  ? { WebkitMaskImage: COVER_DISSOLVE, maskImage: COVER_DISSOLVE }
+                  : null),
+              }}
             />
           ) : (
             <div
@@ -215,9 +355,19 @@ export default function CardHero({
           )}
         </div>
 
+        {/*
+          Darkening, applied inside the frame so it governs the crisp artwork
+          the owner is looking at. Under full bleed it never closes on an
+          opaque stop, which is what used to end the picture on a hard line.
+        */}
         <div
           aria-hidden
-          style={{ position: 'absolute', inset: 0, zIndex: 1, background: scrim }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 1,
+            background: fullBleed ? bleedScrim : scrim,
+          }}
         />
 
         {/*
@@ -400,9 +550,18 @@ export default function CardHero({
       <div
         style={{
           position: 'relative',
-          zIndex: 4,
+          zIndex: 3,
           padding: s.padding,
           marginTop: hero ? -18 : `calc(${PORTRAIT_WIDTH} * -${PORTRAIT_OVERLAP})`,
+          /*
+            The content's own wash, and only when the artwork runs behind it.
+            The pull-up above means this starts inside the hero, so the
+            gradient opens nearly clear and deepens as it descends — the
+            picture visibly continues out of the hero and past the name, and is
+            still there behind the action rows without ever being what a reader
+            has to see through.
+          */
+          background: fullBleed ? contentScrim : undefined,
         }}
       >
         {!hero ? (
