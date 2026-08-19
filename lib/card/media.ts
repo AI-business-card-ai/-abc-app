@@ -93,7 +93,10 @@ function hasTransparency(ctx: CanvasRenderingContext2D, width: number, height: n
  */
 function outputTypeFor(kind: CardMediaKind, sourceType: string): 'image/png' | 'image/jpeg' {
   if (kind === 'cutout') return 'image/png'
-  if (kind === 'logo' && (sourceType === 'image/png' || sourceType === 'image/webp')) {
+  if (
+    (kind === 'logo' || kind === 'graphic') &&
+    (sourceType === 'image/png' || sourceType === 'image/webp')
+  ) {
     return 'image/png'
   }
   return 'image/jpeg'

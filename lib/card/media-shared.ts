@@ -3,21 +3,21 @@
 export const CARD_MEDIA_BUCKET = 'card-media'
 export const CARD_MEDIA_MAX_BYTES = 10 * 1024 * 1024
 
-export type CardMediaKind = 'photo' | 'cover' | 'logo' | 'showcase' | 'cutout'
+export type CardMediaKind = 'photo' | 'cover' | 'logo' | 'showcase' | 'cutout' | 'graphic'
 
 /**
  * The three images stored directly on the profile row. Showcase images are
  * rows in their own table and the cutout lives inside card_media_transforms,
  * so anything keyed "one per card field" means these.
  */
-export type CardProfileMediaKind = Exclude<CardMediaKind, 'showcase' | 'cutout'>
+export type CardProfileMediaKind = Exclude<CardMediaKind, 'showcase' | 'cutout' | 'graphic'>
 
 /**
  * Kinds whose transparency must survive the upload. Everything else is
  * re-encoded to JPEG for weight; these would lose the alpha channel that is
  * the entire point of them.
  */
-export const ALPHA_MEDIA_KINDS: CardMediaKind[] = ['cutout', 'logo']
+export const ALPHA_MEDIA_KINDS: CardMediaKind[] = ['cutout', 'logo', 'graphic']
 
 /**
  * Every kind the upload route will accept.
@@ -36,6 +36,7 @@ const KINDS: Record<CardMediaKind, true> = {
   logo: true,
   showcase: true,
   cutout: true,
+  graphic: true,
 }
 
 export function isCardMediaKind(value: string): value is CardMediaKind {
@@ -134,6 +135,10 @@ export const CARD_MEDIA_LABELS: Record<CardMediaKind, { title: string; help: str
     title: 'Hero portrait',
     help: 'A portrait with the background already removed, as PNG or WebP.',
   },
+  graphic: {
+    title: 'Hero graphic',
+    help: 'An event badge, product mark or partner logo to place on the hero.',
+  },
 }
 
 /** Longest edge each kind is resized to before upload. */
@@ -147,6 +152,8 @@ export const CARD_MEDIA_MAX_EDGE: Record<CardMediaKind, number> = {
   // A hero cutout is displayed large but never full-bleed, and PNG with alpha
   // is heavy — this keeps a person crisp without shipping a 4 MB layer.
   cutout: 1400,
+  // A badge occupies about a quarter of the hero, so it never needs more.
+  graphic: 900,
 }
 
 /**
@@ -160,5 +167,7 @@ export function cardMediaPath(userId: string, kind: CardMediaKind, ext: string):
   // The cutout is a second asset beside the original, never a replacement for
   // it: photo-… and photo-cutout-… coexist, so the owner can always go back.
   if (kind === 'cutout') return `${userId}/photo-cutout-${unique}.${ext}`
+  // Two of these can coexist, so the name has to be unique rather than a slot.
+  if (kind === 'graphic') return `${userId}/graphic-${unique}.${ext}`
   return `${userId}/${kind}-${Date.now()}.${ext}`
 }

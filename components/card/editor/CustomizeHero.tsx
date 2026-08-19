@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import {
   IconAlertTriangle,
+  IconArrowBackUp,
   IconCheck,
   IconRefresh,
   IconSparkles,
@@ -10,12 +11,18 @@ import {
   IconUpload,
 } from '@tabler/icons-react'
 import CardHero from '@/components/card/CardHero'
+import AlignmentPad from '@/components/card/editor/AlignmentPad'
+import HeroCanvas, { type HeroLayerId } from '@/components/card/editor/HeroCanvas'
 import HeroFramingEditor from '@/components/card/editor/HeroFramingEditor'
 import { generateCutout, isPendingCutout, type CutoutProgress } from '@/lib/card/cutout'
 import { removeCardMedia, uploadCardMedia } from '@/lib/card/media'
 import {
   BACKGROUND_TRANSFORM_DEFAULT,
+  GRAPHIC_SCALE_LIMITS,
+  HERO_PERSON_ANCHOR_DEFAULT,
+  GRAPHIC_TRANSFORM_DEFAULT,
   LOGO_SCALE_LIMITS,
+  MAX_GRAPHIC_LAYERS,
   LOGO_TRANSFORM_DEFAULT,
   PORTRAIT_TRANSFORM_DEFAULT,
   backgroundScaleLimits,
@@ -24,6 +31,7 @@ import {
   type CardMediaTransforms,
   type CardTheme,
   type DigitalCardData,
+  type GraphicLayer,
   type LogoTransform,
   type PortraitMode,
 } from '@/lib/card/types'
@@ -66,17 +74,69 @@ export default function CustomizeHero({
   const portrait = transforms.portrait
   const mode = portrait.mode
   const hasCutout = Boolean(portrait.cutoutUrl)
+  const [selected, setSelected] = useState<HeroLayerId>('person')
+
+  const layers: { id: HeroLayerId; label: string; available: boolean }[] = [
+    { id: 'background', label: 'Background', available: Boolean(coverUrl) },
+    { id: 'person', label: 'Person', available: hasCutout },
+    { id: 'logo', label: 'Logo', available: Boolean(logoUrl) && transforms.logo.visible },
+    { id: 'graphic-0', label: 'Graphic 1', available: Boolean(transforms.graphics[0]) },
+    { id: 'graphic-1', label: 'Graphic 2', available: Boolean(transforms.graphics[1]) },
+  ]
 
   return (
     <div className="flex flex-col gap-4">
       {/*
-        The real renderer, not a stand-in. Whatever is wrong here is wrong on
-        the card someone receives, which is the only useful kind of preview.
+        The card is the canvas. Pick a layer, put a finger on it, move it —
+        the panels below are for the things a finger is bad at.
       */}
       <div className="overflow-hidden rounded-card border border-abc-border">
-        <CardHero card={card} size="compact" />
-        <div style={{ height: 14 }} aria-hidden />
+        {mode === 'hero' ? (
+          <HeroCanvas
+            card={card}
+            transforms={transforms}
+            selected={selected}
+            onSelect={setSelected}
+            onChange={(next) => onChange({ card_media_transforms: next })}
+          />
+        ) : (
+          <>
+            <CardHero card={card} size="compact" />
+            <div style={{ height: 14 }} aria-hidden />
+          </>
+        )}
       </div>
+
+      {mode === 'hero' ? (
+        <div className="-mt-1">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Layer to edit">
+            {layers
+              .filter((l) => l.available)
+              .map((l) => {
+                const active = selected === l.id
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setSelected(l.id)}
+                    className="min-h-[36px] rounded-full border px-3 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
+                    style={{
+                      background: active ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
+                      borderColor: active ? 'var(--abc-gold-border)' : 'var(--abc-border)',
+                      color: active ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
+                    }}
+                  >
+                    {l.label}
+                  </button>
+                )
+              })}
+          </div>
+          <p className="mt-1.5 text-[11.5px] leading-[1.45] text-abc-muted">
+            Drag on the card to move the selected layer. Pinch to resize.
+          </p>
+        </div>
+      ) : null}
 
       <StyleSection mode={mode} hasCutout={hasCutout} transforms={transforms} onChange={onChange} />
 
@@ -94,6 +154,10 @@ export default function CustomizeHero({
 
       {logoUrl && mode === 'hero' ? (
         <LogoSection transforms={transforms} logoUrl={logoUrl} theme={theme} onChange={onChange} />
+      ) : null}
+
+      {mode === 'hero' ? (
+        <GraphicsSection transforms={transforms} onChange={onChange} onSelect={setSelected} />
       ) : null}
 
       {photoUrl ? (
@@ -269,26 +333,97 @@ function BackgroundSection({
           : 'The cover fills the hero. Drag below to choose what stays in frame.'}
       </p>
 
-      <div className="mt-3">
-        <HeroFramingEditor
-          label="Position and zoom"
-          imageUrl={coverUrl}
-          theme={theme}
-          contain={coverFit === 'fit'}
-          limits={backgroundScaleLimits(coverFit)}
-          showPositionGrid
-          transform={transforms.background}
-          onChange={(background) =>
-            onChange({ card_media_transforms: { ...transforms, background } })
-          }
-          onReset={() =>
-            onChange({
-              card_media_transforms: { ...transforms, background: BACKGROUND_TRANSFORM_DEFAULT },
-            })
-          }
-        />
-      </div>
+      <AlignmentPad
+        x={transforms.background.x}
+        y={transforms.background.y}
+        onChange={(x, y) =>
+          onChange({ card_media_transforms: { ...transforms, background: { ...transforms.background, x, y } } })
+        }
+      />
+
+      <Slider
+        label="Zoom"
+        value={transforms.background.scale}
+        min={backgroundScaleLimits(coverFit).min}
+        max={backgroundScaleLimits(coverFit).max}
+        step={0.05}
+        format={(v) => `${v.toFixed(2)}×`}
+        onChange={(scale) =>
+          onChange({ card_media_transforms: { ...transforms, background: { ...transforms.background, scale } } })
+        }
+      />
+
+      <Slider
+        label="Darken"
+        value={transforms.background.overlay}
+        min={0}
+        max={100}
+        step={5}
+        format={(v) => `${Math.round(v)}%`}
+        onChange={(overlay) =>
+          onChange({ card_media_transforms: { ...transforms, background: { ...transforms.background, overlay } } })
+        }
+      />
+
+      <ResetRow
+        onReset={() =>
+          onChange({
+            card_media_transforms: { ...transforms, background: BACKGROUND_TRANSFORM_DEFAULT },
+          })
+        }
+      />
     </Panel>
+  )
+}
+
+/** Shared by every panel: one row, one number, one value readout. */
+function Slider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  format,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  format: (value: number) => string
+  onChange: (value: number) => void
+}) {
+  return (
+    <label className="mt-3 block">
+      <span className="flex items-baseline justify-between">
+        <span className="text-[12px] text-abc-muted">{label}</span>
+        <span className="text-[11.5px] tabular-nums text-abc-secondary">{format(value)}</span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="mt-1.5 h-[36px] w-full accent-[color:var(--abc-gold-accent)]"
+        aria-label={label}
+      />
+    </label>
+  )
+}
+
+function ResetRow({ onReset }: { onReset: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onReset}
+      className="mt-3 inline-flex h-[40px] items-center gap-1.5 rounded-btn border border-abc-border px-3 text-[12.5px] font-medium text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+    >
+      <IconArrowBackUp size={15} stroke={1.8} />
+      Reset
+    </button>
   )
 }
 
@@ -312,7 +447,17 @@ function LogoSection({
   const logo = transforms.logo
 
   function set(next: Partial<LogoTransform>) {
-    onChange({ card_media_transforms: { ...transforms, logo: { ...logo, ...next } } })
+    /*
+      Anything the owner does here is a deliberate placement, so it settles the
+      logo into the anchored model — position stops depending on size, and the
+      preview stops disagreeing with the card.
+    */
+    onChange({
+      card_media_transforms: {
+        ...transforms,
+        logo: { ...logo, ...next, positionModel: 'anchor' },
+      },
+    })
   }
 
   return (
@@ -340,47 +485,261 @@ function LogoSection({
       </div>
 
       {logo.visible ? (
-        <div className="mt-4">
-          <HeroFramingEditor
-            label="Position the logo"
-            imageUrl={logoUrl}
-            shape="hero"
-            contain
-            subject
-            showPositionGrid
-            theme={theme}
-            limits={LOGO_SCALE_LIMITS}
-            transform={{ x: logo.x, y: logo.y, scale: logo.scale }}
-            onChange={(next) => set({ x: next.x, y: next.y, scale: next.scale })}
+        <>
+          <AlignmentPad x={logo.x} y={logo.y} inset={20} onChange={(x, y) => set({ x, y })} />
+          <Slider
+            label="Size"
+            value={logo.scale}
+            min={LOGO_SCALE_LIMITS.min}
+            max={LOGO_SCALE_LIMITS.max}
+            step={0.05}
+            format={(v) => `${v.toFixed(2)}×`}
+            onChange={(scale) => set({ scale })}
+          />
+          <Slider
+            label="Opacity"
+            value={logo.opacity}
+            min={0}
+            max={1}
+            step={0.05}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(opacity) => set({ opacity })}
+          />
+          <ResetRow
             onReset={() =>
-              onChange({ card_media_transforms: { ...transforms, logo: LOGO_TRANSFORM_DEFAULT } })
+              onChange({
+                card_media_transforms: {
+                  ...transforms,
+                  // Back to the corner it has always defaulted to, read the
+                  // legacy way so Reset reproduces the original placement.
+                  logo: { ...LOGO_TRANSFORM_DEFAULT },
+                },
+              })
             }
-          >
-            <label className="mt-3 block">
-              <span className="flex items-baseline justify-between">
-                <span className="text-[12px] text-abc-muted">Opacity</span>
-                <span className="text-[11.5px] tabular-nums text-abc-secondary">
-                  {Math.round(logo.opacity * 100)}%
-                </span>
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={logo.opacity}
-                onChange={(e) => set({ opacity: Number(e.target.value) })}
-                className="mt-1.5 h-[36px] w-full accent-[color:var(--abc-gold-accent)]"
-                aria-label="Logo opacity"
-              />
-            </label>
-          </HeroFramingEditor>
-        </div>
+          />
+        </>
       ) : (
         <p className="mt-2.5 text-[12.5px] leading-[1.5] text-abc-muted">
           Your logo is hidden on the hero. The rest of the card is unchanged.
         </p>
       )}
+    </Panel>
+  )
+}
+
+/**
+ * Up to two extra layers: an event badge, a product mark, a partner logo.
+ *
+ * Deliberately capped. The point is a business card that can carry the one or
+ * two marks a trade fair actually needs, not a canvas with an unbounded layer
+ * stack — two is the number past which "behind me or in front of me" stops
+ * being a sufficient way to describe the order.
+ */
+function GraphicsSection({
+  transforms,
+  onChange,
+  onSelect,
+}: {
+  transforms: CardMediaTransforms
+  onChange: (patch: { card_media_transforms?: CardMediaTransforms }) => void
+  onSelect: (layer: HeroLayerId) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [replacing, setReplacing] = useState<number | null>(null)
+  const graphics = transforms.graphics
+
+  function write(next: GraphicLayer[]) {
+    onChange({ card_media_transforms: { ...transforms, graphics: next } })
+  }
+
+  function set(index: number, next: Partial<GraphicLayer>) {
+    write(graphics.map((g, i) => (i === index ? { ...g, ...next } : g)))
+  }
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return
+    setError(null)
+    setBusy(true)
+    const result = await uploadCardMedia('graphic', file)
+    setBusy(false)
+
+    if ('error' in result) {
+      setError(result.error)
+      return
+    }
+    const target = replacing
+    if (target !== null && graphics[target]) {
+      const previous = graphics[target].url
+      set(target, { url: result.url })
+      if (previous) void removeCardMedia(previous)
+    } else if (graphics.length < MAX_GRAPHIC_LAYERS) {
+      write([...graphics, { url: result.url, ...GRAPHIC_TRANSFORM_DEFAULT }])
+      onSelect(graphics.length === 0 ? 'graphic-0' : 'graphic-1')
+    }
+    setReplacing(null)
+  }
+
+  function remove(index: number) {
+    const previous = graphics[index]?.url
+    write(graphics.filter((_, i) => i !== index))
+    if (previous) void removeCardMedia(previous)
+  }
+
+  return (
+    <Panel title="Graphics">
+      <p className="mt-1 text-[12px] leading-[1.45] text-abc-muted">
+        An event badge, a product mark or a partner logo. Up to two.
+      </p>
+
+      {graphics.map((g, index) => (
+        <div key={index} className="mt-3 rounded-inner border border-abc-border p-3">
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={g.url}
+              alt=""
+              className="h-[44px] w-[56px] shrink-0 rounded-inner border border-abc-border bg-abc-card object-contain"
+            />
+            <p className="flex-1 text-[13px] font-semibold text-abc-text">Graphic {index + 1}</p>
+            <button
+              type="button"
+              onClick={() => set(index, { visible: !g.visible })}
+              aria-pressed={g.visible}
+              className="min-h-[36px] rounded-btn border border-abc-border px-2.5 text-[12px] text-abc-secondary abc-focus-ring"
+            >
+              {g.visible ? 'Shown' : 'Hidden'}
+            </button>
+          </div>
+
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setReplacing(index)
+                inputRef.current?.click()
+              }}
+              className="inline-flex h-[40px] items-center gap-1.5 rounded-btn border border-abc-border px-3 text-[12.5px] text-abc-text disabled:opacity-50 abc-focus-ring"
+            >
+              <IconUpload size={15} stroke={1.8} />
+              Replace
+            </button>
+            <button
+              type="button"
+              onClick={() => remove(index)}
+              className="inline-flex h-[40px] items-center gap-1.5 rounded-btn border border-abc-border px-3 text-[12.5px] text-abc-secondary abc-focus-ring"
+            >
+              <IconTrash size={15} stroke={1.8} />
+              Remove
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelect(index === 0 ? 'graphic-0' : 'graphic-1')}
+              className="inline-flex h-[40px] items-center rounded-btn border border-abc-border px-3 text-[12.5px] text-abc-secondary abc-focus-ring"
+            >
+              Edit on card
+            </button>
+          </div>
+
+          {/* Order, in the only terms anyone ever asks it in. */}
+          <div className="mt-3 flex gap-2" role="group" aria-label="Graphic placement">
+            {(
+              [
+                { id: 'behind-person', label: 'Behind person' },
+                { id: 'front-person', label: 'In front' },
+              ] as const
+            ).map((option) => {
+              const active = g.placement === option.id
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => set(index, { placement: option.id })}
+                  className="min-h-[40px] flex-1 rounded-btn border px-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
+                  style={{
+                    background: active ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
+                    borderColor: active ? 'var(--abc-gold-border)' : 'var(--abc-border)',
+                    color: active ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+
+          <AlignmentPad x={g.x} y={g.y} inset={20} onChange={(x, y) => set(index, { x, y })} />
+          <Slider
+            label="Size"
+            value={g.scale}
+            min={GRAPHIC_SCALE_LIMITS.min}
+            max={GRAPHIC_SCALE_LIMITS.max}
+            step={0.05}
+            format={(v) => `${v.toFixed(2)}×`}
+            onChange={(scale) => set(index, { scale })}
+          />
+          <Slider
+            label="Opacity"
+            value={g.opacity}
+            min={0}
+            max={1}
+            step={0.05}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(opacity) => set(index, { opacity })}
+          />
+          <ResetRow onReset={() => set(index, { ...GRAPHIC_TRANSFORM_DEFAULT })} />
+        </div>
+      ))}
+
+      {graphics.length < MAX_GRAPHIC_LAYERS ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setReplacing(null)
+            inputRef.current?.click()
+          }}
+          className="mt-3 inline-flex h-[44px] items-center gap-2 rounded-btn border px-3.5 text-[13.5px] font-semibold transition-colors duration-200 ease-abc disabled:opacity-50 abc-focus-ring"
+          style={{
+            background: 'var(--abc-gold-soft)',
+            borderColor: 'var(--abc-gold-border)',
+            color: 'var(--abc-gold-accent)',
+          }}
+        >
+          <IconUpload size={16} stroke={1.8} />
+          {busy ? 'Uploading…' : 'Add graphic'}
+        </button>
+      ) : (
+        <p className="mt-3 text-[12px] leading-[1.45] text-abc-muted">
+          Two graphics is the maximum. Remove one to add another.
+        </p>
+      )}
+
+      {error ? (
+        <p
+          className="mt-2 flex items-start gap-1.5 text-[12px] leading-[1.45]"
+          style={{ color: 'var(--abc-overdue)' }}
+          role="alert"
+        >
+          <IconAlertTriangle size={14} stroke={1.9} className="mt-px shrink-0" />
+          <span>{error}</span>
+        </p>
+      ) : null}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        aria-label="Choose a graphic"
+        onChange={(e) => {
+          void handleFile(e.target.files?.[0])
+          e.target.value = ''
+        }}
+      />
     </Panel>
   )
 }
@@ -684,29 +1043,59 @@ function PersonSection({
         the setup state above and no framing control at all.
       */}
       {heroActive ? (
-        <div className="mt-4">
-          <HeroFramingEditor
-            label="Position the person"
-            imageUrl={portrait.cutoutUrl as string}
-            shape="hero"
-            contain
-            subject
-            showPositionGrid
-            theme={theme}
-            limits={portraitScaleLimits('hero')}
-            transform={portrait}
-            onChange={(next) => onChange({ card_media_transforms: { ...transforms, portrait: next } })}
-            onReset={() =>
+        <>
+          <AlignmentPad
+            x={portrait.x}
+            y={portrait.y}
+            inset={20}
+            onChange={(x, y) =>
               onChange({
                 card_media_transforms: {
                   ...transforms,
-                  // Reset placement, not the mode or the cutout the owner made.
-                  portrait: { ...PORTRAIT_TRANSFORM_DEFAULT, mode, cutoutUrl: portrait.cutoutUrl },
+                  portrait: { ...portrait, x, y, positionModel: 'anchor' },
                 },
               })
             }
           />
-        </div>
+          <Slider
+            label="Size"
+            value={portrait.scale}
+            min={portraitScaleLimits('hero').min}
+            max={portraitScaleLimits('hero').max}
+            step={0.05}
+            format={(v) => `${v.toFixed(2)}×`}
+            onChange={(scale) =>
+              onChange({
+                card_media_transforms: {
+                  ...transforms,
+                  portrait: { ...portrait, scale, positionModel: 'anchor' },
+                },
+              })
+            }
+          />
+          <ResetRow
+            onReset={() =>
+              onChange({
+                card_media_transforms: {
+                  ...transforms,
+                  /*
+                    Reset placement, not the mode or the cutout the owner made
+                    — and reset to the anchored centre rather than the shared
+                    default, whose y is the Classic circle's crop and would put
+                    an anchored subject somewhere nobody asked for.
+                  */
+                  portrait: {
+                    ...portrait,
+                    ...HERO_PERSON_ANCHOR_DEFAULT,
+                    mode,
+                    cutoutUrl: portrait.cutoutUrl,
+                    positionModel: 'anchor',
+                  },
+                },
+              })
+            }
+          />
+        </>
       ) : null}
 
       {mode === 'classic' ? (

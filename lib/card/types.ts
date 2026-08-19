@@ -250,9 +250,29 @@ export type BackgroundTransform = MediaTransform & { overlay: number }
  */
 export type PortraitMode = 'classic' | 'hero'
 
+/**
+ * How a hero person's x/y should be read.
+ *
+ * `legacy` is every card saved before the composer existed. Those two numbers
+ * were an object-position — a crop offset through whatever space the subject
+ * did not already fill — which is why a full-height person could never be
+ * moved up or down at all.
+ *
+ * `anchor` places the subject's centre at that point of the frame, which is
+ * what makes free positioning possible in both axes.
+ *
+ * The two are not interchangeable readings of the same numbers, so the model
+ * is recorded rather than guessed. A legacy card keeps rendering through the
+ * legacy path — the same code, pixel for pixel — until the owner actually
+ * moves the person, at which point the editor converts the position from the
+ * geometry on screen and marks it anchored. Nobody's card moves on deploy.
+ */
+export type PortraitPositionModel = 'legacy' | 'anchor'
+
 export type PortraitTransform = MediaTransform & {
   mode: PortraitMode
   cutoutUrl: string | null
+  positionModel: PortraitPositionModel
 }
 
 /**
@@ -275,12 +295,59 @@ export type LogoTransform = {
   /** 0–1. */
   opacity: number
   visible: boolean
+  /**
+   * Read the same way the person's is, and for the same reason.
+   *
+   * `legacy` anchors an edge: 0 pins the logo's left edge to the left inset,
+   * 100 pins its right edge to the right inset. That places it correctly but
+   * couples position to size — a bigger logo has less room to travel, so
+   * resizing it slides its centre across the card.
+   *
+   * `anchor` places the logo's centre at the named point, so it grows and
+   * shrinks around the spot the owner chose instead of drifting away from it.
+   */
+  positionModel: PortraitPositionModel
 }
+
+/**
+ * An optional extra layer: an event badge, a product mark, a partner logo.
+ *
+ * Placement is the only ordering control the owner ever sees. Raw z-indexes
+ * are an implementation detail, and "in front of me or behind me" is the only
+ * question anyone actually has about a badge on their own card.
+ */
+export type GraphicPlacement = 'behind-person' | 'front-person'
+
+export type GraphicLayer = {
+  url: string
+  x: number
+  y: number
+  scale: number
+  opacity: number
+  visible: boolean
+  placement: GraphicPlacement
+}
+
+/** Two is plenty for a business card, and it keeps this out of canvas territory. */
+export const MAX_GRAPHIC_LAYERS = 2
+
+export const GRAPHIC_TRANSFORM_DEFAULT: Omit<GraphicLayer, 'url'> = {
+  x: 25,
+  y: 75,
+  scale: 1,
+  opacity: 1,
+  visible: true,
+  placement: 'front-person',
+}
+
+/** A graphic is sized against the hero's width, so it scales with the card. */
+export const GRAPHIC_SCALE_LIMITS: ScaleLimits = { min: 0.3, max: 2.5 }
 
 export type CardMediaTransforms = {
   background: BackgroundTransform
   portrait: PortraitTransform
   logo: LogoTransform
+  graphics: GraphicLayer[]
 }
 
 export const BACKGROUND_TRANSFORM_DEFAULT: BackgroundTransform = {
@@ -301,19 +368,37 @@ export const LOGO_TRANSFORM_DEFAULT: LogoTransform = {
   scale: 1,
   opacity: 1,
   visible: true,
+  // Every card that predates the composer means this the old way, and keeps
+  // rendering that way until the owner actually places the logo themselves.
+  positionModel: 'legacy',
 }
 
 /** How far the logo may be scaled against the surface's own logo height. */
 export const LOGO_SCALE_LIMITS: ScaleLimits = { min: 0.5, max: 2.5 }
 
-/** Portraits sit above centre, so the default keeps the face in frame. */
+/**
+ * Portraits sit above centre, so the default keeps the face in frame.
+ *
+ * y is 30 because that is what the circular crop has always used, and this
+ * same default seeds Classic. Hero's anchored default is separate below —
+ * changing this one to suit Hero would have quietly recropped every new
+ * Classic portrait.
+ */
 export const PORTRAIT_TRANSFORM_DEFAULT: PortraitTransform = {
   scale: 1,
   x: 50,
   y: 30,
   mode: 'classic',
   cutoutUrl: null,
+  positionModel: 'legacy',
 }
+
+/**
+ * Dead centre, which for a full-height subject is exactly where the legacy
+ * path already drew them — so a hero card starting here looks the same as one
+ * that started before the composer existed.
+ */
+export const HERO_PERSON_ANCHOR_DEFAULT = { x: 50, y: 50, scale: 1 } as const
 
 /**
  * Zoom range depends on what the image has to cover, so one pair of numbers
@@ -378,6 +463,7 @@ export function normalizeMediaTransforms(
   const bg = (source.background || {}) as Record<string, unknown>
   const portrait = (source.portrait || {}) as Record<string, unknown>
   const logo = (source.logo || {}) as Record<string, unknown>
+  const graphics = Array.isArray(source.graphics) ? source.graphics : []
 
   const seeded = seedFromCoverPosition(coverPosition)
 
@@ -420,6 +506,9 @@ export function normalizeMediaTransforms(
       // Legitimately null under hero: the renderer then draws the hero
       // composition with no foreground person, never a circular portrait.
       cutoutUrl,
+      // Absent on every card saved before the composer, which is exactly the
+      // set of cards that must keep rendering the old way.
+      positionModel: portrait.positionModel === 'anchor' ? 'anchor' : 'legacy',
     },
     /*
       Absent on every card saved before the logo became a layer, which is the
@@ -440,7 +529,34 @@ export function normalizeMediaTransforms(
       // Only an explicit false hides it; anything else is a card that predates
       // the setting and must keep showing the logo it has always shown.
       visible: logo.visible === false ? false : true,
+      positionModel: logo.positionModel === 'anchor' ? 'anchor' : 'legacy',
     },
+    /*
+      Absent on every card that has never added one, so the empty list is the
+      normal answer. Anything without a usable url is dropped rather than
+      rendered as a broken layer, and the cap is enforced on read as well as on
+      write — a hand-edited row cannot smuggle in a third.
+    */
+    graphics: graphics
+      .filter((g): g is Record<string, unknown> => Boolean(g) && typeof g === 'object')
+      .map((g) => ({
+        url: typeof g.url === 'string' ? g.url.trim() : '',
+        x: clamp(g.x, 0, 100, GRAPHIC_TRANSFORM_DEFAULT.x),
+        y: clamp(g.y, 0, 100, GRAPHIC_TRANSFORM_DEFAULT.y),
+        scale: clamp(
+          g.scale,
+          GRAPHIC_SCALE_LIMITS.min,
+          GRAPHIC_SCALE_LIMITS.max,
+          GRAPHIC_TRANSFORM_DEFAULT.scale
+        ),
+        opacity: clamp(g.opacity, 0, 1, GRAPHIC_TRANSFORM_DEFAULT.opacity),
+        visible: g.visible === false ? false : true,
+        placement: (g.placement === 'behind-person'
+          ? 'behind-person'
+          : 'front-person') as GraphicPlacement,
+      }))
+      .filter((g) => g.url)
+      .slice(0, MAX_GRAPHIC_LAYERS),
   }
 }
 

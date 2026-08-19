@@ -16,49 +16,17 @@ import {
 
 const MEDIA_TRANSFORM_LIMITS_DEFAULT: ScaleLimits = SCALE_LIMITS.backgroundFill
 
-/** Reading order, so the rendered grid matches the nine positions visually. */
-const POSITION_PRESETS = [
-  { label: 'Top left', x: 0, y: 0 },
-  { label: 'Top center', x: 50, y: 0 },
-  { label: 'Top right', x: 100, y: 0 },
-  { label: 'Center left', x: 0, y: 50 },
-  { label: 'Center', x: 50, y: 50 },
-  { label: 'Center right', x: 100, y: 50 },
-  { label: 'Bottom left', x: 0, y: 100 },
-  { label: 'Bottom center', x: 50, y: 100 },
-  { label: 'Bottom right', x: 100, y: 100 },
-] as const
-
 /**
- * The same nine placements for a floating subject, inset from the edges.
+ * Visual framing for the Classic circular portrait.
  *
- * A person or a logo pinned to a literal 0 or 100 sits hard against the card's
- * edge with nothing around it. Twenty percent in reads as "top left" while
- * still leaving the subject framed, and the grid stays symmetrical, so the
- * corners remain mirror images of each other.
- */
-const SUBJECT_PRESETS = [
-  { label: 'Top left', x: 20, y: 20 },
-  { label: 'Top center', x: 50, y: 20 },
-  { label: 'Top right', x: 80, y: 20 },
-  { label: 'Center left', x: 20, y: 50 },
-  { label: 'Center', x: 50, y: 50 },
-  { label: 'Center right', x: 80, y: 50 },
-  { label: 'Bottom left', x: 20, y: 80 },
-  { label: 'Bottom center', x: 50, y: 80 },
-  { label: 'Bottom right', x: 80, y: 80 },
-] as const
-
-/**
- * Visual framing for one hero image.
+ * The preview is the real crop: the same shape and the same transformStyle the
+ * public card renders with, so what the owner lines up here is what a visitor
+ * sees. Nothing is written back to the uploaded file — only scale and position
+ * are stored, so the framing can be changed again later.
  *
- * The preview is the real crop: the same frame ratio and the same
- * transformStyle the public card renders with, so what the owner lines up here
- * is what a visitor sees. Nothing is written back to the uploaded file — only
- * scale and position are stored, so the framing can be changed again later.
- *
- * Dragging pans, the slider zooms. Both map to the same two numbers, so the
- * pointer and the slider can never disagree.
+ * Hero no longer comes through here. Its layers are placed by dragging them on
+ * the card itself, which is what HeroCanvas is for; this is the one crop that
+ * genuinely needs its own round window to line a face up inside.
  */
 export default function HeroFramingEditor<T extends MediaTransform>({
   label,
@@ -70,8 +38,6 @@ export default function HeroFramingEditor<T extends MediaTransform>({
   theme = 'graphite',
   limits = MEDIA_TRANSFORM_LIMITS_DEFAULT,
   contain = false,
-  showPositionGrid = false,
-  subject = false,
   children,
 }: {
   label: string
@@ -89,14 +55,6 @@ export default function HeroFramingEditor<T extends MediaTransform>({
   limits?: ScaleLimits
   /** Show the whole image rather than filling the frame — "fit" and cutouts. */
   contain?: boolean
-  /** Nine-position shortcut. */
-  showPositionGrid?: boolean
-  /**
-   * This layer floats inside the frame rather than filling it — a cutout or a
-   * logo. Changes the drag direction, and insets the nine presets so an edge
-   * preset still leaves the subject fully on the card.
-   */
-  subject?: boolean
   children?: React.ReactNode
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
@@ -104,21 +62,13 @@ export default function HeroFramingEditor<T extends MediaTransform>({
 
   const applyDrag = useCallback(
     (dx: number, dy: number, rect: DOMRect) => {
-      /*
-        Two different gestures wearing the same two numbers.
-
-        Panning a cropped background moves the visible window, so the image
-        travels opposite the pointer — drag left, see further right. A subject
-        that floats inside its frame is a sticker, and a sticker has to come
-        with the finger or it feels broken. Same stored x/y either way; only
-        the sign differs.
-      */
-      const direction = subject ? 1 : -1
-      const nextX = Math.min(100, Math.max(0, transform.x + direction * (dx / rect.width) * 100))
-      const nextY = Math.min(100, Math.max(0, transform.y + direction * (dy / rect.height) * 100))
+      // A crop pans: the window moves, so the image travels opposite the
+      // pointer. Dividing by the frame keeps the feel the same at any size.
+      const nextX = Math.min(100, Math.max(0, transform.x - (dx / rect.width) * 100))
+      const nextY = Math.min(100, Math.max(0, transform.y - (dy / rect.height) * 100))
       onChange({ ...transform, x: Math.round(nextX), y: Math.round(nextY) })
     },
-    [onChange, subject, transform]
+    [onChange, transform]
   )
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
@@ -263,46 +213,6 @@ export default function HeroFramingEditor<T extends MediaTransform>({
       </div>
 
       <p className="mt-2 text-center text-[11.5px] text-abc-muted">Drag the image to reposition</p>
-
-      {/*
-        A shortcut, not a replacement for dragging: nine taps that cover the
-        placements most owners actually want, for the times when nudging a
-        photograph with a thumb is the slower way to say "top left".
-      */}
-      {showPositionGrid ? (
-        <div className="mt-3">
-          <p className="text-[12px] text-abc-muted">Position</p>
-          <div className="mt-1.5 grid grid-cols-3 gap-1.5" role="group" aria-label="Position presets">
-            {(subject ? SUBJECT_PRESETS : POSITION_PRESETS).map((preset) => {
-              const active =
-                Math.round(transform.x) === preset.x && Math.round(transform.y) === preset.y
-              return (
-                <button
-                  key={preset.label}
-                  type="button"
-                  aria-label={preset.label}
-                  aria-pressed={active}
-                  onClick={() => onChange({ ...transform, x: preset.x, y: preset.y })}
-                  className="flex h-[44px] items-center justify-center rounded-btn border transition-colors duration-200 ease-abc abc-focus-ring"
-                  style={{
-                    background: active ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
-                    borderColor: active ? 'var(--abc-gold-border)' : 'var(--abc-border)',
-                  }}
-                >
-                  <span
-                    className="block rounded-full"
-                    style={{
-                      width: active ? 11 : 7,
-                      height: active ? 11 : 7,
-                      background: active ? 'var(--abc-gold-accent)' : 'var(--abc-text-muted)',
-                    }}
-                  />
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ) : null}
 
       <Slider
         label="Zoom"
