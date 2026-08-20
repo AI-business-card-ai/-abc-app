@@ -11,6 +11,7 @@ import {
   type GraphicLayer,
 } from '@/lib/card/types'
 import {
+  HERO_TEXT_SHADOW,
   getCardThemeTokens,
   heroBleedScrimGradient,
   heroContentScrimGradient,
@@ -562,6 +563,14 @@ export default function CardHero({
             has to see through.
           */
           background: fullBleed ? contentScrim : undefined,
+          /*
+            Set once and inherited by everything the caller renders inside —
+            name, role, actions, row labels. text-shadow inherits, so one
+            declaration here does what thirteen would have done downstream, and
+            it is what lets the wash above stay light enough to still show a
+            picture.
+          */
+          textShadow: fullBleed ? HERO_TEXT_SHADOW : undefined,
         }}
       >
         {!hero ? (

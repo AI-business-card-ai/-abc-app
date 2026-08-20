@@ -30,7 +30,7 @@ import CardHero from '@/components/card/CardHero'
 import ShowcaseGallery from '@/components/card/ShowcaseGallery'
 import { isSocialVisible } from '@/lib/card/public-data'
 import { whatsappMeUrl } from '@/lib/card/social'
-import { getCardThemeTokens } from '@/lib/card/theme'
+import { getCardThemeTokens, glassBorder, glassSurface } from '@/lib/card/theme'
 
 type Props = {
   card: DigitalCardData
@@ -91,11 +91,34 @@ export default function DigitalCardView({
   wallet = { apple: false, google: false },
 }: Props) {
   const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
-  const t = getCardThemeTokens(card.theme)
+  const base = getCardThemeTokens(card.theme)
   const accent = card.accent
   // The action hierarchy follows the chosen composition, not the cutout: a
   // hero card whose subject is missing is still a hero card.
   const hero = isHeroLayout(card.media.portrait)
+
+  /*
+    Over a full-bleed card the chrome turns to glass.
+
+    Every row, chip and tile below reads `t.surface`, and `t.surface` is
+    opaque — so the artwork ran behind the content and was then covered by it,
+    panel by panel. Substituting the token here rather than at thirteen call
+    sites keeps one definition of what a surface is, and means a control added
+    later inherits the right answer instead of punching another hole in the
+    composition.
+
+    The artwork behind the content is already softened, so translucency alone
+    is enough; no backdrop filter, which a phone would pay for on every row.
+  */
+  const glass = hero && Boolean(card.coverUrl)
+  const t = glass
+    ? {
+        ...base,
+        surface: glassSurface(base, 0.42),
+        surface2: glassSurface(base, 0.58),
+        border: glassBorder(base),
+      }
+    : base
 
   const socials = (Object.keys(SOCIAL_ICONS) as SocialNetwork[])
     .map((key) => {

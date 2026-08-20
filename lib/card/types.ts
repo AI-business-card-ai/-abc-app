@@ -341,7 +341,7 @@ export const GRAPHIC_TRANSFORM_DEFAULT: Omit<GraphicLayer, 'url'> = {
 }
 
 /** A graphic is sized against the hero's width, so it scales with the card. */
-export const GRAPHIC_SCALE_LIMITS: ScaleLimits = { min: 0.3, max: 2.5 }
+export const GRAPHIC_SCALE_LIMITS: ScaleLimits = { min: 0.1, max: 6 }
 
 export type CardMediaTransforms = {
   background: BackgroundTransform
@@ -373,8 +373,14 @@ export const LOGO_TRANSFORM_DEFAULT: LogoTransform = {
   positionModel: 'legacy',
 }
 
-/** How far the logo may be scaled against the surface's own logo height. */
-export const LOGO_SCALE_LIMITS: ScaleLimits = { min: 0.5, max: 2.5 }
+/**
+ * How far the logo may be scaled against the surface's own logo height.
+ *
+ * The bottom is genuinely tiny and the top genuinely large, because a logo is
+ * either a discreet mark in a corner or the whole point of the card, and the
+ * old half-to-double range served neither.
+ */
+export const LOGO_SCALE_LIMITS: ScaleLimits = { min: 0.1, max: 6 }
 
 /**
  * Portraits sit above centre, so the default keeps the face in frame.
@@ -416,10 +422,24 @@ export const HERO_PERSON_ANCHOR_DEFAULT = { x: 50, y: 50, scale: 1 } as const
  * what a wordmark cover and a full-length person actually need.
  */
 export const SCALE_LIMITS = {
-  backgroundFill: { min: 1, max: 3 },
-  backgroundFit: { min: 0.4, max: 3 },
+  /*
+    Wide open, on purpose.
+
+    The old floor of 1 on a "fill" background existed to guarantee no gap: at
+    scale 1 a cover image exactly fills its frame, and anything less exposed
+    the surface behind it. That guarantee is worth less than it was — the hero
+    now sits on a full-card artwork layer that always covers, so a zoomed-out
+    background reveals a softened continuation of itself rather than a bare
+    panel — and it cost the owner the ability to pull a wide cover back far
+    enough to see it whole.
+
+    Classic keeps its floor of 1. Its circle has nothing behind it but card
+    surface, so shrinking the photograph there still punches a hole.
+  */
+  backgroundFill: { min: 0.25, max: 5 },
+  backgroundFit: { min: 0.25, max: 5 },
   portraitClassic: { min: 1, max: 3 },
-  portraitHero: { min: 0.45, max: 2 },
+  portraitHero: { min: 0.25, max: 3.5 },
 } as const
 
 export type ScaleLimits = { min: number; max: number }

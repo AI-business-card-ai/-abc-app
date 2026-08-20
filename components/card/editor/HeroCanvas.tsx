@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import CardHero from '@/components/card/CardHero'
+import { moveLayer, scaleLayer, type HeroLayerId } from '@/lib/card/hero-gestures'
 import {
   GRAPHIC_SCALE_LIMITS,
   LOGO_SCALE_LIMITS,
@@ -31,7 +32,7 @@ import {
  * panels write. It renders no card of its own.
  */
 
-export type HeroLayerId = 'background' | 'person' | 'logo' | 'graphic-0' | 'graphic-1'
+export type { HeroLayerId }
 
 /** Only the hero frame is editable; identity and actions are never targets. */
 export default function HeroCanvas({
@@ -225,115 +226,40 @@ export default function HeroCanvas({
         ? LOGO_SCALE_LIMITS
         : GRAPHIC_SCALE_LIMITS
 
-  /** Writes one layer's position, in the units that layer actually stores. */
+  /*
+    Both gestures defer to the shared arithmetic. The canvas measures — which
+    frame, which layer, how big — and hero-gestures decides what that means for
+    the transforms, so a drag here and a drag in a layer's own editor can never
+    disagree about which way a person moves.
+  */
   const moveBy = useCallback(
     (layer: HeroLayerId, dx: number, dy: number) => {
       const frame = frameEl()
       if (!frame) return
       const fr = frame.getBoundingClientRect()
-      const t = stateRef.current.transforms
-
-      const clamp = (v: number) => Math.min(100, Math.max(0, Math.round(v)))
-
-      if (layer === 'background') {
-        // A cropped background pans: the window moves, so the image travels
-        // against the finger. Its own free space is whatever the zoom created.
-        const next = {
-          ...t.background,
-          x: clamp(t.background.x - (dx / fr.width) * 100),
-          y: clamp(t.background.y - (dy / fr.height) * 100),
-        }
-        return onChange({ ...t, background: next })
-      }
-
-      /*
-        Anchored layers move with the finger. The anchor travels across the
-        space the layer does not already occupy, so the conversion from pixels
-        to percent depends on how much room is left — a wide logo needs a
-        bigger percentage change than a small badge to cross the same pixels.
-
-        The floor is half the frame rather than a few pixels. A full-height
-        person has almost no vertical room to travel through, and dividing by
-        that sliver turned a 30px nudge into the full range: they shot to the
-        edge and stuck there. Half the frame caps the sensitivity, so the worst
-        case still needs a deliberate swipe to cross the card, while a layer
-        with real space to move keeps tracking the finger one-to-one.
-      */
       const el = frame.querySelector(`[data-hero-layer="${layer}"]`) as HTMLElement | null
       const er = el?.getBoundingClientRect()
-      const freeX = Math.max(fr.width / 2, fr.width - (er?.width ?? 0))
-      const freeY = Math.max(fr.height / 2, fr.height - (er?.height ?? 0))
-      const px = (dx / freeX) * 100
-      const py = (dy / freeY) * 100
-
-      if (layer === 'person') {
-        /*
-          The person is anchored by their centre, so the anchor moves exactly
-          as far as the finger does — no free-space arithmetic, just pixels
-          over the frame. This is the layer the owner drags most, and it is
-          the one that has to feel like moving a sticker rather than nudging a
-          slider through a proxy.
-        */
-        return onChange({
-          ...t,
-          portrait: {
-            ...t.portrait,
-            x: clamp(t.portrait.x + (dx / fr.width) * 100),
-            y: clamp(t.portrait.y + (dy / fr.height) * 100),
-            positionModel: 'anchor',
-          },
-        })
-      }
-      if (layer === 'logo') {
-        // Anchored by its centre, so the finger and the logo travel together.
-        return onChange({
-          ...t,
-          logo: {
-            ...t.logo,
-            x: clamp(t.logo.x + (dx / fr.width) * 100),
-            y: clamp(t.logo.y + (dy / fr.height) * 100),
-            positionModel: 'anchor',
-          },
-        })
-      }
-      const index = layer === 'graphic-0' ? 0 : 1
-      const graphics = t.graphics.map((g, i) =>
-        i === index ? { ...g, x: clamp(g.x + px), y: clamp(g.y + py) } : g
+      onChange(
+        moveLayer(
+          stateRef.current.transforms,
+          layer,
+          dx,
+          dy,
+          { width: fr.width, height: fr.height },
+          er ? { width: er.width, height: er.height } : null
+        )
       )
-      onChange({ ...t, graphics })
     },
     [frameEl, onChange]
   )
 
   const scaleBy = useCallback(
     (layer: HeroLayerId, factor: number) => {
-      const t = stateRef.current.transforms
       if (layer === 'background') return
-      const { min, max } = limitsFor(layer)
-      const fit = (v: number) => Math.min(max, Math.max(min, Math.round(v * 100) / 100))
-
-      if (layer === 'person') {
-        return onChange({
-          ...t,
-          portrait: {
-            ...t.portrait,
-            scale: fit(t.portrait.scale * factor),
-            positionModel: 'anchor',
-          },
-        })
-      }
-      if (layer === 'logo') {
-        return onChange({
-          ...t,
-          logo: { ...t.logo, scale: fit(t.logo.scale * factor), positionModel: 'anchor' },
-        })
-      }
-      const index = layer === 'graphic-0' ? 0 : 1
-      onChange({
-        ...t,
-        graphics: t.graphics.map((g, i) => (i === index ? { ...g, scale: fit(g.scale * factor) } : g)),
-      })
+      onChange(scaleLayer(stateRef.current.transforms, layer, factor, limitsFor(layer)))
     },
+    // limitsFor is derived from constants only, so it is stable in practice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [onChange]
   )
 

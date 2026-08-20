@@ -994,6 +994,33 @@ a,
   box-shadow: 0 0 0 2px var(--abc-bg), 0 0 0 4px var(--abc-gold-accent);
 }
 
+/*
+  A 44px touch target on a control that stays visually small.
+
+  The hero editor is a dense panel: chips, toggles and a Reset that all want to
+  read as light. Growing them to 44px each turns that panel into a wall of
+  buttons, and leaving them at 36px asks a thumb to hit something smaller than
+  a thumb. The pseudo-element takes the hit instead — it is outside flow, so
+  nothing moves, and a click on it targets the button it belongs to.
+
+  Centred on both axes so the extra area grows symmetrically around whatever
+  the control actually looks like.
+*/
+.abc-tap {
+  position: relative;
+}
+.abc-tap::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  min-width: 44px;
+  min-height: 44px;
+}
+
 /* Truncation helpers — the approved layouts assume two-line clamps */
 .abc-clamp-1 {
   display: -webkit-box;

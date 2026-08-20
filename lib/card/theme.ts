@@ -55,6 +55,27 @@ export function heroScrimGradient(overlay: number, tokens: CardThemeTokens): str
   return `linear-gradient(180deg, rgba(0,0,0,${top}) 0%, rgba(0,0,0,${mid}) 45%, ${tokens.bg} 100%)`
 }
 
+/**
+ * Card chrome that the artwork shows through.
+ *
+ * Every row, chip and tile used to paint solid `surface`. Over a full-bleed
+ * card that turned the artwork off wherever the content was — a picture at the
+ * top and a stack of opaque panels below it, which is exactly the "separate
+ * surfaces" the full-bleed work set out to remove. Translucent, they read as
+ * glass laid on the composition instead of lids covering it.
+ *
+ * Paired with a backdrop blur at the call site, this is legible over anything
+ * without hiding what is underneath.
+ */
+export function glassSurface(tokens: CardThemeTokens, alpha = 0.42): string {
+  return bgAlpha(tokens, alpha)
+}
+
+/** A hairline that reads on glass, where a solid border would look drawn-on. */
+export function glassBorder(tokens: CardThemeTokens): string {
+  return tokens.bg === '#ffffff' ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.14)'
+}
+
 /** The card background with an alpha, so a fade lands on white in light mode. */
 function bgAlpha(tokens: CardThemeTokens, alpha: number): string {
   const hex = tokens.bg.replace('#', '')
@@ -92,25 +113,32 @@ export function heroBleedScrimGradient(overlay: number, tokens: CardThemeTokens)
  * the name, and heaviest under the actions, where a mis-read tap costs more
  * than a glimpse of artwork is worth.
  *
- * It stops short of opaque on purpose. At 0.9 the image is still perceptibly
- * there behind the rows — which is the difference between a card that is one
- * composition and a card that is a picture with a panel bolted underneath.
- *
- * It also reaches its working strength fast, by the sixth percent, because the
- * name starts almost immediately and this cannot lean on the owner's darkening
- * to carry it: darkening can be set to zero. Against the brightest cover a
- * white name still lands around 4:1 here, and the smaller text below it, where
- * the wash has settled further, better than 5:1.
+ * It is much lighter than it was. At 0.88 the artwork was technically still
+ * present and practically invisible — the owner looked at their card and saw a
+ * dark panel, which is the only verdict that counts. The wash now settles
+ * around half, and the work of making text readable moves to the text itself:
+ * the content carries a shadow, and the rows that need a solid footing carry
+ * their own glass. A wash heavy enough to guarantee every pixel is a wash
+ * heavy enough to erase the picture.
  */
 export function heroContentScrimGradient(tokens: CardThemeTokens): string {
   return [
     'linear-gradient(180deg,',
-    `${bgAlpha(tokens, 0.55)} 0%,`,
-    `${bgAlpha(tokens, 0.82)} 6%,`,
-    `${bgAlpha(tokens, 0.88)} 24%,`,
-    `${bgAlpha(tokens, 0.9)} 100%)`,
+    `${bgAlpha(tokens, 0.28)} 0%,`,
+    `${bgAlpha(tokens, 0.46)} 8%,`,
+    `${bgAlpha(tokens, 0.52)} 30%,`,
+    `${bgAlpha(tokens, 0.55)} 100%)`,
   ].join(' ')
 }
+
+/**
+ * What lets text sit on a photograph without a slab behind it.
+ *
+ * A short, tight shadow rather than a glow: it disappears against the dark
+ * parts of the artwork and only does work against the bright parts, which is
+ * where text on a picture actually fails.
+ */
+export const HERO_TEXT_SHADOW = '0 1px 2px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.45)'
 
 export function initialsFromName(name: string | null | undefined): string {
   const parts = (name || 'ABC').trim().split(/\s+/).filter(Boolean)

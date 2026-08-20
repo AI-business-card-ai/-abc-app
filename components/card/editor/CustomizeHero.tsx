@@ -11,7 +11,7 @@ import {
   IconUpload,
 } from '@tabler/icons-react'
 import CardHero from '@/components/card/CardHero'
-import AlignmentPad from '@/components/card/editor/AlignmentPad'
+import LayerEditor from '@/components/card/editor/LayerEditor'
 import HeroCanvas, { type HeroLayerId } from '@/components/card/editor/HeroCanvas'
 import HeroFramingEditor from '@/components/card/editor/HeroFramingEditor'
 import { generateCutout, isPendingCutout, type CutoutProgress } from '@/lib/card/cutout'
@@ -120,7 +120,7 @@ export default function CustomizeHero({
                     type="button"
                     aria-pressed={active}
                     onClick={() => setSelected(l.id)}
-                    className="min-h-[36px] rounded-full border px-3 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
+                    className="min-h-[36px] abc-tap rounded-full border px-3 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
                     style={{
                       background: active ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
                       borderColor: active ? 'var(--abc-gold-border)' : 'var(--abc-border)',
@@ -333,45 +333,47 @@ function BackgroundSection({
           : 'The cover fills the hero. Drag below to choose what stays in frame.'}
       </p>
 
-      <AlignmentPad
-        x={transforms.background.x}
-        y={transforms.background.y}
-        onChange={(x, y) =>
-          onChange({ card_media_transforms: { ...transforms, background: { ...transforms.background, x, y } } })
-        }
-      />
-
-      <Slider
-        label="Zoom"
-        value={transforms.background.scale}
-        min={backgroundScaleLimits(coverFit).min}
-        max={backgroundScaleLimits(coverFit).max}
-        step={0.05}
-        format={(v) => `${v.toFixed(2)}×`}
-        onChange={(scale) =>
-          onChange({ card_media_transforms: { ...transforms, background: { ...transforms.background, scale } } })
-        }
-      />
-
-      <Slider
-        label="Darken"
-        value={transforms.background.overlay}
-        min={0}
-        max={100}
-        step={5}
-        format={(v) => `${Math.round(v)}%`}
-        onChange={(overlay) =>
-          onChange({ card_media_transforms: { ...transforms, background: { ...transforms.background, overlay } } })
-        }
-      />
-
-      <ResetRow
-        onReset={() =>
-          onChange({
-            card_media_transforms: { ...transforms, background: BACKGROUND_TRANSFORM_DEFAULT },
-          })
-        }
-      />
+      <div className="mt-3">
+        <LayerEditor
+          layer="background"
+          label="Position and zoom"
+          imageUrl={coverUrl}
+          transforms={transforms}
+          scaleLimits={backgroundScaleLimits(coverFit)}
+          scaleValue={transforms.background.scale}
+          onChange={(next) => onChange({ card_media_transforms: next })}
+          onScale={(scale) =>
+            onChange({
+              card_media_transforms: {
+                ...transforms,
+                background: { ...transforms.background, scale },
+              },
+            })
+          }
+          onReset={() =>
+            onChange({
+              card_media_transforms: { ...transforms, background: BACKGROUND_TRANSFORM_DEFAULT },
+            })
+          }
+        >
+          <Slider
+            label="Darken"
+            value={transforms.background.overlay}
+            min={0}
+            max={100}
+            step={5}
+            format={(v) => `${Math.round(v)}%`}
+            onChange={(overlay) =>
+              onChange({
+                card_media_transforms: {
+                  ...transforms,
+                  background: { ...transforms.background, overlay },
+                },
+              })
+            }
+          />
+        </LayerEditor>
+      </div>
     </Panel>
   )
 }
@@ -407,25 +409,13 @@ function Slider({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1.5 h-[36px] w-full accent-[color:var(--abc-gold-accent)]"
+        className="mt-1.5 h-[44px] w-full accent-[color:var(--abc-gold-accent)]"
         aria-label={label}
       />
     </label>
   )
 }
 
-function ResetRow({ onReset }: { onReset: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onReset}
-      className="mt-3 inline-flex h-[40px] items-center gap-1.5 rounded-btn border border-abc-border px-3 text-[12.5px] font-medium text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
-    >
-      <IconArrowBackUp size={15} stroke={1.8} />
-      Reset
-    </button>
-  )
-}
 
 /**
  * The company logo, as a layer the owner places rather than a fixed corner.
@@ -485,27 +475,18 @@ function LogoSection({
       </div>
 
       {logo.visible ? (
-        <>
-          <AlignmentPad x={logo.x} y={logo.y} inset={20} onChange={(x, y) => set({ x, y })} />
-          <Slider
-            label="Size"
-            value={logo.scale}
-            min={LOGO_SCALE_LIMITS.min}
-            max={LOGO_SCALE_LIMITS.max}
-            step={0.05}
-            format={(v) => `${v.toFixed(2)}×`}
-            onChange={(scale) => set({ scale })}
-          />
-          <Slider
-            label="Opacity"
-            value={logo.opacity}
-            min={0}
-            max={1}
-            step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
-            onChange={(opacity) => set({ opacity })}
-          />
-          <ResetRow
+        <div className="mt-3">
+          <LayerEditor
+            layer="logo"
+            label="Place the logo"
+            imageUrl={logoUrl}
+            transforms={transforms}
+            scaleLimits={LOGO_SCALE_LIMITS}
+            scaleValue={logo.scale}
+            opacity={logo.opacity}
+            onChange={(next) => onChange({ card_media_transforms: next })}
+            onScale={(scale) => set({ scale })}
+            onOpacity={(opacity) => set({ opacity })}
             onReset={() =>
               onChange({
                 card_media_transforms: {
@@ -517,7 +498,7 @@ function LogoSection({
               })
             }
           />
-        </>
+        </div>
       ) : (
         <p className="mt-2.5 text-[12.5px] leading-[1.5] text-abc-muted">
           Your logo is hidden on the hero. The rest of the card is unchanged.
@@ -607,7 +588,7 @@ function GraphicsSection({
               type="button"
               onClick={() => set(index, { visible: !g.visible })}
               aria-pressed={g.visible}
-              className="min-h-[36px] rounded-btn border border-abc-border px-2.5 text-[12px] text-abc-secondary abc-focus-ring"
+              className="min-h-[36px] abc-tap rounded-btn border border-abc-border px-2.5 text-[12px] text-abc-secondary abc-focus-ring"
             >
               {g.visible ? 'Shown' : 'Hidden'}
             </button>
@@ -621,7 +602,7 @@ function GraphicsSection({
                 setReplacing(index)
                 inputRef.current?.click()
               }}
-              className="inline-flex h-[40px] items-center gap-1.5 rounded-btn border border-abc-border px-3 text-[12.5px] text-abc-text disabled:opacity-50 abc-focus-ring"
+              className="inline-flex h-[40px] abc-tap items-center gap-1.5 rounded-btn border border-abc-border px-3 text-[12.5px] text-abc-text disabled:opacity-50 abc-focus-ring"
             >
               <IconUpload size={15} stroke={1.8} />
               Replace
@@ -629,7 +610,7 @@ function GraphicsSection({
             <button
               type="button"
               onClick={() => remove(index)}
-              className="inline-flex h-[40px] items-center gap-1.5 rounded-btn border border-abc-border px-3 text-[12.5px] text-abc-secondary abc-focus-ring"
+              className="inline-flex h-[40px] abc-tap items-center gap-1.5 rounded-btn border border-abc-border px-3 text-[12.5px] text-abc-secondary abc-focus-ring"
             >
               <IconTrash size={15} stroke={1.8} />
               Remove
@@ -637,7 +618,7 @@ function GraphicsSection({
             <button
               type="button"
               onClick={() => onSelect(index === 0 ? 'graphic-0' : 'graphic-1')}
-              className="inline-flex h-[40px] items-center rounded-btn border border-abc-border px-3 text-[12.5px] text-abc-secondary abc-focus-ring"
+              className="inline-flex h-[40px] abc-tap items-center rounded-btn border border-abc-border px-3 text-[12.5px] text-abc-secondary abc-focus-ring"
             >
               Edit on card
             </button>
@@ -658,7 +639,7 @@ function GraphicsSection({
                   type="button"
                   aria-pressed={active}
                   onClick={() => set(index, { placement: option.id })}
-                  className="min-h-[40px] flex-1 rounded-btn border px-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
+                  className="min-h-[40px] abc-tap flex-1 rounded-btn border px-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
                   style={{
                     background: active ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
                     borderColor: active ? 'var(--abc-gold-border)' : 'var(--abc-border)',
@@ -671,26 +652,23 @@ function GraphicsSection({
             })}
           </div>
 
-          <AlignmentPad x={g.x} y={g.y} inset={20} onChange={(x, y) => set(index, { x, y })} />
-          <Slider
-            label="Size"
-            value={g.scale}
-            min={GRAPHIC_SCALE_LIMITS.min}
-            max={GRAPHIC_SCALE_LIMITS.max}
-            step={0.05}
-            format={(v) => `${v.toFixed(2)}×`}
-            onChange={(scale) => set(index, { scale })}
-          />
-          <Slider
-            label="Opacity"
-            value={g.opacity}
-            min={0}
-            max={1}
-            step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
-            onChange={(opacity) => set(index, { opacity })}
-          />
-          <ResetRow onReset={() => set(index, { ...GRAPHIC_TRANSFORM_DEFAULT })} />
+          <div className="mt-3">
+            <LayerEditor
+              layer={index === 0 ? 'graphic-0' : 'graphic-1'}
+              label={`Place graphic ${index + 1}`}
+              imageUrl={g.url}
+              transforms={transforms}
+              scaleLimits={GRAPHIC_SCALE_LIMITS}
+              scaleValue={g.scale}
+              opacity={g.opacity}
+              visible={g.visible}
+              onChange={(next) => onChange({ card_media_transforms: next })}
+              onScale={(scale) => set(index, { scale })}
+              onOpacity={(opacity) => set(index, { opacity })}
+              onToggleVisible={() => set(index, { visible: !g.visible })}
+              onReset={() => set(index, { ...GRAPHIC_TRANSFORM_DEFAULT })}
+            />
+          </div>
         </div>
       ))}
 
@@ -1043,28 +1021,16 @@ function PersonSection({
         the setup state above and no framing control at all.
       */}
       {heroActive ? (
-        <>
-          <AlignmentPad
-            x={portrait.x}
-            y={portrait.y}
-            inset={20}
-            onChange={(x, y) =>
-              onChange({
-                card_media_transforms: {
-                  ...transforms,
-                  portrait: { ...portrait, x, y, positionModel: 'anchor' },
-                },
-              })
-            }
-          />
-          <Slider
-            label="Size"
-            value={portrait.scale}
-            min={portraitScaleLimits('hero').min}
-            max={portraitScaleLimits('hero').max}
-            step={0.05}
-            format={(v) => `${v.toFixed(2)}×`}
-            onChange={(scale) =>
+        <div className="mt-3">
+          <LayerEditor
+            layer="person"
+            label="Place the person"
+            imageUrl={portrait.cutoutUrl as string}
+            transforms={transforms}
+            scaleLimits={portraitScaleLimits('hero')}
+            scaleValue={portrait.scale}
+            onChange={(next) => onChange({ card_media_transforms: next })}
+            onScale={(scale) =>
               onChange({
                 card_media_transforms: {
                   ...transforms,
@@ -1072,8 +1038,6 @@ function PersonSection({
                 },
               })
             }
-          />
-          <ResetRow
             onReset={() =>
               onChange({
                 card_media_transforms: {
@@ -1095,7 +1059,7 @@ function PersonSection({
               })
             }
           />
-        </>
+        </div>
       ) : null}
 
       {mode === 'classic' ? (
