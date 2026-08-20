@@ -13,6 +13,7 @@ import {
 import {
   HERO_TEXT_SHADOW,
   getCardThemeTokens,
+  glassTokens,
   heroBleedScrimGradient,
   heroContentScrimGradient,
   heroScrimGradient,
@@ -157,7 +158,7 @@ export default function CardHero({
   children?: React.ReactNode
 }) {
   const s = SIZES[size]
-  const t = getCardThemeTokens(card.theme)
+  const base = getCardThemeTokens(card.theme)
   const accent = card.accent
   const portrait = card.media.portrait
   /*
@@ -183,7 +184,6 @@ export default function CardHero({
   const graphicsBehind = hero ? graphics.filter((g) => g.layer.placement === 'behind-person') : []
   const graphicsFront = hero ? graphics.filter((g) => g.layer.placement === 'front-person') : []
   const subtitle = [card.jobTitle, card.companyName].filter(Boolean).join(' · ')
-  const scrim = heroScrimGradient(card.media.background.overlay, t)
   /*
     Hero with a cover runs the picture through the entire card. Without a
     cover there is nothing to run, and classic's composition depends on the
@@ -191,6 +191,17 @@ export default function CardHero({
     treatment.
   */
   const fullBleed = hero && Boolean(card.coverUrl)
+  /*
+    Surfaces turn to glass over artwork, from the same helper the rest of the
+    card uses. This component drew the location pill from the raw tokens, so
+    while every other chip went translucent that one stayed a solid lozenge on
+    the photograph — the last opaque thing on the card.
+
+    Only surfaces change; `bg` is untouched, which is what keeps the scrims
+    below opaque enough to do their job.
+  */
+  const t = glassTokens(base, fullBleed)
+  const scrim = heroScrimGradient(card.media.background.overlay, t)
   const bleedScrim = heroBleedScrimGradient(card.media.background.overlay, t)
   const contentScrim = heroContentScrimGradient(t)
 

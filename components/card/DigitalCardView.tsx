@@ -30,7 +30,7 @@ import CardHero from '@/components/card/CardHero'
 import ShowcaseGallery from '@/components/card/ShowcaseGallery'
 import { isSocialVisible } from '@/lib/card/public-data'
 import { whatsappMeUrl } from '@/lib/card/social'
-import { getCardThemeTokens, glassBorder, glassSurface } from '@/lib/card/theme'
+import { getCardThemeTokens, glassTokens } from '@/lib/card/theme'
 
 type Props = {
   card: DigitalCardData
@@ -111,14 +111,7 @@ export default function DigitalCardView({
     is enough; no backdrop filter, which a phone would pay for on every row.
   */
   const glass = hero && Boolean(card.coverUrl)
-  const t = glass
-    ? {
-        ...base,
-        surface: glassSurface(base, 0.42),
-        surface2: glassSurface(base, 0.58),
-        border: glassBorder(base),
-      }
-    : base
+  const t = glassTokens(base, glass)
 
   const socials = (Object.keys(SOCIAL_ICONS) as SocialNetwork[])
     .map((key) => {

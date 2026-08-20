@@ -76,6 +76,29 @@ export function glassBorder(tokens: CardThemeTokens): string {
   return tokens.bg === '#ffffff' ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.14)'
 }
 
+/**
+ * The card's tokens, as they should read over full-bleed artwork.
+ *
+ * This lived inline in one component, which is why it only reached that
+ * component's chrome: everything DigitalCardView drew went translucent while
+ * the location pill, drawn by CardHero from the raw tokens, stayed a solid
+ * black lozenge sitting on the photograph. One definition, consumed by both,
+ * is the only version of this that cannot drift apart again.
+ *
+ * Only the surfaces move. `bg` is deliberately untouched — the scrims are
+ * built from it, and making those translucent would dissolve the very wash
+ * that keeps text readable.
+ */
+export function glassTokens(tokens: CardThemeTokens, enabled: boolean): CardThemeTokens {
+  if (!enabled) return tokens
+  return {
+    ...tokens,
+    surface: glassSurface(tokens, 0.42),
+    surface2: glassSurface(tokens, 0.58),
+    border: glassBorder(tokens),
+  }
+}
+
 /** The card background with an alpha, so a fade lands on white in light mode. */
 function bgAlpha(tokens: CardThemeTokens, alpha: number): string {
   const hex = tokens.bg.replace('#', '')
