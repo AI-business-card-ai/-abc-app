@@ -30,7 +30,6 @@ export default function MediaSection({
   coverUrl,
   logoUrl,
   coverPosition,
-  coverFit,
   transforms,
   theme,
   fullName,
@@ -41,7 +40,6 @@ export default function MediaSection({
   coverUrl: string
   logoUrl: string
   coverPosition: string
-  coverFit: CardCoverFit
   transforms: CardMediaTransforms
   theme: CardTheme
   fullName: string
@@ -148,7 +146,6 @@ export default function MediaSection({
             photoUrl={photoUrl}
             coverUrl={coverUrl}
             logoUrl={logoUrl}
-            coverFit={coverFit}
             theme={theme}
             onChange={onChange}
           />

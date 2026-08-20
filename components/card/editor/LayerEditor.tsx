@@ -3,7 +3,12 @@
 import { useCallback, useRef, useState } from 'react'
 import { IconArrowBackUp } from '@tabler/icons-react'
 import { moveLayer, type HeroLayerId } from '@/lib/card/hero-gestures'
-import { heroAspectRatio, type CardMediaTransforms, type ScaleLimits } from '@/lib/card/types'
+import {
+  backgroundStyle,
+  heroAspectRatio,
+  type CardMediaTransforms,
+  type ScaleLimits,
+} from '@/lib/card/types'
 
 /**
  * One layer's own controls, built around the layer itself.
@@ -82,6 +87,25 @@ export default function LayerEditor({
           ? transforms.background
           : transforms.graphics[layer === 'graphic-0' ? 0 : 1]
 
+  /*
+    What each layer hands the mover.
+
+    A background gives its source's natural size, because how far it can travel
+    depends on how `object-fit` sized that source against this stage — which
+    the rendered element cannot tell anyone, since it fills the stage whatever
+    the picture inside it is doing. Every other layer is its own artwork, so
+    its measured box is the honest answer.
+  */
+  const measure = useCallback(() => {
+    const el = assetRef.current
+    if (!el) return { rendered: null, natural: null }
+    const r = el.getBoundingClientRect()
+    return {
+      rendered: { width: r.width, height: r.height },
+      natural: el.naturalWidth ? { width: el.naturalWidth, height: el.naturalHeight } : null,
+    }
+  }, [])
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const stage = stageRef.current
@@ -103,7 +127,7 @@ export default function LayerEditor({
       const move = (ev: Event) => {
         const pe = ev as PointerEvent
         const fr = stage.getBoundingClientRect()
-        const er = assetRef.current?.getBoundingClientRect() ?? null
+        const { rendered, natural } = measure()
         onChange(
           moveLayer(
             stateRef.current,
@@ -111,7 +135,8 @@ export default function LayerEditor({
             pe.clientX - lastX,
             pe.clientY - lastY,
             { width: fr.width, height: fr.height },
-            er ? { width: er.width, height: er.height } : null
+            rendered,
+            natural
           )
         )
         lastX = pe.clientX
@@ -136,17 +161,33 @@ export default function LayerEditor({
       target.addEventListener('pointerup', up)
       target.addEventListener('pointercancel', up)
     },
-    [layer, onChange]
+    [layer, measure, onChange]
   )
 
   const applyPreset = (x: number, y: number) => {
     const stage = stageRef.current
     if (!stage) return
+
+    /*
+      A background's x/y are already the position the preset is asking for, so
+      it is written straight in. The other layers keep going through the drag
+      arithmetic, which is also what marks them anchored.
+
+      This used to convert every preset into a pixel delta against the frame
+      and hand it to the mover. That only worked while a background's percent
+      meant a fixed number of frame pixels; it now means a share of the
+      artwork's own travel, so the round trip through pixels would land the
+      preset somewhere else entirely. Asking for the centre and writing the
+      centre is both simpler and exact.
+    */
+    if (isBackground) {
+      onChange({ ...stateRef.current, background: { ...stateRef.current.background, x, y } })
+      return
+    }
+
     const fr = stage.getBoundingClientRect()
-    // Expressed as a move so the preset lands through the same arithmetic the
-    // drag uses, rather than a second way of writing a position.
-    const dx = ((x - position.x) / 100) * fr.width * (isBackground ? -1 : 1)
-    const dy = ((y - position.y) / 100) * fr.height * (isBackground ? -1 : 1)
+    const dx = ((x - position.x) / 100) * fr.width
+    const dy = ((y - position.y) / 100) * fr.height
     const er = assetRef.current?.getBoundingClientRect() ?? null
     onChange(
       moveLayer(stateRef.current, layer, dx, dy, { width: fr.width, height: fr.height },
@@ -209,11 +250,14 @@ export default function LayerEditor({
           style={
             isBackground
               ? {
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  objectPosition: `${position.x}% ${position.y}%`,
-                  transform: `scale(${scaleValue})`,
+                  /*
+                    The card's own geometry, from the card's own helper. This
+                    used to hardcode `cover`, so an owner who chose Fit — and
+                    now Stretch — composed against a preview that was showing
+                    them a different picture from the one they were making.
+                  */
+                  ...backgroundStyle(transforms.background),
+                  opacity: transforms.background.opacity,
                 }
               : {
                   position: 'absolute',

@@ -3,11 +3,14 @@
 import { IconMapPin } from '@tabler/icons-react'
 import type { DigitalCardData } from '@/lib/card/types'
 import {
+  backgroundStretchTransform,
   backgroundStyle,
   hasHeroSubject,
   heroAspectRatio,
   isHeroLayout,
   transformStyle,
+  type BackgroundSizing,
+  type BackgroundTransform,
   type GraphicLayer,
 } from '@/lib/card/types'
 import {
@@ -133,19 +136,75 @@ const LOGO_BASE_HEIGHT = 10
 const LOGO_BASE_HEIGHT_ANCHOR = 9
 
 /**
- * A short fade at the very bottom only. The head and face are far outside it,
- * so nothing that matters is ever softened.
- */
-const PERSON_FADE =
-  'linear-gradient(180deg, #000 0%, #000 88%, rgba(0,0,0,0.45) 96%, transparent 100%)'
-
-/**
  * How the crisp hero artwork hands over to the softened continuation beneath
  * it. A cut would put a visible line across the card at the hero's edge, which
  * is the exact seam the full-bleed treatment exists to remove.
  */
 const COVER_DISSOLVE =
   'linear-gradient(180deg, #000 0%, #000 62%, rgba(0,0,0,0.55) 86%, transparent 100%)'
+
+/**
+ * How far the identity block is pulled up over the hero.
+ *
+ * Shared with the content wash, which must stay perfectly clear for exactly
+ * this distance so that pulling the name into the artwork never puts a wash
+ * over the person standing in it.
+ */
+const HERO_CONTENT_OVERLAP = 18
+
+/** Keeps the blur's own soft edges outside the card rather than along it. */
+const BLEED_MARGIN = 1.14
+
+/**
+ * The artwork sized to the whole card rather than to the hero.
+ *
+ * Two of the three sizing modes are answered the same way here, and
+ * deliberately. Fit is a statement about the hero — show the whole picture,
+ * letterbox it if the composition needs that — and a layer whose only job is
+ * to reach every corner of a card three times taller cannot honour it without
+ * painting a band of picture across the middle and plain background above and
+ * below. So fit and cover both cover down here, which is what keeps the lower
+ * background from disappearing because of a choice made about the top.
+ *
+ * Stretch is different: it is the owner sizing this layer to this card
+ * explicitly, so their axes are passed through — floored at 1 each, since
+ * `object-fit: fill` already reaches every corner at 1× and anything under
+ * that is the same bare gap arriving by a different route.
+ */
+function fullCardBackgroundStyle(t: BackgroundTransform): React.CSSProperties {
+  if (t.sizing === 'stretch') {
+    /*
+      Each axis floors at 1 here and only here. An owner who pulls the height
+      down to a quarter is composing the hero band, and honouring that literally
+      on a layer three times taller leaves most of the card as bare base colour
+      — the gap this layer exists to close. The hero above still shows their
+      exact stretch; this shows the same picture, never shorter than the card.
+      Render-only: the stored transform keeps the owner's numbers.
+    */
+    const sx = Math.max(1, t.scale * t.scaleX) * BLEED_MARGIN
+    const sy = Math.max(1, t.scale * t.scaleY) * BLEED_MARGIN
+    return {
+      width: '100%',
+      height: '100%',
+      objectFit: 'fill',
+      objectPosition: '50% 50%',
+      transform: backgroundStretchTransform(t, sx, sy),
+    }
+  }
+  return {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    objectPosition: `${t.x}% ${t.y}%`,
+    /*
+      The owner's zoom is honoured only where it can add coverage. Below 1 it
+      would shrink this layer back off the edges — a gap by another route — so
+      it floors at 1. Nothing here is written back: the stored transform is
+      untouched, this is a rendering treatment.
+    */
+    transform: `scale(${Math.max(1, t.scale) * BLEED_MARGIN})`,
+  }
+}
 
 export default function CardHero({
   card,
@@ -201,9 +260,35 @@ export default function CardHero({
     below opaque enough to do their job.
   */
   const t = glassTokens(base, fullBleed)
-  const scrim = heroScrimGradient(card.media.background.overlay, t)
-  const bleedScrim = heroBleedScrimGradient(card.media.background.overlay, t)
-  const contentScrim = heroContentScrimGradient(t)
+  const background = card.media.background
+  /*
+    Classic reads the artwork the way it always has, and nothing added for Hero
+    reaches it.
+
+    The sizing modes and the artwork's opacity are Hero's controls, but they
+    live on the one background transform a card has — so a card that had them
+    set under Hero and was later switched to Classic would arrive here carrying
+    a stretch and a half-faded cover, and classic's header would render
+    something no classic card has ever rendered. Reading the old Fill/Fit column
+    and a flat opacity here means the freeze holds whatever is in the record.
+  */
+  const heroSizing: BackgroundSizing = hero
+    ? background.sizing
+    : card.coverFit === 'fit'
+      ? 'fit'
+      : 'cover'
+  const artworkOpacity = hero ? background.opacity : 1
+  /*
+    One transform, two boxes. The hero frames it crisply at the owner's chosen
+    sizing; the card carries the same picture the whole way down. Both read the
+    same numbers through the same helper, so there is no second composition to
+    drift out of step with the first.
+  */
+  const heroStyle = backgroundStyle(background, heroSizing)
+  const bleedStyle = fullCardBackgroundStyle(background)
+  const scrim = heroScrimGradient(background.overlay, t)
+  const bleedScrim = heroBleedScrimGradient(background.overlay, t)
+  const contentScrim = heroContentScrimGradient(t, HERO_CONTENT_OVERLAP)
 
   return (
     /*
@@ -212,7 +297,26 @@ export default function CardHero({
       quietly crop anything a caller renders that reaches past the card — the
       kind of regression nobody notices until a focus ring or a menu disappears.
     */
-    <div style={{ position: 'relative', isolation: 'isolate' }}>
+    <div
+      style={{
+        position: 'relative',
+        isolation: 'isolate',
+        /*
+          Inert unless the caller is a flex column, which the public card is:
+          there it makes this root — and so the artwork pinned to it — reach the
+          bottom of a card that is taller than its own content.
+        */
+        flexGrow: 1,
+        /*
+          And a column in turn, so the content block can be told to take up the
+          slack. Without that the wash would stop where the content stops and
+          the artwork would step from washed to bare across a horizontal line —
+          the same seam in a new place.
+        */
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       {/*
         In hero the artwork belongs to the whole card, not to a band at the top
         of it.
@@ -232,55 +336,46 @@ export default function CardHero({
         <>
           <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
             {/*
-              The same picture, carried down the card as atmosphere.
+              The same picture, carried down the card — and now actually
+              legible as that picture.
 
-              Cropping it to the full height instead would have wrecked the
-              thing it is meant to continue: a card is roughly three times
-              taller than the hero, so covering it leaves about a fifth of the
-              image's width visible — a wide cover the owner framed carefully
-              would come out as a narrow vertical strip. Softening it sidesteps
-              that entirely. It is not competing for legibility with the crisp
-              framing above; it is the colour and light of that artwork,
-              continuing, so the card reads as one composition instead of a
-              photograph with a panel bolted underneath.
+              It used to be blurred 26px and locked to cover, on the reasoning
+              that a card is roughly three times taller than the hero, so any
+              honest crop of a wide photograph would show as a narrow vertical
+              strip. That reasoning was sound and the conclusion was wrong: the
+              answer to "this shape cannot hold that image" is to let the owner
+              reshape the image, not to smear it until the mismatch stops being
+              visible. Stretch is that control, and with it here the softening
+              no longer has to carry the whole problem.
+
+              So the blur drops to a depth-of-field rather than a smear. Enough
+              that the hero's crisp framing above still reads as the sharp
+              subject and this reads as the room behind it — and that the
+              inevitable difference in crop between the two does not present as
+              a mis-registration — while leaving the artwork recognisably the
+              owner's own photograph rather than its colours.
 
               The scale hides the blur's own soft edges, which would otherwise
               show as a pale border along the card.
             */}
-{/* eslint-disable-next-line @next/next/no-img-element */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={card.coverUrl as string}
               alt=""
               aria-hidden
               style={{
-                width: '100%',
-                height: '100%',
+                ...bleedStyle,
                 display: 'block',
+                filter: 'blur(9px) saturate(1.08)',
                 /*
-                  Cover, always — the owner's Fill/Fit choice deliberately does
-                  not reach this layer.
-
-                  Fit is a statement about the crisp hero: show the whole
-                  artwork, letterboxing it if that is what the composition
-                  needs. Applied to a layer whose entire job is to fill a card
-                  three times taller, it does the opposite of its purpose —
-                  contain painted a band of picture across the middle with
-                  plain background above and below, which is a worse seam than
-                  the one this replaced.
+                  Opacity belongs to the artwork, and to the artwork alone. It
+                  is set on the image element rather than on any wrapper,
+                  because a wrapper is shared: the same declaration on the
+                  layer above would fade the person, the logo, the graphics and
+                  the name along with the picture, which is precisely the bug
+                  this layer is arranged to make impossible.
                 */
-                objectFit: 'cover',
-                objectPosition: `${card.media.background.x}% ${card.media.background.y}%`,
-                filter: 'blur(26px) saturate(1.15)',
-                /*
-                  The owner's zoom is honoured only where it can add coverage.
-                  Below 1 it would shrink the layer back off the edges — the
-                  same gap by another route — so it floors at 1, and the extra
-                  1.14 keeps the blur's own soft edges outside the card.
-
-                  Nothing here is written back: this is a rendering treatment,
-                  and the stored background transform is untouched.
-                */
-                transform: `scale(${Math.max(1, card.media.background.scale) * 1.14})`,
+                opacity: artworkOpacity,
               }}
             />
           </div>
@@ -329,6 +424,8 @@ export default function CardHero({
           zIndex: 2,
           isolation: 'isolate',
           overflow: 'hidden',
+          // A flex item now, and one whose ratio decides its height.
+          flexShrink: 0,
         }}
       >
         <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
@@ -345,11 +442,15 @@ export default function CardHero({
             */
             // eslint-disable-next-line @next/next/no-img-element
             <img
+              data-hero-layer="background"
               src={card.coverUrl}
               alt=""
               style={{
-                ...backgroundStyle(card.media.background, card.coverFit),
+                ...heroStyle,
                 display: 'block',
+                // The artwork's own opacity, on the artwork's own element. See
+                // the full-card layer above for why it is never on a wrapper.
+                opacity: artworkOpacity,
                 ...(fullBleed
                   ? { WebkitMaskImage: COVER_DISSOLVE, maskImage: COVER_DISSOLVE }
                   : null),
@@ -386,6 +487,19 @@ export default function CardHero({
           The person, above the scrim by construction. Darkening protects the
           artwork's readability; darkening the human being would defeat the
           entire composition.
+
+          They carry no generated mask. There used to be a short fade across
+          their bottom twelve percent, on the reasoning that a cutout standing
+          on nothing wants a soft foot — but a fade is partial alpha, and
+          partial alpha composites against whatever is behind it. That made the
+          person's lower body a window onto the background: raising Darken
+          dissolved their legs into black, lowering the artwork's opacity
+          thinned them, and neither their own opacity nor any wrapper's ever
+          changed. Being solid where the source is solid is the only version of
+          this that is genuinely independent of the layer underneath.
+
+          Transparency is now entirely the uploaded cutout's own — which is the
+          one place it can come from without coupling the layers.
         */}
         {graphicsBehind.map((g) => (
           <GraphicLayerView key={`behind-${g.index}`} graphic={g.layer} zIndex={2} index={g.index} />
@@ -427,8 +541,6 @@ export default function CardHero({
                   // by the frame's width, a tall one by its height.
                   maxWidth: '100%',
                   objectFit: 'contain',
-                  WebkitMaskImage: PERSON_FADE,
-                  maskImage: PERSON_FADE,
                 }}
               />
             ) : (
@@ -448,8 +560,6 @@ export default function CardHero({
                   objectPosition: `${portrait.x}% ${portrait.y}%`,
                   transform: `scale(${portrait.scale})`,
                   transformOrigin: 'center bottom',
-                  WebkitMaskImage: PERSON_FADE,
-                  maskImage: PERSON_FADE,
                 }}
               />
             )}
@@ -563,8 +673,11 @@ export default function CardHero({
         style={{
           position: 'relative',
           zIndex: 3,
+          // Takes up whatever the card has beyond the content, so the wash
+          // reaches the bottom edge instead of stopping at the last row.
+          flexGrow: 1,
           padding: s.padding,
-          marginTop: hero ? -18 : `calc(${PORTRAIT_WIDTH} * -${PORTRAIT_OVERLAP})`,
+          marginTop: hero ? -HERO_CONTENT_OVERLAP : `calc(${PORTRAIT_WIDTH} * -${PORTRAIT_OVERLAP})`,
           /*
             The content's own wash, and only when the artwork runs behind it.
             The pull-up above means this starts inside the hero, so the

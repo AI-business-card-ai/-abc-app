@@ -237,7 +237,7 @@ export default function HeroCanvas({
       const frame = frameEl()
       if (!frame) return
       const fr = frame.getBoundingClientRect()
-      const el = frame.querySelector(`[data-hero-layer="${layer}"]`) as HTMLElement | null
+      const el = frame.querySelector(`[data-hero-layer="${layer}"]`) as HTMLImageElement | null
       const er = el?.getBoundingClientRect()
       onChange(
         moveLayer(
@@ -246,7 +246,13 @@ export default function HeroCanvas({
           dx,
           dy,
           { width: fr.width, height: fr.height },
-          er ? { width: er.width, height: er.height } : null
+          er ? { width: er.width, height: er.height } : null,
+          /*
+            The background's element fills the hero whatever its picture is
+            doing inside it, so its box says nothing about how far that picture
+            can travel. Its source size does, and the mover works the rest out.
+          */
+          el?.naturalWidth ? { width: el.naturalWidth, height: el.naturalHeight } : null
         )
       )
     },

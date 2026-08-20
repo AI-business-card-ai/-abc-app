@@ -1,6 +1,7 @@
 import {
   GRAPHIC_SCALE_LIMITS,
   LOGO_SCALE_LIMITS,
+  backgroundPanTravel,
   portraitScaleLimits,
   type CardMediaTransforms,
   type ScaleLimits,
@@ -28,6 +29,17 @@ export function layerScaleLimits(layer: HeroLayerId, backgroundLimits: ScaleLimi
 const clampPercent = (v: number) => Math.min(100, Math.max(0, Math.round(v)))
 
 /**
+ * The same clamp, kept to two decimals.
+ *
+ * Whole percents are fine for a layer whose travel is roughly the frame, which
+ * is every anchored layer. A background's travel is its overflow, and a
+ * zoomed-in picture can overflow by several thousand pixels — at which point
+ * one percent is tens of pixels and rounding to it turns a smooth drag into a
+ * series of jumps.
+ */
+const clampFraction = (v: number) => Math.min(100, Math.max(0, Math.round(v * 100) / 100))
+
+/**
  * Move one layer by a pixel delta measured on a frame of the given size.
  *
  * `layerSize` is the layer's own rendered box where the caller can measure it.
@@ -40,20 +52,64 @@ export function moveLayer(
   dx: number,
   dy: number,
   frame: { width: number; height: number },
-  layerSize?: { width: number; height: number } | null
+  layerSize?: { width: number; height: number } | null,
+  /**
+   * The background source's own pixel size, when the background is the layer
+   * being moved. How far it can travel depends on how `object-fit` sized it
+   * against this frame, which cannot be recovered from the rendered element —
+   * that element fills the frame whatever the picture inside it is doing.
+   */
+  artworkNatural?: { width: number; height: number } | null
 ): CardMediaTransforms {
   if (!frame.width || !frame.height) return transforms
   const t = transforms
 
   if (layer === 'background') {
-    // A cropped background pans: the window moves, so the image travels
-    // against the finger.
+    /*
+      The artwork goes where the finger goes, in every mode and at every size.
+
+      This used to divide the drag by the frame's width and subtract, which is
+      correct for exactly one case: a picture larger than its box, panned by
+      object-position. It is wrong in both directions elsewhere. When the
+      artwork is smaller than the box the same two numbers stop being a crop
+      offset and become a placement — 0 is hard against the left edge, not the
+      right — so the picture ran backwards under the finger. That was always
+      true of Fit; opening the scale floor to a quarter made it easy to reach.
+
+      What decides the mapping is how far x/y can actually carry the picture.
+      Positive travel is overflow panned by a window, so the picture goes
+      against the number; negative travel is slack the picture is placed
+      within, so it goes with it. The sign is the direction and the magnitude
+      is what one percent is worth, which makes a single expression cover
+      cropping, letterboxing and stretching alike:
+
+        Δpercent = −Δpixels × 100 ÷ travel
+
+      Within that range the artwork tracks the finger exactly. Where the range
+      is shorter than the gesture the picture reaches its edge and stops, which
+      is the honest answer rather than a mapping that lies about how far the
+      composition can move.
+
+      The travel itself comes from the one helper that knows how each sizing
+      mode places its picture, so this stays arithmetic and the geometry stays
+      next to the styles it has to agree with. The caller supplies only what it
+      alone can know: the frame it is dragging on, and the source's own pixel
+      size.
+    */
+    const travel = backgroundPanTravel(t.background, frame, artworkNatural)
+    /*
+      A picture that exactly fills its box has nowhere to go, and dividing by
+      that would send it to an edge on the first pixel of movement. Holding
+      still is the honest answer.
+    */
+    const stepX = Math.abs(travel.x) < 1 ? 0 : (dx / travel.x) * 100
+    const stepY = Math.abs(travel.y) < 1 ? 0 : (dy / travel.y) * 100
     return {
       ...t,
       background: {
         ...t.background,
-        x: clampPercent(t.background.x - (dx / frame.width) * 100),
-        y: clampPercent(t.background.y - (dy / frame.height) * 100),
+        x: clampFraction(t.background.x - stepX),
+        y: clampFraction(t.background.y - stepY),
       },
     }
   }

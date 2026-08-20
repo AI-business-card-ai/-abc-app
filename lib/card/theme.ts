@@ -120,9 +120,21 @@ function bgAlpha(tokens: CardThemeTokens, alpha: number): string {
  */
 export function heroBleedScrimGradient(overlay: number, tokens: CardThemeTokens): string {
   const strength = Math.min(100, Math.max(0, overlay)) / 100
-  const top = (strength * 0.5).toFixed(3)
-  const mid = (strength * 0.72).toFixed(3)
-  const foot = (strength * 0.82).toFixed(3)
+  /*
+    Nearly flat, and much lighter at the foot than it was.
+
+    It used to run to 0.82 by the bottom of the card. Stacked under the
+    content's own wash that put the lower half of a card behind roughly three
+    quarters of a black sheet, which is how artwork that genuinely spans the
+    card still reads to its owner as a dark block with a photograph balanced on
+    top. Darkening is meant to make the picture readable, not to end it.
+
+    The remaining tilt is slight and downward, because the busiest rows are at
+    the bottom and a little extra there costs almost none of the picture.
+  */
+  const top = (strength * 0.42).toFixed(3)
+  const mid = (strength * 0.5).toFixed(3)
+  const foot = (strength * 0.56).toFixed(3)
   return `linear-gradient(180deg, rgba(0,0,0,${top}) 0%, rgba(0,0,0,${mid}) 55%, rgba(0,0,0,${foot}) 100%)`
 }
 
@@ -136,21 +148,47 @@ export function heroBleedScrimGradient(overlay: number, tokens: CardThemeTokens)
  * the name, and heaviest under the actions, where a mis-read tap costs more
  * than a glimpse of artwork is worth.
  *
- * It is much lighter than it was. At 0.88 the artwork was technically still
- * present and practically invisible — the owner looked at their card and saw a
- * dark panel, which is the only verdict that counts. The wash now settles
- * around half, and the work of making text readable moves to the text itself:
- * the content carries a shadow, and the rows that need a solid footing carry
- * their own glass. A wash heavy enough to guarantee every pixel is a wash
- * heavy enough to erase the picture.
+ * It has now been cut twice, and for the same reason both times. At 0.88 the
+ * artwork was technically present and practically invisible. At 0.55 it was
+ * still the larger half of what stood between the owner and their photograph:
+ * combined with the darkening beneath it, about a quarter of the picture
+ * survived to the lower card, which on a real phone reads as a black panel
+ * with a photograph balanced on top of it — the exact impression the full-card
+ * artwork exists to remove.
+ *
+ * Around 0.4 roughly half the picture comes through, which is enough to see
+ * that it continues and not enough to have to read around. The rest of the
+ * work belongs to the text: a shadow set once and inherited, and glass under
+ * the rows that need a footing. A wash heavy enough to guarantee every pixel
+ * is a wash heavy enough to erase the picture.
+ *
+ * It stays a gradient, and stays lightest where it meets the hero, so the
+ * artwork visibly runs out of the hero rather than meeting an edge.
+ *
+ * `overlapPx` is how far the content block is pulled up over the hero, and the
+ * wash is held at zero for exactly that distance. The identity block sits
+ * above the hero in the stacking order — correctly, since the name must never
+ * go behind a shoulder — which meant its wash was the one thing on the card
+ * painting on top of the person, dimming their feet by a flat 28% no matter
+ * what any control was set to. Starting the gradient at the hero's real bottom
+ * edge keeps the pull-up, keeps the seamless hand-off, and leaves every
+ * foreground layer untouched.
  */
-export function heroContentScrimGradient(tokens: CardThemeTokens): string {
+export function heroContentScrimGradient(tokens: CardThemeTokens, overlapPx = 0): string {
   return [
     'linear-gradient(180deg,',
-    `${bgAlpha(tokens, 0.28)} 0%,`,
-    `${bgAlpha(tokens, 0.46)} 8%,`,
-    `${bgAlpha(tokens, 0.52)} 30%,`,
-    `${bgAlpha(tokens, 0.55)} 100%)`,
+    `${bgAlpha(tokens, 0)} 0px,`,
+    /*
+      The name straddles this edge, so the wash has to be at working strength
+      by the time it clears the overlap rather than ramping up somewhere below
+      it. Measured on a 460px card: at zero here the name reads against 62% of
+      the artwork, which is generous to the picture and thin for the type;
+      this puts it at about 57% and buys back most of the contrast.
+    */
+    `${bgAlpha(tokens, 0.18)} ${overlapPx}px,`,
+    `${bgAlpha(tokens, 0.32)} 8%,`,
+    `${bgAlpha(tokens, 0.38)} 30%,`,
+    `${bgAlpha(tokens, 0.42)} 100%)`,
   ].join(' ')
 }
 

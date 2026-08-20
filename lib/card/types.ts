@@ -237,7 +237,50 @@ export const CARD_PUBLIC_BASE = 'https://abccard.io/d'
 
 /** scale is a multiplier (1 = fit); x/y are object-position percentages. */
 export type MediaTransform = { scale: number; x: number; y: number }
-export type BackgroundTransform = MediaTransform & { overlay: number }
+
+/**
+ * How the artwork meets the shape of the card.
+ *
+ * `fit` and `cover` are the two answers that preserve the picture's own
+ * proportions, and between them they cannot compose every image: a card is
+ * roughly twice as tall as it is wide, so a 16:9 photograph either shows
+ * whole with bands above and below it, or fills the card and shows about a
+ * third of its width. Neither is what someone wants from a panorama.
+ *
+ * `stretch` is the owner saying they would rather distort the picture than
+ * accept either. That is a legitimate design decision on one's own card and
+ * the only mode that can make an arbitrary upload cover an arbitrary card, so
+ * it is offered rather than decided on their behalf.
+ */
+export type BackgroundSizing = 'fit' | 'cover' | 'stretch'
+
+/**
+ * The artwork layer, and nothing else on the card.
+ *
+ * `opacity` and `overlay` are deliberately two controls rather than one,
+ * because they are two questions. Opacity is how present the picture itself
+ * is; overlay is how much darkness is laid on top of it for the text to be
+ * read against. A faint picture at full darkness and a vivid picture under a
+ * heavy scrim are different compositions, and collapsing them into a single
+ * "strength" slider makes both unreachable.
+ *
+ * Both apply to this layer alone. Nothing above it — person, logo, graphics,
+ * identity — is affected by either, which is the whole point of them living
+ * on the transform of one layer instead of on a wrapper.
+ *
+ * `scaleX`/`scaleY` only mean anything under `stretch`; the proportional modes
+ * use `scale` alone. They are stored unconditionally so switching modes back
+ * and forth never discards what the owner set.
+ */
+export type BackgroundTransform = MediaTransform & {
+  /** 0–100. Darkness laid over the artwork, never over anything above it. */
+  overlay: number
+  /** 0–1. How visible the artwork itself is. */
+  opacity: number
+  scaleX: number
+  scaleY: number
+  sizing: BackgroundSizing
+}
 
 /**
  * How the owner's photograph is presented.
@@ -355,6 +398,12 @@ export const BACKGROUND_TRANSFORM_DEFAULT: BackgroundTransform = {
   x: 50,
   y: 50,
   overlay: 55,
+  // Fully present, undistorted, filling the card: the three values that
+  // reproduce what every card saved before these fields existed already does.
+  opacity: 1,
+  scaleX: 1,
+  scaleY: 1,
+  sizing: 'cover',
 }
 
 /**
@@ -444,8 +493,46 @@ export const SCALE_LIMITS = {
 
 export type ScaleLimits = { min: number; max: number }
 
-export function backgroundScaleLimits(fit: CardCoverFit): ScaleLimits {
-  return fit === 'fit' ? SCALE_LIMITS.backgroundFit : SCALE_LIMITS.backgroundFill
+/**
+ * How far each axis may be stretched on its own.
+ *
+ * Wide enough to square up a panorama or pull a portrait across a card, which
+ * is the entire reason the mode exists. A narrower range would leave images
+ * the owner cannot compose, and an image the owner cannot compose is the
+ * problem this is here to remove.
+ */
+export const BACKGROUND_AXIS_LIMITS: ScaleLimits = { min: 0.25, max: 5 }
+
+export function backgroundScaleLimits(sizing: BackgroundSizing): ScaleLimits {
+  return sizing === 'fit' ? SCALE_LIMITS.backgroundFit : SCALE_LIMITS.backgroundFill
+}
+
+/**
+ * The sizing a card should be read as, given what it has stored.
+ *
+ * Every card saved before this existed has no sizing at all, only the older
+ * Fill/Fit switch — so that switch is what it means, mapped across rather than
+ * replaced. Fill and cover are the same instruction under two names; fit was
+ * always fit. Nobody's artwork changes shape because the field arrived.
+ */
+export function normalizeBackgroundSizing(
+  value: unknown,
+  coverFit?: CardCoverFit
+): BackgroundSizing {
+  if (value === 'fit' || value === 'cover' || value === 'stretch') return value
+  return normalizeCoverFit(coverFit) === 'fit' ? 'fit' : 'cover'
+}
+
+/**
+ * The Fill/Fit column that matches a sizing mode.
+ *
+ * `card_cover_fit` predates this and is still written, so a renderer or a
+ * report reading the column alone gets the nearest true answer. Stretch has no
+ * equivalent there and reports as fill, which is what it is: an image sized to
+ * leave no gap.
+ */
+export function coverFitForSizing(sizing: BackgroundSizing): CardCoverFit {
+  return sizing === 'fit' ? 'fit' : 'fill'
 }
 
 export function portraitScaleLimits(mode: PortraitMode): ScaleLimits {
@@ -491,7 +578,8 @@ export function normalizeMediaTransforms(
   // render with a gap, so each scale is clamped to the range its own mode
   // allows rather than to one global range.
   const mode: PortraitMode = portrait.mode === 'hero' ? 'hero' : 'classic'
-  const bgLimits = backgroundScaleLimits(normalizeCoverFit(coverFit))
+  const sizing = normalizeBackgroundSizing(bg.sizing, coverFit)
+  const bgLimits = backgroundScaleLimits(sizing)
 
   const cutoutUrl =
     typeof portrait.cutoutUrl === 'string' && portrait.cutoutUrl.trim()
@@ -507,11 +595,32 @@ export function normalizeMediaTransforms(
   const portraitLimits = portraitScaleLimits(mode)
 
   return {
+    /*
+      Every field added after the first release falls back to the value that
+      reproduces what the card already looks like: fully opaque artwork,
+      undistorted axes, and whichever sizing the old Fill/Fit column meant. A
+      card that has never seen this editor normalizes to exactly its current
+      appearance, so none of them move on deploy.
+    */
     background: {
       scale: clamp(bg.scale, bgLimits.min, bgLimits.max, BACKGROUND_TRANSFORM_DEFAULT.scale),
       x: clamp(bg.x, 0, 100, seeded.x),
       y: clamp(bg.y, 0, 100, seeded.y),
       overlay: clamp(bg.overlay, 0, 100, BACKGROUND_TRANSFORM_DEFAULT.overlay),
+      opacity: clamp(bg.opacity, 0, 1, BACKGROUND_TRANSFORM_DEFAULT.opacity),
+      scaleX: clamp(
+        bg.scaleX,
+        BACKGROUND_AXIS_LIMITS.min,
+        BACKGROUND_AXIS_LIMITS.max,
+        BACKGROUND_TRANSFORM_DEFAULT.scaleX
+      ),
+      scaleY: clamp(
+        bg.scaleY,
+        BACKGROUND_AXIS_LIMITS.min,
+        BACKGROUND_AXIS_LIMITS.max,
+        BACKGROUND_TRANSFORM_DEFAULT.scaleY
+      ),
+      sizing,
     },
     portrait: {
       scale: clamp(
@@ -665,24 +774,135 @@ export function heroAspectRatio(portrait: PortraitTransform): number {
   return isHeroLayout(portrait) ? HERO_ASPECT_RATIO_PERSON : HERO_ASPECT_RATIO
 }
 
-/** Background rendering, honouring fill/fit as well as the owner's framing. */
+/**
+ * The artwork's geometry inside whatever box it is asked to fill.
+ *
+ * One function for all three modes and both surfaces, because the hero's crisp
+ * framing and the full-card continuation have to be the same picture composed
+ * the same way — two implementations would be two compositions, and the seam
+ * between them is exactly where that would show.
+ *
+ * `fit` and `cover` keep the proportions and pan through `object-position`,
+ * which is what those two modes have always done.
+ *
+ * `stretch` cannot use `object-position` at all: `object-fit: fill` leaves no
+ * spare space for it to distribute, so it is inert. Panning is done by
+ * translating instead, and the arithmetic is chosen so the same x/y mean the
+ * same thing in every mode — 0 is hard against one edge, 100 hard against the
+ * other, 50 centred — whether the axis is scaled past the box or short of it.
+ * That is what lets one drag gesture serve all three modes.
+ */
 export function backgroundStyle(
   t: BackgroundTransform,
-  fit: CardCoverFit
+  sizing: BackgroundSizing = t.sizing
 ): {
   width: string
   height: string
-  objectFit: 'cover' | 'contain'
+  objectFit: 'cover' | 'contain' | 'fill'
   objectPosition: string
   transform: string
 } {
+  if (sizing === 'stretch') {
+    /*
+      Zoom still zooms. `scale` stays the overall size in every mode and the
+      two axes trim it, so the Size slider does not become inert the moment the
+      owner picks stretch — and one gesture, one slider and one stored meaning
+      carry across all three modes.
+    */
+    const sx = t.scale * t.scaleX
+    const sy = t.scale * t.scaleY
+    return {
+      width: '100%',
+      height: '100%',
+      objectFit: 'fill',
+      objectPosition: '50% 50%',
+      transform: backgroundStretchTransform(t, sx, sy),
+    }
+  }
+
   return {
     width: '100%',
     height: '100%',
-    objectFit: fit === 'fit' ? 'contain' : 'cover',
+    objectFit: sizing === 'fit' ? 'contain' : 'cover',
     objectPosition: `${t.x}% ${t.y}%`,
     transform: `scale(${t.scale})`,
   }
+}
+
+/**
+ * How many pixels the artwork actually moves as x/y sweep 0 → 100.
+ *
+ * This is what a drag needs, and it is not the same as "how much bigger than
+ * the frame the picture is" — which is the plausible answer, and wrong.
+ *
+ * Under `fit` and `cover` the picture is placed by `object-position`, which
+ * distributes the slack between the box and the image *as `object-fit` sized
+ * it*, before any transform. The scale is applied afterwards, to the element,
+ * so it magnifies that offset rather than widening the range it was drawn
+ * from. The travel is therefore the fitted slack multiplied by the scale, and
+ * using the painted overflow instead both overstates the range and, once the
+ * scale pushes a fitted-smaller image past the frame, inverts its sign.
+ *
+ * Under `stretch` the picture is placed by a translate, which has no such
+ * indirection: the travel is exactly the overflow.
+ *
+ * The sign carries the meaning. Positive is a picture larger than its box,
+ * panned by moving a window over it — so it travels against the finger, and
+ * x increasing moves it left. Negative is a picture smaller than its box,
+ * placed within the slack — so x increasing moves it right. One number tells a
+ * caller both how far a percent goes and which way.
+ */
+export function backgroundPanTravel(
+  t: BackgroundTransform,
+  frame: { width: number; height: number },
+  natural?: { width: number; height: number } | null,
+  sizing: BackgroundSizing = t.sizing
+): { x: number; y: number } {
+  if (sizing === 'stretch') {
+    return {
+      x: frame.width * (t.scale * t.scaleX - 1),
+      y: frame.height * (t.scale * t.scaleY - 1),
+    }
+  }
+  if (!natural || !natural.width || !natural.height) {
+    return { x: frame.width * (t.scale - 1), y: frame.height * (t.scale - 1) }
+  }
+  const byWidth = frame.width / natural.width
+  const byHeight = frame.height / natural.height
+  const base = sizing === 'fit' ? Math.min(byWidth, byHeight) : Math.max(byWidth, byHeight)
+  const fittedW = natural.width * base
+  const fittedH = natural.height * base
+  return { x: t.scale * (fittedW - frame.width), y: t.scale * (fittedH - frame.height) }
+}
+
+/**
+ * A stretched layer's transform, for a given pair of effective axis scales.
+ *
+ * The pan is a percentage of the element's own box, which under `object-fit:
+ * fill` is the box itself — so (scale − 1) is precisely the overflow to travel
+ * through, and a negative result is precisely the gap to place the picture
+ * within. One expression covers both, because they are the same measurement
+ * signed differently.
+ *
+ * The scales are arguments rather than read off the transform, because the
+ * full-card layer renders the same picture at floored axes and must pan by the
+ * numbers it is actually drawn at — computing the pan from the stored scale
+ * while drawing at another would slide the artwork away from where the owner
+ * put it.
+ */
+export function backgroundStretchTransform(
+  t: BackgroundTransform,
+  sx: number,
+  sy: number
+): string {
+  const panX = (50 - t.x) * (sx - 1)
+  const panY = (50 - t.y) * (sy - 1)
+  return `translate(${round(panX)}%, ${round(panY)}%) scale(${round(sx)}, ${round(sy)})`
+}
+
+/** Keeps generated transform strings short and free of float noise. */
+function round(value: number): number {
+  return Math.round(value * 1000) / 1000
 }
 
 /** The CSS an image needs to honour a transform inside an overflow-hidden frame. */

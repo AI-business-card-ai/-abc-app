@@ -236,6 +236,18 @@ export default function DigitalCardView({
         maxWidth: 460,
         margin: '0 auto',
         minHeight: preview ? '100%' : '100vh',
+        /*
+          A column, so the hero can be told to take whatever height is left.
+
+          The artwork belongs to CardHero's own root, which is exactly as tall
+          as the card's content. This box is at least a full viewport, so a
+          card with little on it ended somewhere above the fold and left a band
+          of bare card colour beneath the artwork — the "photograph on top, dark
+          app panel below" the full-card treatment exists to remove, arriving
+          from the one direction nothing inside CardHero could see.
+        */
+        display: 'flex',
+        flexDirection: 'column',
         background: t.bg,
         color: t.text,
         fontFamily:

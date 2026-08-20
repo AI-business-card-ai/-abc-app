@@ -559,7 +559,6 @@ export default function CardEditorShell() {
               coverUrl={form.card_cover_url}
               logoUrl={form.company_logo_url}
               coverPosition={form.card_cover_position}
-              coverFit={form.card_cover_fit}
               transforms={form.card_media_transforms}
               theme={form.card_theme}
               fullName={form.full_name}

@@ -17,6 +17,7 @@ import HeroFramingEditor from '@/components/card/editor/HeroFramingEditor'
 import { generateCutout, isPendingCutout, type CutoutProgress } from '@/lib/card/cutout'
 import { removeCardMedia, uploadCardMedia } from '@/lib/card/media'
 import {
+  BACKGROUND_AXIS_LIMITS,
   BACKGROUND_TRANSFORM_DEFAULT,
   GRAPHIC_SCALE_LIMITS,
   HERO_PERSON_ANCHOR_DEFAULT,
@@ -26,6 +27,7 @@ import {
   LOGO_TRANSFORM_DEFAULT,
   PORTRAIT_TRANSFORM_DEFAULT,
   backgroundScaleLimits,
+  coverFitForSizing,
   portraitScaleLimits,
   type CardCoverFit,
   type CardMediaTransforms,
@@ -54,7 +56,6 @@ export default function CustomizeHero({
   photoUrl,
   coverUrl,
   logoUrl,
-  coverFit,
   theme,
   onChange,
 }: {
@@ -64,7 +65,6 @@ export default function CustomizeHero({
   photoUrl: string
   coverUrl: string
   logoUrl: string
-  coverFit: CardCoverFit
   theme: CardTheme
   onChange: (patch: {
     card_cover_fit?: CardCoverFit
@@ -144,7 +144,7 @@ export default function CustomizeHero({
         <BackgroundSection
           transforms={transforms}
           coverUrl={coverUrl}
-          coverFit={coverFit}
+          hero={mode === 'hero'}
           theme={theme}
           onChange={onChange}
         />
@@ -272,54 +272,76 @@ function StyleSection({
 function BackgroundSection({
   transforms,
   coverUrl,
-  coverFit,
+  hero,
   theme,
   onChange,
 }: {
   transforms: CardMediaTransforms
   coverUrl: string
-  coverFit: CardCoverFit
+  /** Stretch and artwork opacity are Hero's; classic keeps Fit and Cover. */
+  hero: boolean
   theme: CardTheme
   onChange: (patch: {
     card_cover_fit?: CardCoverFit
     card_media_transforms?: CardMediaTransforms
   }) => void
 }) {
+  const background = transforms.background
+  /*
+    Classic's header is frozen, and it renders from the old Fill/Fit column —
+    so offering it a stretch or an opacity would be offering a control that
+    does nothing, and reading the stored sizing here would show Stretch
+    selected on a card that is not stretched. Both follow from the same rule:
+    under classic this panel only knows the two modes classic has.
+  */
+  const sizing = hero ? background.sizing : background.sizing === 'fit' ? 'fit' : 'cover'
+  const modes = hero
+    ? ([
+        { id: 'fit', label: 'Fit', hint: 'Shows the whole image' },
+        { id: 'cover', label: 'Cover', hint: 'Fills the card, cropping the edges' },
+        { id: 'stretch', label: 'Stretch', hint: 'Sets width and height separately' },
+      ] as const)
+    : ([
+        { id: 'fit', label: 'Fit', hint: 'Shows the whole image' },
+        { id: 'cover', label: 'Cover', hint: 'Fills the hero, cropping the edges' },
+      ] as const)
+
+  /** Every control here writes one background field and nothing else. */
+  const setBackground = (patch: Partial<typeof background>) =>
+    onChange({
+      card_media_transforms: { ...transforms, background: { ...background, ...patch } },
+    })
+
   return (
     <Panel title="Background">
       <div className="mt-2.5 flex gap-2">
-        {(
-          [
-            { id: 'fill', label: 'Fill', hint: 'Crops to fill the hero' },
-            { id: 'fit', label: 'Fit', hint: 'Shows the whole image' },
-          ] as const
-        ).map((option) => (
+        {modes.map((option) => (
           <button
             key={option.id}
             type="button"
-            aria-pressed={coverFit === option.id}
+            aria-pressed={sizing === option.id}
             title={option.hint}
             onClick={() => {
-              // Fit allows an image smaller than the frame; fill does not.
-              // Re-clamp so switching back can never leave a visible gap.
               const limits = backgroundScaleLimits(option.id)
-              const scale = Math.min(
-                limits.max,
-                Math.max(limits.min, transforms.background.scale)
-              )
+              const scale = Math.min(limits.max, Math.max(limits.min, background.scale))
+              /*
+                The legacy Fill/Fit column is kept in step, so anything still
+                reading it gets the nearest true answer rather than a stale one.
+                Sizing is what the card renders from.
+              */
               onChange({
-                card_cover_fit: option.id,
+                card_cover_fit: coverFitForSizing(option.id),
                 card_media_transforms: {
                   ...transforms,
-                  background: { ...transforms.background, scale },
+                  background: { ...background, sizing: option.id, scale },
                 },
               })
             }}
-            className="min-h-[44px] flex-1 rounded-btn border px-3 text-[13px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
+            className="min-h-[44px] flex-1 rounded-btn border px-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring"
             style={{
-              background: coverFit === option.id ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
-              borderColor: coverFit === option.id ? 'var(--abc-gold-border)' : 'var(--abc-border)',
-              color: coverFit === option.id ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
+              background: sizing === option.id ? 'var(--abc-gold-soft)' : 'var(--abc-card)',
+              borderColor: sizing === option.id ? 'var(--abc-gold-border)' : 'var(--abc-border)',
+              color: sizing === option.id ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)',
             }}
           >
             {option.label}
@@ -328,9 +350,15 @@ function BackgroundSection({
       </div>
 
       <p className="mt-2 text-[12px] leading-[1.45] text-abc-muted">
-        {coverFit === 'fit'
-          ? 'The whole cover is shown against your card background.'
-          : 'The cover fills the hero. Drag below to choose what stays in frame.'}
+        {sizing === 'fit'
+          ? hero
+            ? 'The whole image is shown in the hero. It still fills the rest of the card behind your details.'
+            : 'The whole cover is shown against your card background.'
+          : sizing === 'stretch'
+            ? 'Width and height are yours to set. The image may be distorted — that is the point of this mode.'
+            : hero
+              ? 'The image fills the card, cropping what does not fit. Drag below to choose what stays in frame.'
+              : 'The cover fills the hero. Drag below to choose what stays in frame.'}
       </p>
 
       <div className="mt-3">
@@ -339,38 +367,71 @@ function BackgroundSection({
           label="Position and zoom"
           imageUrl={coverUrl}
           transforms={transforms}
-          scaleLimits={backgroundScaleLimits(coverFit)}
-          scaleValue={transforms.background.scale}
+          scaleLimits={backgroundScaleLimits(sizing)}
+          scaleValue={background.scale}
           onChange={(next) => onChange({ card_media_transforms: next })}
-          onScale={(scale) =>
-            onChange({
-              card_media_transforms: {
-                ...transforms,
-                background: { ...transforms.background, scale },
-              },
-            })
-          }
+          onScale={(scale) => setBackground({ scale })}
           onReset={() =>
             onChange({
               card_media_transforms: { ...transforms, background: BACKGROUND_TRANSFORM_DEFAULT },
             })
           }
         >
+          {/*
+            Only under stretch, because outside it they do nothing. Offering a
+            width slider that silently has no effect is worse than not offering
+            one — the owner drags it, nothing moves, and they stop trusting the
+            panel.
+          */}
+          {hero && sizing === 'stretch' ? (
+            <>
+              <Slider
+                label="Width"
+                value={background.scaleX}
+                min={BACKGROUND_AXIS_LIMITS.min}
+                max={BACKGROUND_AXIS_LIMITS.max}
+                step={0.05}
+                format={(v) => `${v.toFixed(2)}×`}
+                onChange={(scaleX) => setBackground({ scaleX })}
+              />
+              <Slider
+                label="Height"
+                value={background.scaleY}
+                min={BACKGROUND_AXIS_LIMITS.min}
+                max={BACKGROUND_AXIS_LIMITS.max}
+                step={0.05}
+                format={(v) => `${v.toFixed(2)}×`}
+                onChange={(scaleY) => setBackground({ scaleY })}
+              />
+            </>
+          ) : null}
+
+          {/*
+            Two sliders, two questions. Opacity is how present the picture is;
+            darken is how much shade sits on top of it so the text can be read.
+            Neither reaches the person, the logo, the graphics or the name —
+            both are properties of this layer alone.
+          */}
+          {hero ? (
+            <Slider
+              label="Opacity"
+              value={background.opacity}
+              min={0}
+              max={1}
+              step={0.05}
+              format={(v) => `${Math.round(v * 100)}%`}
+              onChange={(opacity) => setBackground({ opacity })}
+            />
+          ) : null}
+
           <Slider
             label="Darken"
-            value={transforms.background.overlay}
+            value={background.overlay}
             min={0}
             max={100}
             step={5}
             format={(v) => `${Math.round(v)}%`}
-            onChange={(overlay) =>
-              onChange({
-                card_media_transforms: {
-                  ...transforms,
-                  background: { ...transforms.background, overlay },
-                },
-              })
-            }
+            onChange={(overlay) => setBackground({ overlay })}
           />
         </LayerEditor>
       </div>
