@@ -390,7 +390,7 @@ function BackgroundSection({
                 value={background.scaleX}
                 min={BACKGROUND_AXIS_LIMITS.min}
                 max={BACKGROUND_AXIS_LIMITS.max}
-                step={0.05}
+                step={0.01}
                 format={(v) => `${v.toFixed(2)}×`}
                 onChange={(scaleX) => setBackground({ scaleX })}
               />
@@ -399,7 +399,7 @@ function BackgroundSection({
                 value={background.scaleY}
                 min={BACKGROUND_AXIS_LIMITS.min}
                 max={BACKGROUND_AXIS_LIMITS.max}
-                step={0.05}
+                step={0.01}
                 format={(v) => `${v.toFixed(2)}×`}
                 onChange={(scaleY) => setBackground({ scaleY })}
               />
@@ -418,7 +418,7 @@ function BackgroundSection({
               value={background.opacity}
               min={0}
               max={1}
-              step={0.05}
+              step={0.01}
               format={(v) => `${Math.round(v * 100)}%`}
               onChange={(opacity) => setBackground({ opacity })}
             />
@@ -429,7 +429,7 @@ function BackgroundSection({
             value={background.overlay}
             min={0}
             max={100}
-            step={5}
+            step={1}
             format={(v) => `${Math.round(v)}%`}
             onChange={(overlay) => setBackground({ overlay })}
           />

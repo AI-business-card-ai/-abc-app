@@ -162,6 +162,14 @@ export function heroBleedScrimGradient(overlay: number, tokens: CardThemeTokens)
  * the rows that need a footing. A wash heavy enough to guarantee every pixel
  * is a wash heavy enough to erase the picture.
  *
+ * Then about a seventh off again, once the card was seen on a phone with the
+ * artwork genuinely behind the whole of it. The wash was no longer hiding the
+ * picture, but it was still greying it: the lower half read as photograph
+ * seen through weather rather than photograph. This is a deliberately small
+ * step — roughly a tenth more light reaching the eye — because the failure
+ * mode in the other direction is text on an unknown photograph, and that one
+ * is not recoverable by squinting.
+ *
  * It stays a gradient, and stays lightest where it meets the hero, so the
  * artwork visibly runs out of the hero rather than meeting an edge.
  *
@@ -181,14 +189,15 @@ export function heroContentScrimGradient(tokens: CardThemeTokens, overlapPx = 0)
     /*
       The name straddles this edge, so the wash has to be at working strength
       by the time it clears the overlap rather than ramping up somewhere below
-      it. Measured on a 460px card: at zero here the name reads against 62% of
-      the artwork, which is generous to the picture and thin for the type;
-      this puts it at about 57% and buys back most of the contrast.
+      it. Left at zero the name reads against nearly all of the artwork, which
+      is generous to the picture and thin for the type; a sixth here buys back
+      most of the contrast while barely touching what the eye sees of the
+      photograph.
     */
-    `${bgAlpha(tokens, 0.18)} ${overlapPx}px,`,
-    `${bgAlpha(tokens, 0.32)} 8%,`,
-    `${bgAlpha(tokens, 0.38)} 30%,`,
-    `${bgAlpha(tokens, 0.42)} 100%)`,
+    `${bgAlpha(tokens, 0.15)} ${overlapPx}px,`,
+    `${bgAlpha(tokens, 0.27)} 8%,`,
+    `${bgAlpha(tokens, 0.32)} 30%,`,
+    `${bgAlpha(tokens, 0.36)} 100%)`,
   ].join(' ')
 }
 

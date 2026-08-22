@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { IconArrowBackUp } from '@tabler/icons-react'
+import { GRAPHIC_BASE_WIDTH, LOGO_BASE_HEIGHT_ANCHOR } from '@/components/card/CardHero'
 import { moveLayer, type HeroLayerId } from '@/lib/card/hero-gestures'
 import {
   backgroundStyle,
@@ -260,13 +261,44 @@ export default function LayerEditor({
                   opacity: transforms.background.opacity,
                 }
               : {
+                  /*
+                    Each layer sized the way the card sizes it, from the card's
+                    own base constants.
+
+                    This used to draw the logo and both graphics as `26% ×
+                    scale` of the stage width — one rule for three layers that
+                    the card measures three different ways. A logo is a share of
+                    the hero's *height*, so the panel was showing a size the
+                    card would never produce; and because the width was layout
+                    rather than transform, the panel hit the same `max-width`
+                    ceiling the card did and went quiet past about 3.85×.
+
+                    Scale is now a transform here too, so the close-up and the
+                    composition agree at every value in the range.
+                  */
                   position: 'absolute',
                   left: `${position.x}%`,
                   top: `${position.y}%`,
-                  transform: `translate(-50%, -50%) scale(${layer === 'person' ? scaleValue : 1})`,
-                  height: layer === 'person' ? '100%' : 'auto',
-                  width: layer === 'person' ? 'auto' : `${26 * scaleValue}%`,
-                  maxWidth: '100%',
+                  ...(layer === 'person'
+                    ? {
+                        height: '100%',
+                        width: 'auto',
+                        maxWidth: '100%',
+                        transform: `translate(-50%, -50%) scale(${scaleValue})`,
+                      }
+                    : layer === 'logo'
+                      ? {
+                          height: `${LOGO_BASE_HEIGHT_ANCHOR}%`,
+                          width: 'auto',
+                          maxWidth: '60%',
+                          transform: `translate(-50%, -50%) scale(${scaleValue})`,
+                        }
+                      : {
+                          width: `${GRAPHIC_BASE_WIDTH}%`,
+                          height: 'auto',
+                          transformOrigin: `${position.x}% ${position.y}%`,
+                          transform: `translate(-${position.x}%, -${position.y}%) scale(${scaleValue})`,
+                        }),
                   objectFit: 'contain',
                   opacity: opacity ?? 1,
                 }
@@ -297,7 +329,7 @@ export default function LayerEditor({
         value={scaleValue}
         min={scaleLimits.min}
         max={scaleLimits.max}
-        step={0.05}
+        step={0.01}
         format={(v) => `${v.toFixed(2)}×`}
         onChange={onScale}
       />
@@ -308,7 +340,7 @@ export default function LayerEditor({
           value={opacity ?? 1}
           min={0}
           max={1}
-          step={0.05}
+          step={0.01}
           format={(v) => `${Math.round(v * 100)}%`}
           onChange={onOpacity}
         />

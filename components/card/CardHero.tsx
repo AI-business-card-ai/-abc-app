@@ -104,9 +104,34 @@ function GraphicLayerView({
           position: 'absolute',
           left: `${graphic.x}%`,
           top: `${graphic.y}%`,
-          transform: `translate(-${graphic.x}%, -${graphic.y}%)`,
-          width: `${GRAPHIC_BASE_WIDTH * graphic.scale}%`,
+          /*
+            Size is a transform, and the layout width is a fixed base.
+
+            It used to be the layout width itself — `26% × scale` — which is
+            the obvious way to write it and quietly stops working. A replaced
+            element carries `max-width: 100%` from the stylesheet reset, so the
+            moment `26 × scale` passed 100 the browser clamped the width and
+            every larger value rendered identically: measured, 3.85×, 4.30× and
+            6.00× all came out at exactly the hero's width. The slider went on
+            moving and the card did not, which makes the number under the
+            control a lie.
+
+            A transform is applied after layout, so nothing constrains it. The
+            base stays at 26% — comfortably inside the clamp at every scale —
+            and the size the owner asked for is applied on top. Below the old
+            ceiling this is arithmetically the same rendering as before, so no
+            existing graphic moves; above it, the range finally does what it
+            says.
+          */
+          width: `${GRAPHIC_BASE_WIDTH}%`,
           height: 'auto',
+          /*
+            Scaling happens about the anchor itself, which is what keeps a
+            graphic from drifting as it grows: the named point of the layer
+            stays on the named point of the hero at every size.
+          */
+          transformOrigin: `${graphic.x}% ${graphic.y}%`,
+          transform: `translate(-${graphic.x}%, -${graphic.y}%) scale(${graphic.scale})`,
           objectFit: 'contain',
           opacity: graphic.opacity,
         }}
@@ -116,7 +141,7 @@ function GraphicLayerView({
 }
 
 /** A graphic at scale 1 covers this share of the hero's width. */
-const GRAPHIC_BASE_WIDTH = 26
+export const GRAPHIC_BASE_WIDTH = 26
 
 /*
   The hero logo's box, in proportions rather than pixels.
@@ -133,15 +158,7 @@ const LOGO_INSET_Y = 5
 /** Share of the inset box's height the logo occupies at scale 1. */
 const LOGO_BASE_HEIGHT = 10
 /** The same visual size measured against the whole hero, for anchored logos. */
-const LOGO_BASE_HEIGHT_ANCHOR = 9
-
-/**
- * How the crisp hero artwork hands over to the softened continuation beneath
- * it. A cut would put a visible line across the card at the hero's edge, which
- * is the exact seam the full-bleed treatment exists to remove.
- */
-const COVER_DISSOLVE =
-  'linear-gradient(180deg, #000 0%, #000 62%, rgba(0,0,0,0.55) 86%, transparent 100%)'
+export const LOGO_BASE_HEIGHT_ANCHOR = 9
 
 /**
  * How far the identity block is pulled up over the hero.
@@ -334,7 +351,49 @@ export default function CardHero({
       */}
       {fullBleed ? (
         <>
-          <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/*
+              Exactly the hero's height, holding nothing.
+
+              This is what stops the card showing its own photograph twice. The
+              continuation used to span the whole card, the hero's crisp copy
+              sat on top of it, and the two are different crops by definition —
+              one framed to the hero, one framed to the card. Wherever both
+              were visible at once the booth's roof lines, lights and signage
+              appeared in two places, which on a real phone reads as a double
+              exposure rather than as a background.
+
+              They were both visible in two ways. The crisp copy's bottom was
+              dissolved into transparency across its last third, so the whole
+              of that band was a crossfade between two different crops. And
+              under Fit the crisp copy letterboxes, so the continuation showed
+              in the bands beside it — a second framing of the same picture
+              sitting directly next to the first.
+
+              Neither is fixable by darkening or blurring the evidence. The
+              cure is for the two never to occupy the same pixel: the crisp
+              copy owns the hero, this owns everything below it, and this
+              spacer is the boundary. Its height is read from the same helper
+              the hero frames itself with, so the two cannot drift apart.
+            */}
+            <div
+              aria-hidden
+              style={{
+                width: '100%',
+                aspectRatio: String(heroAspectRatio(portrait)),
+                flexShrink: 0,
+              }}
+            />
+            <div style={{ position: 'relative', flex: '1 1 auto', overflow: 'hidden' }}>
             {/*
               The same picture, carried down the card — and now actually
               legible as that picture.
@@ -378,6 +437,7 @@ export default function CardHero({
                 opacity: artworkOpacity,
               }}
             />
+            </div>
           </div>
           <div
             aria-hidden
@@ -436,9 +496,15 @@ export default function CardHero({
               because the artwork now continues past it — the hero region is
               pixel-for-pixel what it was.
 
-              Under full bleed its bottom edge is dissolved rather than cut, so
-              it melts into the softened continuation below instead of ending
-              on a line.
+              It is no longer dissolved into the continuation below. That fade
+              was meant to melt one into the other, but the two are different
+              crops of one photograph, so melting them simply showed both at
+              once: across the whole faded band the booth appeared twice,
+              offset. A crossfade is the right tool between two framings of the
+              same subject only when they agree, and these cannot. The
+              continuation now stops where this starts, and the hand-off is a
+              change from sharp to soft at a definite edge rather than a
+              region where both are half-present.
             */
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -451,9 +517,6 @@ export default function CardHero({
                 // The artwork's own opacity, on the artwork's own element. See
                 // the full-card layer above for why it is never on a wrapper.
                 opacity: artworkOpacity,
-                ...(fullBleed
-                  ? { WebkitMaskImage: COVER_DISSOLVE, maskImage: COVER_DISSOLVE }
-                  : null),
               }}
             />
           ) : (
@@ -645,12 +708,25 @@ export default function CardHero({
                   around the point it was put rather than sliding it toward the
                   middle. Legacy logos keep pinning an edge, which is how every
                   card saved before the composer was drawn.
+
+                  Size is carried by the transform for the same reason it is on
+                  a graphic. The height used to be `base × scale` in layout, and
+                  the 60% width guard below then capped how wide the result
+                  could get — so past about 2.8× a wide logo stopped growing
+                  altogether while the layout box kept getting taller and
+                  `contain` letterboxed the picture inside it. Measured, 2.8×,
+                  4× and 6× all rendered at 276px. Scaling after layout leaves
+                  the guard doing its real job — keeping a very wide mark from
+                  spanning the hero at its base size — without it deciding how
+                  large the owner is allowed to go.
                 */
+                transformOrigin:
+                  logo.positionModel === 'anchor' ? 'center' : `${logo.x}% ${logo.y}%`,
                 transform:
                   logo.positionModel === 'anchor'
-                    ? 'translate(-50%, -50%)'
-                    : `translate(-${logo.x}%, -${logo.y}%)`,
-                height: `${(logo.positionModel === 'anchor' ? LOGO_BASE_HEIGHT_ANCHOR : LOGO_BASE_HEIGHT) * logo.scale}%`,
+                    ? `translate(-50%, -50%) scale(${logo.scale})`
+                    : `translate(-${logo.x}%, -${logo.y}%) scale(${logo.scale})`,
+                height: `${logo.positionModel === 'anchor' ? LOGO_BASE_HEIGHT_ANCHOR : LOGO_BASE_HEIGHT}%`,
                 width: 'auto',
                 maxWidth: '60%',
                 objectFit: 'contain',
