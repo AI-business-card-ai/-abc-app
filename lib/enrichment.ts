@@ -516,22 +516,29 @@ export async function runContactEnrichment(
   }
 }
 
+/**
+ * Starts enrichment without blocking the caller's response.
+ *
+ * This used to POST to /api/card/enrich/[id] over HTTP. That route is now
+ * session-authenticated, and a server-to-server fetch carries no cookies — so
+ * the call would come back 401. Worse, a 401 is a *resolved* response rather
+ * than a rejection, so the inline fallback below would never have fired and
+ * enrichment would have failed silently.
+ *
+ * The hop was never doing anything the process could not do itself: the route
+ * it called simply invoked this module's own function. Calling it directly
+ * removes the round trip and the failure mode together.
+ *
+ * Authorization is unchanged and still the caller's job — every caller derives
+ * `userId` from an authenticated session before reaching here, and the pipeline
+ * scopes all of its reads and writes to that owner.
+ */
 export function triggerBackgroundEnrichment(
   contactId: string,
   userId: string,
   options: EnrichmentOptions = {}
 ) {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-
-  // Prefer new progressive enrich route; fall back to inline on trigger failure
-  fetch(`${baseUrl}/api/card/enrich/${contactId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, ...options }),
-  }).catch((err) => {
-    console.error('Background enrichment trigger failed, running inline:', err)
-    runContactEnrichment(contactId, userId, options).catch(console.error)
+  runContactEnrichment(contactId, userId, options).catch((err) => {
+    console.error('Background enrichment failed:', err)
   })
 }

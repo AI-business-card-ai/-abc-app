@@ -159,10 +159,22 @@ export async function POST(req: NextRequest) {
     } as ABCProfile
 
     const extracted = sanitizeCardExtract(await extractBusinessCardFromImage(base64, claudeMediaType))
-    console.log('Phase 1 OCR complete:', extracted.name, extracted.company)
+    /*
+      Which fields came back, never what was in them. These logs used to carry
+      the scanned person's name and company, and the failure branch printed the
+      whole extraction — email and phone included. That is a third party's
+      contact details sitting in server logs, from someone who never agreed to
+      it. Shape is what a diagnosis actually needs.
+    */
+    console.log('[card/scan] OCR complete', {
+      hasName: Boolean(extracted.name),
+      hasCompany: Boolean(extracted.company),
+      hasEmail: Boolean(extracted.email),
+      hasPhone: Boolean(extracted.phone),
+    })
 
     if (!hasUsableCardData(extracted)) {
-      console.warn('[card/scan] OCR returned no usable card data', extracted)
+      console.warn('[card/scan] OCR returned no usable card data')
       return unreadableCardResponse()
     }
 
