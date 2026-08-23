@@ -9,6 +9,7 @@ import { ALL_OUTREACH_CHANNELS, type OutreachChannel } from '@/lib/contact-enric
 import {
   createEncounter,
   legacyProjection,
+  recomputeContactFollowUpProjection,
   meetingHasContent,
   sanitizeMeetingInput,
   updateEncounter,
@@ -206,6 +207,19 @@ export async function POST(req: NextRequest) {
       )
     }
 
+
+    /*
+      The reminder, recomputed from every meeting rather than assumed from this
+      one. Runs on every successful write, including a revision to an older
+      meeting, because changing any meeting's follow-up date can change which
+      one is due first. Before the projection update below, so the row that
+      update re-reads already carries the right value.
+    */
+    const nextDue = await recomputeContactFollowUpProjection(supabase, {
+      ownerId: user.id,
+      contactId: body.contactId,
+    })
+
     /*
       Only the newest meeting may drive the projection.
 
@@ -241,7 +255,7 @@ export async function POST(req: NextRequest) {
     */
     const projectable = Boolean(body.encounterId) || meetingHasContent(meeting)
 
-    let contact = ownedContact as ScannedContact
+    let contact = { ...(ownedContact as ScannedContact), next_action_date: nextDue }
     let projectionStale = false
 
     if (isLatest && projectable) {
@@ -264,9 +278,6 @@ export async function POST(req: NextRequest) {
       if (nextAction === null) {
         delete updatePayload.next_action
         delete updatePayload.next_step
-      }
-      if (followUpAt === null) {
-        delete updatePayload.next_action_date
       }
 
       const { data: projected, error: projectionError } = await supabase

@@ -177,11 +177,70 @@ export async function updateEncounter(
 }
 
 /**
+ * Bring the contact's reminder back in line with its meetings.
+ *
+ * `contact_encounters.follow_up_at` is where a follow-up actually lives: one
+ * per meeting, because that is what a follow-up is about.
+ * `scanned_contacts.next_action_date` holds a single date and is read by the
+ * follow-up inbox, the dashboard counts and the header badge — so it is a
+ * projection, and this is the only thing allowed to compute it.
+ *
+ * The rule is the soonest unresolved meeting, and it is one rule rather than
+ * two because the alternatives disagree. Projecting the *latest* meeting's date
+ * — which is what saving a meeting used to do — hides an earlier reminder
+ * behind a later one, and since the inbox drops anything past its horizon, an
+ * overdue follow-up could vanish from view because a newer meeting was added.
+ * Latest meeting and next action are different questions.
+ *
+ * Never invents a date: the value always comes from a real pending meeting, or
+ * is null because none remain. Contacts with no meetings are left alone —
+ * their reminder is contact-level and there is nothing here to derive it from.
+ */
+export async function recomputeContactFollowUpProjection(
+  supabase: SupabaseClient,
+  args: { ownerId: string; contactId: string }
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('contact_encounters')
+    .select('follow_up_at')
+    .eq('contact_id', args.contactId)
+    .eq('user_id', args.ownerId)
+    .not('follow_up_at', 'is', null)
+    .order('follow_up_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[encounters] follow-up projection read failed:', error)
+    return null
+  }
+
+  const nextDue = (data?.follow_up_at as string | undefined) ?? null
+
+  const { error: writeError } = await supabase
+    .from('scanned_contacts')
+    .update({ next_action_date: nextDue })
+    .eq('id', args.contactId)
+    .eq('user_id', args.ownerId)
+
+  if (writeError) {
+    console.error('[encounters] follow-up projection write failed:', writeError)
+  }
+
+  return nextDue
+}
+
+/**
  * The legacy flat columns, rebuilt from a meeting.
  *
  * Everything outside the contact detail screen still reads these, so the latest
  * encounter has to be visible there or follow-ups quietly stop firing. Returns
  * only the meeting-context keys; the caller decides what else to update.
+ *
+ * Deliberately not . That column is the reminder, and a
+ * reminder is not a property of the newest meeting — it is whichever meeting
+ * is due soonest. recomputeContactFollowUpProjection owns it, and writing it
+ * here as well is how the two answers drifted apart.
  */
 export function legacyProjection(
   input: MeetingInput,
@@ -194,7 +253,6 @@ export function legacyProjection(
     notes: noteParts.length > 0 ? noteParts.join('. ') : null,
     next_action: input.nextAction,
     next_step: input.nextAction,
-    next_action_date: input.followUpAt,
   }
 
   if (input.event) {

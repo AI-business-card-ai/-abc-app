@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   IconBrandLinkedin,
   IconBrandWhatsapp,
+  IconCheck,
   IconCopy,
   IconExternalLink,
   IconMail,
@@ -13,14 +15,22 @@ import {
 import type { TablerIcon } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import { CardTitle, ErrorNote, FIELD_LABEL_CLASS, INPUT_CLASS } from '@/components/contacts/detail/parts'
+import { dueDateLabel } from '@/lib/format-date'
 import {
   openEmailComposer,
   openLinkedInComposer,
   openWhatsAppComposer,
 } from '@/lib/outreach-composers'
+import { bucketFor } from '@/lib/followups'
 import type { ContactDetail } from '@/lib/contact-detail'
 
 type Channel = 'email' | 'whatsapp' | 'linkedin' | 'sms'
+
+const STATUS: Record<string, { label: string; color: string }> = {
+  overdue: { label: 'Overdue', color: 'var(--abc-overdue)' },
+  today: { label: 'Due today', color: 'var(--abc-today)' },
+  upcoming: { label: 'Upcoming', color: 'var(--abc-upcoming)' },
+}
 
 const CHANNELS: { id: Channel; label: string; icon: TablerIcon; cta: string }[] = [
   { id: 'email', label: 'Email', icon: IconMail, cta: 'Open in email' },
@@ -30,21 +40,47 @@ const CHANNELS: { id: Channel; label: string; icon: TablerIcon; cta: string }[] 
 ]
 
 /**
- * Drafts a short follow-up from identity + meeting context + next step.
+ * Drafts a short follow-up from identity + the selected meeting + next step.
+ *
+ * The meeting is the newest encounter — the same one the meeting context card
+ * above is showing, read from the same place so the two cannot disagree. Its id
+ * goes to the server, which fetches the meeting itself; nothing about what was
+ * said travels from the browser. Before this, generation read the flat contact
+ * columns, which meant a repeat meeting with no notes produced a message
+ * recalling the previous conference and a promise already kept.
  *
  * We never claim to send: each channel opens its own composer with the text
  * pre-filled, because none of these platforms permit silent sending from here.
  * LinkedIn cannot even accept pre-filled text, so we copy first and say so.
+ * "Mark as followed up" is the owner's own statement, which is the only
+ * trustworthy signal there is.
  */
 export default function SmartFollowUpCard({ contact }: { contact: ContactDetail }) {
+  const router = useRouter()
   const [channel, setChannel] = useState<Channel>('email')
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [completing, setCompleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   const active = CHANNELS.find((c) => c.id === channel)!
+
+  /** The meeting this follow-up is about: the newest, as shown above. */
+  const latest = contact.encounters[0]
+  const dueAt = latest ? latest.followUpAt : contact.followUpAt
+  const bucket = bucketFor(dueAt)
+  const status = bucket ? STATUS[bucket] : null
+
+  /*
+    Whether there is anything to write about, as opposed to only the fact of
+    having met. Drives the wording below: promising a draft "from what you
+    discussed" when nothing was discussed is a small lie the card can avoid.
+  */
+  const hasMeetingDetail = latest
+    ? Boolean(latest.event || latest.discussed || latest.nextAction)
+    : Boolean(contact.event || contact.discussed || contact.nextStep)
 
   const available: Record<Channel, boolean> = {
     email: Boolean(contact.email),
@@ -65,7 +101,8 @@ export default function SmartFollowUpCard({ contact }: { contact: ContactDetail 
       const res = await fetch('/api/contact/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId: contact.id, channel }),
+        // The meeting is named, not described. The server reads it back itself.
+        body: JSON.stringify({ contactId: contact.id, encounterId: latest?.id, channel }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || 'failed')
@@ -73,6 +110,8 @@ export default function SmartFollowUpCard({ contact }: { contact: ContactDetail 
       setMessage(data.message || '')
       setSubject(data.subject || '')
     } catch (err) {
+      // Deliberately leaves `message` alone: a failed regeneration must not
+      // cost the owner the draft they had already edited.
       setError(
         err instanceof Error && err.message !== 'failed'
           ? err.message
@@ -80,6 +119,30 @@ export default function SmartFollowUpCard({ contact }: { contact: ContactDetail 
       )
     } finally {
       setGenerating(false)
+    }
+  }
+
+  /** The owner says the follow-up is done. Nothing external can tell us. */
+  async function markFollowedUp() {
+    setCompleting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/follow-ups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Names the meeting on screen. Completing this follow-up must not
+        // touch another meeting's reminder for the same person.
+        body: JSON.stringify({ contactId: contact.id, encounterId: latest?.id, action: 'complete' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) throw new Error(data.error || 'failed')
+
+      flash('Marked as followed up')
+      router.refresh()
+    } catch {
+      setError('Could not update this follow-up. Try again.')
+    } finally {
+      setCompleting(false)
     }
   }
 
@@ -124,8 +187,17 @@ export default function SmartFollowUpCard({ contact }: { contact: ContactDetail 
         <CardTitle>Smart follow-up</CardTitle>
       </div>
       <p className="mt-1.5 text-[13px] leading-[1.55] text-abc-secondary">
-        Drafted from where you met, what you discussed and what you promised.
+        {hasMeetingDetail
+          ? 'Drafted from where you met, what you discussed and what you promised.'
+          : 'Create a quick follow-up for this meeting.'}
       </p>
+
+      {dueAt && status ? (
+        <p className="mt-2.5 inline-flex items-center gap-1.5 text-[12.5px] font-medium" style={{ color: status.color }}>
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: status.color }} aria-hidden="true" />
+          {status.label} · {dueDateLabel(dueAt)}
+        </p>
+      ) : null}
 
       {/* Channel */}
       <div className="abc-scroll-x mt-4">
@@ -217,6 +289,19 @@ export default function SmartFollowUpCard({ contact }: { contact: ContactDetail 
           </>
         ) : null}
       </div>
+
+      {dueAt ? (
+        <Button
+          onClick={() => void markFollowedUp()}
+          variant="surface"
+          disabled={completing}
+          fullWidth
+          className="mt-2"
+        >
+          <IconCheck size={17} stroke={1.9} />
+          {completing ? 'Saving…' : 'Mark as followed up'}
+        </Button>
+      ) : null}
 
       {notice ? (
         <p className="mt-2.5 text-center text-[12.5px] text-abc-gold-accent" role="status">
