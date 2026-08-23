@@ -4,10 +4,12 @@ import { applyPersonalMeetingBonus, aiScoreToDbFields, calculateAiMatchScore } f
 import { ABC_LEAD_SOURCE } from '@/lib/crm-constants'
 import { calculateLeadScore } from '@/lib/crm'
 import { normalizeEventText } from '@/lib/event-normalizer'
+import { sanitizeProvenance } from '@/lib/scan/provenance'
 import { ALL_OUTREACH_CHANNELS, type OutreachChannel } from '@/lib/contact-enrichment-ui'
 import {
   createEncounter,
   legacyProjection,
+  meetingHasContent,
   sanitizeMeetingInput,
   updateEncounter,
   type EncounterRow,
@@ -90,6 +92,18 @@ export async function POST(req: NextRequest) {
        * capture with meeting context stays one meeting rather than two.
        */
       encounterId?: string
+      /**
+       * How this meeting was captured, when it came from a scan of somebody
+       * already in the owner's contacts. Recorded on the new encounter, because
+       * the same person can be met twice by different routes — photographed at
+       * one event, QR-scanned at the next. The contact's own Phase 3 provenance
+       * describes how they first arrived and is deliberately left alone.
+       *
+       * Untrusted, and validated by the same sanitizer the scan save uses.
+       * Ignored on a revision: an edit changes what was said, not how it was
+       * captured.
+       */
+      provenance?: unknown
       whereMet?: string
       topic?: string
       followupNote?: string
@@ -119,6 +133,8 @@ export async function POST(req: NextRequest) {
 
     const nextAction = (body.nextAction || '').trim() || null
     const followUpAt = (body.followUpAt || '').trim() || null
+
+    const captureProvenance = sanitizeProvenance(body.provenance)
 
     const meeting = sanitizeMeetingInput({
       event: whereMet,
@@ -173,6 +189,10 @@ export async function POST(req: NextRequest) {
           contactId: body.contactId,
           userId: user.id,
           meeting,
+          capture: {
+            captureOrigin: captureProvenance?.origin ?? null,
+            captureKind: captureProvenance?.kind ?? null,
+          },
         })
 
     if (!encounter) {
@@ -207,10 +227,24 @@ export async function POST(req: NextRequest) {
 
     const isLatest = !newest || newest.id === encounter.id
 
+    /*
+      A brand-new meeting with nothing written down projects nothing.
+
+      Scanning someone the owner already knows and adding no notes still records
+      that they met — but copying that emptiness onto the contact would blank
+      the topic and notes from the last meeting they *did* write up, which is
+      what the screen and the CRM would then show. The encounter stands either
+      way; only the summary of it is withheld.
+
+      A revision is exempt: clearing a field while editing is the owner saying
+      to clear it, and that must keep working.
+    */
+    const projectable = Boolean(body.encounterId) || meetingHasContent(meeting)
+
     let contact = ownedContact as ScannedContact
     let projectionStale = false
 
-    if (isLatest) {
+    if (isLatest && projectable) {
       const updatePayload: Record<string, unknown> = {
         ...legacyProjection(meeting, {
           leadSource: ABC_LEAD_SOURCE,

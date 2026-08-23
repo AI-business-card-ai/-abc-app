@@ -137,10 +137,7 @@ export default function ContactDetailView({
       {/* Main composition */}
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:items-start">
         <div className="flex flex-col gap-4">
-          <MeetingContextCard
-            contact={contact}
-            onSaved={(next) => setContact((prev) => ({ ...prev, ...next }))}
-          />
+          <MeetingContextCard contact={contact} />
           <MeetingHistoryCard contact={contact} />
           <SmartFollowUpCard contact={contact} />
           <div className="lg:hidden">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   IconCalendarEvent,
   IconMapPin,
@@ -12,6 +13,7 @@ import Button from '@/components/ui/abc/Button'
 import MeetingContextForm from '@/components/contacts/detail/MeetingContextForm'
 import { CardTitle } from '@/components/contacts/detail/parts'
 import { dueDateLabel } from '@/lib/format-date'
+import { bucketFor } from '@/lib/followups'
 import type { ContactDetail } from '@/lib/contact-detail'
 
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -31,27 +33,58 @@ function formatMetAt(iso: string | null): string | null {
  * The latest meeting: where, what was discussed, the next step, when to follow
  * up — the answers a phonebook entry loses.
  *
- * Still reads the flat contact fields, which now project the newest encounter,
- * so this stays in step with the follow-up card and the contact list rather
- * than computing its own version of "latest". Editing revises that encounter
- * through /api/card/context; earlier meetings live in the history card below.
+ * Reads the newest encounter directly, because that is what "latest" means. It
+ * used to read the flat contact columns instead, which are a projection of the
+ * newest meeting that *had* something to project — and the two stopped agreeing
+ * the moment a meeting could be recorded with nothing written down. A repeat
+ * scan with no notes left the previous meeting displayed here as though it had
+ * just happened, while also appearing below in history, and the meeting that
+ * actually just happened appeared nowhere.
+ *
+ * The flat columns keep their job for everything that has not moved across yet
+ * — follow-up buckets, the dashboard, the contact list, CRM scoring — and are
+ * no longer consulted by this card. They are the last meeting with details,
+ * which is a useful thing for those readers and is not the same claim as this
+ * one.
  */
-export default function MeetingContextCard({
-  contact,
-  onSaved,
-}: {
-  contact: ContactDetail
-  onSaved: (next: Partial<ContactDetail>) => void
-}) {
+export default function MeetingContextCard({ contact }: { contact: ContactDetail }) {
+  const router = useRouter()
   const [editing, setEditing] = useState(false)
 
-  // The meeting this card is showing: the newest one, which is also what the
-  // flat contact fields project. Editing here revises it.
+  /*
+    The newest encounter, and the one this card edits.
+
+    Falling back to the flat columns only when there are no encounters at all,
+    which is a contact from before meetings had their own rows and no meeting
+    context to have backfilled. Never a blend of the two: taking the date from
+    one meeting and the discussion from another would describe an evening that
+    never happened.
+  */
   const latest = contact.encounters[0]
 
-  const hasContext = Boolean(contact.event || contact.discussed || contact.nextStep)
-  const status = contact.followUp ? STATUS[contact.followUp] : null
-  const metAt = formatMetAt(contact.metAt)
+  const view = latest
+    ? {
+        event: latest.event,
+        discussed: latest.discussed,
+        notes: null,
+        nextStep: latest.nextAction,
+        followUpAt: latest.followUpAt,
+        metAt: latest.metAt,
+        followUp: bucketFor(latest.followUpAt),
+      }
+    : {
+        event: contact.event,
+        discussed: contact.discussed,
+        notes: contact.notes,
+        nextStep: contact.nextStep,
+        followUpAt: contact.followUpAt,
+        metAt: contact.metAt,
+        followUp: contact.followUp,
+      }
+
+  const hasContext = Boolean(view.event || view.discussed || view.nextStep)
+  const status = view.followUp ? STATUS[view.followUp] : null
+  const metAt = formatMetAt(view.metAt)
 
   return (
     <section className="abc-surface p-5">
@@ -84,28 +117,25 @@ export default function MeetingContextCard({
           */
           encounterId={latest?.id}
           initial={{
-            event: contact.event ?? '',
-            discussed: contact.discussed ?? '',
-            nextStep: contact.nextStep ?? '',
-            followUpAt: contact.followUpAt,
+            event: view.event ?? '',
+            discussed: view.discussed ?? '',
+            nextStep: view.nextStep ?? '',
+            followUpAt: view.followUpAt,
           }}
           submitLabel="Save context"
           onCancel={() => setEditing(false)}
-          onSaved={(values) => {
-            onSaved({
-              event: values.event || null,
-              discussed: values.discussed || null,
-              nextStep: values.nextStep || null,
-              followUpAt: values.followUpAt,
-            })
+          onSaved={() => {
             setEditing(false)
+            // The card now renders the encounter itself, so the server's copy is
+            // the one to trust — same refresh the history card below performs.
+            router.refresh()
           }}
         />
       ) : (
         <div className="mt-4 flex flex-col gap-3.5">
-          {contact.event ? (
+          {view.event ? (
             <Detail icon={IconMapPin} label="Met at">
-              {contact.event}
+              {view.event}
               {metAt ? <span className="text-abc-muted"> · {metAt}</span> : null}
             </Detail>
           ) : metAt && hasContext ? (
@@ -116,28 +146,28 @@ export default function MeetingContextCard({
             </Detail>
           ) : null}
 
-          {contact.discussed ? (
+          {view.discussed ? (
             <Detail icon={IconMessage} label="Discussed">
-              {contact.discussed}
+              {view.discussed}
             </Detail>
           ) : null}
 
-          {contact.notes && contact.notes !== contact.discussed ? (
+          {view.notes && view.notes !== view.discussed ? (
             <Detail icon={IconMessage} label="Notes">
-              {contact.notes}
+              {view.notes}
             </Detail>
           ) : null}
 
-          {contact.nextStep ? (
+          {view.nextStep ? (
             <Detail icon={IconTargetArrow} label="Next step">
-              {contact.nextStep}
+              {view.nextStep}
             </Detail>
           ) : null}
 
-          {contact.followUpAt ? (
+          {view.followUpAt ? (
             <Detail icon={IconCalendarEvent} label="Follow up">
               <span className="inline-flex flex-wrap items-center gap-x-2">
-                <span>{dueDateLabel(contact.followUpAt)}</span>
+                <span>{dueDateLabel(view.followUpAt)}</span>
                 {status ? (
                   <span
                     className="inline-flex items-center gap-1.5 text-[12.5px] font-medium"
@@ -155,13 +185,15 @@ export default function MeetingContextCard({
             </Detail>
           ) : null}
 
-          {!hasContext && !contact.followUpAt ? (
+          {!hasContext && !view.followUpAt ? (
             <div className="rounded-inner border border-dashed border-abc-border px-4 py-5 text-center">
               <p className="text-[13.5px] text-abc-secondary">
-                No meeting context saved for this contact yet.
+                {latest
+                  ? 'No notes added for this meeting yet.'
+                  : 'No meeting context saved for this contact yet.'}
               </p>
               <Button onClick={() => setEditing(true)} variant="surface" className="mt-3.5">
-                Add meeting context
+                {latest ? 'Add notes' : 'Add meeting context'}
               </Button>
             </div>
           ) : null}

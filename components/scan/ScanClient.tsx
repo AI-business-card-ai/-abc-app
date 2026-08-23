@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconCheck, IconScan } from '@tabler/icons-react'
 import CameraStage from '@/components/scan/CameraStage'
+import DuplicateResolution from '@/components/scan/DuplicateResolution'
 import QrSheet from '@/components/scan/QrSheet'
 import ScanReview, {
   type MeetingContextValue,
@@ -20,9 +21,10 @@ import type { CaptureOrigin, CaptureProvenance } from '@/lib/scan/provenance'
 import { parseQrPayload, type QrResult } from '@/lib/scan/qr-parse'
 import { useCamera } from '@/lib/scan/useCamera'
 import { useQrScanner } from '@/lib/scan/useQrScanner'
+import type { DuplicateMatch } from '@/lib/contacts/duplicate-match'
 import type { ScannedContact } from '@/lib/types'
 
-type Stage = 'capture' | 'processing' | 'review' | 'saved'
+type Stage = 'capture' | 'processing' | 'review' | 'duplicate' | 'saved'
 
 const PROCESSING_STEPS = ['Reading contact…', 'Extracting details…', 'Preparing connection…']
 
@@ -45,6 +47,8 @@ export default function ScanClient() {
   const [captureSource, setCaptureSource] = useState<string>('auto')
   /** Where it came from and what it was, kept beside the candidate rather than in it. */
   const [provenance, setProvenance] = useState<CaptureProvenance | null>(null)
+  /** Someone the owner already has, waiting on their decision. Nothing written. */
+  const [duplicate, setDuplicate] = useState<DuplicateMatch | null>(null)
   const [savedContact, setSavedContact] = useState<ScannedContact | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -82,6 +86,7 @@ export default function ScanClient() {
     setContext(emptyContext())
     setCaptureSource('auto')
     setProvenance(null)
+    setDuplicate(null)
     setSavedContact(null)
     setError(null)
     setQrResult(null)
@@ -230,47 +235,24 @@ export default function ScanClient() {
     void processImage(file, 'camera')
   }, [captureFrame, processImage])
 
-  const save = useCallback(async () => {
-    setSaving(true)
-    setError(null)
-
-    try {
-      /*
-        No contactId: a fresh scan has never been written, whichever way it was
-        captured, so this always creates. `captureSource` records how the
-        candidate was read — an image keeps the chosen mode, a QR says so.
-      */
-      const identityRes = await fetch('/api/scan/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source: captureSource,
-          provenance,
-          fields: candidateToFields(fields),
-        }),
-      })
-      const identityData = await identityRes.json()
-      if (!identityRes.ok || !identityData.success) {
-        throw new Error(identityData.error || 'Could not save this contact.')
-      }
-
-      const saved = identityData.contact as ScannedContact
-      // The save already recorded the meeting. Context written below revises
-      // that encounter rather than adding a second one for the same handshake.
-      const encounterId = (identityData.encounter?.id as string | undefined) ?? undefined
-      const hasContext =
-        context.whereMet.trim() ||
-        context.discussed.trim() ||
-        context.nextAction.trim() ||
-        context.followUpAt
-
-      if (hasContext) {
-        const contextRes = await fetch('/api/card/context', {
+  /** Meeting context for a contact that already exists, as its own encounter. */
+  const addMeetingToExisting = useCallback(
+    async (contactId: string) => {
+      setSaving(true)
+      setError(null)
+      try {
+        /*
+          Always sent, even with every field empty. A scan is a meeting whether
+          or not the owner wrote anything down, and this is what records it —
+          the encounter carries when and how, and the server declines to project
+          an empty meeting over the notes from the last one.
+        */
+        const res = await fetch('/api/card/context', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contactId: saved.id,
-            encounterId,
+            contactId,
+            provenance,
             whereMet: context.whereMet,
             topic: context.discussed,
             nextAction: context.nextAction,
@@ -279,21 +261,106 @@ export default function ScanClient() {
             generateMessages: false,
           }),
         })
-        if (!contextRes.ok) {
-          const contextData = await contextRes.json().catch(() => ({}))
-          throw new Error(contextData.error || 'Contact saved, but the meeting notes did not.')
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Could not add this meeting.')
         }
-      }
 
-      setSavedContact(saved)
-      hapticSuccess()
-      setStage('saved')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save this contact.')
-    } finally {
-      setSaving(false)
-    }
-  }, [captureSource, context, fields, provenance])
+        hapticSuccess()
+        router.push(`/contacts/${contactId}`)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not add this meeting.')
+      } finally {
+        setSaving(false)
+      }
+    },
+    [context, provenance, router]
+  )
+
+  const save = useCallback(
+    async (allowDuplicate = false) => {
+      setSaving(true)
+      setError(null)
+
+      try {
+        /*
+          No contactId: a fresh scan has never been written, whichever way it was
+          captured, so this always creates. `captureSource` records how the
+          candidate was read — an image keeps the chosen mode, a QR says so.
+
+          `allowDuplicate` is sent only when the owner has seen a match and asked
+          for a separate contact anyway. It travels per request rather than being
+          remembered, so the next scan is checked again.
+        */
+        const identityRes = await fetch('/api/scan/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source: captureSource,
+            provenance,
+            allowDuplicate,
+            fields: candidateToFields(fields),
+          }),
+        })
+        const identityData = await identityRes.json()
+        if (!identityRes.ok || !identityData.success) {
+          throw new Error(identityData.error || 'Could not save this contact.')
+        }
+
+        /*
+          Someone the owner already has. Nothing was written, and the reviewed
+          candidate and meeting context stay exactly as they are in state — going
+          back to review must not cost the owner their typing.
+        */
+        if (identityData.outcome === 'existing_contact') {
+          setDuplicate(identityData.match as DuplicateMatch)
+          hapticMedium()
+          setStage('duplicate')
+          return
+        }
+
+        const saved = identityData.contact as ScannedContact
+        // The save already recorded the meeting. Context written below revises
+        // that encounter rather than adding a second one for the same handshake.
+        const encounterId = (identityData.encounter?.id as string | undefined) ?? undefined
+        const hasContext =
+          context.whereMet.trim() ||
+          context.discussed.trim() ||
+          context.nextAction.trim() ||
+          context.followUpAt
+
+        if (hasContext) {
+          const contextRes = await fetch('/api/card/context', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contactId: saved.id,
+              encounterId,
+              whereMet: context.whereMet,
+              topic: context.discussed,
+              nextAction: context.nextAction,
+              followUpAt: context.followUpAt,
+              recalculateScore: false,
+              generateMessages: false,
+            }),
+          })
+          if (!contextRes.ok) {
+            const contextData = await contextRes.json().catch(() => ({}))
+            throw new Error(contextData.error || 'Contact saved, but the meeting notes did not.')
+          }
+        }
+
+        setSavedContact(saved)
+        hapticSuccess()
+        setStage('saved')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not save this contact.')
+      } finally {
+        setSaving(false)
+      }
+    },
+    [captureSource, context, fields, provenance]
+  )
 
   const statusText =
     status === 'live'
@@ -363,6 +430,21 @@ export default function ScanClient() {
           error={error}
           onSave={() => void save()}
           onDiscard={resetToCapture}
+        />
+      ) : null}
+
+      {stage === 'duplicate' && duplicate ? (
+        <DuplicateResolution
+          reason={duplicate.reason}
+          contacts={duplicate.contacts}
+          busy={saving}
+          onAddMeeting={(contactId) => void addMeetingToExisting(contactId)}
+          onCreateSeparate={() => void save(true)}
+          onBack={() => {
+            setDuplicate(null)
+            setError(null)
+            setStage('review')
+          }}
         />
       ) : null}
 

@@ -10,6 +10,7 @@ import {
 import { createServerSupabase } from '@/lib/supabase'
 import { sanitizeProvenance } from '@/lib/scan/provenance'
 import { createEncounter } from '@/lib/encounters'
+import { findExistingContactMatches } from '@/lib/contacts/duplicate-match'
 import { sanitizeCardExtract, type CardExtract } from '@/lib/scan-card-validation'
 import { splitName } from '@/lib/data-model'
 
@@ -36,6 +37,14 @@ type Body = {
   source?: string
   /** How the capture happened. Untrusted: validated and, for ABC, re-resolved. */
   provenance?: unknown
+  /**
+   * The owner saw the duplicate warning and chose to create a separate contact
+   * anyway. Honoured for this one request only — deterministic identifiers can
+   * be shared or stale, and the owner is the one who knows. Nothing is
+   * remembered: there is no standing "ignore duplicates" setting to forget to
+   * turn off.
+   */
+  allowDuplicate?: boolean
   fields?: Partial<CardExtract> & { first_name?: string; last_name?: string }
 }
 
@@ -108,6 +117,30 @@ export async function POST(req: NextRequest) {
         normalizeAbcCardRef(provenance.abcCardRef)
       )
       linkedIdentity = abcIdentityFromProfile(profile)
+    }
+
+    /*
+      Is this someone the owner already has?
+
+      Asked before anything is written, so a duplicate costs nothing to
+      discover: no row is created, no id is issued, and declining the warning
+      leaves the database exactly as it was. Only deterministic identifiers are
+      consulted — the ABC account resolved above, then the email, then the
+      phone — and the answer is handed back for the owner to decide on. Matching
+      never merges, never edits the existing contact, and never picks between
+      several matches on the owner's behalf.
+    */
+    if (!body.allowDuplicate) {
+      const match = await findExistingContactMatches(supabase, {
+        ownerId: user.id,
+        abcUserId: linkedIdentity?.linkedUserId ?? null,
+        email: clean.email,
+        phone: clean.phone,
+      })
+
+      if (match) {
+        return NextResponse.json({ success: true, outcome: 'existing_contact', match })
+      }
     }
 
     const identity = {
@@ -225,7 +258,7 @@ export async function POST(req: NextRequest) {
       is the recovery path, and it cannot duplicate, because a contact whose
       first encounter failed has no encounter to duplicate.
     */
-    return NextResponse.json({ success: true, contact: data, encounter })
+    return NextResponse.json({ success: true, outcome: 'created', contact: data, encounter })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not save this contact.'
     return NextResponse.json({ error: message }, { status: 500 })
