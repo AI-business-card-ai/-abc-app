@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { sanitizeEventName } from '@/lib/event-normalizer'
 
 /**
  * Meetings, and the one place they are written.
@@ -73,7 +74,14 @@ export function isoOrNull(value: unknown): string | null {
 export function sanitizeMeetingInput(input: MeetingInput): MeetingInput {
   return {
     event: trimTo(input.event, MAX_SHORT),
-    eventNormalized: trimTo(input.eventNormalized, MAX_SHORT),
+    /*
+      Second line of defence, not the first. The normalizer already refuses to
+      return anything that is not a name, and this is here so that a future
+      caller reaching the encounter table by another route cannot store one
+      either. Null on rejection: the owner's own `event` above still holds what
+      they typed, so nothing is lost by declining the machine's version of it.
+    */
+    eventNormalized: sanitizeEventName(trimTo(input.eventNormalized, MAX_SHORT)),
     discussed: trimTo(input.discussed, MAX_LONG),
     nextAction: trimTo(input.nextAction, MAX_SHORT),
     followUpAt: isoOrNull(input.followUpAt),
@@ -190,10 +198,18 @@ export function legacyProjection(
   }
 
   if (input.event) {
+    /*
+      Falling back to what the owner typed when normalization produced nothing
+      usable. These columns are what the contact screen and the CRM exports
+      read, so leaving them null would blank a name the owner had already
+      given — and the un-normalized version of their words beats the absence of
+      them, and beats a model's paragraph about them by a wider margin still.
+    */
+    const normalized = input.eventNormalized || input.event
     projection.raw_event_text = input.event
-    projection.normalized_event_text = input.eventNormalized
-    projection.event_name = input.eventNormalized
-    projection.meeting_event_name = input.eventNormalized
+    projection.normalized_event_text = normalized
+    projection.event_name = normalized
+    projection.meeting_event_name = normalized
     if (options.leadSource) projection.lead_source = options.leadSource
   }
 
