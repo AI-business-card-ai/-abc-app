@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { onCardScanned } from '@/lib/crm-engine'
+import {
+  abcIdentityFromProfile,
+  normalizeAbcCardRef,
+  resolveAbcCardProfile,
+  type AbcCardIdentity,
+} from '@/lib/card/abc-identity'
+import { createServerSupabase } from '@/lib/supabase'
+import { sanitizeProvenance } from '@/lib/scan/provenance'
 import { sanitizeCardExtract, type CardExtract } from '@/lib/scan-card-validation'
 import { splitName } from '@/lib/data-model'
 
@@ -25,6 +33,8 @@ const ALLOWED_SOURCES = ['business_card', 'badge', 'qr', 'document', 'upload', '
 type Body = {
   contactId?: string
   source?: string
+  /** How the capture happened. Untrusted: validated and, for ABC, re-resolved. */
+  provenance?: unknown
   fields?: Partial<CardExtract> & { first_name?: string; last_name?: string }
 }
 
@@ -72,6 +82,33 @@ export async function POST(req: NextRequest) {
         ? body.source
         : null
 
+    const provenance = sanitizeProvenance(body.provenance)
+
+    /*
+      Who was scanned is decided here, from the database, never from the request.
+
+      The client may say "this came from an ABC card, here is the slug" — that
+      is a pointer, and pointers are safe to accept. What it may not do is name
+      the account behind it. Storing a caller-supplied id would let any signed-in
+      user manufacture a link between their contact and someone else's ABC
+      identity, which is precisely the claim Phase 5 will later trust for
+      matching. So the slug is looked up with the same rules the public card
+      uses, and the identifiers come out of the row that lookup returns.
+
+      Deliberately not the public resolve endpoint: that records a card view,
+      and one scan must not count as two just because saving re-checks who it
+      was.
+    */
+    let linkedIdentity: AbcCardIdentity | null = null
+    if (provenance?.kind === 'abc_card' && provenance.abcCardSlug) {
+      const profile = await resolveAbcCardProfile(
+        createServerSupabase(),
+        provenance.abcCardSlug,
+        normalizeAbcCardRef(provenance.abcCardRef)
+      )
+      linkedIdentity = abcIdentityFromProfile(profile)
+    }
+
     const identity = {
       name: fullName,
       first_name: firstName || null,
@@ -107,6 +144,18 @@ export async function POST(req: NextRequest) {
         status: 'pending',
         scan_status: 'basic',
         source: source || 'qr',
+        /*
+          Provenance is additive: `source` keeps its coarse legacy vocabulary
+          and every reader it already has, while these say how and what. Null
+          when the caller did not send provenance, which is what an older client
+          or a non-scan writer looks like — never a guess.
+        */
+        capture_origin: provenance?.origin ?? null,
+        capture_kind: provenance?.kind ?? null,
+        // The scanned person's ABC account, not the owner's. Only ever set from
+        // the lookup above; null for every capture that was not an ABC card.
+        linked_abc_user_id: linkedIdentity?.linkedUserId ?? null,
+        linked_abc_card_slug: linkedIdentity?.linkedCardSlug ?? null,
         enrichment_status: 'DONE',
         enrichment_step: 'none',
         lead_source: 'ABC AI Business Card',

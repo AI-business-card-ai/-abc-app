@@ -29,7 +29,9 @@ export default function CameraStage({
   mode: CaptureMode
   onModeChange: (mode: CaptureMode) => void
   onCapture: () => void
-  onFile: (file: File) => void
+  /** The second argument says which input produced the file — the two are
+   * different captures even though they share a handler. */
+  onFile: (file: File, origin: 'camera' | 'gallery') => void
   statusText: string
   busy: boolean
   blocked: boolean
@@ -40,10 +42,10 @@ export default function CameraStage({
   const live = status === 'live'
   const cameraFailed = status === 'denied' || status === 'unavailable' || status === 'error'
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>, origin: 'camera' | 'gallery') {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (file) onFile(file)
+    if (file) onFile(file, origin)
   }
 
   return (
@@ -181,7 +183,7 @@ export default function CameraStage({
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={handleFile}
+        onChange={(e) => handleFile(e, 'gallery')}
       />
       <input
         ref={fallbackCameraRef}
@@ -189,7 +191,7 @@ export default function CameraStage({
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={handleFile}
+        onChange={(e) => handleFile(e, 'camera')}
       />
     </div>
   )

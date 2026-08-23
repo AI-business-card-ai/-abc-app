@@ -15,7 +15,8 @@ import { compressImageForScan } from '@/lib/image-compress'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
 import { formatScanErrorForUser } from '@/lib/scan-card-validation'
 import { candidateToFields, emptyCandidate, toCandidate, type CandidateInput } from '@/lib/scan/candidate'
-import { hintForMode, qrEnabledForMode, sourceForMode, type CaptureMode } from '@/lib/scan/modes'
+import { hintForMode, kindForMode, qrEnabledForMode, sourceForMode, type CaptureMode } from '@/lib/scan/modes'
+import type { CaptureOrigin, CaptureProvenance } from '@/lib/scan/provenance'
 import { parseQrPayload, type QrResult } from '@/lib/scan/qr-parse'
 import { useCamera } from '@/lib/scan/useCamera'
 import { useQrScanner } from '@/lib/scan/useQrScanner'
@@ -42,6 +43,8 @@ export default function ScanClient() {
   const [context, setContext] = useState<MeetingContextValue>(emptyContext)
   /** How the candidate on screen was captured — recorded on the saved contact. */
   const [captureSource, setCaptureSource] = useState<string>('auto')
+  /** Where it came from and what it was, kept beside the candidate rather than in it. */
+  const [provenance, setProvenance] = useState<CaptureProvenance | null>(null)
   const [savedContact, setSavedContact] = useState<ScannedContact | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -78,6 +81,7 @@ export default function ScanClient() {
     setFields(emptyCandidate())
     setContext(emptyContext())
     setCaptureSource('auto')
+    setProvenance(null)
     setSavedContact(null)
     setError(null)
     setQrResult(null)
@@ -86,7 +90,7 @@ export default function ScanClient() {
 
   /** Image path: existing OCR pipeline, with enrichment explicitly off. */
   const processImage = useCallback(
-    async (file: File) => {
+    async (file: File, origin: CaptureOrigin) => {
       setError(null)
       setStage('processing')
       setProcessingStep(0)
@@ -136,6 +140,7 @@ export default function ScanClient() {
           through review — which is exactly what makes Discard free.
         */
         setCaptureSource(sourceForMode(mode))
+        setProvenance({ origin, kind: kindForMode(mode) })
         setFields(toCandidate((data.candidate ?? {}) as CandidateInput))
         hapticSuccess()
         setStage('review')
@@ -172,6 +177,7 @@ export default function ScanClient() {
         const card = data.card as CandidateInput
         setPreview(null)
         setCaptureSource('qr')
+        setProvenance({ origin: 'qr_live', kind: 'abc_card', abcCardSlug: parsed.slug, abcCardRef: parsed.ref })
         setFields(toCandidate(card))
         setError(null)
         setStage('review')
@@ -201,6 +207,7 @@ export default function ScanClient() {
       if (parsed.kind === 'contact') {
         setPreview(null)
         setCaptureSource('qr')
+        setProvenance({ origin: 'qr_live', kind: parsed.format })
         setFields(toCandidate(parsed.fields))
         setError(null)
         setStage('review')
@@ -220,7 +227,7 @@ export default function ScanClient() {
       setError('Could not read a frame from the camera. Try again.')
       return
     }
-    void processImage(file)
+    void processImage(file, 'camera')
   }, [captureFrame, processImage])
 
   const save = useCallback(async () => {
@@ -238,6 +245,7 @@ export default function ScanClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           source: captureSource,
+          provenance,
           fields: candidateToFields(fields),
         }),
       })
@@ -281,7 +289,7 @@ export default function ScanClient() {
     } finally {
       setSaving(false)
     }
-  }, [captureSource, context, fields])
+  }, [captureSource, context, fields, provenance])
 
   const statusText =
     status === 'live'
@@ -330,7 +338,7 @@ export default function ScanClient() {
                 mode={mode}
                 onModeChange={setMode}
                 onCapture={capture}
-                onFile={(file) => void processImage(file)}
+                onFile={(file, origin) => void processImage(file, origin)}
                 statusText={statusText}
                 busy={busy}
                 blocked={blocked}

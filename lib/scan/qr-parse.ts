@@ -20,7 +20,7 @@ export type AbcCardRef = 'd' | 'u' | 'card'
 
 export type QrResult =
   | { kind: 'abc_card'; url: string; slug: string; ref: AbcCardRef }
-  | { kind: 'contact'; fields: QrContactFields; format: 'vcard' | 'mecard' }
+  | { kind: 'contact'; fields: QrContactFields; format: 'vcard' | 'mecard' | 'mailto' | 'tel' }
   | { kind: 'url'; url: string; host: string }
   | { kind: 'text'; text: string }
 
@@ -154,12 +154,12 @@ export function parseQrPayload(raw: string): QrResult {
 
   if (/^mailto:/i.test(value)) {
     const email = value.replace(/^mailto:/i, '').split('?')[0]
-    return { kind: 'contact', fields: { ...emptyFields(), email: clean(email) }, format: 'vcard' }
+    return { kind: 'contact', fields: { ...emptyFields(), email: clean(email) }, format: 'mailto' }
   }
 
   if (/^tel:/i.test(value)) {
     const phone = value.replace(/^tel:/i, '')
-    return { kind: 'contact', fields: { ...emptyFields(), phone: clean(phone) }, format: 'vcard' }
+    return { kind: 'contact', fields: { ...emptyFields(), phone: clean(phone) }, format: 'tel' }
   }
 
   return { kind: 'text', text: value }

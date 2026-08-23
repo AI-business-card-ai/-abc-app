@@ -49,7 +49,19 @@ export interface ScannedContact {
   deal_currency: string | null
   expected_close_date: string | null
   lead_source: string | null
+  /** Coarse legacy capture source. Kept as-is; the two fields below refine it. */
   source: string | null
+  /** Device path the capture came through: camera, gallery, qr_live. */
+  capture_origin: string | null
+  /** What was read: business_card, badge, document, abc_card, vcard, mecard… */
+  capture_kind: string | null
+  /**
+   * The ABC account of the person who was scanned — never the owner, who is
+   * `user_id`. Set only from a server-side lookup of the scanned card's slug.
+   */
+  linked_abc_user_id: string | null
+  /** Which card of theirs was scanned, for when an account can hold several. */
+  linked_abc_card_slug: string | null
   last_message_type: string | null
   last_message_date: string | null
   response_received: boolean | null

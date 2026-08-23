@@ -30,3 +30,17 @@ export function qrEnabledForMode(mode: CaptureMode): boolean {
 export function sourceForMode(mode: CaptureMode): string {
   return mode === 'auto' ? 'auto' : mode
 }
+
+/**
+ * What the owner said they were pointing at, as a provenance kind.
+ *
+ * Not a classification: one vision prompt reads every image, so this records a
+ * choice rather than a verdict. 'auto' stays 'auto' because the honest answer
+ * to what an auto capture contained is that nobody said — and QR mode reaching
+ * here means a still was taken while watching for codes, which says just as
+ * little about the subject.
+ */
+export function kindForMode(mode: CaptureMode): 'business_card' | 'badge' | 'document' | 'auto' {
+  if (mode === 'business_card' || mode === 'badge' || mode === 'document') return mode
+  return 'auto'
+}
