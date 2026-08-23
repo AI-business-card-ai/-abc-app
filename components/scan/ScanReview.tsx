@@ -14,17 +14,17 @@ import {
 import type { TablerIcon } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import { SectionLabel } from '@/components/ui/abc/Bits'
+import type { ContactCandidate } from '@/lib/scan/candidate'
 
-export type ReviewFields = {
-  first_name: string
-  last_name: string
-  company: string
-  role: string
-  email: string
-  phone: string
-  website: string
-  linkedin_url: string
-}
+/**
+ * What this screen edits is exactly the candidate the scanner produced.
+ *
+ * These were two identical declarations — one here, one for the parsers — which
+ * is the shape drift that lets a field get added on one side and quietly missed
+ * on the other. The name stays because it reads better at the call site; the
+ * type is the canonical one.
+ */
+export type ReviewFields = ContactCandidate
 
 export type MeetingContextValue = {
   whereMet: string

@@ -14,7 +14,7 @@ import { createClientComponent } from '@/lib/supabase'
 import { compressImageForScan } from '@/lib/image-compress'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
 import { formatScanErrorForUser } from '@/lib/scan-card-validation'
-import { splitName } from '@/lib/data-model'
+import { candidateToFields, emptyCandidate, toCandidate, type CandidateInput } from '@/lib/scan/candidate'
 import { hintForMode, qrEnabledForMode, sourceForMode, type CaptureMode } from '@/lib/scan/modes'
 import { parseQrPayload, type QrResult } from '@/lib/scan/qr-parse'
 import { useCamera } from '@/lib/scan/useCamera'
@@ -24,19 +24,6 @@ import type { ScannedContact } from '@/lib/types'
 type Stage = 'capture' | 'processing' | 'review' | 'saved'
 
 const PROCESSING_STEPS = ['Reading contact…', 'Extracting details…', 'Preparing connection…']
-
-function emptyFields(): ReviewFields {
-  return {
-    first_name: '',
-    last_name: '',
-    company: '',
-    role: '',
-    email: '',
-    phone: '',
-    website: '',
-    linkedin_url: '',
-  }
-}
 
 function emptyContext(): MeetingContextValue {
   return { whereMet: '', discussed: '', nextAction: '', followUpAt: null }
@@ -51,9 +38,10 @@ export default function ScanClient() {
   const [qrResult, setQrResult] = useState<Exclude<QrResult, { kind: 'contact' }> | null>(null)
   const [processingStep, setProcessingStep] = useState(0)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [fields, setFields] = useState<ReviewFields>(emptyFields)
+  const [fields, setFields] = useState<ReviewFields>(emptyCandidate)
   const [context, setContext] = useState<MeetingContextValue>(emptyContext)
-  const [contactId, setContactId] = useState<string | null>(null)
+  /** How the candidate on screen was captured — recorded on the saved contact. */
+  const [captureSource, setCaptureSource] = useState<string>('auto')
   const [savedContact, setSavedContact] = useState<ScannedContact | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -87,9 +75,9 @@ export default function ScanClient() {
 
   const resetToCapture = useCallback(() => {
     setPreview(null)
-    setFields(emptyFields())
+    setFields(emptyCandidate())
     setContext(emptyContext())
-    setContactId(null)
+    setCaptureSource('auto')
     setSavedContact(null)
     setError(null)
     setQrResult(null)
@@ -142,22 +130,13 @@ export default function ScanClient() {
           throw new Error(data.error || 'Scan failed')
         }
 
-        const contact = (data.contact as ScannedContact | null) ?? null
-        const extracted = data.extractedData as Partial<ScannedContact> | undefined
-        const name = extracted?.name || contact?.name || ''
-        const parts = splitName(name)
-
-        setContactId(contact?.id ?? null)
-        setFields({
-          first_name: parts.first_name,
-          last_name: parts.last_name,
-          company: extracted?.company || contact?.company || '',
-          role: extracted?.role || contact?.role || '',
-          email: extracted?.email || contact?.email || '',
-          phone: extracted?.phone || contact?.phone || '',
-          website: extracted?.website || contact?.website || '',
-          linkedin_url: extracted?.linkedin_url || contact?.linkedin_url || '',
-        })
+        /*
+          The scan hands back a candidate, not a contact. Nothing exists in the
+          database yet and nothing will until Save, so there is no id to carry
+          through review — which is exactly what makes Discard free.
+        */
+        setCaptureSource(sourceForMode(mode))
+        setFields(toCandidate((data.candidate ?? {}) as CandidateInput))
         hapticSuccess()
         setStage('review')
       } catch (err) {
@@ -190,19 +169,10 @@ export default function ScanClient() {
           return
         }
 
-        const card = data.card as Record<string, string | null>
+        const card = data.card as CandidateInput
         setPreview(null)
-        setContactId(null)
-        setFields({
-          first_name: card.first_name || '',
-          last_name: card.last_name || '',
-          company: card.company || '',
-          role: card.role || '',
-          email: card.email || '',
-          phone: card.phone || '',
-          website: card.website || '',
-          linkedin_url: card.linkedin_url || '',
-        })
+        setCaptureSource('qr')
+        setFields(toCandidate(card))
         setError(null)
         setStage('review')
       } catch (err) {
@@ -229,19 +199,9 @@ export default function ScanClient() {
       }
 
       if (parsed.kind === 'contact') {
-        const parts = splitName(parsed.fields.name)
         setPreview(null)
-        setContactId(null)
-        setFields({
-          first_name: parts.first_name,
-          last_name: parts.last_name,
-          company: parsed.fields.company || '',
-          role: parsed.fields.role || '',
-          email: parsed.fields.email || '',
-          phone: parsed.fields.phone || '',
-          website: parsed.fields.website || '',
-          linkedin_url: parsed.fields.linkedin_url || '',
-        })
+        setCaptureSource('qr')
+        setFields(toCandidate(parsed.fields))
         setError(null)
         setStage('review')
         return
@@ -268,23 +228,17 @@ export default function ScanClient() {
     setError(null)
 
     try {
+      /*
+        No contactId: a fresh scan has never been written, whichever way it was
+        captured, so this always creates. `captureSource` records how the
+        candidate was read — an image keeps the chosen mode, a QR says so.
+      */
       const identityRes = await fetch('/api/scan/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contactId,
-          source: contactId ? sourceForMode(mode) : 'qr',
-          fields: {
-            name: [fields.first_name, fields.last_name].filter(Boolean).join(' '),
-            first_name: fields.first_name,
-            last_name: fields.last_name,
-            company: fields.company,
-            role: fields.role,
-            email: fields.email,
-            phone: fields.phone,
-            website: fields.website,
-            linkedin_url: fields.linkedin_url,
-          },
+          source: captureSource,
+          fields: candidateToFields(fields),
         }),
       })
       const identityData = await identityRes.json()
@@ -327,7 +281,7 @@ export default function ScanClient() {
     } finally {
       setSaving(false)
     }
-  }, [contactId, context, fields, mode])
+  }, [captureSource, context, fields])
 
   const statusText =
     status === 'live'

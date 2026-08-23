@@ -6,8 +6,7 @@ import {
   ClaudeVisionError,
   ClaudeAnalysisError,
 } from '@/lib/claude'
-import { onCardScanned } from '@/lib/crm-engine'
-import { contactMatchesOwnerProfile, warnIfContactMatchesOwnerProfile } from '@/lib/contact-owner-guard'
+import { contactMatchesOwnerProfile } from '@/lib/contact-owner-guard'
 import { isScanLimitReached, getScanLimitForPlan } from '@/lib/scan-limits'
 import {
   SCAN_CARD_UNREADABLE_ERROR,
@@ -15,6 +14,7 @@ import {
   isTechnicalScanReadError,
   sanitizeCardExtract,
 } from '@/lib/scan-card-validation'
+import { toCandidate } from '@/lib/scan/candidate'
 import { ABCProfile } from '@/lib/types'
 
 /** Capture sources the scanner can report; anything else is ignored. */
@@ -33,8 +33,12 @@ function unreadableCardResponse(status = 422) {
 }
 
 /**
- * Phase 1 — Instant scan (target <3s):
- * OCR only → save PENDING contact → fire-and-forget Phase 2 enrichment.
+ * Reads a card and returns what it saw. It does not keep anyone.
+ *
+ * The response is a candidate: an in-memory shape for the review screen to
+ * edit. Nothing reaches the database here — a contact exists only once the
+ * owner has looked at the fields and pressed save, which is /api/scan/contact's
+ * job and the single place a scan can create a row.
  *
  * Plan / scans_used for limit checks ALWAYS come from the server-side
  * abc_profiles row keyed by auth.uid() — never from client FormData.
@@ -191,43 +195,25 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const pendingContacts = [
-      {
-        ...extracted,
-        industry: null,
-        company_size: null,
-        company_summary: extracted.company ? `${extracted.company} contact` : null,
-        match_score: 0,
-        match_reason: 'Scanned via ABC — AI scoring after enrichment.',
-        message_linkedin: '',
-        message_email: '',
-        email_subject: '',
-        message_whatsapp: '',
-        user_id: userId,
-        status: 'pending' as const,
-        scan_status: 'basic' as const,
-        event_name: null,
-        notes: null,
-        source: captureSource,
-        enrichment_status: 'DONE',
-        enrichment_step: 'none',
-      },
-    ]
+    /*
+      Reading a card is not the same as keeping the person.
 
-    const { data, error } = await supabase
-      .from('scanned_contacts')
-      .insert(pendingContacts)
-      .select()
+      This route used to insert the contact here, the moment the model returned
+      — before the owner had seen a single field. Review then edited a row that
+      already existed, and Discard left it behind: a contact nobody asked for,
+      in the list forever. The fix is not to delete on discard, it is not to
+      write until someone says yes.
 
-    if (error) {
-      console.error('[card/scan] insert failed:', error)
-      if (isTechnicalScanReadError(error.message)) {
-        return unreadableCardResponse()
-      }
-      throw error
-    }
+      So the scan now ends at a candidate. Persistence belongs to
+      /api/scan/contact, which is where the QR branch already created its
+      contact and is now the single place a scan can produce a row.
+    */
+    const candidate = toCandidate(extracted)
 
-    // Don't increment counter for unlimited internal accounts (optional hygiene)
+    // The scan itself is what costs money, and it has now happened: the model
+    // was called and answered. Whether the owner keeps the result is a separate
+    // question from whether the work was done, so the quota moves here, where
+    // the insert used to sit, rather than following the contact to save time.
     if (dbProfile.plan !== 'INTERNAL_TEST') {
       await supabase
         .from('abc_profiles')
@@ -235,20 +221,11 @@ export async function POST(req: NextRequest) {
         .eq('id', userId)
     }
 
-    const contact = data?.[0] ?? null
-    if (contact) {
-      await warnIfContactMatchesOwnerProfile(userId, contact, 'card/scan')
-      onCardScanned(contact.id, userId, { enrichmentPending: false }).catch(console.error)
-    }
-
     return NextResponse.json({
       success: true,
       phase: 'basic',
-      contactId: contact?.id ?? null,
-      extractedData: extracted,
-      contact,
-      contacts: data,
-      count: data?.length || 0,
+      candidate,
+      source: captureSource,
     })
   } catch (err) {
     console.error('Scan error:', err)

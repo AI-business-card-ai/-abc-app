@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { onCardScanned } from '@/lib/crm-engine'
 import { sanitizeCardExtract, type CardExtract } from '@/lib/scan-card-validation'
 import { splitName } from '@/lib/data-model'
 
 /**
- * Identity write-back for the rebuilt scanner.
+ * The one place a scan becomes a contact.
  *
- * Two jobs, both deliberately free of enrichment, scoring and message
- * generation:
- *   - with `contactId`: persist the user's corrections to a contact that
- *     /api/card/scan already created from OCR.
- *   - without `contactId`: create a contact captured from a QR payload
- *     (vCard / MECARD), where no image was processed.
+ * Every capture — a photographed card, a vCard QR, another ABC card — arrives
+ * here as reviewed fields with no id, and is created. Nothing upstream writes:
+ * /api/card/scan reads the image and returns a candidate, so a scan the owner
+ * discards leaves nothing behind to clean up.
  *
- * QR captures do not consume a scan credit — no vision call is made.
+ * The `contactId` branch updates an existing contact instead of creating one.
+ * No scan flow sends it any more, and it is kept rather than removed because it
+ * is a legitimate owner-scoped edit path for anything that needs one later.
+ *
+ * Deliberately free of enrichment, scoring and message generation. QR captures
+ * consume no scan credit — no vision call was made.
  */
 
 const ALLOWED_SOURCES = ['business_card', 'badge', 'qr', 'document', 'upload', 'auto']
@@ -115,6 +119,18 @@ export async function POST(req: NextRequest) {
       console.error('[scan/contact] insert failed:', error)
       return NextResponse.json({ error: 'Could not save this contact.' }, { status: 500 })
     }
+
+    /*
+      CRM defaults and the "card scanned" activity belong to the moment a
+      contact starts existing, and that moment moved here.
+
+      They used to fire in /api/card/scan, next to the insert it did before the
+      owner had reviewed anything — so an image scan got them and a QR scan,
+      which has always created its contact here, silently never did. Running it
+      at the one place a scan can create a row keeps the image path exactly as
+      it was and gives the QR path the same treatment.
+    */
+    onCardScanned(data.id, user.id, { enrichmentPending: false }).catch(console.error)
 
     return NextResponse.json({ success: true, contact: data })
   } catch (err) {
