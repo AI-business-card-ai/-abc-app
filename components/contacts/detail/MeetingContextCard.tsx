@@ -9,35 +9,15 @@ import {
   IconTargetArrow,
 } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
-import { CardTitle, ErrorNote, FIELD_LABEL_CLASS, INPUT_CLASS } from '@/components/contacts/detail/parts'
+import MeetingContextForm from '@/components/contacts/detail/MeetingContextForm'
+import { CardTitle } from '@/components/contacts/detail/parts'
 import { dueDateLabel } from '@/lib/format-date'
 import type { ContactDetail } from '@/lib/contact-detail'
-
-const FOLLOW_UP_PRESETS: { label: string; days: number }[] = [
-  { label: 'Today', days: 0 },
-  { label: 'Tomorrow', days: 1 },
-  { label: '3 days', days: 3 },
-  { label: '1 week', days: 7 },
-]
 
 const STATUS: Record<string, { label: string; color: string }> = {
   overdue: { label: 'Overdue', color: 'var(--abc-overdue)' },
   today: { label: 'Due today', color: 'var(--abc-today)' },
   upcoming: { label: 'Upcoming', color: 'var(--abc-upcoming)' },
-}
-
-function isoInDays(days: number): string {
-  const date = new Date()
-  date.setDate(date.getDate() + days)
-  date.setHours(9, 0, 0, 0)
-  return date.toISOString()
-}
-
-function toDateInput(iso: string | null): string {
-  if (!iso) return ''
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
 }
 
 function formatMetAt(iso: string | null): string | null {
@@ -48,9 +28,13 @@ function formatMetAt(iso: string | null): string | null {
 }
 
 /**
- * Meeting context, the next step and the follow-up date — the answers a
- * phonebook entry loses. Saved through the existing /api/card/context route
- * with scoring and message generation switched off.
+ * The latest meeting: where, what was discussed, the next step, when to follow
+ * up — the answers a phonebook entry loses.
+ *
+ * Still reads the flat contact fields, which now project the newest encounter,
+ * so this stays in step with the follow-up card and the contact list rather
+ * than computing its own version of "latest". Editing revises that encounter
+ * through /api/card/context; earlier meetings live in the history card below.
  */
 export default function MeetingContextCard({
   contact,
@@ -60,61 +44,14 @@ export default function MeetingContextCard({
   onSaved: (next: Partial<ContactDetail>) => void
 }) {
   const [editing, setEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  const [event, setEvent] = useState(contact.event ?? '')
-  const [discussed, setDiscussed] = useState(contact.discussed ?? '')
-  const [nextStep, setNextStep] = useState(contact.nextStep ?? '')
-  const [followUpAt, setFollowUpAt] = useState<string | null>(contact.followUpAt)
-  const [customDate, setCustomDate] = useState(false)
+  // The meeting this card is showing: the newest one, which is also what the
+  // flat contact fields project. Editing here revises it.
+  const latest = contact.encounters[0]
 
   const hasContext = Boolean(contact.event || contact.discussed || contact.nextStep)
   const status = contact.followUp ? STATUS[contact.followUp] : null
   const metAt = formatMetAt(contact.metAt)
-
-  function reset() {
-    setEvent(contact.event ?? '')
-    setDiscussed(contact.discussed ?? '')
-    setNextStep(contact.nextStep ?? '')
-    setFollowUpAt(contact.followUpAt)
-    setCustomDate(false)
-    setError(null)
-    setEditing(false)
-  }
-
-  async function save() {
-    setSaving(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/card/context', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contactId: contact.id,
-          whereMet: event,
-          topic: discussed,
-          nextAction: nextStep,
-          followUpAt,
-          recalculateScore: false,
-          generateMessages: false,
-        }),
-      })
-      if (!res.ok) throw new Error('save failed')
-
-      onSaved({
-        event: event.trim() || null,
-        discussed: discussed.trim() || null,
-        nextStep: nextStep.trim() || null,
-        followUpAt,
-      })
-      setEditing(false)
-    } catch {
-      setError('Could not save the meeting context. Try again.')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   return (
     <section className="abc-surface p-5">
@@ -138,103 +75,32 @@ export default function MeetingContextCard({
       </div>
 
       {editing ? (
-        <div className="mt-4 flex flex-col gap-3.5">
-          <label className="block">
-            <span className={FIELD_LABEL_CLASS}>Where did you meet?</span>
-            <input
-              value={event}
-              onChange={(e) => setEvent(e.target.value)}
-              placeholder="Event, city or occasion"
-              className={`h-11 ${INPUT_CLASS}`}
-            />
-          </label>
-
-          <label className="block">
-            <span className={FIELD_LABEL_CLASS}>What did you discuss?</span>
-            <textarea
-              value={discussed}
-              onChange={(e) => setDiscussed(e.target.value)}
-              rows={3}
-              placeholder="What they need, what you promised"
-              className={`resize-y py-2.5 leading-[1.5] ${INPUT_CLASS}`}
-            />
-          </label>
-
-          <label className="block">
-            <span className={FIELD_LABEL_CLASS}>What is the next step?</span>
-            <input
-              value={nextStep}
-              onChange={(e) => setNextStep(e.target.value)}
-              placeholder="Send proposal, share deck…"
-              className={`h-11 ${INPUT_CLASS}`}
-            />
-          </label>
-
-          <div>
-            <span className={FIELD_LABEL_CLASS}>When should you follow up?</span>
-            <div className="flex flex-wrap gap-2">
-              {FOLLOW_UP_PRESETS.map((preset) => {
-                const value = isoInDays(preset.days)
-                const active = !customDate && followUpAt === value
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => {
-                      setCustomDate(false)
-                      setFollowUpAt(followUpAt === value ? null : value)
-                    }}
-                    aria-pressed={active}
-                    className={`rounded-full border px-3.5 py-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring ${
-                      active
-                        ? 'border-transparent text-[#1a1205]'
-                        : 'border-abc-border bg-abc-raised text-abc-secondary hover:border-abc-border-strong hover:text-abc-text'
-                    }`}
-                    style={active ? { background: 'var(--abc-gold)' } : undefined}
-                  >
-                    {preset.label}
-                  </button>
-                )
-              })}
-              <button
-                type="button"
-                onClick={() => setCustomDate((v) => !v)}
-                aria-pressed={customDate}
-                className={`rounded-full border px-3.5 py-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring ${
-                  customDate
-                    ? 'border-transparent text-[#1a1205]'
-                    : 'border-abc-border bg-abc-raised text-abc-secondary hover:border-abc-border-strong hover:text-abc-text'
-                }`}
-                style={customDate ? { background: 'var(--abc-gold)' } : undefined}
-              >
-                Custom
-              </button>
-            </div>
-
-            {customDate ? (
-              <input
-                type="date"
-                value={toDateInput(followUpAt)}
-                onChange={(e) => {
-                  const value = e.target.value
-                  setFollowUpAt(value ? new Date(`${value}T09:00:00`).toISOString() : null)
-                }}
-                className={`mt-2.5 h-11 sm:w-auto ${INPUT_CLASS}`}
-              />
-            ) : null}
-          </div>
-
-          {error ? <ErrorNote>{error}</ErrorNote> : null}
-
-          <div className="flex flex-col gap-2 sm:flex-row-reverse">
-            <Button onClick={() => void save()} disabled={saving} fullWidth className="sm:w-auto">
-              {saving ? 'Saving…' : 'Save context'}
-            </Button>
-            <Button onClick={reset} variant="surface" disabled={saving} fullWidth className="sm:w-auto">
-              Cancel
-            </Button>
-          </div>
-        </div>
+        <MeetingContextForm
+          contactId={contact.id}
+          /*
+            The latest meeting, revised — not a new one. Fixing a typo in what
+            you discussed must not add a second entry to the history claiming
+            you met again. Adding a meeting is a separate, explicit action.
+          */
+          encounterId={latest?.id}
+          initial={{
+            event: contact.event ?? '',
+            discussed: contact.discussed ?? '',
+            nextStep: contact.nextStep ?? '',
+            followUpAt: contact.followUpAt,
+          }}
+          submitLabel="Save context"
+          onCancel={() => setEditing(false)}
+          onSaved={(values) => {
+            onSaved({
+              event: values.event || null,
+              discussed: values.discussed || null,
+              nextStep: values.nextStep || null,
+              followUpAt: values.followUpAt,
+            })
+            setEditing(false)
+          }}
+        />
       ) : (
         <div className="mt-4 flex flex-col gap-3.5">
           {contact.event ? (

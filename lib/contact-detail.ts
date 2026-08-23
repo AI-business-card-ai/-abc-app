@@ -63,6 +63,25 @@ export type ContactDetail = {
 
   sourceLabel: string | null
   scannedAt: string | null
+
+  /**
+   * Every meeting with this person, newest first.
+   *
+   * The meeting-context fields above are the newest of these projected onto the
+   * contact. They are read here rather than recomputed so the screen and the
+   * rest of the app — follow-ups, the dashboard, the list — cannot disagree.
+   */
+  encounters: ContactEncounterView[]
+}
+
+/** One meeting, as the detail screen renders it. */
+export type ContactEncounterView = {
+  id: string
+  metAt: string | null
+  event: string | null
+  discussed: string | null
+  nextAction: string | null
+  followUpAt: string | null
 }
 
 export type CrmConnections = {
@@ -96,7 +115,7 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const [contactRes, profileRes] = await Promise.all([
+  const [contactRes, profileRes, encounterRes] = await Promise.all([
     supabase
       .from('scanned_contacts')
       .select(CONTACT_COLUMNS)
@@ -108,6 +127,20 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
       .select('hubspot_access_token, salesforce_access_token')
       .eq('id', user.id)
       .maybeSingle(),
+    // Owner-scoped as well as contact-scoped: RLS already restricts this, and
+    // the explicit filter means a mistake returns nothing rather than trusting
+    // the policy to be the only thing standing there.
+    supabase
+      .from('contact_encounters')
+      .select('id, met_at, event, discussed, next_action, follow_up_at')
+      .eq('contact_id', id)
+      .eq('user_id', user.id)
+      // Same ordering the context route uses to decide which encounter counts
+      // as the latest. If the two disagreed, the card at the top of the screen
+      // could offer to edit one meeting while the server projected another.
+      .order('met_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(50),
   ])
 
   const row = contactRes.data as Record<string, unknown> | null
@@ -148,6 +181,15 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
 
       sourceLabel: sourceLabel(clean(row.source)),
       scannedAt: clean(row.scanned_at),
+
+      encounters: ((encounterRes.data || []) as Record<string, unknown>[]).map((e) => ({
+        id: String(e.id),
+        metAt: clean(e.met_at),
+        event: clean(e.event),
+        discussed: clean(e.discussed),
+        nextAction: clean(e.next_action),
+        followUpAt: clean(e.follow_up_at),
+      })),
     },
     crm: {
       hubspot: Boolean(profileRes.data?.hubspot_access_token),

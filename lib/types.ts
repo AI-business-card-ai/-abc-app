@@ -137,6 +137,31 @@ export interface ScannedContact {
   crm_estimated_fields: Record<string, boolean> | null
 }
 
+/**
+ * One meeting with one contact.
+ *
+ * The canonical meeting history from Phase 4 onward. The matching columns on
+ * ScannedContact (meeting_topic, next_action, next_action_date and the event
+ * fields) still exist and still work, but they now hold a projection of the
+ * most recent encounter for the many readers that have not moved across yet.
+ */
+export interface ContactEncounter {
+  id: string
+  contact_id: string
+  /** The contact's owner — never the scanned person's linked ABC account. */
+  user_id: string
+  /** When the meeting happened, as distinct from when the row was written. */
+  met_at: string
+  event: string | null
+  event_normalized: string | null
+  discussed: string | null
+  next_action: string | null
+  follow_up_at: string | null
+  capture_origin: string | null
+  capture_kind: string | null
+  created_at: string
+}
+
 export type ContactEvent = {
   name: string
   location?: string

@@ -9,6 +9,7 @@ import {
 } from '@/lib/card/abc-identity'
 import { createServerSupabase } from '@/lib/supabase'
 import { sanitizeProvenance } from '@/lib/scan/provenance'
+import { createEncounter } from '@/lib/encounters'
 import { sanitizeCardExtract, type CardExtract } from '@/lib/scan-card-validation'
 import { splitName } from '@/lib/data-model'
 
@@ -181,7 +182,50 @@ export async function POST(req: NextRequest) {
     */
     onCardScanned(data.id, user.id, { enrichmentPending: false }).catch(console.error)
 
-    return NextResponse.json({ success: true, contact: data })
+    /*
+      Saving a scan is a meeting, so it gets an encounter even when the owner
+      typed nothing into the context form. Meeting someone and writing nothing
+      down is still meeting them, and a contact with no history at all would
+      claim otherwise.
+
+      Empty of context but not of meaning: it carries when and how. If the owner
+      does fill the form in, the client passes this encounter's id back so the
+      context lands on this meeting instead of inventing a second one.
+
+      Only the create branch. Editing an existing contact through the branch
+      above is not a meeting, and neither is Reverse Exchange, which is a
+      stranger submitting a form on a public card while the owner may be
+      nowhere near — it writes contacts through its own route and is untouched.
+    */
+    const encounter = await createEncounter(supabase, {
+      contactId: data.id,
+      userId: user.id,
+      meeting: {
+        event: null,
+        eventNormalized: null,
+        discussed: null,
+        nextAction: null,
+        followUpAt: null,
+        metAt: new Date().toISOString(),
+      },
+      capture: {
+        captureOrigin: provenance?.origin ?? null,
+        captureKind: provenance?.kind ?? null,
+      },
+    })
+
+    /*
+      The contact stands whether or not the meeting row was written. Deleting a
+      contact the owner just reviewed and saved, to punish a failure in a second
+      write, would lose the thing they actually asked for.
+
+      `encounter` is null when that write failed, and the client must not invent
+      an id: sending a made-up one would be rejected as "not found", while
+      sending none makes the context submission create the missing meeting. That
+      is the recovery path, and it cannot duplicate, because a contact whose
+      first encounter failed has no encounter to duplicate.
+    */
+    return NextResponse.json({ success: true, contact: data, encounter })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not save this contact.'
     return NextResponse.json({ error: message }, { status: 500 })

@@ -20,6 +20,7 @@ import {
 } from '@tabler/icons-react'
 import ActivityNotesCard from '@/components/contacts/detail/ActivityNotesCard'
 import MeetingContextCard from '@/components/contacts/detail/MeetingContextCard'
+import MeetingHistoryCard from '@/components/contacts/detail/MeetingHistoryCard'
 import SmartFollowUpCard from '@/components/contacts/detail/SmartFollowUpCard'
 import { CardTitle, ErrorNote, FieldRow } from '@/components/contacts/detail/parts'
 import Avatar from '@/components/ui/abc/Avatar'
@@ -140,6 +141,7 @@ export default function ContactDetailView({
             contact={contact}
             onSaved={(next) => setContact((prev) => ({ ...prev, ...next }))}
           />
+          <MeetingHistoryCard contact={contact} />
           <SmartFollowUpCard contact={contact} />
           <div className="lg:hidden">
             <ContactInfo contact={contact} />

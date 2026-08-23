@@ -255,6 +255,9 @@ export default function ScanClient() {
       }
 
       const saved = identityData.contact as ScannedContact
+      // The save already recorded the meeting. Context written below revises
+      // that encounter rather than adding a second one for the same handshake.
+      const encounterId = (identityData.encounter?.id as string | undefined) ?? undefined
       const hasContext =
         context.whereMet.trim() ||
         context.discussed.trim() ||
@@ -267,6 +270,7 @@ export default function ScanClient() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contactId: saved.id,
+            encounterId,
             whereMet: context.whereMet,
             topic: context.discussed,
             nextAction: context.nextAction,
