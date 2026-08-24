@@ -8,7 +8,12 @@ type ProfileConnections = {
   google_connected?: boolean
   google_email?: string | null
   email?: string | null
-  hubspot_access_token?: string | null
+  /*
+    Connection state, never the credential. This used to accept the HubSpot
+    access token and test it for truthiness, which handed a component whose only
+    job is rendering "Connected" the means to act as the customer.
+  */
+  hubspotConnected?: boolean
   salesforce_access_token?: string | null
 }
 
@@ -118,7 +123,7 @@ export default function ConnectionsSection({ profile, onRefresh }: Props) {
   const [hubspotError, setHubspotError] = useState<string | null>(null)
   const [salesforceError, setSalesforceError] = useState<string | null>(null)
 
-  const hubspotConnected = Boolean(profile.hubspot_access_token)
+  const hubspotConnected = Boolean(profile.hubspotConnected)
   const salesforceConnected = Boolean(profile.salesforce_access_token)
 
   useEffect(() => {

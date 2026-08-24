@@ -17,7 +17,7 @@ import {
 import { Chip, Field, Section, TextArea, Toggle } from '@/components/card/editor/EditorPrimitives'
 import Avatar from '@/components/ui/abc/Avatar'
 import { SectionLabel } from '@/components/ui/abc/Bits'
-import { normalizeAbcProfile } from '@/lib/profile-defaults'
+import { normalizeAbcProfile, PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 import { getScanLimitForPlan, isInternalTestPlan, isScanLimitExempt } from '@/lib/scan-limits'
 import { PLAN_LABELS, type PaidPlan } from '@/lib/stripe-prices'
 import { createClientComponent } from '@/lib/supabase'
@@ -96,7 +96,7 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
       } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data } = await supabase.from('abc_profiles').select('*').eq('id', user.id).maybeSingle()
+      const { data } = await supabase.from('abc_profiles').select(PROFILE_SAFE_COLUMNS).eq('id', user.id).maybeSingle()
       if (data) {
         const normalized = normalizeAbcProfile(data as Partial<ABCProfile>, user.email) as unknown as Record<
           string,

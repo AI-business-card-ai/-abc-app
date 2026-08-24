@@ -235,3 +235,86 @@ export function normalizeAbcProfile(
     research_custom: asNullableString(data.research_custom),
   }
 }
+
+/**
+ * Profile fields that are credentials, not data.
+ *
+ * These have no business in a browser. They live on abc_profiles for historical
+ * reasons and the `authenticated` role can still select them directly, so this
+ * list is defence in depth rather than the fix — the fix is moving credentials
+ * out of this table, which crm_connections does for HubSpot. Everything named
+ * here is stripped before a profile is handed to a client component, so nobody
+ * has to remember not to serialize it.
+ */
+export const PROFILE_SECRET_FIELDS = [
+  'hubspot_api_key',
+  'hubspot_access_token',
+  'hubspot_refresh_token',
+  'salesforce_access_token',
+  'salesforce_refresh_token',
+  'google_refresh_token',
+  'google_access_token',
+] as const
+
+/** A profile safe to send to the browser. Secrets become null, shape unchanged. */
+export function stripProfileSecrets<T extends Record<string, unknown>>(profile: T): T {
+  const safe = { ...profile }
+  for (const field of PROFILE_SECRET_FIELDS) {
+    if (field in safe) (safe as Record<string, unknown>)[field] = null
+  }
+  return safe
+}
+
+/**
+ * Every abc_profiles column a browser is allowed to read.
+ *
+ * The profile table holds OAuth credentials alongside ordinary settings, and
+ * PostgREST grants `authenticated` access at table level — so a signed-in
+ * browser running select(*) was entitled to its own Google and HubSpot tokens.
+ * The database now grants SELECT column by column instead, which means select(*)
+ * no longer works for that role and every query has to say what it wants.
+ *
+ * This is that list, and it is deliberately the complete safe set rather than a
+ * per-screen selection: substituting it for select(*) removes the credentials
+ * and nothing else, so no screen can quietly lose a field it was relying on.
+ * Adding a credential column here would undo the containment — new secrets
+ * belong in a server-only table, the way crm_connections holds HubSpot.
+ */
+export const PROFILE_SAFE_COLUMNS = [
+  'id', 'full_name', 'company', 'role', 'email', 'phone', 'linkedin_url', 'website',
+  'communication_style', 'outreach_language', 'goals', 'plan', 'scans_used', 'scans_limit',
+  'created_at', 'research_preferences', 'custom_questions', 'avatar_url', 'hubspot_portal_id',
+  'hubspot_connected_at', 'webhook_url', 'onboarding_completed', 'user_name', 'user_company',
+  'user_role', 'user_product', 'user_goal', 'user_icp', 'user_style', 'user_language',
+  'user_prompt', 'user_message_length', 'plan_activated_at', 'stripe_customer_id',
+  'stripe_subscription_id', 'research_company_size', 'research_revenue', 'research_location',
+  'research_news', 'research_events', 'research_linkedin', 'research_funding',
+  'research_competitors', 'research_tech', 'research_hiring', 'research_products',
+  'research_pain_points', 'research_custom', 'message_goal', 'message_length',
+  'product_description', 'icp', 'system_prompt', 'google_connected', 'google_email',
+  'card_slug', 'card_published', 'card_photo_url', 'card_cover_url', 'company_logo_url',
+  'card_tagline', 'card_bio', 'card_theme', 'card_accent', 'job_title', 'company_name',
+  'whatsapp', 'public_email', 'calendar_url', 'location', 'languages', 'looking_for',
+  'what_i_do', 'card_branding_removed', 'instagram_url', 'x_url', 'facebook_url', 'youtube_url',
+  'tiktok_url', 'github_url', 'threads_url', 'show_phone', 'show_whatsapp', 'show_email',
+  'show_website', 'show_calendar', 'show_location', 'social_enabled', 'card_cover_position',
+  'card_cover_fit', 'card_media_transforms', 'showcase_enabled', 'showcase_title',
+].join(", ")
+
+/**
+ * Exactly the columns browser code writes, derived from the eight client call
+ * sites that update this table — not the readable set minus a blocklist. The
+ * database grants UPDATE on these and nothing else, so anything added here has
+ * to be added there too, deliberately.
+ */
+export const PROFILE_WRITABLE_COLUMNS = [
+  'avatar_url', 'calendar_url', 'card_accent', 'card_cover_fit', 'card_cover_position',
+  'card_cover_url', 'card_media_transforms', 'card_photo_url', 'card_published', 'card_slug',
+  'card_tagline', 'card_theme', 'communication_style', 'company', 'company_logo_url',
+  'company_name', 'facebook_url', 'full_name', 'github_url', 'goals', 'icp', 'instagram_url',
+  'job_title', 'languages', 'linkedin_url', 'location', 'looking_for', 'message_goal',
+  'message_length', 'outreach_language', 'phone', 'product_description', 'public_email', 'role',
+  'show_calendar', 'show_email', 'show_location', 'show_phone', 'show_website', 'show_whatsapp',
+  'showcase_enabled', 'showcase_title', 'social_enabled', 'threads_url', 'tiktok_url',
+  'website', 'what_i_do', 'whatsapp', 'x_url', 'youtube_url',
+]

@@ -1,4 +1,5 @@
 import { loadShowcaseItems, mapProfileToCardData } from '@/lib/card/public-data'
+import { PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 import { createServerComponentClient } from '@/lib/supabase-server'
 import {
   CARD_PUBLIC_BASE,
@@ -35,11 +36,15 @@ export async function getMyCard(): Promise<MyCardData | null> {
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: profile, error } = await supabase
+  const { data: profileRow, error } = await supabase
     .from('abc_profiles')
-    .select('*')
+    .select(PROFILE_SAFE_COLUMNS)
     .eq('id', user.id)
     .maybeSingle()
+
+  // Cast once, here: the column list is a runtime constant, so supabase-js cannot
+  // infer the row shape from it the way it does for a literal select string.
+  const profile = profileRow as unknown as Record<string, unknown> | null
 
   if (error) {
     console.error('[my-card] profile load failed:', error)
@@ -65,6 +70,8 @@ export async function getMyCard(): Promise<MyCardData | null> {
   ])
 
   const card = mapProfileToCardData(
+    // Cast through unknown: the column list is a runtime constant, so supabase-js
+    // cannot infer the row shape from it the way it does for a literal select.
     profile as Record<string, unknown>,
     (links || []) as CardLink[],
     (events || []).map((row) => normalizeCardEventRow(row as Record<string, unknown>)),

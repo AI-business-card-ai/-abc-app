@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 import {
   IconAddressBook,
   IconBrandLinkedin,
@@ -137,7 +138,7 @@ export default function CardEditorShell() {
         }
 
         const [profileRes, linkRes, eventRes, showcaseRes] = await Promise.all([
-          supabase.from('abc_profiles').select('*').eq('id', user.id).maybeSingle(),
+          supabase.from('abc_profiles').select(PROFILE_SAFE_COLUMNS).eq('id', user.id).maybeSingle(),
           supabase
             .from('card_links')
             .select('*')

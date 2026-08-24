@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
-import { normalizeAbcProfile } from '@/lib/profile-defaults'
+import { normalizeAbcProfile, stripProfileSecrets, PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 import { slugifyName, normalizeCardSlug, isValidCardSlug } from '@/lib/card/slug'
 import { normalizeSocialUrl } from '@/lib/card/social'
 import { uploadCardMedia } from '@/lib/card/media'
@@ -84,12 +84,12 @@ export default function OnboardingPage() {
 
       const { data } = await supabase
         .from('abc_profiles')
-        .select('*')
+        .select(PROFILE_SAFE_COLUMNS)
         .eq('id', user.id)
         .maybeSingle()
 
       if (data) {
-        const profile = normalizeAbcProfile(data as Partial<ABCProfile>, user.email)
+        const profile = stripProfileSecrets(normalizeAbcProfile(data as Partial<ABCProfile>, user.email))
         if (profile.onboarding_completed) {
           setIsEditing(true)
         }

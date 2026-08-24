@@ -57,6 +57,7 @@ import {
   type SocialNetwork,
 } from '@/lib/card/types'
 import { createClientComponent } from '@/lib/supabase'
+import { PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 
 /* ─── Design tokens ─── */
 const T = {
@@ -695,7 +696,7 @@ export default function CardEditor() {
 
         const [{ data: profile, error: profileError }, { data: linkRows, error: linksError }, { data: eventRows, error: eventsError }] =
           await Promise.all([
-            supabase.from('abc_profiles').select('*').eq('id', user.id).maybeSingle(),
+            supabase.from('abc_profiles').select(PROFILE_SAFE_COLUMNS).eq('id', user.id).maybeSingle(),
             supabase
               .from('card_links')
               .select('*')

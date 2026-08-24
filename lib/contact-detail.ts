@@ -1,6 +1,7 @@
 import { bucketFor, type FollowUpBucket } from '@/lib/followups'
 import { sourceLabel } from '@/lib/contacts-view'
 import { createServerComponentClient } from '@/lib/supabase-server'
+import { getCrmConnectionStatus } from '@/lib/crm/connections'
 
 /**
  * Everything the rebuilt contact detail renders.
@@ -115,7 +116,7 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const [contactRes, profileRes, encounterRes] = await Promise.all([
+  const [contactRes, profileRes, encounterRes, hubspot] = await Promise.all([
     supabase
       .from('scanned_contacts')
       .select(CONTACT_COLUMNS)
@@ -124,7 +125,7 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
       .maybeSingle(),
     supabase
       .from('abc_profiles')
-      .select('hubspot_access_token, salesforce_access_token')
+      .select('salesforce_access_token')
       .eq('id', user.id)
       .maybeSingle(),
     // Owner-scoped as well as contact-scoped: RLS already restricts this, and
@@ -141,6 +142,10 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
       .order('met_at', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(50),
+    // HubSpot connection state now comes from the secure store rather than from
+    // a token column on the profile — the token is no longer kept there, and a
+    // badge should not have been reading a credential to decide its own colour.
+    getCrmConnectionStatus(user.id, 'hubspot'),
   ])
 
   const row = contactRes.data as Record<string, unknown> | null
@@ -192,7 +197,7 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
       })),
     },
     crm: {
-      hubspot: Boolean(profileRes.data?.hubspot_access_token),
+      hubspot: hubspot.connected,
       salesforce: Boolean(profileRes.data?.salesforce_access_token),
     },
   }

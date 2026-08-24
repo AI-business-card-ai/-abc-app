@@ -1,9 +1,9 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import { PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 import { enrichContact } from '@/lib/perplexity'
 import { enrichWithApollo } from '@/lib/apollo'
 import { enrichLinkedIn, findWorkEmail, resolveLinkedInProfile } from '@/lib/enrichlayer'
 import { generatePersonalizedMessages } from '@/lib/ai-messages'
-import { createHubSpotContact } from '@/lib/hubspot'
 import { createSalesforceContact } from '@/lib/salesforce'
 import { calculateLeadScore } from '@/lib/crm'
 import { calculateAiMatchScore, aiScoreToDbFields, applyPersonalMeetingBonus } from '@/lib/ai-scoring'
@@ -122,24 +122,20 @@ function deferCrmSync(
   withMessages: Record<string, unknown>
 ) {
   void (async () => {
-    try {
-      const hubspotToken = (profileRow as { hubspot_access_token?: string } | null)?.hubspot_access_token
-      if (hubspotToken) {
-        await createHubSpotContact(
-          {
-            name: contact.name || '',
-            email: (withMessages.email as string | undefined) || undefined,
-            phone: contact.phone || undefined,
-            company: contact.company || undefined,
-            position: contact.role || undefined,
-          },
-          userId
-        )
-      }
-    } catch (e) {
-      console.error('HubSpot sync error:', e)
-    }
+    /*
+      HubSpot is not pushed here any more.
 
+      Saving a scan used to create a HubSpot contact by itself, whenever a token
+      happened to be present — an external system written to as a side effect of
+      an internal one, with nothing on screen to say it had happened and no way
+      to decline. Sending a customer's contacts into their CRM is an action they
+      should take, not one that takes itself, so export becomes an explicit
+      button in Phase 7B and this path stays silent until then.
+
+      Removed here rather than gated on a flag: the tokens this branch read are
+      moving out of abc_profiles entirely, so the condition would soon have been
+      false for a reason nobody could see.
+    */
     try {
       const salesforceToken = (profileRow as { salesforce_access_token?: string } | null)
         ?.salesforce_access_token
@@ -181,7 +177,7 @@ export async function runContactEnrichment(
 
   const { data: profileRow } = await supabase
     .from('abc_profiles')
-    .select('*')
+    .select(PROFILE_SAFE_COLUMNS)
     .eq('id', userId)
     .single()
 

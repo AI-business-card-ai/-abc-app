@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { applyPersonalMeetingBonus, aiScoreToDbFields, calculateAiMatchScore } from '@/lib/ai-scoring'
 import { ABC_LEAD_SOURCE } from '@/lib/crm-constants'
@@ -12,7 +13,7 @@ async function recalculateContactScore(contact: ScannedContact, userId: string) 
 
   const { data: profileRow } = await supabase
     .from('abc_profiles')
-    .select('*')
+    .select(PROFILE_SAFE_COLUMNS)
     .eq('id', userId)
     .single()
 
