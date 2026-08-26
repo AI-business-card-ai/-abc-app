@@ -12,6 +12,7 @@ type CrmActivity = {
 
 const ACTIVITY_ICONS: Record<ActivityType, string> = {
   CARD_SCANNED: '📷',
+  CRM_EXPORT: '🔄',
   AI_ENRICHED: '✨',
   EMAIL_SENT: '✉️',
   WHATSAPP_OPENED: '💬',

@@ -19,6 +19,8 @@ export type ActivityType =
   // snoozing a follow-up deliberately does not move the contact's crm_status.
   | 'FOLLOWUP_COMPLETED'
   | 'FOLLOWUP_SNOOZED'
+  // Explicit CRM push. Written only after the provider confirms, never before.
+  | 'CRM_EXPORT'
 
 export type CrmStatus =
   | 'NEW'

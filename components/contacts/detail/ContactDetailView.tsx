@@ -21,6 +21,7 @@ import {
 import ActivityNotesCard from '@/components/contacts/detail/ActivityNotesCard'
 import MeetingContextCard from '@/components/contacts/detail/MeetingContextCard'
 import MeetingHistoryCard from '@/components/contacts/detail/MeetingHistoryCard'
+import CrmPushCard from '@/components/contacts/detail/CrmPushCard'
 import SmartFollowUpCard from '@/components/contacts/detail/SmartFollowUpCard'
 import { CardTitle, ErrorNote, FieldRow } from '@/components/contacts/detail/parts'
 import Avatar from '@/components/ui/abc/Avatar'
@@ -140,6 +141,7 @@ export default function ContactDetailView({
           <MeetingContextCard contact={contact} />
           <MeetingHistoryCard contact={contact} />
           <SmartFollowUpCard contact={contact} />
+          <CrmPushCard contact={contact} />
           <div className="lg:hidden">
             <ContactInfo contact={contact} />
           </div>

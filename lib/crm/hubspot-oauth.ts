@@ -23,13 +23,24 @@ const TOKEN_URL = 'https://api.hubapi.com/oauth/2026-03/token'
 const INTROSPECT_URL = 'https://api.hubapi.com/oauth/2026-03/token/introspect'
 
 /**
- * Only what connecting requires.
+ * The scopes a HubSpot connection asks for.
  *
- * Phase 7B adds companies, associations, meetings and tasks, and asks for their
- * scopes then. Requesting permissions before the feature that needs them exists
- * means asking a customer to approve access nothing uses.
+ * This is the single source: the authorization URL is built from it, and it has
+ * to stay identical to `requiredScopes` in the HubSpot app config, because
+ * HubSpot refuses an install whose authorization URL and app definition
+ * disagree. Phase 7B pushes companies and their associations alongside the
+ * contact, so the two company scopes are now genuinely used. Meetings and tasks
+ * are engagements and ride along with the contact scopes; nothing else is asked
+ * for, since a permission no feature uses is one a customer approves for
+ * nothing.
  */
-const SCOPES = ['oauth', 'crm.objects.contacts.read', 'crm.objects.contacts.write']
+export const HUBSPOT_REQUIRED_SCOPES = [
+  'oauth',
+  'crm.objects.contacts.read',
+  'crm.objects.contacts.write',
+  'crm.objects.companies.read',
+  'crm.objects.companies.write',
+] as const
 
 /** Refresh this far before actual expiry, so a request in flight cannot age out. */
 const EXPIRY_MARGIN_MS = 5 * 60 * 1000
@@ -56,7 +67,7 @@ export function getHubSpotAuthorizeUrl(config: HubSpotConfig, state: string): st
   const params = new URLSearchParams({
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
-    scope: SCOPES.join(' '),
+    scope: HUBSPOT_REQUIRED_SCOPES.join(' '),
     state,
   })
   return `${AUTHORIZE_URL}?${params.toString()}`
