@@ -20,6 +20,12 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const hubspot = await getCrmConnectionStatus(user.id, 'hubspot')
-  return NextResponse.json({ connections: [hubspot] })
+  // Every CRM ABC supports, whether or not it is connected, so the screen can
+  // offer the ones that are not without a second round trip.
+  const connections = await Promise.all([
+    getCrmConnectionStatus(user.id, 'hubspot'),
+    getCrmConnectionStatus(user.id, 'pipedrive'),
+  ])
+
+  return NextResponse.json({ connections })
 }

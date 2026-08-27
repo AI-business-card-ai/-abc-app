@@ -45,12 +45,27 @@ export type ExportEncounter = {
  */
 export type StepState = 'synced' | 'created' | 'reused' | 'skipped' | 'failed' | 'not_started'
 
+/**
+ * Why a step failed, when the reason changes what should happen next.
+ *
+ * Provider-neutral by construction: these describe ABC's own bookkeeping, not
+ * anything HubSpot or Pipedrive said. A database error code is never one of
+ * them — the UI must not end up branching on Postgres.
+ */
+export type StepReason =
+  /** The remote object exists, but ABC could not record which one it is. */
+  | 'mapping_persistence_failed'
+  /** A mapping already exists for this local object, naming a different remote one. */
+  | 'mapping_conflict'
+
 export type ExportStep = {
   state: StepState
   /** Safe for the browser: the provider's own id, never a token. */
   remoteId?: string | null
   /** A sentence a person can act on. Never a provider error dump. */
   message?: string
+  /** Set only when the reason should change what the caller does next. */
+  reason?: StepReason
 }
 
 export type ExportResult = {

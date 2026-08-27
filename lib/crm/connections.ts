@@ -17,7 +17,7 @@ import { decryptToken, encryptToken } from '@/lib/crm/encryption'
  * service key, which does not exist there.
  */
 
-export type CrmProvider = 'hubspot'
+export type CrmProvider = 'hubspot' | 'pipedrive'
 
 export type CrmConnection = {
   id: string
@@ -30,6 +30,12 @@ export type CrmConnection = {
   scopes: string[]
   connectedAt: string | null
   needsReconnect: boolean
+  /**
+   * The API origin for this connection, when the provider gives each account
+   * its own. Pipedrive does; HubSpot serves everybody from one host and leaves
+   * this null rather than inventing a value.
+   */
+  apiBaseUrl: string | null
 }
 
 /** Everything a browser is allowed to know about a connection. */
@@ -52,6 +58,7 @@ type Row = {
   scopes: string[] | null
   connected_at: string | null
   needs_reconnect: boolean | null
+  remote_api_base_url: string | null
 }
 
 /**
@@ -94,6 +101,7 @@ export async function getCrmConnection(
     scopes: row.scopes ?? [],
     connectedAt: row.connected_at,
     needsReconnect: Boolean(row.needs_reconnect),
+    apiBaseUrl: row.remote_api_base_url,
   }
 }
 
@@ -146,6 +154,8 @@ export async function saveCrmConnection(args: {
   expiresAt?: string | null
   remoteAccountId?: string | null
   scopes?: string[]
+  /** Pipedrive's per-account API origin. Omitted by providers that have one host. */
+  apiBaseUrl?: string | null
 }): Promise<boolean> {
   const supabase = createServerSupabase()
 
@@ -158,6 +168,7 @@ export async function saveCrmConnection(args: {
       refresh_token_encrypted: args.refreshToken ? encryptToken(args.refreshToken) : null,
       token_expires_at: args.expiresAt ?? null,
       scopes: args.scopes ?? [],
+      remote_api_base_url: args.apiBaseUrl ?? null,
       connected_at: new Date().toISOString(),
       needs_reconnect: false,
       updated_at: new Date().toISOString(),
@@ -182,6 +193,7 @@ export async function updateCrmTokens(args: {
   accessToken: string
   refreshToken?: string | null
   expiresAt?: string | null
+  apiBaseUrl?: string | null
 }): Promise<boolean> {
   const supabase = createServerSupabase()
 
@@ -191,6 +203,10 @@ export async function updateCrmTokens(args: {
     needs_reconnect: false,
     updated_at: new Date().toISOString(),
   }
+
+  // Pipedrive returns the account's API domain on every refresh, because it can
+  // change. Taking the new one is the whole point of it being sent again.
+  if (args.apiBaseUrl) payload.remote_api_base_url = args.apiBaseUrl
 
   // Providers may hand back a new refresh token; assuming otherwise is how an
   // integration silently dies weeks later.

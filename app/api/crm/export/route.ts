@@ -14,7 +14,11 @@ import { logActivity } from '@/lib/crm'
  * records are exported, never what they say.
  */
 
-const PROVIDERS = ['hubspot'] as const
+/**
+ * The owner chooses one. Connecting both does not mean pushing to both — that
+ * would be the app deciding where somebody's contacts go.
+ */
+const PROVIDERS = ['hubspot', 'pipedrive'] as const
 type Provider = (typeof PROVIDERS)[number]
 
 type Body = {
@@ -39,6 +43,8 @@ export async function POST(req: NextRequest) {
     const provider = (body.provider || 'hubspot') as Provider
 
     if (!PROVIDERS.includes(provider)) {
+      // An unknown provider is rejected rather than defaulted: silently sending
+      // a customer's contact to a CRM they did not name is worse than an error.
       return NextResponse.json({ error: 'Unsupported CRM.' }, { status: 400 })
     }
     if (!body.contactId || !body.encounterId) {

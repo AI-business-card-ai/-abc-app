@@ -11,16 +11,69 @@ import type { ExportResult, ExportStep } from '@/lib/crm/types'
  * Push this person and this meeting into the owner's CRM.
  *
  * Explicit, always. Nothing about scanning, saving or writing up a meeting
- * sends anything anywhere — this button is the only thing that does, and it
+ * sends anything anywhere — this card is the only thing that does, and it
  * exports the meeting shown above it rather than whatever the contact's legacy
  * fields happen to hold.
  *
- * The result is reported step by step because a CRM export genuinely can half
+ * One card for every CRM rather than one card each. A second integration should
+ * not cost the contact screen a second panel, so the providers are rows inside
+ * the panel that already exists, and a row that has never been used is a single
+ * line with a Connect link.
+ *
+ * The owner picks the destination. Both being connected is not permission to
+ * push to both — that would be the app deciding where somebody's contacts go.
+ *
+ * Results are reported step by step because a CRM export genuinely can half
  * succeed: the person may land while the company fails. One "Synced" over that
  * would be a comfortable lie, and the owner would find the gap themselves later.
  */
 
-type Status = 'idle' | 'checking' | 'pushing' | 'done' | 'error'
+type ProviderId = 'hubspot' | 'pipedrive'
+type Status = 'idle' | 'pushing' | 'done' | 'error'
+
+type ConnectionStatus = {
+  provider: string
+  connected?: boolean
+  needsReconnect?: boolean
+}
+
+/**
+ * What each CRM calls the things ABC pushes.
+ *
+ * The step names are ABC's, and stay ABC's, but showing an owner "Contact" when
+ * their CRM says "Person" makes them translate for us.
+ */
+const PROVIDERS: {
+  id: ProviderId
+  name: string
+  connectPath: string
+  labels: { contact: string; company: string; association: string; meeting: string; task: string }
+}[] = [
+  {
+    id: 'hubspot',
+    name: 'HubSpot',
+    connectPath: '/api/auth/hubspot',
+    labels: {
+      contact: 'Contact',
+      company: 'Company',
+      association: 'Association',
+      meeting: 'Meeting',
+      task: 'Follow-up task',
+    },
+  },
+  {
+    id: 'pipedrive',
+    name: 'Pipedrive',
+    connectPath: '/api/auth/pipedrive',
+    labels: {
+      contact: 'Person',
+      company: 'Organization',
+      association: 'Linked to organization',
+      meeting: 'Meeting activity',
+      task: 'Follow-up activity',
+    },
+  },
+]
 
 const STEP_LABEL: Record<string, string> = {
   created: 'Created',
@@ -50,11 +103,12 @@ function StepRow({ label, step }: { label: string; step: ExportStep }) {
 }
 
 export default function CrmPushCard({ contact }: { contact: ContactDetail }) {
-  const [status, setStatus] = useState<Status>('checking')
-  const [connected, setConnected] = useState(false)
-  const [needsReconnect, setNeedsReconnect] = useState(false)
-  const [result, setResult] = useState<ExportResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [checking, setChecking] = useState(true)
+  const [connections, setConnections] = useState<Record<string, ConnectionStatus>>({})
+  const [busy, setBusy] = useState<ProviderId | null>(null)
+  const [status, setStatus] = useState<Partial<Record<ProviderId, Status>>>({})
+  const [results, setResults] = useState<Partial<Record<ProviderId, ExportResult>>>({})
+  const [errors, setErrors] = useState<Partial<Record<ProviderId, string>>>({})
 
   /** The meeting shown above — the same encounter the context card renders. */
   const latest = contact.encounters[0]
@@ -66,16 +120,17 @@ export default function CrmPushCard({ contact }: { contact: ContactDetail }) {
         const res = await fetch('/api/crm/connections')
         if (!res.ok) throw new Error('failed')
         const data = await res.json()
-        const hubspot = (data.connections || []).find(
-          (c: { provider: string }) => c.provider === 'hubspot'
-        )
         if (!active) return
-        setConnected(Boolean(hubspot?.connected))
-        setNeedsReconnect(Boolean(hubspot?.needsReconnect))
+
+        const byProvider: Record<string, ConnectionStatus> = {}
+        for (const c of (data.connections || []) as ConnectionStatus[]) {
+          if (c?.provider) byProvider[c.provider] = c
+        }
+        setConnections(byProvider)
       } catch {
-        if (active) setConnected(false)
+        if (active) setConnections({})
       } finally {
-        if (active) setStatus('idle')
+        if (active) setChecking(false)
       }
     })()
     return () => {
@@ -83,99 +138,161 @@ export default function CrmPushCard({ contact }: { contact: ContactDetail }) {
     }
   }, [])
 
-  async function push() {
+  async function push(provider: ProviderId) {
     if (!latest) return
-    setStatus('pushing')
-    setError(null)
+    setBusy(provider)
+    setStatus((s) => ({ ...s, [provider]: 'pushing' }))
+    setErrors((e) => ({ ...e, [provider]: undefined }))
+
     try {
       const res = await fetch('/api/crm/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Ids only. Every fact that reaches the CRM is re-read server-side.
-        body: JSON.stringify({ provider: 'hubspot', contactId: contact.id, encounterId: latest.id }),
+        body: JSON.stringify({ provider, contactId: contact.id, encounterId: latest.id }),
       })
       const data = await res.json().catch(() => ({}))
 
       if (data.result) {
-        setResult(data.result as ExportResult)
-        if (data.result.needsReconnect) setNeedsReconnect(true)
-        setStatus(data.success ? 'done' : 'error')
+        const result = data.result as ExportResult
+        setResults((r) => ({ ...r, [provider]: result }))
+        if (result.needsReconnect) {
+          setConnections((c) => ({ ...c, [provider]: { ...c[provider], provider, needsReconnect: true } }))
+        }
+        setStatus((s) => ({ ...s, [provider]: data.success ? 'done' : 'error' }))
         if (!data.success) {
-          setError(
-            data.result.retryable
-              ? 'HubSpot was busy. Try again in a moment.'
-              : 'Some of this did not reach HubSpot.'
+          /*
+            A mapping failure is worth saying out loud rather than filing under
+            "some of this did not arrive". The record exists in their CRM and
+            ABC cannot yet point at it, so pushing again is the one thing they
+            should not do — the message says so, and says nothing about the
+            database that produced it.
+          */
+          const mappingFailure = [result.contact, result.company, result.meeting, result.task].find(
+            (s) => s.reason === 'mapping_persistence_failed' || s.reason === 'mapping_conflict'
           )
+
+          setErrors((e) => ({
+            ...e,
+            [provider]: mappingFailure?.message
+              ? mappingFailure.message
+              : result.retryable
+                ? 'That CRM was busy. Try again in a moment.'
+                : 'Some of this did not arrive.',
+          }))
         }
         return
       }
 
       throw new Error(data.error || 'failed')
     } catch (err) {
-      setStatus('error')
-      setError(err instanceof Error && err.message !== 'failed' ? err.message : 'Could not push to HubSpot.')
+      setStatus((s) => ({ ...s, [provider]: 'error' }))
+      setErrors((e) => ({
+        ...e,
+        [provider]:
+          err instanceof Error && err.message !== 'failed' ? err.message : 'Could not push to that CRM.',
+      }))
+    } finally {
+      setBusy(null)
     }
   }
+
+  const anyConnected = PROVIDERS.some(
+    (p) => connections[p.id]?.connected && !connections[p.id]?.needsReconnect
+  )
 
   return (
     <section className="abc-surface p-5">
       <div className="flex items-center gap-2">
         <IconCloudUpload size={17} stroke={1.8} style={{ color: 'var(--abc-gold-accent)' }} />
-        <CardTitle>HubSpot</CardTitle>
+        <CardTitle>CRM</CardTitle>
       </div>
       <p className="mt-1.5 text-[13px] leading-[1.55] text-abc-secondary">
-        {connected && !needsReconnect
+        {anyConnected
           ? 'Send this person and the meeting above to your CRM.'
-          : 'Connect your CRM to send contacts and meetings there.'}
+          : 'Connect a CRM to send contacts and meetings there.'}
       </p>
 
-      {result ? (
-        <ul className="mt-4 flex flex-col gap-2 rounded-inner border border-abc-border bg-abc-raised px-4 py-3.5">
-          <StepRow label="Contact" step={result.contact} />
-          <StepRow label="Company" step={result.company} />
-          <StepRow label="Association" step={result.association} />
-          <StepRow label="Meeting" step={result.meeting} />
-          <StepRow label="Follow-up task" step={result.task} />
-        </ul>
-      ) : null}
+      {checking ? (
+        <p className="mt-4 text-[13px] text-abc-muted">Checking your CRM connections…</p>
+      ) : (
+        <div className="mt-4 flex flex-col gap-3">
+          {PROVIDERS.map((provider) => {
+            const connection = connections[provider.id]
+            const connected = Boolean(connection?.connected)
+            const needsReconnect = Boolean(connection?.needsReconnect)
+            const state = status[provider.id] ?? 'idle'
+            const result = results[provider.id]
+            const error = errors[provider.id]
+            const pushing = busy === provider.id && state === 'pushing'
 
-      {error ? <div className="mt-3"><ErrorNote>{error}</ErrorNote></div> : null}
+            return (
+              <div
+                key={provider.id}
+                className="rounded-inner border border-abc-border bg-abc-raised px-4 py-3.5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[13.5px] text-abc-primary">{provider.name}</p>
+                    <p className="text-[12px] text-abc-muted">
+                      {needsReconnect
+                        ? 'Needs reconnecting'
+                        : connected
+                          ? 'Connected'
+                          : 'Not connected'}
+                    </p>
+                  </div>
 
-      <div className="mt-4">
-        {status === 'checking' ? (
-          <p className="text-[13px] text-abc-muted">Checking your CRM connection…</p>
-        ) : !connected || needsReconnect ? (
-          <Button href="/api/auth/hubspot" fullWidth className="sm:w-auto">
-            <IconExternalLink size={17} stroke={1.9} />
-            {needsReconnect ? 'Reconnect HubSpot' : 'Connect HubSpot'}
-          </Button>
-        ) : !latest ? (
-          <p className="text-[13px] text-abc-muted">
-            Add a meeting before pushing this contact to HubSpot.
-          </p>
-        ) : (
-          <Button
-            onClick={() => void push()}
-            disabled={status === 'pushing'}
-            variant={status === 'done' ? 'surface' : 'gold'}
-            fullWidth
-            className="sm:w-auto"
-          >
-            {status === 'pushing' ? null : status === 'done' ? (
-              <IconRefresh size={17} stroke={1.9} />
-            ) : (
-              <IconCheck size={17} stroke={1.9} />
-            )}
-            {status === 'pushing'
-              ? 'Syncing…'
-              : status === 'done'
-                ? 'Sync again'
-                : status === 'error'
-                  ? 'Retry'
-                  : 'Push to HubSpot'}
-          </Button>
-        )}
-      </div>
+                  {!connected || needsReconnect ? (
+                    <Button href={provider.connectPath} variant="surface" className="shrink-0">
+                      <IconExternalLink size={16} stroke={1.9} />
+                      {needsReconnect ? 'Reconnect' : 'Connect'}
+                    </Button>
+                  ) : !latest ? (
+                    <p className="text-[12px] text-abc-muted">Add a meeting first</p>
+                  ) : (
+                    <Button
+                      onClick={() => void push(provider.id)}
+                      disabled={busy !== null}
+                      variant={state === 'done' ? 'surface' : 'gold'}
+                      className="shrink-0"
+                    >
+                      {pushing ? null : state === 'done' ? (
+                        <IconRefresh size={16} stroke={1.9} />
+                      ) : (
+                        <IconCheck size={16} stroke={1.9} />
+                      )}
+                      {pushing
+                        ? 'Syncing…'
+                        : state === 'done'
+                          ? 'Sync again'
+                          : state === 'error'
+                            ? 'Retry'
+                            : `Push to ${provider.name}`}
+                    </Button>
+                  )}
+                </div>
+
+                {result ? (
+                  <ul className="mt-3.5 flex flex-col gap-2 border-t border-abc-border pt-3">
+                    <StepRow label={provider.labels.contact} step={result.contact} />
+                    <StepRow label={provider.labels.company} step={result.company} />
+                    <StepRow label={provider.labels.association} step={result.association} />
+                    <StepRow label={provider.labels.meeting} step={result.meeting} />
+                    <StepRow label={provider.labels.task} step={result.task} />
+                  </ul>
+                ) : null}
+
+                {error ? (
+                  <div className="mt-3">
+                    <ErrorNote>{error}</ErrorNote>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </section>
   )
 }
