@@ -1,4 +1,5 @@
 import { getValidPipedriveAccess } from '@/lib/crm/pipedrive-oauth'
+import { extractNormalizedEmails, extractNormalizedPhones } from '@/lib/contacts/identity'
 import type { ExportContact, ExportEncounter } from '@/lib/crm/types'
 
 /**
@@ -37,7 +38,9 @@ function classify(status: number): PipedriveError {
   // only insofar as both tell the owner to look at the connection.
   if (status === 429) return { kind: 'rate_limited', status, message: 'Pipedrive is rate limiting; try again shortly.' }
   if (status >= 500) return { kind: 'server', status, message: 'Pipedrive is temporarily unavailable.' }
-  return { kind: 'unknown', status, message: 'Pipedrive could not complete that request.' }
+  // The status number, and nothing more. A validation rejection is otherwise
+  // indistinguishable from every other refusal, which cost a real push once.
+  return { kind: 'unknown', status, message: `Pipedrive could not complete that request (${status}).` }
 }
 
 type Envelope<T> = { success?: boolean; data?: T }
@@ -157,12 +160,22 @@ async function searchExactIds(
   return { ok: true, data: ids.filter((id): id is number => typeof id === 'number') }
 }
 
-/** Find a person by exact email. Two matches end the search, not start a guess. */
+/**
+ * Find a person by exact email. Two matches end the search, not start a guess.
+ *
+ * The search term is the first canonical address, not the raw column. An exact
+ * search for "a@x.com, b@y.com" matches nobody, so a contact holding two
+ * addresses would never find the person it already created and would make a
+ * second one on every push — the duplicate this whole layer exists to prevent.
+ */
 export async function findPersonByEmail(
   access: Access,
   email: string
 ): Promise<PipedriveResult<Match>> {
-  const res = await searchExactIds(access, 'persons', email.trim().toLowerCase(), 'email', 2)
+  const [canonical] = extractNormalizedEmails(email)
+  if (!canonical) return { ok: true, data: { kind: 'none' } }
+
+  const res = await searchExactIds(access, 'persons', canonical, 'email', 2)
   if (!res.ok) return res
 
   const found = res.data
@@ -223,6 +236,33 @@ function nonEmpty(record: Record<string, unknown>): Record<string, unknown> {
   return out
 }
 
+/**
+ * One array entry per real value, first one primary.
+ *
+ * ABC stores an email and a phone as single free-text columns, and a scanned or
+ * hand-edited card can put two numbers in one of them. v2 wants an array of
+ * discrete entries, so posting the raw column as a single entry produces one
+ * Pipedrive phone containing two numbers — which is not a phone number.
+ *
+ * The splitting is ABC's own, from the Phase 5 identity helpers, because a
+ * second parser for the same job is a second parser to disagree with the first.
+ * Those helpers also drop fragments too short to be a real number, so nothing
+ * malformed is sent.
+ */
+function contactEntries(values: string[]) {
+  return values.map((value, index) => ({ value, primary: index === 0, label: 'work' }))
+}
+
+/**
+ * What ABC sends about a person.
+ *
+ * No `job_title`. Pipedrive documents it — with `notes`, `birthday`,
+ * `postal_address` and `im` — as available only when Contact Sync is enabled
+ * for the company, and v2 validates strictly rather than ignoring what it does
+ * not accept. Requiring a customer to switch on Contact Sync before they can
+ * export a contact would be ABC's problem leaking into their configuration, so
+ * the job title stays canonical in ABC and simply is not sent here.
+ */
 function personProperties(contact: ExportContact, orgId: number | null) {
   const name =
     contact.fullName || [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim() || contact.email
@@ -230,9 +270,8 @@ function personProperties(contact: ExportContact, orgId: number | null) {
   return nonEmpty({
     name,
     // v2 replaced the flat `email`/`phone` strings with labelled arrays.
-    emails: contact.email ? [{ value: contact.email, primary: true, label: 'work' }] : [],
-    phones: contact.phone ? [{ value: contact.phone, primary: true, label: 'work' }] : [],
-    job_title: contact.jobTitle,
+    emails: contactEntries(extractNormalizedEmails(contact.email)),
+    phones: contactEntries(extractNormalizedPhones(contact.phone)),
     org_id: orgId,
   })
 }
