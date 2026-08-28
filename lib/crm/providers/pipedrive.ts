@@ -365,6 +365,24 @@ function dueParts(iso: string): { due_date: string; due_time: string } | null {
   return { due_date: stamp.slice(0, 10), due_time: stamp.slice(11, 16) }
 }
 
+/**
+ * Who the activity is with.
+ *
+ * v2 made an activity's `person_id` read-only and derives it from whichever
+ * participant is marked primary, so the person has to arrive this way or not at
+ * all — sending the field directly is refused, which is exactly what failed the
+ * first real meeting export.
+ *
+ * `primary` on the way in, even though the same flag reads back as
+ * `primary_flag` on the way out. That asymmetry is Pipedrive's, not a typo.
+ *
+ * An empty array when there is no person, which `nonEmpty` then drops, so the
+ * key never appears rather than appearing empty.
+ */
+function activityParticipants(personId: number | null) {
+  return personId ? [{ person_id: personId, primary: true }] : []
+}
+
 function displayName(contact: ExportContact): string {
   return (
     contact.fullName ||
@@ -400,7 +418,11 @@ function meetingProperties(
     subject: encounter.event ? `Met ${who} — ${encounter.event}` : `Met ${who}`,
     type: typeKey,
     ...(dueParts(encounter.metAt) ?? {}),
-    person_id: personId,
+    // Not `person_id`. On a v2 activity that field is read-only and is derived
+    // from the primary participant; writing it directly is refused outright.
+    // `org_id` is different — the reference still lists it as writable here, so
+    // it stays until Pipedrive says otherwise.
+    participants: activityParticipants(personId),
     org_id: orgId,
     note: lines.join('\n') || null,
     done: true,
@@ -469,7 +491,8 @@ function followUpProperties(
     subject: encounter.nextAction || `Follow up with ${who}`,
     type: typeKey,
     ...(encounter.followUpAt ? (dueParts(encounter.followUpAt) ?? {}) : {}),
-    person_id: personId,
+    // Same rule as the meeting: the person is a participant, never a field.
+    participants: activityParticipants(personId),
     org_id: orgId,
     note: encounter.discussed ? `From your meeting: ${encounter.discussed}` : null,
     done: false,
