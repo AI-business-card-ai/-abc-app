@@ -22,16 +22,27 @@ export type LocalObjectType = 'contact' | 'company' | 'encounter' | 'follow_up'
  *
  * HubSpot has contacts, companies, meetings and tasks. Pipedrive has persons,
  * organizations and activities — a meeting and a follow-up are both activities
- * there, told apart by the `local_object_type` they are mapped from.
+ * there, told apart by the `local_object_type` they are mapped from. Salesforce
+ * has contacts, accounts, events and tasks, and shares two of those names with
+ * HubSpot while meaning much the same thing by them.
  */
 export type RemoteObjectType =
+  // HubSpot
   | 'contact'
   | 'company'
   | 'meeting'
   | 'task'
+  // Pipedrive
   | 'person'
   | 'organization'
   | 'activity'
+  /*
+    Salesforce, which reuses 'contact' and 'task'. Its meeting is a completed
+    Task rather than an Event, because ABC knows when a meeting started and not
+    how long it ran, and Salesforce will not accept a timed Event without one or
+    the other. So 'event' is deliberately absent: nothing writes it.
+  */
+  | 'account'
 
 export type MappingKey = {
   ownerId: string

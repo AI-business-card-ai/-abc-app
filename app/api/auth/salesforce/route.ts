@@ -1,36 +1,58 @@
-import { randomBytes, createHash } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
-import { getSalesforceAuthorizeUrl } from '@/lib/salesforce'
+import { isTokenEncryptionConfigured } from '@/lib/crm/encryption'
+import { createOAuthState } from '@/lib/crm/oauth-state'
+import {
+  createPkce,
+  getSalesforceAuthorizeUrl,
+  getSalesforceConfig,
+} from '@/lib/crm/salesforce-oauth'
 
-const PKCE_COOKIE = 'salesforce_code_verifier'
-
+/**
+ * Start a Salesforce connection.
+ *
+ * The same shape as the other two providers, on the same helpers: the owner
+ * comes from the session and is recorded in a signed cookie, and what travels
+ * to Salesforce is an opaque nonce.
+ *
+ * This replaces an earlier implementation that sent the owner's user id as the
+ * state parameter and stored the resulting tokens as plaintext columns on the
+ * profile. Both were the exact problems Phase 7A fixed for HubSpot; Salesforce
+ * had simply never been brought along.
+ *
+ * PKCE is required by External Client Apps, and the verifier rides inside the
+ * signed state cookie rather than a second cookie of its own, so it is bound to
+ * the same owner and consumed by the same single use.
+ */
 export async function GET(request: NextRequest) {
   const supabase = createRouteHandlerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (!process.env.SALESFORCE_CLIENT_ID || !process.env.SALESFORCE_CLIENT_SECRET) {
-    return NextResponse.json({ error: 'Salesforce OAuth not configured' }, { status: 500 })
+  const config = getSalesforceConfig()
+  if (!config) {
+    // Including the redirect URI, which has no fallback. The previous version
+    // defaulted to a Vercel preview hostname, which meant a misconfigured
+    // production could still authorize against the wrong origin.
+    return NextResponse.json({ error: 'Salesforce OAuth is not configured' }, { status: 500 })
   }
 
-  const codeVerifier = randomBytes(64).toString('base64url')
-  const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url')
+  // Refusing early rather than collecting credentials we cannot store safely.
+  if (!isTokenEncryptionConfigured()) {
+    return NextResponse.json({ error: 'CRM token storage is not configured' }, { status: 500 })
+  }
 
-  const authorizeUrl = new URL(getSalesforceAuthorizeUrl(user.id, codeChallenge))
-  authorizeUrl.searchParams.set('login_hint', 'bury.esco.a88c021b243f@agentforce.com')
-  const response = NextResponse.redirect(authorizeUrl.toString())
-
-  response.cookies.set(PKCE_COOKIE, codeVerifier, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 600,
-    path: '/',
+  const pkce = createPkce()
+  const state = createOAuthState({
+    ownerId: user.id,
+    provider: 'salesforce',
+    verifier: pkce.verifier,
   })
 
-  return response
+  return NextResponse.redirect(getSalesforceAuthorizeUrl(config, state, pkce.challenge))
 }

@@ -2,6 +2,7 @@ import { createServerSupabase } from '@/lib/supabase'
 import { getMapping, saveMapping, type MappingKey } from '@/lib/crm/mappings'
 import * as hubspot from '@/lib/crm/providers/hubspot'
 import * as pipedrive from '@/lib/crm/providers/pipedrive'
+import * as salesforce from '@/lib/crm/providers/salesforce'
 import {
   companyDomainFrom,
   notStarted,
@@ -161,9 +162,9 @@ export async function pushContactEncounterToCrm(args: ExportArgs): Promise<Expor
     return { ...base, contact: step('failed', { message: 'Contact or meeting not found.' }) }
   }
 
-  return args.provider === 'pipedrive'
-    ? pushToPipedrive(args, base, loaded)
-    : pushToHubSpot(args, base, loaded)
+  if (args.provider === 'pipedrive') return pushToPipedrive(args, base, loaded)
+  if (args.provider === 'salesforce') return pushToSalesforce(args, base, loaded)
+  return pushToHubSpot(args, base, loaded)
 }
 
 type Loaded = { contact: ExportContact; encounter: ExportEncounter }
@@ -640,6 +641,300 @@ async function pushToPipedrive(
 
   // The person and the meeting are what this exists to move; an organization
   // that could not be created is a gap, not a failed export.
+  result.ok =
+    result.contact.state !== 'failed' &&
+    result.meeting.state !== 'failed' &&
+    result.task.state !== 'failed'
+
+  return result
+}
+
+/**
+ * The same five steps, against Salesforce's object model.
+ *
+ * The order follows Pipedrive's rather than HubSpot's, and for the same reason:
+ * Salesforce has no association object between a person and their employer. A
+ * Contact carries `AccountId`, so the Account is resolved first and a new
+ * Contact is created already attached.
+ *
+ * Everything else is the proven shape: resolve, record the mapping the moment
+ * the provider confirms it, stop if that mapping cannot be stored, and let a
+ * retry reuse what already exists.
+ */
+async function pushToSalesforce(
+  args: ExportArgs,
+  base: ExportResult,
+  loaded: Loaded
+): Promise<ExportResult> {
+  const { contact, encounter } = loaded
+
+  const accessResult = await salesforce.getAccess(args.ownerId)
+  if (!accessResult.ok) {
+    return {
+      ...base,
+      needsReconnect: accessResult.needsReconnect,
+      contact: step('failed', { message: accessResult.message }),
+    }
+  }
+  const access = accessResult.access
+
+  const key = (
+    localType: MappingKey['localType'],
+    localId: string,
+    remoteType: MappingKey['remoteType']
+  ): MappingKey => ({
+    ownerId: args.ownerId,
+    provider: args.provider,
+    localType,
+    localId,
+    remoteType,
+  })
+
+  const failureStep = (error: salesforce.SalesforceError): ExportStep =>
+    step('failed', { message: error.message })
+  const isRetryableSf = (error: salesforce.SalesforceError): boolean =>
+    error.kind === 'rate_limited' || error.kind === 'server' || error.status === 0
+
+  const result: ExportResult = { ...base }
+
+  // ---- 1. Account -------------------------------------------------------
+  // First, because a Contact is created already holding its AccountId.
+  let accountId: string | null = null
+
+  if (!contact.companyName) {
+    result.company = step('skipped', { message: 'No company on this contact.' })
+  } else {
+    const companyKey = key('company', contact.id, 'account')
+    accountId = await getMapping(companyKey)
+
+    if (accountId) {
+      result.company = step('reused', { remoteId: accountId })
+    } else {
+      /*
+        A name is not an identity, here as anywhere. Salesforce does let a
+        query reach the website field, so discovery is a little wider than
+        Pipedrive's — anything whose Website mentions the domain, plus anything
+        whose Name matches exactly. But `LIKE` finds candidates and never
+        accepts one: acme.com and notacme.com both match that pattern, so every
+        candidate is confirmed by normalised domain before it is used.
+      */
+      const abcDomain = companyDomainFrom(contact.website)
+
+      if (!abcDomain) {
+        // Nothing to confirm against. Creating may duplicate an Account that
+        // already exists, and that is the failure we choose over merging two
+        // different companies.
+        const created = await salesforce.createAccount(access, {
+          name: contact.companyName,
+          website: contact.website,
+        })
+        if (created.ok) {
+          accountId = created.data
+          const stored = await persistMapping(companyKey, accountId)
+          if (stored) return { ...result, company: stored }
+          result.company = step('created', {
+            remoteId: accountId,
+            message: 'Created without matching: no company website to confirm identity against.',
+          })
+        } else {
+          result.company = failureStep(created.error)
+        }
+      } else {
+        const candidates = await salesforce.findAccountCandidates(access, contact.companyName, abcDomain)
+
+        const confirmed = candidates.ok
+          ? candidates.data.filter((c) => companyDomainFrom(c.website) === abcDomain).map((c) => c.id)
+          : []
+
+        if (confirmed.length > 1) {
+          result.company = step('failed', {
+            message: `More than one Salesforce account uses ${abcDomain}. Resolve it there, then push again.`,
+          })
+        } else if (confirmed.length === 1) {
+          accountId = confirmed[0]
+          const stored = await persistMapping(companyKey, accountId)
+          if (stored) return { ...result, company: stored }
+          result.company = step('reused', { remoteId: accountId })
+        } else {
+          const created = await salesforce.createAccount(access, {
+            name: contact.companyName,
+            website: contact.website,
+          })
+          if (created.ok) {
+            accountId = created.data
+            const stored = await persistMapping(companyKey, accountId)
+            if (stored) return { ...result, company: stored }
+            result.company = step('created', { remoteId: accountId })
+          } else {
+            // Context, not the point of the export. The meeting is still worth
+            // writing, so this records the failure and carries on.
+            result.company = failureStep(created.error)
+          }
+        }
+      }
+    }
+  }
+
+  // ---- 2. Contact -------------------------------------------------------
+  // Mapping, then an exact email match, then create. Never a name and never a
+  // phone.
+  const contactKey = key('contact', contact.id, 'contact')
+  let sfContactId = await getMapping(contactKey)
+
+  if (sfContactId) {
+    result.contact = step('reused', { remoteId: sfContactId })
+  } else {
+    if (contact.email) {
+      const found = await salesforce.findContactByEmail(access, contact.email)
+      if (!found.ok) {
+        return {
+          ...result,
+          contact: failureStep(found.error),
+          needsReconnect: found.error.kind === 'unauthorized',
+          retryable: isRetryableSf(found.error),
+        }
+      }
+      if (found.data.kind === 'conflict') {
+        return {
+          ...result,
+          contact: step('failed', {
+            message: `More than one Salesforce contact uses ${contact.email}. Resolve it there, then push again.`,
+          }),
+        }
+      }
+      if (found.data.kind === 'one') sfContactId = found.data.id
+    }
+
+    if (sfContactId) {
+      const stored = await persistMapping(contactKey, sfContactId)
+      if (stored) return { ...result, contact: stored }
+      result.contact = step('reused', { remoteId: sfContactId })
+    } else {
+      /*
+        Salesforce will not accept a Contact without a last name, and inventing
+        one — the previous integration used "Unknown" — puts a fiction in the
+        customer's CRM under a real person's record. Refusing says what is
+        actually wrong and leaves the contact fixable in ABC.
+      */
+      if (!salesforce.contactHasRequiredName(contact)) {
+        return {
+          ...result,
+          contact: step('failed', {
+            message: 'Salesforce needs a last name for this person. Add a name in ABC, then push again.',
+          }),
+        }
+      }
+
+      const created = await salesforce.createContact(access, contact, accountId)
+      if (!created.ok) {
+        return {
+          ...result,
+          contact: failureStep(created.error),
+          needsReconnect: created.error.kind === 'unauthorized',
+          retryable: isRetryableSf(created.error),
+        }
+      }
+      sfContactId = created.data
+      const stored = await persistMapping(contactKey, sfContactId)
+      if (stored) return { ...result, contact: stored }
+      result.contact = step('created', { remoteId: sfContactId })
+    }
+  }
+
+  // ---- 3. Contact to Account -------------------------------------------
+  // A field on the Contact, so a newly created one already carries it and only
+  // a reused Contact can still need it. Writing the same AccountId twice is the
+  // same person with the same employer.
+  if (!accountId) {
+    result.association = step('skipped', { message: 'No account to link.' })
+  } else if (result.contact.state === 'created') {
+    result.association = step('synced')
+  } else {
+    const linked = await salesforce.setContactAccount(access, sfContactId, accountId)
+    result.association = linked.ok ? step('synced') : failureStep(linked.error)
+  }
+
+  /*
+    The org's own Task statuses, asked for once and shared by both activities.
+
+    Not an Event. Salesforce will not accept a timed Event without a duration or
+    an end time, and ABC knows neither — only when the meeting started. A
+    completed Task has no duration field to fill in, so nothing is invented, and
+    it lands in Activity History where a thing that already happened belongs.
+  */
+  const statuses = await salesforce.findTaskStatuses(access)
+  const closedStatus = statuses.ok ? statuses.data.closed : null
+
+  // ---- 4. Meeting, as a completed Task ----------------------------------
+  // One encounter, one Task, for ever. A second push revises the Task it
+  // already made instead of logging the same conversation twice.
+  const meetingKey = key('encounter', encounter.id, 'task')
+  const existingMeeting = await getMapping(meetingKey)
+
+  if (!closedStatus) {
+    /*
+      Without a closed status there is no honest way to record a meeting that
+      already happened. Creating an open Task instead would put a past
+      conversation in somebody's to-do list and call it outstanding work.
+    */
+    result.meeting = step('failed', {
+      message: 'Salesforce has no completed task status ABC can use. Ask your admin, then push again.',
+    })
+  } else {
+    const meeting = existingMeeting
+      ? await salesforce.updateMeetingTask(access, existingMeeting, contact, encounter, sfContactId, accountId, closedStatus)
+      : await salesforce.createMeetingTask(access, contact, encounter, sfContactId, accountId, closedStatus)
+
+    if (!meeting.ok) {
+      result.meeting = failureStep(meeting.error)
+      result.retryable = isRetryableSf(meeting.error)
+    } else {
+      if (!existingMeeting) {
+        const stored = await persistMapping(meetingKey, meeting.data)
+        if (stored) return { ...result, meeting: stored }
+      }
+      result.meeting = step(existingMeeting ? 'synced' : 'created', { remoteId: meeting.data })
+    }
+  }
+
+  // ---- 5. Task ----------------------------------------------------------
+  // Only when a follow-up date exists. No date means nothing was promised.
+  if (!encounter.followUpAt) {
+    result.task = step('skipped', { message: 'No follow-up date on this meeting.' })
+  } else {
+    /*
+      A different mapping row from the meeting's, even though both point at a
+      Task: `local_object_type` separates 'encounter' from 'follow_up' and is
+      part of the unique key, so the two can never read or overwrite each other.
+    */
+    const followUpKey = key('follow_up', encounter.id, 'task')
+    const existingTask = await getMapping(followUpKey)
+    const openStatus = statuses.ok ? statuses.data.open : null
+
+    if (!openStatus) {
+      result.task = step('failed', {
+        message: 'Salesforce has no open task status ABC can use. Ask your admin, then push again.',
+      })
+    } else {
+      const task = existingTask
+        ? await salesforce.updateFollowUpTask(access, existingTask, contact, encounter, sfContactId, accountId, openStatus)
+        : await salesforce.createFollowUpTask(access, contact, encounter, sfContactId, accountId, openStatus)
+
+      if (!task.ok) {
+        result.task = failureStep(task.error)
+        result.retryable = result.retryable || isRetryableSf(task.error)
+      } else {
+        if (!existingTask) {
+          const stored = await persistMapping(followUpKey, task.data)
+          if (stored) return { ...result, task: stored }
+        }
+        result.task = step(existingTask ? 'synced' : 'created', { remoteId: task.data })
+      }
+    }
+  }
+
+  // The person and the meeting are what this exists to move; an account that
+  // could not be created is a gap, not a failed export.
   result.ok =
     result.contact.state !== 'failed' &&
     result.meeting.state !== 'failed' &&

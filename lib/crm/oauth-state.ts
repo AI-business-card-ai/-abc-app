@@ -36,6 +36,18 @@ type StatePayload = {
   provider: string
   /** Unix seconds. Checked on return so an abandoned flow cannot be resumed. */
   expiresAt: number
+  /**
+   * A PKCE code verifier, for providers that require one.
+   *
+   * It rides inside this cookie rather than a second one of its own, so it
+   * inherits every property already proven here: signed, owner-bound, single
+   * use, and expiring with the flow it belongs to. A separate cookie would have
+   * needed all four again, and would have been able to outlive the state it
+   * pairs with.
+   *
+   * Absent for providers that do not use PKCE, which changes nothing for them.
+   */
+  verifier?: string
 }
 
 /**
@@ -62,12 +74,18 @@ function sign(body: string): string {
  * The caller must already have an authenticated owner — this records a claim,
  * it does not establish one.
  */
-export function createOAuthState(args: { ownerId: string; provider: string }): string {
+export function createOAuthState(args: {
+  ownerId: string
+  provider: string
+  /** Only for providers that require PKCE; omitted otherwise. */
+  verifier?: string
+}): string {
   const payload: StatePayload = {
     nonce: randomBytes(NONCE_BYTES).toString('base64url'),
     ownerId: args.ownerId,
     provider: args.provider,
     expiresAt: Math.floor(Date.now() / 1000) + TTL_SECONDS,
+    ...(args.verifier ? { verifier: args.verifier } : {}),
   }
 
   const body = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
@@ -87,7 +105,7 @@ export function createOAuthState(args: { ownerId: string; provider: string }): s
 }
 
 export type StateResult =
-  | { ok: true; ownerId: string }
+  | { ok: true; ownerId: string; verifier?: string }
   | { ok: false; reason: 'missing' | 'malformed' | 'forged' | 'expired' | 'mismatch' }
 
 /**
@@ -136,5 +154,5 @@ export function consumeOAuthState(args: { state: string | null; provider: string
   // The nonce the provider returned must be the one this cookie was issued for.
   if (!safeEquals(payload.nonce, args.state)) return { ok: false, reason: 'mismatch' }
 
-  return { ok: true, ownerId: payload.ownerId }
+  return { ok: true, ownerId: payload.ownerId, verifier: payload.verifier }
 }

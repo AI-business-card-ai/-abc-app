@@ -25,6 +25,7 @@ export async function GET() {
   const connections = await Promise.all([
     getCrmConnectionStatus(user.id, 'hubspot'),
     getCrmConnectionStatus(user.id, 'pipedrive'),
+    getCrmConnectionStatus(user.id, 'salesforce'),
   ])
 
   return NextResponse.json({ connections })
