@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { IconCamera, IconSearch, IconUsers, IconX } from '@tabler/icons-react'
 import ContactRow from '@/components/contacts/ContactRow'
+import DownloadCsvButton from '@/components/contacts/DownloadCsvButton'
 import Button from '@/components/ui/abc/Button'
 import { EmptyState, SectionLabel } from '@/components/ui/abc/Bits'
 import { createClientComponent } from '@/lib/supabase'
@@ -39,6 +40,12 @@ export default function ContactsView({
   const [eventFilter, setEventFilter] = useState<string>(ALL_EVENTS)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+
+  /** The screen's one way of saying something short. */
+  const notify = useCallback((message: string, ms = 2500) => {
+    setNotice(message)
+    setTimeout(() => setNotice(null), ms)
+  }, [])
 
   const reload = useCallback(async () => {
     setRetrying(true)
@@ -127,17 +134,15 @@ export default function ContactsView({
         })
         if (!res.ok) throw new Error('delete failed')
         setRows((prev) => prev.filter((row) => row.id !== id))
-        setNotice('Contact deleted.')
-        setTimeout(() => setNotice(null), 2500)
+        notify('Contact deleted.')
       } catch {
         setRows(snapshot)
-        setNotice('Could not delete that contact.')
-        setTimeout(() => setNotice(null), 3000)
+        notify('Could not delete that contact.', 3000)
       } finally {
         setDeletingId(null)
       }
     },
-    [rows]
+    [notify, rows]
   )
 
   const hasAnyContacts = contacts.length > 0
@@ -157,10 +162,21 @@ export default function ContactsView({
           </p>
         </header>
 
-        <Button href="/scan" size="md" className="shrink-0">
-          <IconCamera size={18} stroke={1.9} />
-          Scan new contact
-        </Button>
+        {/*
+          Export lives here rather than in a panel of its own: this is the
+          screen that means "all of my contacts", which is what the file
+          contains. It appears once there is something to export.
+        */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {hasAnyContacts ? (
+            <DownloadCsvButton onError={(message) => notify(message, 4000)} />
+          ) : null}
+
+          <Button href="/scan" size="md">
+            <IconCamera size={18} stroke={1.9} />
+            Scan new contact
+          </Button>
+        </div>
       </div>
 
       {failed ? (
