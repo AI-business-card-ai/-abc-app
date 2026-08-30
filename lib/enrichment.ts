@@ -4,7 +4,6 @@ import { enrichContact } from '@/lib/perplexity'
 import { enrichWithApollo } from '@/lib/apollo'
 import { enrichLinkedIn, findWorkEmail, resolveLinkedInProfile } from '@/lib/enrichlayer'
 import { generatePersonalizedMessages } from '@/lib/ai-messages'
-import { createSalesforceContact } from '@/lib/salesforce'
 import { calculateLeadScore } from '@/lib/crm'
 import { calculateAiMatchScore, aiScoreToDbFields, applyPersonalMeetingBonus } from '@/lib/ai-scoring'
 import { contactHasEventTag } from '@/lib/event-tag'
@@ -113,48 +112,6 @@ function pickLinkedInUrl(
   }
 
   return cardLinkedInUrl || null
-}
-
-function deferCrmSync(
-  profileRow: ABCProfile | null,
-  userId: string,
-  contact: ScannedContact,
-  withMessages: Record<string, unknown>
-) {
-  void (async () => {
-    /*
-      HubSpot is not pushed here any more.
-
-      Saving a scan used to create a HubSpot contact by itself, whenever a token
-      happened to be present — an external system written to as a side effect of
-      an internal one, with nothing on screen to say it had happened and no way
-      to decline. Sending a customer's contacts into their CRM is an action they
-      should take, not one that takes itself, so export becomes an explicit
-      button in Phase 7B and this path stays silent until then.
-
-      Removed here rather than gated on a flag: the tokens this branch read are
-      moving out of abc_profiles entirely, so the condition would soon have been
-      false for a reason nobody could see.
-    */
-    try {
-      const salesforceToken = (profileRow as { salesforce_access_token?: string } | null)
-        ?.salesforce_access_token
-      if (salesforceToken) {
-        await createSalesforceContact(
-          {
-            name: contact.name || '',
-            email: (withMessages.email as string | undefined) || undefined,
-            phone: contact.phone || undefined,
-            company: contact.company || undefined,
-            position: contact.role || undefined,
-          },
-          userId
-        )
-      }
-    } catch (e) {
-      console.error('Salesforce sync error:', e)
-    }
-  })()
 }
 
 export async function runContactEnrichment(
@@ -503,7 +460,18 @@ export async function runContactEnrichment(
       50
 
     await onEnrichmentCompleted(contactId, userId, Number(matchScore) || 50)
-    deferCrmSync(profileRow as ABCProfile | null, userId, c, withMessages)
+    /*
+      No CRM export happens here, and none should.
+
+      Enrichment used to push a contact into HubSpot by itself whenever a token
+      was present — an external system written to as a side effect of an
+      internal one, with nothing on screen to say so and no way to decline.
+      Phase 7B removed that; a dead Salesforce branch outlived it and Phase 7D
+      removed that too, now that Salesforce has an explicit Push of its own.
+
+      Sending a customer's contacts into their CRM is an action they take.
+      Every export begins with a button.
+    */
   } catch (error) {
     console.error('runContactEnrichment error:', error)
     // Keep OCR data usable — mark failed, don't delete

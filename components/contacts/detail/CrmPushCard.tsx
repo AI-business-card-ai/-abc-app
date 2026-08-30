@@ -28,7 +28,7 @@ import type { ExportResult, ExportStep } from '@/lib/crm/types'
  * would be a comfortable lie, and the owner would find the gap themselves later.
  */
 
-type ProviderId = 'hubspot' | 'pipedrive'
+type ProviderId = 'hubspot' | 'pipedrive' | 'salesforce'
 type Status = 'idle' | 'pushing' | 'done' | 'error'
 
 type ConnectionStatus = {
@@ -71,6 +71,22 @@ const PROVIDERS: {
       association: 'Linked to organization',
       meeting: 'Meeting activity',
       task: 'Follow-up activity',
+    },
+  },
+  {
+    id: 'salesforce',
+    name: 'Salesforce',
+    connectPath: '/api/auth/salesforce',
+    labels: {
+      contact: 'Contact',
+      company: 'Account',
+      association: 'Linked to account',
+      // Not "Event". ABC records the meeting as a completed Salesforce Task,
+      // because Salesforce will not accept a timed Event without a duration or
+      // an end time and ABC knows neither. Saying "Event" here would name an
+      // object nothing writes.
+      meeting: 'Meeting',
+      task: 'Follow-up task',
     },
   },
 ]

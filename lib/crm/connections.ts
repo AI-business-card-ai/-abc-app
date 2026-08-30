@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { createServerSupabase } from '@/lib/supabase'
 import { decryptToken, encryptToken } from '@/lib/crm/encryption'
 
@@ -17,7 +18,7 @@ import { decryptToken, encryptToken } from '@/lib/crm/encryption'
  * service key, which does not exist there.
  */
 
-export type CrmProvider = 'hubspot' | 'pipedrive'
+export type CrmProvider = 'hubspot' | 'pipedrive' | 'salesforce'
 
 export type CrmConnection = {
   id: string
@@ -36,6 +37,8 @@ export type CrmConnection = {
    * this null rather than inventing a value.
    */
   apiBaseUrl: string | null
+  /** Set while another request is refreshing this connection. */
+  refreshLockId: string | null
 }
 
 /** Everything a browser is allowed to know about a connection. */
@@ -59,6 +62,7 @@ type Row = {
   connected_at: string | null
   needs_reconnect: boolean | null
   remote_api_base_url: string | null
+  refresh_lock_id: string | null
 }
 
 /**
@@ -102,6 +106,7 @@ export async function getCrmConnection(
     connectedAt: row.connected_at,
     needsReconnect: Boolean(row.needs_reconnect),
     apiBaseUrl: row.remote_api_base_url,
+    refreshLockId: row.refresh_lock_id,
   }
 }
 
@@ -223,6 +228,90 @@ export async function updateCrmTokens(args: {
     return false
   }
   return true
+}
+
+/**
+ * How long a refresh claim stays valid before another request may take it over.
+ *
+ * Long enough that a real token exchange finishes comfortably, short enough
+ * that a request killed mid-refresh does not strand the connection. A serverless
+ * function that dies leaves nothing behind to clean up, so the expiry is the
+ * only thing that will ever release the claim.
+ */
+const REFRESH_LOCK_TTL_MS = 30_000
+
+/** How long a request that lost the race will wait for the winner, in total. */
+export const REFRESH_WAIT_TIMEOUT_MS = 6_000
+/** How often it re-reads while waiting. Bounded polling, never a spin. */
+export const REFRESH_WAIT_INTERVAL_MS = 300
+
+export type RefreshClaim = { ok: true; lockId: string } | { ok: false }
+
+/**
+ * Try to become the one request that refreshes this connection.
+ *
+ * A single conditional UPDATE, which Postgres makes atomic for us: two
+ * statements contend for the same row, the first takes the row lock and writes,
+ * the second waits and then re-evaluates its WHERE against the committed value
+ * and matches nothing. The winner gets a row back; the loser gets none.
+ *
+ * This has to live in the database rather than in the process. Two ABC requests
+ * can be two Vercel instances that share no memory, so a JavaScript mutex would
+ * serialise nothing and would look like it worked right up until it mattered.
+ *
+ * A claim older than its expiry can be taken over, because a request that dies
+ * mid-refresh leaves no other way to release it.
+ */
+export async function claimRefreshLock(
+  ownerId: string,
+  provider: CrmProvider
+): Promise<RefreshClaim> {
+  const supabase = createServerSupabase()
+  const lockId = randomUUID()
+  const now = new Date()
+
+  const { data, error } = await supabase
+    .from('crm_connections')
+    .update({
+      refresh_lock_id: lockId,
+      refresh_lock_expires_at: new Date(now.getTime() + REFRESH_LOCK_TTL_MS).toISOString(),
+    })
+    .eq('user_id', ownerId)
+    .eq('provider', provider)
+    /*
+      Free, or stale. The timestamp is generated here rather than taken from
+      anywhere a caller could influence, so it is a value and never syntax.
+    */
+    .or(`refresh_lock_id.is.null,refresh_lock_expires_at.lt.${now.toISOString()}`)
+    .select('id')
+
+  if (error) {
+    console.error('[crm] refresh claim failed:', error.code ?? 'unknown')
+    return { ok: false }
+  }
+
+  return data && data.length > 0 ? { ok: true, lockId } : { ok: false }
+}
+
+/**
+ * Give the claim back, but only if it is still ours.
+ *
+ * Matching on the lock id matters: if this request stalled long enough for the
+ * claim to expire and someone else to take it, clearing the row would release
+ * *their* claim and let a third request refresh alongside them.
+ */
+export async function releaseRefreshLock(
+  ownerId: string,
+  provider: CrmProvider,
+  lockId: string
+): Promise<void> {
+  const supabase = createServerSupabase()
+  await supabase
+    .from('crm_connections')
+    .update({ refresh_lock_id: null, refresh_lock_expires_at: null })
+    .eq('user_id', ownerId)
+    .eq('provider', provider)
+    .eq('refresh_lock_id', lockId)
 }
 
 /**

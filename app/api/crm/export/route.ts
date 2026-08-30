@@ -18,7 +18,7 @@ import { logActivity } from '@/lib/crm'
  * The owner chooses one. Connecting both does not mean pushing to both — that
  * would be the app deciding where somebody's contacts go.
  */
-const PROVIDERS = ['hubspot', 'pipedrive'] as const
+const PROVIDERS = ['hubspot', 'pipedrive', 'salesforce'] as const
 type Provider = (typeof PROVIDERS)[number]
 
 type Body = {
