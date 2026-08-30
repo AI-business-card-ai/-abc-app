@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { IconCheck, IconCloudUpload, IconExternalLink, IconRefresh } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import { CardTitle, ErrorNote } from '@/components/contacts/detail/parts'
+import { CRM_PROVIDERS, crmStatusLabel } from '@/lib/crm/providers'
 import type { ContactDetail } from '@/lib/contact-detail'
-import type { ExportResult, ExportStep } from '@/lib/crm/types'
+import type { CrmProvider, ExportResult, ExportStep } from '@/lib/crm/types'
 
 /**
  * Push this person and this meeting into the owner's CRM.
@@ -28,7 +29,7 @@ import type { ExportResult, ExportStep } from '@/lib/crm/types'
  * would be a comfortable lie, and the owner would find the gap themselves later.
  */
 
-type ProviderId = 'hubspot' | 'pipedrive' | 'salesforce'
+type ProviderId = CrmProvider
 type Status = 'idle' | 'pushing' | 'done' | 'error'
 
 type ConnectionStatus = {
@@ -43,53 +44,54 @@ type ConnectionStatus = {
  * The step names are ABC's, and stay ABC's, but showing an owner "Contact" when
  * their CRM says "Person" makes them translate for us.
  */
-const PROVIDERS: {
-  id: ProviderId
-  name: string
-  connectPath: string
-  labels: { contact: string; company: string; association: string; meeting: string; task: string }
-}[] = [
-  {
-    id: 'hubspot',
-    name: 'HubSpot',
-    connectPath: '/api/auth/hubspot',
-    labels: {
-      contact: 'Contact',
-      company: 'Company',
-      association: 'Association',
-      meeting: 'Meeting',
-      task: 'Follow-up task',
-    },
+type PushLabels = {
+  contact: string
+  company: string
+  association: string
+  meeting: string
+  task: string
+}
+
+const LABELS: Record<ProviderId, PushLabels> = {
+  hubspot: {
+    contact: 'Contact',
+    company: 'Company',
+    association: 'Association',
+    meeting: 'Meeting',
+    task: 'Follow-up task',
   },
-  {
-    id: 'pipedrive',
-    name: 'Pipedrive',
-    connectPath: '/api/auth/pipedrive',
-    labels: {
-      contact: 'Person',
-      company: 'Organization',
-      association: 'Linked to organization',
-      meeting: 'Meeting activity',
-      task: 'Follow-up activity',
-    },
+  pipedrive: {
+    contact: 'Person',
+    company: 'Organization',
+    association: 'Linked to organization',
+    meeting: 'Meeting activity',
+    task: 'Follow-up activity',
   },
-  {
-    id: 'salesforce',
-    name: 'Salesforce',
-    connectPath: '/api/auth/salesforce',
-    labels: {
-      contact: 'Contact',
-      company: 'Account',
-      association: 'Linked to account',
-      // Not "Event". ABC records the meeting as a completed Salesforce Task,
-      // because Salesforce will not accept a timed Event without a duration or
-      // an end time and ABC knows neither. Saying "Event" here would name an
-      // object nothing writes.
-      meeting: 'Meeting',
-      task: 'Follow-up task',
-    },
+  salesforce: {
+    contact: 'Contact',
+    company: 'Account',
+    association: 'Linked to account',
+    // Not "Event". ABC records the meeting as a completed Salesforce Task,
+    // because Salesforce will not accept a timed Event without a duration or
+    // an end time and ABC knows neither. Saying "Event" here would name an
+    // object nothing writes.
+    meeting: 'Meeting',
+    task: 'Follow-up task',
   },
-]
+}
+
+/*
+  Identity from the shared list, wording from here.
+
+  Which CRMs exist is one fact and belongs in one place; what each of them
+  calls the objects ABC pushes is this card's own business. Keeping the first
+  half here as a second literal array is what let the contact sidebar and this
+  panel disagree about whether Pipedrive existed.
+*/
+const PROVIDERS = CRM_PROVIDERS.map((provider) => ({
+  ...provider,
+  labels: LABELS[provider.id],
+}))
 
 const STEP_LABEL: Record<string, string> = {
   created: 'Created',
@@ -213,12 +215,20 @@ export default function CrmPushCard({ contact }: { contact: ContactDetail }) {
     }
   }
 
-  const anyConnected = PROVIDERS.some(
-    (p) => connections[p.id]?.connected && !connections[p.id]?.needsReconnect
-  )
+  const anyConnected = PROVIDERS.some((p) => crmStatusLabel(connections[p.id]) === 'connected')
 
   return (
-    <section className="abc-surface p-5">
+    /*
+      `crm` is a link target, not decoration. This is the only place on the
+      contact screen where a connection can actually be made, so the sidebar
+      summary points here rather than at a settings page that has no CRM
+      controls on it.
+
+      Section id plus `scroll-mt-20` is the pattern the follow-ups screen
+      already uses for its anchors, and the margin clears the mobile header,
+      which is sticky and 56px tall.
+    */
+    <section id="crm" className="abc-surface scroll-mt-20 p-5">
       <div className="flex items-center gap-2">
         <IconCloudUpload size={17} stroke={1.8} style={{ color: 'var(--abc-gold-accent)' }} />
         <CardTitle>CRM</CardTitle>
@@ -235,8 +245,14 @@ export default function CrmPushCard({ contact }: { contact: ContactDetail }) {
         <div className="mt-4 flex flex-col gap-3">
           {PROVIDERS.map((provider) => {
             const connection = connections[provider.id]
-            const connected = Boolean(connection?.connected)
-            const needsReconnect = Boolean(connection?.needsReconnect)
+            /*
+              The same reading the contact sidebar uses. Both screens showing
+              this contact's CRM state now decide it in one place, which is the
+              whole point: they used to answer differently on one page.
+            */
+            const label = crmStatusLabel(connection)
+            const connected = label === 'connected'
+            const needsReconnect = label === 'needs_reconnect'
             const state = status[provider.id] ?? 'idle'
             const result = results[provider.id]
             const error = errors[provider.id]

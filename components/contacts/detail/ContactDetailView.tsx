@@ -28,6 +28,7 @@ import Avatar from '@/components/ui/abc/Avatar'
 import Button from '@/components/ui/abc/Button'
 import { IconTile } from '@/components/ui/abc/Bits'
 import { formatWhatsAppPhone } from '@/lib/outreach-composers'
+import { CRM_PROVIDERS, crmStatusLabel } from '@/lib/crm/providers'
 import type { ContactDetail, CrmConnections } from '@/lib/contact-detail'
 
 function scannedLine(contact: ContactDetail): string | null {
@@ -157,37 +158,62 @@ export default function ContactDetailView({
           <section className="abc-surface p-5">
             <CardTitle>CRM</CardTitle>
             <ul className="mt-3 flex flex-col gap-2.5">
-              {[
-                { name: 'HubSpot', connected: crm.hubspot },
-                { name: 'Salesforce', connected: crm.salesforce },
-              ].map((item) => (
-                <li
-                  key={item.name}
-                  className="flex items-center justify-between gap-3 rounded-inner border border-abc-border bg-abc-raised px-3.5 py-3"
-                >
-                  <span className="text-[14px] text-abc-text">{item.name}</span>
-                  {item.connected ? (
-                    <span
-                      className="inline-flex items-center gap-1.5 text-[12.5px] font-medium"
-                      style={{ color: 'var(--abc-green)' }}
-                    >
+              {/*
+                Every provider ABC ships, from the shared list, reading the
+                state the push card below reads. This was a literal array of
+                two, which is how Pipedrive came to be missing from a summary
+                of the CRMs while the panel underneath offered to push to it.
+              */}
+              {CRM_PROVIDERS.map((provider) => {
+                const label = crmStatusLabel(crm[provider.id])
+
+                return (
+                  <li
+                    key={provider.id}
+                    className="flex items-center justify-between gap-3 rounded-inner border border-abc-border bg-abc-raised px-3.5 py-3"
+                  >
+                    <span className="text-[14px] text-abc-text">{provider.name}</span>
+                    {label === 'connected' ? (
                       <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ background: 'var(--abc-green)' }}
-                        aria-hidden="true"
-                      />
-                      Connected
-                    </span>
-                  ) : (
-                    <span className="text-[12.5px] text-abc-muted">Not connected</span>
-                  )}
-                </li>
-              ))}
+                        className="inline-flex items-center gap-1.5 text-[12.5px] font-medium"
+                        style={{ color: 'var(--abc-green)' }}
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ background: 'var(--abc-green)' }}
+                          aria-hidden="true"
+                        />
+                        Connected
+                      </span>
+                    ) : label === 'needs_reconnect' ? (
+                      /*
+                        Connected once, unusable now. Saying "Connected" here
+                        would disagree with the push card, which declines to
+                        push and offers Reconnect instead.
+                      */
+                      <span
+                        className="text-[12.5px] font-medium"
+                        style={{ color: 'var(--abc-overdue)' }}
+                      >
+                        Needs reconnecting
+                      </span>
+                    ) : (
+                      <span className="text-[12.5px] text-abc-muted">Not connected</span>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
             <p className="mt-3 text-[12.5px] leading-[1.5] text-abc-muted">
-              Sending this contact and its meeting context to your CRM arrives with Integrations.
+              Manage CRM connections and send this contact from the CRM section below.
             </p>
-            <Button href="/settings" variant="surface" fullWidth className="mt-3">
+            {/*
+              The CRM section on this page, not /settings. That link went to a
+              screen which redirects to the account page, and the account page
+              has no CRM controls on it at all — so the button was a dead end
+              pointing away from the one place connections can be managed.
+            */}
+            <Button href="#crm" variant="surface" fullWidth className="mt-3">
               <IconPlugConnected size={17} stroke={1.8} />
               Manage connections
             </Button>

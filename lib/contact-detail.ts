@@ -1,7 +1,8 @@
 import { bucketFor, type FollowUpBucket } from '@/lib/followups'
 import { sourceLabel } from '@/lib/contacts-view'
 import { createServerComponentClient } from '@/lib/supabase-server'
-import { getCrmConnectionStatus } from '@/lib/crm/connections'
+import { getCrmConnectionStatus, type CrmProvider } from '@/lib/crm/connections'
+import { CRM_PROVIDERS } from '@/lib/crm/providers'
 
 /**
  * Everything the rebuilt contact detail renders.
@@ -85,10 +86,25 @@ export type ContactEncounterView = {
   followUpAt: string | null
 }
 
-export type CrmConnections = {
-  hubspot: boolean
-  salesforce: boolean
+/**
+ * Connection state for every provider ABC ships, as the sidebar renders it.
+ *
+ * Keyed by provider rather than a field per CRM, because a field per CRM is
+ * what let Pipedrive be forgotten here for an entire release while it worked
+ * everywhere else. Adding a provider to `CRM_PROVIDERS` now makes this a type
+ * error until it is populated, instead of silently omitting it.
+ *
+ * Carries `needsReconnect` alongside `connected` so this agrees with the push
+ * card rather than approximating it: a connection whose refresh has failed is
+ * not the same thing as a live one, and calling both "Connected" is how a
+ * summary starts lying about the thing it summarises.
+ */
+export type CrmConnectionSummary = {
+  connected: boolean
+  needsReconnect: boolean
 }
+
+export type CrmConnections = Record<CrmProvider, CrmConnectionSummary>
 
 export type ContactDetailData = {
   contact: ContactDetail
@@ -116,17 +132,12 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const [contactRes, profileRes, encounterRes, hubspot] = await Promise.all([
+  const [contactRes, encounterRes, connectionStatuses] = await Promise.all([
     supabase
       .from('scanned_contacts')
       .select(CONTACT_COLUMNS)
       .eq('id', id)
       .eq('user_id', user.id)
-      .maybeSingle(),
-    supabase
-      .from('abc_profiles')
-      .select('salesforce_access_token')
-      .eq('id', user.id)
       .maybeSingle(),
     // Owner-scoped as well as contact-scoped: RLS already restricts this, and
     // the explicit filter means a mistake returns nothing rather than trusting
@@ -142,10 +153,22 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
       .order('met_at', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(50),
-    // HubSpot connection state now comes from the secure store rather than from
-    // a token column on the profile — the token is no longer kept there, and a
-    // badge should not have been reading a credential to decide its own colour.
-    getCrmConnectionStatus(user.id, 'hubspot'),
+    /*
+      Connection state for every provider, from the one place that knows it.
+
+      HubSpot was moved to `crm_connections` when the secure store arrived;
+      Salesforce and Pipedrive were not, and the sidebar kept asking
+      `abc_profiles` for a `salesforce_access_token` that the Salesforce
+      migration had already dropped. PostgREST answered that with
+      `42703: column does not exist`, the code read only `.data` and never
+      `.error`, so the failure arrived as `null` and rendered as
+      "Not connected" — permanently, and for a CRM that was connected and
+      pushing records from the same screen.
+
+      Asking per provider from `CRM_PROVIDERS` means a fourth CRM cannot be
+      forgotten here the way the third one was.
+    */
+    Promise.all(CRM_PROVIDERS.map((p) => getCrmConnectionStatus(user.id, p.id))),
   ])
 
   const row = contactRes.data as Record<string, unknown> | null
@@ -196,9 +219,11 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
         followUpAt: clean(e.follow_up_at),
       })),
     },
-    crm: {
-      hubspot: hubspot.connected,
-      salesforce: Boolean(profileRes.data?.salesforce_access_token),
-    },
+    crm: Object.fromEntries(
+      connectionStatuses.map((s) => [
+        s.provider,
+        { connected: s.connected, needsReconnect: s.needsReconnect },
+      ])
+    ) as CrmConnections,
   }
 }
