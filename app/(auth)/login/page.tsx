@@ -19,6 +19,12 @@ function LoginContent() {
   const rawConnect = searchParams.get('connect')
   const connectUserId = rawConnect && UUID_RE.test(rawConnect) ? rawConnect : undefined
 
+  /*
+    Allowlisted, not reflected. The only thing read out of the query string is
+    whether the flag is exactly "1"; nothing from the URL reaches the page.
+  */
+  const justReset = searchParams.get('reset') === '1'
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -77,6 +83,20 @@ function LoginContent() {
               border: '1px solid rgba(42, 42, 42, 0.7)',
             }}
           >
+            {justReset && (
+              <p
+                className="rounded-lg px-3 py-2 text-xs"
+                style={{
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  border: '1px solid rgba(34, 197, 94, 0.35)',
+                  color: '#86efac',
+                }}
+                role="status"
+              >
+                Password updated. Sign in with your new password.
+              </p>
+            )}
+
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <input
                 type="email"
@@ -94,6 +114,15 @@ function LoginContent() {
                 placeholder="Password"
                 className="abc-input interactive-input px-3 py-2.5 text-xs opacity-90"
               />
+
+              <div className="flex justify-end -mt-1">
+                <Link
+                  href="/forgot-password"
+                  className="text-[11px] text-text-secondary interactive opacity-80 transition-opacity hover:opacity-100"
+                >
+                  Forgot password?
+                </Link>
+              </div>
 
               {error && (
                 <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">

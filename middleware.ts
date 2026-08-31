@@ -6,6 +6,11 @@ import type { NextRequest } from 'next/server'
     '/onboarding',
     '/login',
     '/register',
+    // Recovery has to work for an account that never finished onboarding —
+    // otherwise the gate below sends someone with a valid reset link to
+    // /onboarding instead of letting them set their password.
+    '/forgot-password',
+    '/reset-password',
     '/',
     '/settings',
     '/profile',

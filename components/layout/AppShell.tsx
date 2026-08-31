@@ -6,7 +6,15 @@ import DesktopSidebar from '@/components/layout/DesktopSidebar'
 import MobileNav from '@/components/layout/MobileNav'
 
 /** Routes that render without any app chrome. */
-const BARE_PATHS = ['/', '/login', '/register', '/onboarding', '/offline']
+const BARE_PATHS = [
+  '/',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/onboarding',
+  '/offline',
+]
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

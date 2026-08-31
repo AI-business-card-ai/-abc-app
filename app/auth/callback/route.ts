@@ -25,6 +25,14 @@ export async function GET(request: NextRequest) {
   const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
   const connectUserId = searchParams.get('connect')
 
+  /*
+    Set by the reset email's redirect, and only ever compared to a literal —
+    it selects a branch, it is never a destination. The recovery target is the
+    fixed `/reset-password` below, so nothing from the URL can steer where the
+    person lands.
+  */
+  const isRecovery = searchParams.get('flow') === 'recovery'
+
   console.log('[auth/callback] request received', {
     hasCode: Boolean(code),
     next: safeNext,
@@ -78,6 +86,24 @@ export async function GET(request: NextRequest) {
       email: user.email ?? null,
       provider: user.app_metadata?.provider ?? null,
     })
+
+    /*
+      A password reset stops here.
+
+      Everything below this point is sign-in bookkeeping: Google tokens, the
+      "Join ABC" contact, creating a profile for a first-time account, and the
+      rule that sends anyone with unfinished onboarding to /onboarding. None of
+      it belongs to a recovery — the account already exists, and that last rule
+      would send someone who abandoned onboarding to the wrong screen instead of
+      letting them set the password they came here to set.
+
+      The session from the exchange above is what proves the link was genuine,
+      so it is carried through; the reset screen reads nothing from the URL.
+    */
+    if (isRecovery) {
+      console.log('[auth/callback] recovery link exchanged, sending to reset')
+      return redirectWithAuthCookies(`${origin}/reset-password`)
+    }
 
     if (connectUserId) {
       // "Join ABC" viral loop — save the card owner as a contact in the new
