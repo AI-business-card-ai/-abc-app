@@ -1,5 +1,5 @@
 import { bucketFor, type FollowUpBucket } from '@/lib/followups'
-import { sourceLabel } from '@/lib/contacts-view'
+import { capturePhrase } from '@/lib/contacts-view'
 import { createServerComponentClient } from '@/lib/supabase-server'
 import { getCrmConnectionStatus, type CrmProvider } from '@/lib/crm/connections'
 import { CRM_PROVIDERS } from '@/lib/crm/providers'
@@ -63,7 +63,8 @@ export type ContactDetail = {
   followUpAt: string | null
   followUp: FollowUpBucket | null
 
-  sourceLabel: string | null
+  /** How this contact arrived, already phrased — see `capturePhrase`. */
+  capturePhrase: string | null
   scannedAt: string | null
 
   /**
@@ -207,7 +208,7 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
       followUpAt: clean(row.next_action_date),
       followUp: bucketFor(clean(row.next_action_date)),
 
-      sourceLabel: sourceLabel(clean(row.source)),
+      capturePhrase: capturePhrase(clean(row.source)),
       scannedAt: clean(row.scanned_at),
 
       encounters: ((encounterRes.data || []) as Record<string, unknown>[]).map((e) => ({

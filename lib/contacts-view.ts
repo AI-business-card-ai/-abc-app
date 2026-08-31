@@ -91,6 +91,34 @@ export function sourceLabel(value: string | null | undefined): string | null {
   return SOURCE_LABELS[value] ?? null
 }
 
+/**
+ * The captures where the person handed their details over, rather than being read.
+ *
+ * A reverse exchange is the one capture the owner did not perform: somebody
+ * opened their public card and sent their own details back. Nothing was
+ * scanned, so nothing should say it was.
+ */
+const SHARED_SOURCES = new Set(['card_exchange', 'reverse_qr'])
+
+/**
+ * How a contact arrived, as a whole phrase.
+ *
+ * The detail screen used to build this itself by prefixing "Scanned from " to
+ * the label, which read "Scanned from abc card" for a contact nobody scanned —
+ * the receiver typed it into a form on the owner's card. The phrase is decided
+ * here now, beside the labels it is built from.
+ *
+ * Every scanner source keeps the exact wording it already had; only the two
+ * exchange sources read differently, and only in how they are described. The
+ * stored `source` value is untouched.
+ */
+export function capturePhrase(value: string | null | undefined): string | null {
+  const label = sourceLabel(value)
+  if (!label || !value) return null
+
+  return SHARED_SOURCES.has(value) ? `Shared via ${label}` : `Scanned from ${label.toLowerCase()}`
+}
+
 function firstNonEmpty(...values: (string | null | undefined)[]): string | null {
   for (const value of values) {
     const trimmed = (value || '').trim()

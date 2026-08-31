@@ -33,7 +33,7 @@ import type { ContactDetail, CrmConnections } from '@/lib/contact-detail'
 
 function scannedLine(contact: ContactDetail): string | null {
   const parts: string[] = []
-  if (contact.sourceLabel) parts.push(`Scanned from ${contact.sourceLabel.toLowerCase()}`)
+  if (contact.capturePhrase) parts.push(contact.capturePhrase)
   if (contact.scannedAt) {
     const date = new Date(contact.scannedAt)
     if (!Number.isNaN(date.getTime())) {

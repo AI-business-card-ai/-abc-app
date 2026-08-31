@@ -113,6 +113,17 @@ export default function DigitalCardView({
   const glass = hero && Boolean(card.coverUrl)
   const t = glassTokens(base, glass)
 
+  /*
+    "Connect with David", or just "Connect".
+
+    A visitor at a stand should read a person's name, not a label. The name is
+    whatever the owner published, so it can be one word, several, or absent
+    entirely — the split tolerates all of that, and the fallback keeps the
+    button sensible rather than leaving "Connect with " hanging.
+  */
+  const firstName = card.fullName.trim().split(/\s+/)[0] || ''
+  const connectLabel = firstName ? `Connect with ${firstName}` : 'Connect'
+
   const socials = (Object.keys(SOCIAL_ICONS) as SocialNetwork[])
     .map((key) => {
       const meta = SOCIAL_ICONS[key]
@@ -433,6 +444,34 @@ export default function DigitalCardView({
           </div>
         ) : null}
 
+        {/*
+          Connect back, where it can actually be found.
+
+          This action lived only at the foot of the card, below the about text,
+          the links and the meeting details — so a visitor at a stand had to
+          read a stranger's whole profile before discovering they could hand
+          their own details over. It sits with Save Contact now, because those
+          are the two things somebody does with a card they have just been
+          shown, and it reads as the second of them rather than as an advert.
+
+          After both action layouts and before everything else, so hero and
+          plain cards get it in the same place without either branch repeating
+          it. Same `onExchange` as the button at the bottom: one modal, one
+          form, one endpoint.
+        */}
+        {onExchange || preview ? (
+          <div style={{ marginTop: 12 }}>
+            <ActionRow
+              Icon={IconSend}
+              title={connectLabel}
+              subtitle="Share your contact details"
+              tokens={t}
+              accent={accent}
+              onClick={onExchange ? () => onExchange() : undefined}
+            />
+          </div>
+        ) : null}
+
         {/* Remaining social profiles */}
         {otherSocials.length > 0 ? (
           <div
@@ -741,7 +780,15 @@ export default function DigitalCardView({
           </section>
         ) : null}
 
-        {/* Reciprocal exchange — secondary by design */}
+        {/*
+          The same action, closing the card.
+
+          Named differently from the one above on purpose. At the top, beside
+          Save Contact, the visitor is deciding what to do with a person they
+          have just met, so it reads as an intention: "Connect with David". Down
+          here they have read the whole profile and are choosing to act, so it
+          names the act instead. Two labels, one handler, one modal.
+        */}
         <div style={{ marginTop: 26 }}>
           <button
             type="button"
@@ -764,7 +811,7 @@ export default function DigitalCardView({
             }}
           >
             <IconSend size={18} stroke={1.75} style={{ color: t.secondary }} />
-            Send {card.fullName.split(' ')[0]} my details
+            Share your details
           </button>
         </div>
 
