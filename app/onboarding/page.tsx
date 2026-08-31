@@ -6,12 +6,32 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
 import { normalizeAbcProfile, stripProfileSecrets, PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 import { slugifyName, normalizeCardSlug, isValidCardSlug } from '@/lib/card/slug'
-import { normalizeSocialUrl } from '@/lib/card/social'
 import { uploadCardMedia } from '@/lib/card/media'
 import { CARD_PUBLIC_BASE } from '@/lib/card/types'
 import type { ABCProfile } from '@/lib/types'
 
+/**
+ * First run, card first.
+ *
+ * ABC Card's first useful artifact is the card. Onboarding used to ask five
+ * questions about outreach messaging before it mentioned one — and then let the
+ * card step be skipped, so a visitor could reach "You're all set" holding no
+ * public URL and no QR. Identity and the card now come first and finish
+ * onboarding between them; the messaging questions still exist, still write the
+ * same fields, and are simply offered afterwards.
+ *
+ *   0 welcome · 1 identity · 2 card · 3 card is live
+ *   4 what you sell · 5 ideal client · 6 tone · 7 length and goal
+ *
+ * Steps 4–7 are optional. Leaving after step 3 leaves a complete account with a
+ * live card.
+ */
 type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7
+
+/** The steps that must happen before the account is usable. */
+const CORE_STEPS: Step[] = [1, 2]
+/** The steps that teach ABC how to follow up. Skippable, in any order, later. */
+const PERSONALIZATION_STEPS: Step[] = [4, 5, 6, 7]
 
 const ROLE_CHIPS = ['Founders', 'Sales Directors', 'VPs', 'CTOs', 'Marketing', 'HR']
 const INDUSTRY_CHIPS = ['Tech', 'Finance', 'Healthcare', 'Manufacturing', 'Retail']
@@ -62,8 +82,26 @@ export default function OnboardingPage() {
   const [cardError, setCardError] = useState<string | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
 
-  const progressStep = step >= 1 && step <= 6 ? step : null
+  /**
+   * The address the server actually reserved.
+   *
+   * Separate from `cardSlug`, which is whatever is currently in the field. Only
+   * a value the server confirmed may be shown as a live link, so the success
+   * screen can never advertise a URL that was never published.
+   */
+  const [publishedSlug, setPublishedSlug] = useState('')
+
   const swipeStart = useRef<{ x: number; y: number } | null>(null)
+
+  const progress = useMemo(() => {
+    if (CORE_STEPS.includes(step)) {
+      return { index: CORE_STEPS.indexOf(step) + 1, total: CORE_STEPS.length }
+    }
+    if (PERSONALIZATION_STEPS.includes(step)) {
+      return { index: PERSONALIZATION_STEPS.indexOf(step) + 1, total: PERSONALIZATION_STEPS.length }
+    }
+    return null
+  }, [step])
 
   const combinedIcp = useMemo(() => {
     const parts = [icp.trim()]
@@ -106,6 +144,14 @@ export default function OnboardingPage() {
             profile.user_name ||
             ''
         )
+        /*
+          An address already reserved stays reserved. Someone returning
+          mid-flow, or coming back to edit, keeps the link they have handed out
+          — onboarding never mints a second one over the top of it.
+        */
+        if (profile.card_slug && profile.card_published) {
+          setPublishedSlug(profile.card_slug)
+        }
         const savedTone =
           profile.communication_style === 'casual'
             ? TONE_OPTIONS[1]
@@ -132,6 +178,11 @@ export default function OnboardingPage() {
     }
   }, [])
 
+  const goTo = useCallback((next: Step) => {
+    setDirection(next >= step ? 1 : -1)
+    setStep(next)
+  }, [step])
+
   const goNext = useCallback(() => {
     setDirection(1)
     setStep((s) => Math.min(7, s + 1) as Step)
@@ -150,14 +201,66 @@ export default function OnboardingPage() {
     setter(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value])
   }
 
-  const canContinueStep2 = name.trim() && company.trim() && role.trim()
-  const canContinueStep3 = product.trim().length >= 10
-  const canContinueStep4 = icp.trim().length >= 10 || combinedIcp.length >= 10
+  const canContinueIdentity = Boolean(name.trim() && company.trim() && role.trim())
+  const effectiveSlug = normalizeCardSlug(cardSlug || slugifyName(name))
+  const canPublishCard = canContinueIdentity && isValidCardSlug(effectiveSlug)
+  const canContinueProduct = product.trim().length >= 10
+  const canContinueIcp = icp.trim().length >= 10 || combinedIcp.length >= 10
 
-  const SAVE_PROFILE_ERROR =
-    'Something went wrong saving your profile, please try again'
+  const SAVE_PROFILE_ERROR = 'Something went wrong saving your profile, please try again'
 
-  async function handleComplete() {
+  /**
+   * Publish the card. This is what finishes onboarding.
+   *
+   * One request: the server validates the address, writes the card and marks
+   * onboarding complete in the same statement. Nothing here can leave an
+   * account "done" without a live card, because nothing here decides that.
+   */
+  async function handlePublishCard() {
+    setCardSaving(true)
+    setCardError(null)
+    try {
+      const res = await fetch('/api/onboarding/complete', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stage: 'card',
+          name: name.trim(),
+          company: company.trim(),
+          role: role.trim(),
+          cardSlug: effectiveSlug,
+          cardPhotoUrl: cardPhotoUrl || undefined,
+          linkedin: cardLinkedin.trim() || undefined,
+        }),
+      })
+
+      const json = (await res.json().catch(() => ({}))) as {
+        success?: boolean
+        error?: string
+        cardSlug?: string
+      }
+
+      if (!res.ok || !json.success) {
+        // The server's message here is written for a person — a taken address,
+        // a malformed one — so it is shown as sent.
+        setCardError(json.error || 'Could not publish your card. Try again.')
+        return
+      }
+
+      setPublishedSlug(json.cardSlug || effectiveSlug)
+      setCardSlug(json.cardSlug || effectiveSlug)
+      goTo(3)
+    } catch (err) {
+      console.error('[onboarding] publish card failed')
+      setCardError('Could not publish your card. Try again.')
+    } finally {
+      setCardSaving(false)
+    }
+  }
+
+  /** The optional half: how ABC should write follow-ups. Never gates the card. */
+  async function handleSavePersonalization() {
     setSubmitting(true)
     setError(null)
     try {
@@ -166,6 +269,7 @@ export default function OnboardingPage() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          stage: 'personalization',
           name: name.trim(),
           company: company.trim(),
           role: role.trim(),
@@ -178,91 +282,19 @@ export default function OnboardingPage() {
         }),
       })
 
-      let json: { success?: boolean; error?: string; code?: string; details?: string } = {}
-      try {
-        json = (await res.json()) as typeof json
-      } catch (parseErr) {
-        console.error('[onboarding] complete response parse failed', parseErr)
-        setError(SAVE_PROFILE_ERROR)
-        return
-      }
+      const json = (await res.json().catch(() => ({}))) as { success?: boolean }
 
       if (!res.ok || !json.success) {
-        console.error('[onboarding] complete failed', {
-          status: res.status,
-          error: json.error,
-          code: json.code,
-          details: json.details,
-        })
         setError(SAVE_PROFILE_ERROR)
         return
       }
 
-      // Prefill card slug from name before card step
-      if (!cardSlug.trim() && name.trim()) {
-        setCardSlug(slugifyName(name))
-      }
-      goNext()
+      router.push('/scan')
     } catch (err) {
-      console.error('[onboarding] complete request failed', err)
+      console.error('[onboarding] personalization save failed')
       setError(SAVE_PROFILE_ERROR)
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  async function handlePublishCard() {
-    setCardSaving(true)
-    setCardError(null)
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-
-      const slug = normalizeCardSlug(cardSlug || slugifyName(name))
-      if (!isValidCardSlug(slug)) {
-        setCardError('Slug musí mít 3–40 znaků (a-z, 0-9, -).')
-        return
-      }
-
-      const linkedin = normalizeSocialUrl('linkedin', cardLinkedin)
-
-      const { error: updateError } = await supabase
-        .from('abc_profiles')
-        .update({
-          card_slug: slug,
-          card_published: true,
-          card_photo_url: cardPhotoUrl || null,
-          avatar_url: cardPhotoUrl || null,
-          linkedin_url: linkedin,
-          job_title: role || null,
-          company_name: company || null,
-          what_i_do: product || null,
-          full_name: name || null,
-        })
-        .eq('id', user.id)
-
-      if (updateError) {
-        console.error('[onboarding] publish card failed:', updateError)
-        if (updateError.code === '23505') {
-          setCardError('Tento slug už někdo používá. Zvol jiný.')
-        } else {
-          setCardError('Nepodařilo se publikovat kartu.')
-        }
-        return
-      }
-
-      setCardSlug(slug)
-      goNext()
-    } catch (err) {
-      console.error('[onboarding] publish card error:', err)
-      setCardError('Nepodařilo se publikovat kartu.')
-    } finally {
-      setCardSaving(false)
     }
   }
 
@@ -279,7 +311,7 @@ export default function OnboardingPage() {
       }
       setCardPhotoUrl(result.url)
     } catch (err) {
-      console.error('[onboarding] photo upload failed:', err)
+      console.error('[onboarding] photo upload failed')
       setCardError('The upload did not complete. Try again.')
     } finally {
       setPhotoUploading(false)
@@ -297,6 +329,8 @@ export default function OnboardingPage() {
     )
   }
 
+  const publicUrl = publishedSlug ? `${CARD_PUBLIC_BASE}/${publishedSlug}` : null
+
   return (
     <div
       className="min-h-[100dvh] flex flex-col overflow-x-hidden"
@@ -312,32 +346,37 @@ export default function OnboardingPage() {
         swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
       }}
       onTouchEnd={(e) => {
-        if (!swipeStart.current || step === 0 || step === 7) return
+        if (!swipeStart.current) return
         const dx = e.changedTouches[0].clientX - swipeStart.current.x
         const dy = Math.abs(e.changedTouches[0].clientY - swipeStart.current.y)
+        swipeStart.current = null
         if (dy > 60) return
-        if (dx < -60 && step < 6) {
-          if (step === 1 && !canContinueStep2) return
-          if (step === 2 && !canContinueStep3) return
-          if (step === 3 && !canContinueStep4) return
-          if (step === 5) return
-          goNext()
-        } else if (dx > 60) {
+
+        if (dx < -60) {
+          /*
+            Swiping forward is a shortcut past a step, never past a decision.
+            Publishing, and the screen that confirms it, are choices with a
+            button each — so neither can be skipped by a gesture.
+          */
+          if (step === 1 && canContinueIdentity) goNext()
+          if (step === 4 && canContinueProduct) goNext()
+          if (step === 5 && canContinueIcp) goNext()
+          if (step === 6) goNext()
+        } else if (dx > 60 && step !== 0 && step !== 3) {
           goBack()
         }
-        swipeStart.current = null
       }}
     >
-      {progressStep !== null && (
+      {progress && (
         <div className="flex justify-center gap-2 mb-4 pt-1 shrink-0">
-          {[1, 2, 3, 4, 5, 6].map((n) => (
+          {Array.from({ length: progress.total }, (_, i) => i + 1).map((n) => (
             <span
               key={n}
               className="rounded-full transition-all duration-300"
               style={{
-                width: progressStep === n ? 24 : 8,
+                width: progress.index === n ? 24 : 8,
                 height: 8,
-                background: n <= progressStep
+                background: n <= progress.index
                   ? 'linear-gradient(135deg, #f0197d, #00d4d4)'
                   : '#2a2a2a',
               }}
@@ -363,16 +402,20 @@ export default function OnboardingPage() {
                 <div className="text-center w-full">
                   <span className="gradient-logo text-4xl font-black tracking-widest">ABC</span>
                   <h1 className="mt-6 font-bold" style={headlineStyle}>
-                    {isEditing ? 'Update your AI profile' : 'Set up your AI'}
+                    {isEditing ? 'Update your AI profile' : 'Create your ABC Card'}
                   </h1>
                   <p className="mt-3 text-base leading-relaxed" style={{ color: '#999999' }}>
                     {isEditing
-                      ? 'Update your answers so ABC keeps writing perfect messages for every contact.'
-                      : 'Five quick questions — then every card gets a personalized message in seconds.'}
+                      ? 'Update your answers so ABC keeps writing the right follow-up for every contact.'
+                      : 'Two quick steps and your card is live, with a public link and a QR code you can show to anyone.'}
                   </p>
                 </div>
-                <button type="button" onClick={goNext} className="glow-btn w-full rounded-xl font-bold text-base min-h-[56px]">
-                  {isEditing ? 'Continue →' : 'Get Started →'}
+                <button
+                  type="button"
+                  onClick={() => goTo(isEditing ? 4 : 1)}
+                  className="glow-btn w-full rounded-xl font-bold text-base min-h-[56px]"
+                >
+                  {isEditing ? 'Continue →' : 'Get started →'}
                 </button>
               </>
             )}
@@ -380,82 +423,22 @@ export default function OnboardingPage() {
             {step === 1 && (
               <>
                 <h2 className="font-bold" style={headlineStyle}>What&apos;s your name and what do you do?</h2>
+                <p className="text-sm" style={{ color: '#999999' }}>This is what people see on your card.</p>
                 <div className="flex flex-col gap-3 w-full">
                   <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="onboarding-input" />
                   <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Your company" className="onboarding-input" />
                   <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Your role" className="onboarding-input" />
                 </div>
-                <NavButtons onBack={goBack} onNext={goNext} nextDisabled={!canContinueStep2} />
+                <NavButtons onBack={goBack} onNext={goNext} nextDisabled={!canContinueIdentity} />
               </>
             )}
 
             {step === 2 && (
               <>
-                <h2 className="font-bold" style={headlineStyle}>What do you sell or offer?</h2>
-                <textarea
-                  value={product}
-                  onChange={(e) => setProduct(e.target.value)}
-                  placeholder="e.g. We help sales teams close more deals with AI-powered outreach..."
-                  className="onboarding-input min-h-[120px] py-4 resize-none w-full"
-                />
-                <NavButtons onBack={goBack} onNext={goNext} nextDisabled={!canContinueStep3} />
-              </>
-            )}
-
-            {step === 3 && (
-              <>
-                <h2 className="font-bold" style={headlineStyle}>Who is your ideal client?</h2>
-                <textarea
-                  value={icp}
-                  onChange={(e) => setIcp(e.target.value)}
-                  placeholder="e.g. Sales Directors at B2B tech companies in Europe..."
-                  className="onboarding-input min-h-[88px] py-4 resize-none w-full"
-                />
-                <ChipGroup label="Role" options={ROLE_CHIPS} selected={selectedRoles} onToggle={(v) => toggleChip(v, selectedRoles, setSelectedRoles)} />
-                <ChipGroup label="Industry" options={INDUSTRY_CHIPS} selected={selectedIndustries} onToggle={(v) => toggleChip(v, selectedIndustries, setSelectedIndustries)} />
-                <ChipGroup label="Size" options={SIZE_CHIPS} selected={selectedSizes} onToggle={(v) => toggleChip(v, selectedSizes, setSelectedSizes)} />
-                <ChipGroup label="Region" options={REGION_CHIPS} selected={selectedRegions} onToggle={(v) => toggleChip(v, selectedRegions, setSelectedRegions)} />
-                <NavButtons onBack={goBack} onNext={goNext} nextDisabled={!canContinueStep4} />
-              </>
-            )}
-
-            {step === 4 && (
-              <>
-                <h2 className="font-bold" style={headlineStyle}>Tone &amp; language</h2>
-                <p className="text-sm" style={{ color: '#999999' }}>How should ABC sound when reaching out?</p>
-                <SelectCards label="Tone" options={TONE_OPTIONS} value={tone} onChange={setTone} columns={2} />
-                <SelectCards
-                  label="Message language"
-                  options={LANGUAGE_OPTIONS.map((l) => (l === 'EN' ? 'English' : 'Czech'))}
-                  value={language === 'EN' ? 'English' : 'Czech'}
-                  onChange={(v) => setLanguage(v === 'English' ? 'EN' : 'CZ')}
-                  columns={2}
-                />
-                <NavButtons onBack={goBack} onNext={goNext} />
-              </>
-            )}
-
-            {step === 5 && (
-              <>
-                <h2 className="font-bold" style={headlineStyle}>Length &amp; goal</h2>
-                <p className="text-sm" style={{ color: '#999999' }}>What should each message achieve?</p>
-                <SelectCards label="Message length" options={LENGTH_OPTIONS} value={messageLength} onChange={setMessageLength} columns={2} />
-                <SelectCards label="Primary goal" options={GOAL_OPTIONS} value={goal} onChange={setGoal} columns={2} />
-                <NavButtons
-                  onBack={goBack}
-                  onNext={handleComplete}
-                  nextLabel={submitting ? 'Saving…' : isEditing ? 'Save changes' : 'Complete Setup →'}
-                  nextDisabled={submitting}
-                  error={error}
-                />
-              </>
-            )}
-
-            {step === 6 && (
-              <>
-                <h2 className="font-bold" style={headlineStyle}>Tvoje vizitka</h2>
+                <h2 className="font-bold" style={headlineStyle}>Your ABC Card</h2>
                 <p className="text-sm" style={{ color: '#999999' }}>
-                  Doplň foto a LinkedIn — odcházíš s publikovanou digitální kartou.
+                  Publishing gives you a public card, a link you can send, and a QR code to show.
+                  A photo and LinkedIn are optional.
                 </p>
                 <div className="flex flex-col items-center gap-3 w-full">
                   <div
@@ -474,7 +457,7 @@ export default function OnboardingPage() {
                     )}
                   </div>
                   <label className="glow-btn rounded-xl font-bold text-sm min-h-[44px] px-4 flex items-center justify-center cursor-pointer">
-                    {photoUploading ? 'Nahrávám…' : 'Nahrát foto'}
+                    {photoUploading ? 'Uploading…' : 'Add a photo'}
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
@@ -486,12 +469,12 @@ export default function OnboardingPage() {
                 <input
                   value={cardLinkedin}
                   onChange={(e) => setCardLinkedin(e.target.value)}
-                  placeholder="LinkedIn URL nebo username"
+                  placeholder="LinkedIn URL or username"
                   className="onboarding-input"
                 />
                 <div className="w-full">
                   <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: '#555555' }}>
-                    Tvoje URL
+                    Your card address
                   </p>
                   <div className="flex items-center gap-2">
                     <span style={{ color: '#555', fontSize: 13, whiteSpace: 'nowrap' }}>abccard.io/d/</span>
@@ -499,33 +482,26 @@ export default function OnboardingPage() {
                       value={cardSlug}
                       onChange={(e) => setCardSlug(normalizeCardSlug(e.target.value))}
                       className="onboarding-input"
-                      placeholder="david-bures"
+                      placeholder={slugifyName(name) || 'your-name'}
                     />
                   </div>
-                  {cardSlug ? (
+                  {effectiveSlug ? (
                     <p className="text-xs mt-2" style={{ color: '#00d4d4' }}>
-                      {CARD_PUBLIC_BASE}/{cardSlug}
+                      {CARD_PUBLIC_BASE}/{effectiveSlug}
                     </p>
                   ) : null}
                 </div>
                 <NavButtons
                   onBack={goBack}
                   onNext={() => void handlePublishCard()}
-                  nextLabel={cardSaving ? 'Publikuji…' : 'Publikovat vizitku →'}
-                  nextDisabled={cardSaving || !normalizeCardSlug(cardSlug || slugifyName(name))}
+                  nextLabel={cardSaving ? 'Publishing…' : 'Publish my card →'}
+                  nextDisabled={cardSaving || !canPublishCard}
                   error={cardError}
                 />
-                <button
-                  type="button"
-                  onClick={goNext}
-                  className="ghost-btn w-full rounded-xl font-medium text-sm min-h-[44px]"
-                >
-                  Přeskočit zatím
-                </button>
               </>
             )}
 
-            {step === 7 && (
+            {step === 3 && (
               <>
                 <div className="flex flex-col items-center text-center gap-4 py-2 w-full">
                   <motion.div
@@ -538,32 +514,39 @@ export default function OnboardingPage() {
                     ✓
                   </motion.div>
                   <h2 className="font-bold" style={headlineStyle}>
-                    You&apos;re all set, {name.split(' ')[0] || name}!
+                    Your ABC Card is live
                   </h2>
                   <p className="text-base leading-relaxed max-w-sm" style={{ color: '#999999' }}>
-                    ABC teď zná tvůj styl. Každý sken dostane personalizovanou zprávu — a máš digitální vizitku.
+                    Anyone who opens this link or scans your QR gets your details — and can send you
+                    theirs back.
                   </p>
-                  {cardSlug ? (
-                    <p className="text-sm font-semibold" style={{ color: '#00d4d4' }}>
-                      {CARD_PUBLIC_BASE}/{cardSlug}
+                  {publicUrl ? (
+                    <p className="text-sm font-semibold break-all" style={{ color: '#00d4d4' }}>
+                      {publicUrl}
                     </p>
                   ) : null}
                 </div>
 
+                {/*
+                  The QR, the share controls and the public preview already live
+                  on My Card, in the canonical three-state view. Sending the
+                  visitor there beats growing a second QR implementation inside
+                  onboarding that would have to be kept in step with it.
+                */}
                 <button
                   type="button"
-                  onClick={() => router.push('/scan')}
+                  onClick={() => router.push('/my-card')}
                   className="glow-btn w-full rounded-xl font-bold text-base min-h-[56px]"
                 >
-                  Start Scanning →
+                  Show my card &amp; QR →
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => router.push('/profile/card')}
+                  onClick={() => router.push('/scan')}
                   className="ghost-btn w-full rounded-xl font-medium text-base min-h-[48px]"
                 >
-                  Upravit vizitku →
+                  Start scanning →
                 </button>
 
                 <div
@@ -571,18 +554,82 @@ export default function OnboardingPage() {
                   style={{ background: '#1a1a1a', border: '1px solid #2a2a2a' }}
                 >
                   <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#555555' }}>
-                    What to do next
+                    Optional
                   </p>
-                  {[
-                    '📷 Scan any business card',
-                    '🤖 AI writes personalized message in 10s',
-                    '✉️ Send on LinkedIn, Email or WhatsApp',
-                  ].map((tip) => (
-                    <p key={tip} className="text-sm leading-snug" style={{ color: '#999999' }}>
-                      {tip}
-                    </p>
-                  ))}
+                  <p className="text-sm leading-snug" style={{ color: '#999999' }}>
+                    Personalize Smart Follow-up — teach ABC how you like to follow up after meetings.
+                    You can do this any time.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => goTo(4)}
+                    className="ghost-btn w-full rounded-xl font-medium text-sm min-h-[44px]"
+                  >
+                    Personalize Smart Follow-up →
+                  </button>
                 </div>
+              </>
+            )}
+
+            {step === 4 && (
+              <>
+                <h2 className="font-bold" style={headlineStyle}>What do you sell or offer?</h2>
+                <textarea
+                  value={product}
+                  onChange={(e) => setProduct(e.target.value)}
+                  placeholder="e.g. We help sales teams close more deals with AI-powered outreach..."
+                  className="onboarding-input min-h-[120px] py-4 resize-none w-full"
+                />
+                <NavButtons onBack={goBack} onNext={goNext} nextDisabled={!canContinueProduct} />
+              </>
+            )}
+
+            {step === 5 && (
+              <>
+                <h2 className="font-bold" style={headlineStyle}>Who is your ideal client?</h2>
+                <textarea
+                  value={icp}
+                  onChange={(e) => setIcp(e.target.value)}
+                  placeholder="e.g. Sales Directors at B2B tech companies in Europe..."
+                  className="onboarding-input min-h-[88px] py-4 resize-none w-full"
+                />
+                <ChipGroup label="Role" options={ROLE_CHIPS} selected={selectedRoles} onToggle={(v) => toggleChip(v, selectedRoles, setSelectedRoles)} />
+                <ChipGroup label="Industry" options={INDUSTRY_CHIPS} selected={selectedIndustries} onToggle={(v) => toggleChip(v, selectedIndustries, setSelectedIndustries)} />
+                <ChipGroup label="Size" options={SIZE_CHIPS} selected={selectedSizes} onToggle={(v) => toggleChip(v, selectedSizes, setSelectedSizes)} />
+                <ChipGroup label="Region" options={REGION_CHIPS} selected={selectedRegions} onToggle={(v) => toggleChip(v, selectedRegions, setSelectedRegions)} />
+                <NavButtons onBack={goBack} onNext={goNext} nextDisabled={!canContinueIcp} />
+              </>
+            )}
+
+            {step === 6 && (
+              <>
+                <h2 className="font-bold" style={headlineStyle}>Tone &amp; language</h2>
+                <p className="text-sm" style={{ color: '#999999' }}>How should ABC sound when reaching out?</p>
+                <SelectCards label="Tone" options={TONE_OPTIONS} value={tone} onChange={setTone} columns={2} />
+                <SelectCards
+                  label="Message language"
+                  options={LANGUAGE_OPTIONS.map((l) => (l === 'EN' ? 'English' : 'Czech'))}
+                  value={language === 'EN' ? 'English' : 'Czech'}
+                  onChange={(v) => setLanguage(v === 'English' ? 'EN' : 'CZ')}
+                  columns={2}
+                />
+                <NavButtons onBack={goBack} onNext={goNext} />
+              </>
+            )}
+
+            {step === 7 && (
+              <>
+                <h2 className="font-bold" style={headlineStyle}>Length &amp; goal</h2>
+                <p className="text-sm" style={{ color: '#999999' }}>What should each message achieve?</p>
+                <SelectCards label="Message length" options={LENGTH_OPTIONS} value={messageLength} onChange={setMessageLength} columns={2} />
+                <SelectCards label="Primary goal" options={GOAL_OPTIONS} value={goal} onChange={setGoal} columns={2} />
+                <NavButtons
+                  onBack={goBack}
+                  onNext={() => void handleSavePersonalization()}
+                  nextLabel={submitting ? 'Saving…' : isEditing ? 'Save changes' : 'Save and start scanning →'}
+                  nextDisabled={submitting}
+                  error={error}
+                />
               </>
             )}
           </motion.div>

@@ -4,6 +4,8 @@ import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { formatSupabaseError } from '@/lib/supabase-errors'
 import { getLanguageInstruction } from '@/lib/ai-messages'
+import { isValidCardSlug, normalizeCardSlug, slugifyName } from '@/lib/card/slug'
+import { normalizeSocialUrl } from '@/lib/card/social'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -15,25 +17,29 @@ function mapStyleToCommunication(style: string): 'direct' | 'formal' | 'casual' 
   return 'direct'
 }
 
+/** One message for the browser, whatever went wrong underneath. */
+const GENERIC_ERROR = 'Something went wrong saving your profile. Please try again.'
+
+/**
+ * A failure the caller can act on, and nothing they cannot.
+ *
+ * This used to hand back the Supabase `code` and `details` beside the message
+ * and log the raw error object — database internals in a browser response, and
+ * whatever the request carried in the logs. The server still records enough to
+ * debug with: a short code and a formatted message, never the submitted body.
+ */
 function errorResponse(error: unknown, status = 500) {
-  const message = formatSupabaseError(error)
   const code = typeof error === 'object' && error !== null && 'code' in error
     ? String((error as { code?: string }).code || '')
     : undefined
-  const details = typeof error === 'object' && error !== null && 'details' in error
-    ? String((error as { details?: string }).details || '')
-    : undefined
 
-  console.error('[onboarding/complete] failed', { message, code, details, raw: error })
+  console.error('[onboarding/complete] failed', {
+    status,
+    code: code || 'unknown',
+    message: formatSupabaseError(error),
+  })
 
-  return NextResponse.json(
-    {
-      error: message,
-      code: code || undefined,
-      details: details || undefined,
-    },
-    { status }
-  )
+  return NextResponse.json({ error: GENERIC_ERROR }, { status })
 }
 
 async function generateUserPrompt(input: {
@@ -90,6 +96,95 @@ Output ONLY the context text, no labels or formatting.`,
   )
 }
 
+/**
+ * Publish the card, and finish onboarding, in one statement.
+ *
+ * These belong together. Onboarding used to be marked complete after the
+ * messaging questions and before the card existed, so a visitor could skip the
+ * card step and still be told "You're all set" while holding no public URL and
+ * no QR — the product's whole first artifact, missing, reported as success.
+ * Writing `card_published` and `onboarding_completed` in the same UPDATE makes
+ * that state unreachable rather than merely discouraged.
+ *
+ * Completion is decided here rather than in the browser on purpose:
+ * `onboarding_completed` is deliberately absent from PROFILE_WRITABLE_COLUMNS,
+ * and this keeps it that way.
+ *
+ * No model call. A live card must not depend on Anthropic being reachable.
+ */
+async function completeCardStage(
+  serviceClient: ReturnType<typeof createServiceClient>,
+  userId: string,
+  email: string | null,
+  body: Record<string, unknown>
+) {
+  const text = (value: unknown, max: number) =>
+    typeof value === 'string' ? value.trim().slice(0, max) : ''
+
+  const name = text(body.name, 120)
+  const company = text(body.company, 120)
+  const role = text(body.role, 120)
+
+  if (!name || !company || !role) {
+    return NextResponse.json({ error: 'Name, company and role are required.' }, { status: 400 })
+  }
+
+  // The slug the visitor chose, or one derived from their name. Normalised the
+  // same way the field normalises it as they type, so what they saw is what is
+  // reserved.
+  const slug = normalizeCardSlug(text(body.cardSlug, 60) || slugifyName(name))
+  if (!isValidCardSlug(slug)) {
+    return NextResponse.json(
+      { error: 'A card address needs 3–40 characters: letters, numbers and hyphens.' },
+      { status: 400 }
+    )
+  }
+
+  const photoUrl = text(body.cardPhotoUrl, 500) || null
+  const linkedin = normalizeSocialUrl('linkedin', text(body.linkedin, 300))
+
+  const payload = {
+    full_name: name,
+    company,
+    role,
+    job_title: role,
+    company_name: company,
+    card_slug: slug,
+    card_published: true,
+    card_photo_url: photoUrl,
+    avatar_url: photoUrl,
+    linkedin_url: linkedin,
+    onboarding_completed: true,
+  }
+
+  const { data: existing, error: lookupError } = await serviceClient
+    .from('abc_profiles')
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (lookupError) return errorResponse(lookupError)
+
+  const { error: writeError } = existing
+    ? await serviceClient.from('abc_profiles').update(payload).eq('id', userId)
+    : await serviceClient.from('abc_profiles').insert({ id: userId, email, ...payload })
+
+  if (writeError) {
+    // The slug is the one field another account can already be holding.
+    if ((writeError as { code?: string }).code === '23505') {
+      return NextResponse.json(
+        { error: 'That card address is already taken. Try another one.' },
+        { status: 409 }
+      )
+    }
+    return errorResponse(writeError)
+  }
+
+  console.log('[onboarding/complete] card published', { userId, stage: 'card' })
+
+  return NextResponse.json({ success: true, cardSlug: slug })
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Onboarding completion writes ONLY to abc_profiles — never scanned_contacts or enrichment.
@@ -108,6 +203,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as {
+      stage?: string
       name?: string
       company?: string
       role?: string
@@ -117,6 +213,24 @@ export async function POST(req: NextRequest) {
       language?: string
       goal?: string
       messageLength?: string
+    }
+
+    /*
+      Two stages, one endpoint.
+
+      `card` is the launch path: identity plus a published card, which is what
+      finishing onboarding now means. `personalization` is the older body and
+      stays the default, so anything still posting the original shape keeps
+      working — it teaches ABC how to write follow-ups and no longer gates the
+      card behind that.
+    */
+    if (body.stage === 'card') {
+      return await completeCardStage(
+        createServiceClient(),
+        user.id,
+        user.email ?? null,
+        body as Record<string, unknown>
+      )
     }
 
     const name = body.name?.trim()
