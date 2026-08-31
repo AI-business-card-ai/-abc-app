@@ -67,13 +67,6 @@ const labelStyle: React.CSSProperties = {
 
 export default function DigitalCardClient({ profile }: { profile: PublicCardProfile }) {
   const [mounted, setMounted] = useState(false)
-  const [name, setName] = useState('')
-  const [company, setCompany] = useState('')
-  const [role, setRole] = useState('')
-  const [context, setContext] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submitSuccess, setSubmitSuccess] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -112,44 +105,6 @@ export default function DigitalCardClient({ profile }: { profile: PublicCardProf
     downloadVcard(vcard, filename)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSubmitError(null)
-
-    const trimmedName = name.trim()
-    if (!trimmedName) {
-      setSubmitError('Please enter your name.')
-      return
-    }
-
-    setSubmitting(true)
-    try {
-      const res = await fetch('/api/card/reverse-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: profile.userId,
-          name: trimmedName,
-          company: company.trim() || undefined,
-          role: role.trim() || undefined,
-          context: context.trim() || undefined,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Something went wrong. Please try again.')
-      }
-      setSubmitSuccess(true)
-      setName('')
-      setCompany('')
-      setRole('')
-      setContext('')
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Something went wrong.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
   return (
     <div
@@ -303,91 +258,19 @@ export default function DigitalCardClient({ profile }: { profile: PublicCardProf
           Saves directly to your phone&apos;s contacts
         </p>
 
-        {/* DIVIDER */}
-        <p style={{ color: '#4b5563', fontSize: 11, textAlign: 'center', margin: '0 0 20px' }}>
-          — or leave your contact —
-        </p>
+        {/*
+          The reverse-lead form used to live here.
 
-        {/* REVERSE LEAD FORM */}
-        {submitSuccess ? (
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                background: 'rgba(34,197,94,0.12)',
-                border: '1px solid rgba(34,197,94,0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 14px',
-                fontSize: 20,
-                color: '#22c55e',
-              }}
-            >
-              ✓
-            </div>
-            <p style={{ color: '#ffffff', fontSize: 15, fontWeight: 600, margin: 0 }}>
-              Sent! {firstName} will be in touch.
-            </p>
-          </div>
-        ) : (
-          <div>
-            <h2 style={{ color: '#ffffff', fontSize: 15, fontWeight: 600, margin: '0 0 16px' }}>
-              Let {firstName} know who you are
-            </h2>
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={labelStyle}>Your name *</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  style={inputStyle}
-                  placeholder="Jane Smith"
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Your company</label>
-                <input
-                  type="text"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  style={inputStyle}
-                  placeholder="Acme Inc."
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Your role</label>
-                <input
-                  type="text"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  style={inputStyle}
-                  placeholder="Head of Sales"
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Where did you meet? / context</label>
-                <textarea
-                  value={context}
-                  onChange={(e) => setContext(e.target.value)}
-                  rows={3}
-                  style={{ ...inputStyle, height: 'auto', padding: '10px 14px', resize: 'vertical' }}
-                  placeholder="Met at SaaStr London, talked about outbound..."
-                />
-              </div>
-              {submitError ? (
-                <p style={{ color: '#f0197d', fontSize: 13, margin: 0 }}>{submitError}</p>
-              ) : null}
-              <button type="submit" disabled={submitting} style={{ ...gradientBtn, opacity: submitting ? 0.7 : 1 }}>
-                {submitting ? 'Sending…' : 'Send my contact →'}
-              </button>
-            </form>
-          </div>
-        )}
+          It was a second public write surface with its own rules: no email
+          captured, no consent, no honeypot, no rate limit, and it took the
+          target account straight from the URL. This page renders for profiles
+          that have no published card, so there is no canonical card identity to
+          bind an exchange to — the fix is not to re-validate it here but to
+          have one exchange, on the published card, at /d/<slug>.
+
+          Viewing is untouched: printed /card/ and /u/ links still open, still
+          show the card, and still save a vCard.
+        */}
       </div>
 
       {/* FOOTER */}

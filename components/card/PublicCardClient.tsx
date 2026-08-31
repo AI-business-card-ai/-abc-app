@@ -30,11 +30,15 @@ export default function PublicCardClient({
         onExchange={() => setExchangeOpen(true)}
         onLinkClick={handleLinkClick}
       />
+      {/*
+        The slug, not the owner id. Which card was opened is a fact this page
+        already holds; who it belongs to is the server's to decide.
+      */}
       <CardExchangeModal
         open={exchangeOpen}
         onClose={() => setExchangeOpen(false)}
         ownerName={card.fullName}
-        ownerUserId={card.userId}
+        cardSlug={card.slug}
       />
     </>
   )

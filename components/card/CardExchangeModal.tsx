@@ -4,7 +4,14 @@ import { useState } from 'react'
 
 type Props = {
   ownerName: string
-  ownerUserId: string
+  /*
+    The card being viewed, not the person behind it.
+
+    This used to be the owner's user id, which meant the visitor's browser was
+    telling the server whose account to write into. The slug is what the visitor
+    actually opened; the server resolves the owner from it.
+  */
+  cardSlug: string
   open: boolean
   onClose: () => void
 }
@@ -31,13 +38,12 @@ const inputStyle: React.CSSProperties = {
 
 const ACCENT = '#d9a441'
 
-export default function CardExchangeModal({ ownerName, ownerUserId, open, onClose }: Props) {
+export default function CardExchangeModal({ ownerName, cardSlug, open, onClose }: Props) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [company, setCompany] = useState('')
   const [role, setRole] = useState('')
-  const [note, setNote] = useState('')
   const [gdpr, setGdpr] = useState(false)
   const [honeypot, setHoneypot] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -65,13 +71,12 @@ export default function CardExchangeModal({ ownerName, ownerUserId, open, onClos
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ownerUserId,
+          cardSlug,
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim() || undefined,
           company: company.trim() || undefined,
           role: role.trim() || undefined,
-          note: note.trim() || undefined,
           gdpr: true,
           website: honeypot,
         }),
@@ -241,14 +246,6 @@ export default function CardExchangeModal({ ownerName, ownerUserId, open, onClos
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               />
-              <textarea
-                style={{ ...inputStyle, minHeight: 80, resize: 'vertical' }}
-                placeholder="Where did you meet?"
-                aria-label="Where did you meet?"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
-
               <label
                 style={{
                   display: 'flex',
