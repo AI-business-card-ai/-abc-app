@@ -24,7 +24,7 @@ export default function Dashboard({ data }: { data: DashboardData }) {
   const dueCount = useFollowUpBadge()
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-4 pb-10 pt-5 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
+    <div className="mx-auto w-full max-w-[1440px] abc-page-top px-4 pb-10 sm:px-6 lg:px-8 lg:pb-12">
       <div className="flex items-start justify-between gap-6">
         <header className="min-w-0">
           <h1

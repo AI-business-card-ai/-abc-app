@@ -483,7 +483,7 @@ export default function CardEditorShell() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-[560px] px-4 py-10 sm:px-6">
+      <div className="mx-auto w-full max-w-[560px] abc-page-top px-4 pb-10 sm:px-6">
         <p className="text-[14px] text-abc-secondary">Loading your card…</p>
       </div>
     )
@@ -491,7 +491,7 @@ export default function CardEditorShell() {
 
   if (loadError) {
     return (
-      <div className="mx-auto w-full max-w-[560px] px-4 py-10 sm:px-6">
+      <div className="mx-auto w-full max-w-[560px] abc-page-top px-4 pb-10 sm:px-6">
         <div className="rounded-card border border-abc-border bg-abc-card p-6 text-center">
           <p className="text-[15px] font-semibold text-abc-text">Could not load your card</p>
           <p className="mt-1.5 text-[13px] leading-[1.5] text-abc-secondary">{loadError}</p>
@@ -520,7 +520,7 @@ export default function CardEditorShell() {
   )
 
   return (
-    <div className="mx-auto w-full max-w-[1180px] px-4 pb-6 pt-5 sm:px-6 lg:px-8 lg:pt-8">
+    <div className="mx-auto w-full max-w-[1180px] abc-page-top px-4 pb-6 sm:px-6 lg:px-8">
       <header className="lg:max-w-[640px]">
         <h1 className="page-heading font-bold leading-tight tracking-tight text-abc-text">
           Edit my card

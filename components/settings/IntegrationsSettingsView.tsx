@@ -90,7 +90,7 @@ export default function IntegrationsSettingsView() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[560px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
+    <div className="mx-auto w-full max-w-[560px] abc-page-top px-4 pb-10 sm:px-6">
       <SettingsPageHeader title="Integrations" description="Connect your CRM and services" />
 
       <p className="mt-5 flex items-start gap-2 text-[13px] leading-[1.5] text-abc-secondary">

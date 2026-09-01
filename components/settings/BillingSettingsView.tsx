@@ -39,7 +39,7 @@ export default function BillingSettingsView({ profile }: { profile: Partial<ABCP
   }
 
   return (
-    <div className="mx-auto w-full max-w-[560px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
+    <div className="mx-auto w-full max-w-[560px] abc-page-top px-4 pb-10 sm:px-6">
       <SettingsPageHeader title="Plan & Billing" description="Your plan, usage and billing" />
 
       <section className="mt-6 rounded-card border border-abc-border bg-abc-card p-4">

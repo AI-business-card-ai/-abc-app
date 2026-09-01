@@ -80,7 +80,7 @@ export default function ContactDetailView({
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-4 pb-10 pt-4 sm:px-6 lg:px-8 lg:pt-6">
+    <div className="mx-auto w-full max-w-[1100px] abc-page-top px-4 pb-10 sm:px-6 lg:px-8">
       <Link
         href="/contacts"
         className="inline-flex items-center gap-1.5 rounded-inner py-1.5 text-[13.5px] font-medium text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"

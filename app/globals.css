@@ -109,6 +109,29 @@ body {
   overscroll-behavior-y: none;
 }
 
+/*
+  Where authenticated page content begins, on every screen.
+
+  Deliberately in pixels. The root font-size drops to 14px on phones, so every
+  rem-based Tailwind offset quietly shrinks by an eighth — pt-5 arrives as
+  17.5px rather than 20px — on exactly the device where the sticky header is
+  tallest, because it also carries the status-bar inset there. Each page had
+  picked its own value (pt-4, pt-5, pt-6, py-10) and each shrank differently,
+  so the first line of every screen sat at a different distance beneath the
+  header and the eyebrows on Settings and Contacts sat under it.
+
+  One rule, one number, immune to the root scaling.
+*/
+.abc-page-top {
+  padding-top: 28px;
+}
+
+@media (min-width: 1024px) {
+  .abc-page-top {
+    padding-top: 32px;
+  }
+}
+
 @media (max-width: 767px) {
   html { font-size: 14px; }
   .page-heading { font-size: 20px; }

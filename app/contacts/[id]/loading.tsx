@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/abc/Bits'
 
 export default function ContactDetailLoading() {
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-4 pb-10 pt-4 sm:px-6 lg:px-8 lg:pt-6">
+    <div className="mx-auto w-full max-w-[1100px] abc-page-top px-4 pb-10 sm:px-6 lg:px-8">
       <Skeleton className="h-4 w-24" />
 
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">

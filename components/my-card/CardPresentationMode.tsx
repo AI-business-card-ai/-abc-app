@@ -18,22 +18,55 @@ import { SAFE_TOP } from '@/lib/ui/layout'
  * editor render, and the QR is the same `CardQrModal` the page already owns —
  * this component does not draw either, it only clears the space around them.
  * There is no new data here and no second copy of anything.
+ *
+ * Its insets are in pixels rather than rems. The root font-size drops to 14px
+ * on phones, and a phone is the one device where clearing the Dynamic Island
+ * and the home indicator actually matters.
  */
 export default function CardPresentationMode({
   card,
   open,
+  covered = false,
   onClose,
   onShowQr,
 }: {
   card: DigitalCardData
   open: boolean
+  /** The QR is on top of this. It owns Escape while it is. */
+  covered?: boolean
   onClose: () => void
   onShowQr: () => void
 }) {
   const closeRef = useRef<HTMLButtonElement>(null)
 
+  /*
+    Scroll lock, for as long as this is open — including while the QR sits on
+    top of it, because the page behind both still must not move. Deliberately
+    keyed on `open` alone: tying it to `covered` would tear the lock down and
+    rebuild it every time the QR opened, for no gain.
+  */
   useEffect(() => {
     if (!open) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open])
+
+  /*
+    Escape belongs to whatever is on top.
+
+    Both this and the QR modal listen on `document`, so a single Escape used to
+    reach both and collapse the whole stack at once — one keypress took you from
+    the QR all the way back to the page, skipping the card you were presenting.
+    While the QR is up it owns the key; this only listens once it is topmost
+    again, which is also the moment to take focus back.
+  */
+  useEffect(() => {
+    if (!open || covered) return
 
     closeRef.current?.focus()
 
@@ -42,15 +75,10 @@ export default function CardPresentationMode({
     }
     document.addEventListener('keydown', onKey)
 
-    // The page behind must not scroll while a fullscreen surface is up.
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previousOverflow
     }
-  }, [open, onClose])
+  }, [open, covered, onClose])
 
   if (!open) return null
 
@@ -63,7 +91,7 @@ export default function CardPresentationMode({
     >
       <div
         className="flex items-center justify-end px-4 pb-2"
-        style={{ paddingTop: `calc(0.75rem + ${SAFE_TOP})` }}
+        style={{ paddingTop: `calc(12px + ${SAFE_TOP})` }}
       >
         <button
           ref={closeRef}
@@ -84,7 +112,7 @@ export default function CardPresentationMode({
 
       <div
         className="px-5 pt-3"
-        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+        style={{ paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}
       >
         <button
           type="button"

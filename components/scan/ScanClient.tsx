@@ -370,7 +370,7 @@ export default function ScanClient() {
       : 'Preparing camera…'
 
   return (
-    <div className="mx-auto flex w-full max-w-[1000px] flex-col px-4 pb-8 pt-4 sm:px-6 lg:px-8 lg:pt-8">
+    <div className="mx-auto flex w-full max-w-[1000px] flex-col abc-page-top px-4 pb-8 sm:px-6 lg:px-8">
       {stage === 'capture' || stage === 'processing' ? (
         <>
           <header className="shrink-0">

@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/abc/Bits'
 
 export default function MyCardLoading() {
   return (
-    <div className="mx-auto w-full max-w-[560px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
+    <div className="mx-auto w-full max-w-[560px] abc-page-top px-4 pb-10 sm:px-6">
       <Skeleton className="h-3 w-20" />
       <Skeleton className="mt-3 h-8 w-52" />
       <Skeleton className="mt-3 h-4 w-64" />

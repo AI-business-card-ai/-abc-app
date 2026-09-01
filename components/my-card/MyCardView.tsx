@@ -109,7 +109,7 @@ export default function MyCardView({ data }: { data: MyCardData }) {
   */
 
   return (
-    <div className="mx-auto w-full max-w-[560px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
+    <div className="mx-auto w-full max-w-[560px] abc-page-top px-4 pb-10 sm:px-6">
       {/*
         The card is the hero. The page used to open with the owner's name at
         30px directly above a card that renders the same name at similar size —
@@ -320,6 +320,7 @@ export default function MyCardView({ data }: { data: MyCardData }) {
         <CardPresentationMode
           card={card}
           open={presenting}
+          covered={qrOpen}
           onClose={() => setPresenting(false)}
           onShowQr={() => setQrOpen(true)}
         />

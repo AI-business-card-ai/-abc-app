@@ -165,14 +165,14 @@ export default function FollowUpSettingsView({
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-[560px] px-4 py-8 sm:px-6">
+      <div className="mx-auto w-full max-w-[560px] abc-page-top px-4 pb-8 sm:px-6">
         <p className="text-[14px] text-abc-secondary">Loading your settings…</p>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto w-full max-w-[560px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
+    <div className="mx-auto w-full max-w-[560px] abc-page-top px-4 pb-10 sm:px-6">
       <SettingsPageHeader
         title="Smart Follow-up"
         description="Teach ABC how you want to communicate"

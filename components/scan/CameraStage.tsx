@@ -116,9 +116,21 @@ export default function CameraStage({
         ) : null}
       </div>
 
-      {/* Capture modes */}
-      <div className="abc-scroll-x mt-4 shrink-0">
-        <div className="flex gap-2">
+      {/*
+        Capture modes.
+
+        The row scrolls, and it has to look like it scrolls. It used to sit
+        inside the page's own horizontal padding, so the last mode was cut off
+        by the scroller's edge with no space after it — which reads as a broken
+        layout rather than as more content to the right. Pulling the scroller
+        out to the container edge and giving it the same padding back means the
+        row starts flush with the other content, the last chip has real room
+        after it, and both ends can be scrolled fully into view.
+
+        scroll-p matches the padding so a chip never lands flush against an edge.
+      */}
+      <div className="abc-scroll-x mt-4 shrink-0 -mx-4 scroll-px-4 px-4 sm:-mx-6 sm:scroll-px-6 sm:px-6 lg:-mx-8 lg:scroll-px-8 lg:px-8">
+        <div className="flex w-max gap-2">
           {CAPTURE_MODES.map((item) => {
             const active = item.id === mode
             return (
@@ -127,7 +139,7 @@ export default function CameraStage({
                 type="button"
                 onClick={() => onModeChange(item.id)}
                 aria-pressed={active}
-                className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring ${
+                className={`flex-none whitespace-nowrap rounded-full border px-3.5 py-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring ${
                   active
                     ? 'border-transparent text-[#1a1205]'
                     : 'border-abc-border bg-abc-raised text-abc-secondary hover:border-abc-border-strong hover:text-abc-text'

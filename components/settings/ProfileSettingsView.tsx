@@ -51,7 +51,7 @@ export default function ProfileSettingsView({
   }
 
   return (
-    <div className="mx-auto w-full max-w-[560px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
+    <div className="mx-auto w-full max-w-[560px] abc-page-top px-4 pb-10 sm:px-6">
       <SettingsPageHeader title="Profile & Account" description="Your identity and account" />
 
       {/* Identity is read-only here — the card editor is the single source of truth */}

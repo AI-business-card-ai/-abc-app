@@ -56,7 +56,7 @@ export default function FollowUpsView({ data }: { data: FollowUpsData }) {
   const pending = items.overdue.length + items.today.length + items.upcoming.length
 
   return (
-    <div className="mx-auto w-full max-w-[900px] px-4 pb-10 pt-5 sm:px-6 lg:px-8 lg:pt-8">
+    <div className="mx-auto w-full max-w-[900px] abc-page-top px-4 pb-10 sm:px-6 lg:px-8">
       <header>
         <SectionLabel>Follow-ups</SectionLabel>
         <h1 className="mt-2 text-[28px] font-bold leading-tight tracking-tight text-abc-text lg:text-[36px]">

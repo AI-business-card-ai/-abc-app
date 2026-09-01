@@ -41,7 +41,7 @@ export type SettingsSummary = {
 
 export default function SettingsHub({ summary }: { summary: SettingsSummary }) {
   return (
-    <div className="mx-auto w-full max-w-[560px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
+    <div className="mx-auto w-full max-w-[560px] abc-page-top px-4 pb-10 sm:px-6">
       <SectionLabel>Account</SectionLabel>
       <h1 className="mt-2.5 page-heading font-bold leading-tight tracking-tight text-abc-text">
         Settings

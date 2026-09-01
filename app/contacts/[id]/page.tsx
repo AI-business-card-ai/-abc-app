@@ -20,7 +20,7 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
 
   if (!data) {
     return (
-      <div className="mx-auto w-full max-w-[640px] px-4 pb-10 pt-6 sm:px-6">
+      <div className="mx-auto w-full max-w-[640px] abc-page-top px-4 pb-10 sm:px-6">
         <Link
           href="/contacts"
           className="text-[13.5px] font-medium text-abc-secondary transition-colors hover:text-abc-text"

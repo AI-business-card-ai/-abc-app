@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/abc/Bits'
 
 export default function HomeLoading() {
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-4 pb-10 pt-5 sm:px-6 lg:px-8 lg:pt-8">
+    <div className="mx-auto w-full max-w-[1440px] abc-page-top px-4 pb-10 sm:px-6 lg:px-8">
       <Skeleton className="h-8 w-64" />
       <Skeleton className="mt-3 h-4 w-72" />
 
