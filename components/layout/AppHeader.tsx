@@ -47,7 +47,7 @@ export default function AppHeader() {
             ) : null}
           </Link>
 
-          <Link href="/profile" className="rounded-full abc-focus-ring" aria-label="Your profile">
+          <Link href="/settings" className="rounded-full abc-focus-ring" aria-label="Your profile">
             <Avatar src={profile?.avatarUrl} name={profile?.fullName} size={34} ring />
           </Link>
         </div>

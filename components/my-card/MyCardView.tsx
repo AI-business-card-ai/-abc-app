@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import {
   IconAddressBook,
   IconAlertCircle,
@@ -19,9 +18,9 @@ import CardQrModal from '@/components/card/CardQrModal'
 import CompactCardPreview from '@/components/card/CompactCardPreview'
 import Button from '@/components/ui/abc/Button'
 import { EmptyState, SectionLabel } from '@/components/ui/abc/Bits'
-import { createClientComponent } from '@/lib/supabase'
 import type { CardAnalytics } from '@/lib/card/types'
 import type { MyCardData } from '@/lib/my-card-data'
+import { CARD_EDITOR_PATH } from '@/lib/settings/sections'
 
 /** Identity fields a card needs before it is worth handing to someone. */
 function missingEssentials(data: MyCardData): string[] {
@@ -35,14 +34,11 @@ function missingEssentials(data: MyCardData): string[] {
 }
 
 export default function MyCardView({ data }: { data: MyCardData }) {
-  const router = useRouter()
   const { card, slug, publicUrl, published } = data
 
   const [qrOpen, setQrOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [shareNote, setShareNote] = useState<string | null>(null)
-  const [publishing, setPublishing] = useState(false)
-  const [publishError, setPublishError] = useState<string | null>(null)
   const [stats, setStats] = useState<CardAnalytics | null>(null)
 
   const live = Boolean(slug && published && publicUrl)
@@ -98,25 +94,16 @@ export default function MyCardView({ data }: { data: MyCardData }) {
     }
   }, [card.fullName, copyLink, publicUrl])
 
-  const publish = useCallback(async () => {
-    if (!slug) return
-    setPublishing(true)
-    setPublishError(null)
-    try {
-      const supabase = createClientComponent()
-      const { error } = await supabase
-        .from('abc_profiles')
-        .update({ card_published: true })
-        .eq('id', data.userId)
-      if (error) throw new Error(error.message)
-      router.refresh()
-    } catch (err) {
-      console.error('[my-card] publish failed:', err)
-      setPublishError('Could not publish the card. Try again.')
-    } finally {
-      setPublishing(false)
-    }
-  }, [data.userId, router, slug])
+  /*
+    Publishing is not here.
+
+    This screen used to write `card_published: true` straight to the profile,
+    which meant a second, weaker publish path: the card editor refuses to
+    publish without a valid card address, and this one only checked that a slug
+    existed at all. Two ways to publish, one of which could publish a card whose
+    URL would not resolve. The editor keeps the one that validates; this screen
+    links to it.
+  */
 
   return (
     <div className="mx-auto w-full max-w-[560px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
@@ -141,7 +128,7 @@ export default function MyCardView({ data }: { data: MyCardData }) {
             title="Your card has no public link yet"
             description="Pick a card address and publish it, and your QR becomes scannable anywhere."
             action={
-              <Button href="/profile/card" size="lg">
+              <Button href={CARD_EDITOR_PATH} size="lg">
                 <IconPencil size={18} stroke={1.8} />
                 Set up my card
               </Button>
@@ -172,20 +159,12 @@ export default function MyCardView({ data }: { data: MyCardData }) {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <Button onClick={() => void publish()} size="lg" fullWidth disabled={publishing}>
-              {publishing ? 'Publishing…' : 'Publish my card'}
-            </Button>
-            <Button href="/profile/card" variant="surface" size="lg" fullWidth>
-              Edit card
+          <div className="mt-4">
+            <Button href={CARD_EDITOR_PATH} size="lg" fullWidth>
+              <IconPencil size={18} stroke={1.8} />
+              Publish in card settings
             </Button>
           </div>
-
-          {publishError ? (
-            <p className="mt-3 text-[13px]" style={{ color: 'var(--abc-overdue)' }} role="alert">
-              {publishError}
-            </p>
-          ) : null}
         </div>
       ) : null}
 
@@ -232,9 +211,9 @@ export default function MyCardView({ data }: { data: MyCardData }) {
             </p>
 
             <div className="mt-4 grid grid-cols-2 gap-2.5">
-              <Button href="/profile/card" variant="surface" size="md" fullWidth>
+              <Button href={CARD_EDITOR_PATH} variant="surface" size="md" fullWidth>
                 <IconPencil size={17} stroke={1.8} />
-                Edit card
+                Edit card settings
               </Button>
               <a
                 href={`/api/card/vcard/${encodeURIComponent(slug)}`}
@@ -276,9 +255,9 @@ export default function MyCardView({ data }: { data: MyCardData }) {
             No {missing.join(', ')} saved yet — those rows stay hidden on your public card.
           </p>
           <div className="mt-4">
-            <Button href="/profile/card" variant="surface" size="md">
+            <Button href={CARD_EDITOR_PATH} variant="surface" size="md">
               <IconPencil size={17} stroke={1.8} />
-              Edit card
+              Edit card settings
             </Button>
           </div>
         </div>

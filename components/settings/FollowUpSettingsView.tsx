@@ -1,41 +1,26 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import {
-  IconAlertTriangle,
-  IconCheck,
-  IconChevronRight,
-  IconCreditCard,
-  IconLoader2,
-  IconLogout,
-  IconMessage2,
-  IconTarget,
-  IconUser,
-} from '@tabler/icons-react'
-import { Chip, Field, Section, TextArea, Toggle } from '@/components/card/editor/EditorPrimitives'
-import Avatar from '@/components/ui/abc/Avatar'
-import { SectionLabel } from '@/components/ui/abc/Bits'
-import { normalizeAbcProfile, PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
-import { getScanLimitForPlan, isInternalTestPlan, isScanLimitExempt } from '@/lib/scan-limits'
-import { PLAN_LABELS, type PaidPlan } from '@/lib/stripe-prices'
+import { IconAlertTriangle, IconCheck, IconLoader2, IconMessage2, IconTarget } from '@tabler/icons-react'
+import { Chip, Field, Section, TextArea } from '@/components/card/editor/EditorPrimitives'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { normalizeAbcProfile, stripProfileSecrets, PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 import { createClientComponent } from '@/lib/supabase'
 import type { ABCProfile } from '@/lib/types'
 
 /**
- * Account settings.
+ * Smart Follow-up preferences.
  *
- * Everything that describes the user publicly — name, role, company, contact
- * details, photo, socials, card address — belongs to the card editor at
- * /profile/card and is deliberately not editable here. The previous screen
- * wrote those same columns from a second form, so opening it with stale values
- * and pressing Save silently overwrote whatever the card editor had stored.
+ * The context and tone ABC writes follow-ups from, and nothing else. This was
+ * the lower half of the old account screen, where it shared a Save button with
+ * a plan summary and a sign-out button that had nothing to do with it; the save
+ * only ever wrote these seven columns, so the button was always narrower than
+ * the screen it sat on. Now the screen is as narrow as the save.
  *
- * What remains is genuinely account-level: the context and tone AI writes your
- * follow-ups with, your plan, and signing out. The old "What AI researches"
- * toggles are gone — enrichment is no longer part of the product, and nothing
- * in follow-up generation ever read them. Their columns are left untouched.
+ * Identity is still absent by design. Name, role, company, contact details,
+ * photo, socials and card address belong to the card editor, and writing them
+ * from a second form is what used to overwrite the editor's values with stale
+ * ones.
  */
 
 /** Only these reach the database — the save validates against the same list. */
@@ -51,7 +36,7 @@ const MESSAGE_LENGTHS = ['Short', 'Medium', 'Long'] as const
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
-/** The account-owned fields only — identity lives on the card. */
+/** The follow-up fields only — identity lives on the card. */
 const SNAPSHOT_KEYS = [
   'goals',
   'product_description',
@@ -66,8 +51,11 @@ function snapshotOf(profile: Record<string, unknown>): string {
   return JSON.stringify(SNAPSHOT_KEYS.map((k) => profile[k] ?? null))
 }
 
-export default function AccountView({ initialProfile }: { initialProfile?: Partial<ABCProfile> | null }) {
-  const router = useRouter()
+export default function FollowUpSettingsView({
+  initialProfile,
+}: {
+  initialProfile?: Partial<ABCProfile> | null
+}) {
   const supabase = useMemo(() => createClientComponent(), [])
 
   const [loading, setLoading] = useState(!initialProfile)
@@ -80,8 +68,6 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
   )
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [loggingOut, setLoggingOut] = useState(false)
-  const [portalLoading, setPortalLoading] = useState(false)
   const [open, setOpen] = useState<Record<string, boolean>>({
     goals: true,
     messages: false,
@@ -98,15 +84,22 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
 
       const { data } = await supabase.from('abc_profiles').select(PROFILE_SAFE_COLUMNS).eq('id', user.id).maybeSingle()
       if (data) {
-        const normalized = normalizeAbcProfile(data as Partial<ABCProfile>, user.email) as unknown as Record<
-          string,
-          unknown
-        >
+        /*
+          Stripped for the same reason the server strips: PROFILE_SAFE_COLUMNS
+          selects the whole row, and the whole row carries OAuth credentials.
+          The server path has always stripped before handing the row to a client
+          component; this fallback read it straight into component state. It is
+          unreachable while the page supplies initialProfile, which is exactly
+          why it was worth closing before it stops being unreachable.
+        */
+        const normalized = stripProfileSecrets(
+          normalizeAbcProfile(data as Partial<ABCProfile>, user.email)
+        ) as unknown as Record<string, unknown>
         setProfile(normalized)
         setSavedSnapshot(snapshot(normalized))
       }
     } catch (err) {
-      console.error('[account] load failed:', err)
+      console.error('[settings/follow-up] load failed:', err)
       setError('Your settings could not be loaded. Check your connection and try again.')
     } finally {
       setLoading(false)
@@ -155,10 +148,7 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
         message_goal: profile.message_goal || 'Schedule a meeting',
       }
 
-      const { error: saveError } = await supabase
-        .from('abc_profiles')
-        .update(payload)
-        .eq('id', user.id)
+      const { error: saveError } = await supabase.from('abc_profiles').update(payload).eq('id', user.id)
 
       if (saveError) throw saveError
 
@@ -166,38 +156,11 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
       setSaveState('saved')
       setTimeout(() => setSaveState((s) => (s === 'saved' ? 'idle' : s)), 2500)
     } catch (err) {
-      console.error('[account] save failed:', err)
+      console.error('[settings/follow-up] save failed:', err)
       setSaveState('error')
       setError('Your settings could not be saved. Check your connection and try again.')
     }
   }, [profile, snapshot, supabase])
-
-  async function handleLogout() {
-    setLoggingOut(true)
-    try {
-      await supabase.auth.signOut()
-      router.push('/login')
-      router.refresh()
-    } catch (err) {
-      console.error('[account] sign out failed:', err)
-      setError('Sign out failed. Try again.')
-      setLoggingOut(false)
-    }
-  }
-
-  async function openBillingPortal() {
-    setPortalLoading(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/stripe/portal', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok || !data.url) throw new Error(data.error || 'Could not open the billing portal.')
-      window.location.href = data.url
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not open the billing portal.')
-      setPortalLoading(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -207,87 +170,14 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
     )
   }
 
-  const plan = String(profile.plan || 'free')
-  const internal = isInternalTestPlan(plan)
-  const exempt = isScanLimitExempt(profile as { plan?: string; email?: string; google_email?: string })
-  const planLabel = internal ? 'Founder access' : PLAN_LABELS[plan as PaidPlan] || 'Free'
-  const scansUsed = Number(profile.scans_used || 0)
-  const scanLimit = getScanLimitForPlan(plan)
-  const paid = plan !== 'free' && !internal
-  const fullName = String(profile.full_name || '')
-
   return (
     <div className="mx-auto w-full max-w-[560px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
-      <SectionLabel>Account</SectionLabel>
-      <h1 className="mt-2.5 text-[26px] font-bold leading-tight tracking-tight text-abc-text sm:text-[30px]">
-        Settings
-      </h1>
-      <p className="mt-2 text-[14px] leading-[1.55] text-abc-secondary">
-        How ABC works for you. Your public details live on your card.
-      </p>
+      <SettingsPageHeader
+        title="Smart Follow-up"
+        description="Teach ABC how you want to communicate"
+      />
 
-      {/* Identity is read-only here — the card editor is the single source of truth */}
-      <Link
-        href="/profile/card"
-        className="mt-6 flex items-center gap-3.5 rounded-card border border-abc-border bg-abc-card p-4 transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring"
-      >
-        <Avatar src={String(profile.card_photo_url || profile.avatar_url || '') || null} name={fullName} size={52} ring />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[16px] font-semibold text-abc-text">
-            {fullName || 'Your name'}
-          </span>
-          <span className="mt-0.5 block truncate text-[13px] text-abc-secondary">
-            {[profile.role, profile.company].filter(Boolean).join(' · ') || 'Add your role and company'}
-          </span>
-          <span className="mt-1.5 block text-[12.5px]" style={{ color: 'var(--abc-gold-accent)' }}>
-            Edit card
-          </span>
-        </span>
-        <IconChevronRight size={19} stroke={1.8} className="shrink-0 text-abc-muted" />
-      </Link>
-
-      {/* Plan */}
-      <section className="mt-4 rounded-card border border-abc-border bg-abc-card p-4">
-        <div className="flex items-center gap-2.5">
-          <IconCreditCard size={18} stroke={1.7} style={{ color: 'var(--abc-gold-accent)' }} />
-          <span className="text-[15px] font-semibold text-abc-text">{planLabel}</span>
-          {paid ? (
-            <span className="text-[11.5px] font-medium" style={{ color: 'var(--abc-green)' }}>
-              Active
-            </span>
-          ) : null}
-        </div>
-
-        <p className="mt-2 text-[13px] text-abc-secondary">
-          {exempt || !Number.isFinite(scanLimit)
-            ? `Unlimited scans · ${scansUsed} so far`
-            : scansUsed >= scanLimit
-              ? `Scan limit reached — ${scansUsed} of ${scanLimit} lifetime scans used`
-              : `${scansUsed} of ${scanLimit} lifetime scans used`}
-        </p>
-
-        <div className="mt-3.5">
-          {paid && profile.stripe_customer_id ? (
-            <button
-              type="button"
-              onClick={() => void openBillingPortal()}
-              disabled={portalLoading}
-              className="inline-flex h-[44px] items-center justify-center rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong disabled:opacity-50 abc-focus-ring"
-            >
-              {portalLoading ? 'Opening…' : 'Manage subscription'}
-            </button>
-          ) : exempt ? null : (
-            <Link
-              href="/pricing"
-              className="inline-flex h-[44px] items-center justify-center rounded-btn bg-abc-gold px-4 text-[14px] font-semibold text-[#1a1205] transition-[filter] hover:brightness-[1.06] abc-focus-ring"
-            >
-              Upgrade
-            </Link>
-          )}
-        </div>
-      </section>
-
-      <div className="mt-4 flex flex-col gap-3">
+      <div className="mt-6 flex flex-col gap-3">
         <Section
           id="goals"
           title="What you are looking for"
@@ -389,7 +279,6 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
             </fieldset>
           </div>
         </Section>
-
       </div>
 
       {/* Save */}
@@ -409,10 +298,7 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
                 <span>{error || 'Could not save. Try again.'}</span>
               </p>
             ) : saveState === 'saved' ? (
-              <p
-                className="inline-flex items-center gap-1.5 text-[12.5px]"
-                style={{ color: 'var(--abc-green)' }}
-              >
+              <p className="inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: 'var(--abc-green)' }}>
                 <IconCheck size={14} stroke={2.2} />
                 Saved
               </p>
@@ -433,28 +319,11 @@ export default function AccountView({ initialProfile }: { initialProfile?: Parti
                 : 'cursor-not-allowed border border-abc-border bg-abc-raised text-abc-muted'
             }`}
           >
-            {saveState === 'saving' ? (
-              <IconLoader2 size={17} stroke={2} className="animate-spin" />
-            ) : null}
+            {saveState === 'saving' ? <IconLoader2 size={17} stroke={2} className="animate-spin" /> : null}
             {saveState === 'saving' ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={() => void handleLogout()}
-        disabled={loggingOut}
-        className="mt-6 inline-flex h-[48px] w-full items-center justify-center gap-2 rounded-btn border border-abc-border bg-transparent text-[14px] font-medium text-abc-secondary transition-colors hover:text-abc-text disabled:opacity-50 abc-focus-ring"
-      >
-        <IconLogout size={17} stroke={1.8} />
-        {loggingOut ? 'Signing out…' : 'Sign out'}
-      </button>
-
-      <p className="mt-5 flex items-center justify-center gap-1.5 text-[12px] text-abc-muted">
-        <IconUser size={13} stroke={1.7} />
-        {String(profile.email || '')}
-      </p>
     </div>
   )
 }

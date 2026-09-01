@@ -57,7 +57,7 @@ export default function Dashboard({ data }: { data: DashboardData }) {
           </Link>
 
           <Link
-            href="/profile"
+            href="/settings"
             className="flex items-center gap-1.5 rounded-full abc-focus-ring"
             aria-label="Your profile"
           >

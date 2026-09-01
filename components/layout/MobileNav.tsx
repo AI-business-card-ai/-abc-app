@@ -29,11 +29,9 @@ export default function MobileNav() {
     >
       <ul className="flex items-stretch justify-around px-2 py-2">
         {TABS.map((tab) => {
-          // The card editor lives under /profile/card but belongs to this tab.
-          const active =
-            tab.path === '/my-card'
-              ? pathname.startsWith('/my-card') || pathname.startsWith('/profile/card')
-              : pathname === tab.path || pathname.startsWith(`${tab.path}/`)
+          // The card editor is a settings subsection now, so /settings/card is not
+          // this tab. My Card is the finished card; editing it happens in Settings.
+          const active = pathname === tab.path || pathname.startsWith(`${tab.path}/`)
           const TabIcon = tab.icon
 
           return (

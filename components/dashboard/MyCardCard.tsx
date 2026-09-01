@@ -141,7 +141,7 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
           <IconTile
             icon={IconPencil}
             label="Edit"
-            href="/profile/card"
+            href="/settings/card"
             iconColor="var(--abc-green)"
             labelClassName={LABEL}
           />
@@ -162,7 +162,7 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
         </div>
       ) : (
         <div className="mt-3">
-          <Button href="/profile/card" variant="surface" size="md" fullWidth>
+          <Button href="/settings/card" variant="surface" size="md" fullWidth>
             Create your digital card
           </Button>
         </div>

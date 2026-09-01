@@ -29,20 +29,24 @@ const PRIMARY: NavItem[] = [
   { icon: IconSend, label: 'Follow-ups', path: '/follow-ups' },
 ]
 
-// Integrations is not listed: the HubSpot / Salesforce / email connections it
-// pointed at are not functional, and they get their own phase. Pipeline is
-// preserved but demoted.
+// Integrations is not listed here. It is a settings subsection now, at
+// /settings/integrations, reached through the Settings hub — the nav lists
+// destinations, not the categories inside one. Pipeline is preserved but demoted.
 const SECONDARY: NavItem[] = [
   { icon: IconLayoutKanban, label: 'Pipeline', path: '/pipeline' },
-  { icon: IconSettings, label: 'Settings', path: '/profile' },
+  { icon: IconSettings, label: 'Settings', path: '/settings' },
 ]
 
 function isActive(pathname: string, item: NavItem) {
-  // The card editor lives under /profile/card but belongs to the My Card item.
-  if (item.path === '/my-card') {
-    return pathname.startsWith('/my-card') || pathname.startsWith('/profile/card')
-  }
-  if (item.path === '/profile') return pathname === '/profile' || pathname.startsWith('/settings')
+  /*
+    The card editor is a settings subsection now, so /settings/card lights up
+    Settings rather than My Card. It used to light up My Card because it lived
+    at /profile/card, which belonged to neither — and every settings page under
+    the old rule matched both items at once.
+
+    /profile is still matched because it redirects into /settings.
+  */
+  if (item.path === '/settings') return pathname.startsWith('/settings') || pathname.startsWith('/profile')
   return pathname === item.path || pathname.startsWith(`${item.path}/`)
 }
 
@@ -106,7 +110,7 @@ export default function DesktopSidebar() {
 
       <div className="mt-auto border-t border-abc-border p-3">
         <Link
-          href="/profile"
+          href="/settings"
           className="flex items-center gap-3 rounded-inner p-2 transition-colors duration-200 ease-abc hover:bg-abc-raised abc-focus-ring"
         >
           {loading ? (

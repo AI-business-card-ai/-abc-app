@@ -1,33 +1,18 @@
 'use client'
 
-import { useEffect } from 'react'
-
-export default function SettingsError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string }
-  reset: () => void
-}) {
-  useEffect(() => {
-    console.error('[settings]', error)
-  }, [error])
-
+export default function SettingsError({ reset }: { error: Error; reset: () => void }) {
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center pb-24"
-      style={{ background: '#0d0f1a', color: '#f0f0ff' }}
-    >
-      <p className="text-lg font-semibold">Settings failed to load</p>
-      <p className="text-sm max-w-sm leading-relaxed" style={{ color: '#8892b0' }}>
-        {error.message || 'An unexpected error occurred. Your profile data may be incomplete — try again or continue with defaults.'}
+    <div className="mx-auto w-full max-w-[560px] px-4 py-12 text-center">
+      <p className="text-[15px] font-semibold text-abc-text">Settings could not be opened</p>
+      <p className="mt-1.5 text-[13px] leading-[1.5] text-abc-secondary">
+        Something went wrong loading your account. Try again.
       </p>
       <button
         type="button"
         onClick={reset}
-        className="glow-btn rounded-xl px-6 py-3 font-semibold min-h-[44px]"
+        className="mt-5 inline-flex h-[48px] items-center justify-center rounded-btn bg-abc-gold px-5 text-[15px] font-semibold text-[#1a1205] transition-[filter] hover:brightness-[1.06] abc-focus-ring"
       >
-        Reload settings
+        Try again
       </button>
     </div>
   )
