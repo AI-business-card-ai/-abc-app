@@ -283,16 +283,25 @@ export default function CrmPushCard({ contact }: { contact: ContactDetail }) {
                   ) : !latest ? (
                     <p className="text-[12px] text-abc-muted">Add a meeting first</p>
                   ) : (
+                    /*
+                      Neutral surface with a gold icon, not a gold button.
+                      Three connected CRMs meant three full-gold buttons stacked
+                      down the page, each claiming to be the thing to do next —
+                      which is no hierarchy at all, and it drowned out the
+                      Smart Follow-up above them. The accent moves to the icon:
+                      still obviously the action on the row, no longer competing
+                      with the page.
+                    */
                     <Button
                       onClick={() => void push(provider.id)}
                       disabled={busy !== null}
-                      variant={state === 'done' ? 'surface' : 'gold'}
+                      variant="surface"
                       className="shrink-0"
                     >
                       {pushing ? null : state === 'done' ? (
-                        <IconRefresh size={16} stroke={1.9} />
+                        <IconRefresh size={16} stroke={1.9} style={{ color: 'var(--abc-gold-accent)' }} />
                       ) : (
-                        <IconCheck size={16} stroke={1.9} />
+                        <IconCheck size={16} stroke={1.9} style={{ color: 'var(--abc-gold-accent)' }} />
                       )}
                       {pushing
                         ? 'Syncing…'

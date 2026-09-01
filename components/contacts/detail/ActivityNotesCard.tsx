@@ -17,13 +17,15 @@ import type { TablerIcon } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import { CardTitle, ErrorNote, INPUT_CLASS } from '@/components/contacts/detail/parts'
 import { Skeleton } from '@/components/ui/abc/Bits'
+import {
+  condenseActivity,
+  hiddenActivityCount,
+  repeatLabel,
+  DEFAULT_ACTIVITY_PREVIEW,
+  type ActivityRow,
+} from '@/lib/contacts/activity-digest'
 
-type Activity = {
-  id: string
-  activity_type: string
-  activity_detail: string | null
-  created_at: string
-}
+type Activity = ActivityRow
 
 const ICONS: Record<string, { icon: TablerIcon; label: string }> = {
   CARD_SCANNED: { icon: IconScan, label: 'Card scanned' },
@@ -62,6 +64,7 @@ function when(iso: string) {
  */
 export default function ActivityNotesCard({ contactId }: { contactId: string }) {
   const [tab, setTab] = useState<'activity' | 'notes'>('activity')
+  const [expanded, setExpanded] = useState(false)
   const [items, setItems] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [note, setNote] = useState('')
@@ -111,7 +114,18 @@ export default function ActivityNotesCard({ contactId }: { contactId: string }) 
   }
 
   const notes = items.filter((item) => item.activity_type === 'NOTE_ADDED')
-  const visible = tab === 'notes' ? notes : items
+
+  /*
+    Notes are written by a person and are few; activity is written by the app
+    and is not. So only activity gets condensed and capped, and expanding shows
+    every stored row exactly as recorded — the preview is a view, not a filter
+    on what exists.
+  */
+  const showingNotes = tab === 'notes'
+  const groups = condenseActivity(showingNotes ? notes : items)
+  const capped = !showingNotes && !expanded
+  const visible = capped ? groups.slice(0, DEFAULT_ACTIVITY_PREVIEW) : groups
+  const hidden = capped ? hiddenActivityCount(groups) : 0
 
   return (
     <section className="abc-surface p-5">
@@ -172,22 +186,39 @@ export default function ActivityNotesCard({ contactId }: { contactId: string }) 
           {tab === 'notes' ? 'No notes yet.' : 'Nothing recorded yet.'}
         </p>
       ) : (
-        <ul className="mt-4 flex flex-col gap-3.5">
-          {visible.map((item) => {
-            const { icon: ItemIcon, label } = describe(item)
-            return (
-              <li key={item.id} className="flex gap-2.5">
-                <ItemIcon size={16} stroke={1.75} className="mt-[3px] shrink-0 text-abc-muted" />
-                <div className="min-w-0">
-                  <p className="whitespace-pre-wrap text-[13.5px] leading-[1.5] text-abc-text">
-                    {item.activity_detail || label}
-                  </p>
-                  <p className="mt-0.5 text-[11.5px] text-abc-muted">{when(item.created_at)}</p>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <>
+          <ul className="mt-4 flex flex-col gap-3">
+            {visible.map((item) => {
+              const { icon: ItemIcon, label } = describe(item)
+              const repeat = repeatLabel(item.count)
+              return (
+                <li key={item.id} className="flex gap-2.5">
+                  <ItemIcon size={16} stroke={1.75} className="mt-[3px] shrink-0 text-abc-muted" />
+                  <div className="min-w-0">
+                    <p className="whitespace-pre-wrap text-[13.5px] leading-[1.5] text-abc-text">
+                      {item.activity_detail || label}
+                    </p>
+                    <p className="mt-0.5 text-[11.5px] text-abc-muted">
+                      {when(item.created_at)}
+                      {repeat ? <span className="text-abc-muted"> · {repeat}</span> : null}
+                    </p>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+
+          {tab === 'activity' && (hidden > 0 || expanded) ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              className="mt-3.5 text-[13px] font-medium text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+            >
+              {expanded ? 'Show less' : `View full history (${hidden} more)`}
+            </button>
+          ) : null}
+        </>
       )}
     </section>
   )

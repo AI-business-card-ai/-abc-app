@@ -10,11 +10,13 @@ import {
   IconDownload,
   IconExternalLink,
   IconPencil,
+  IconPresentation,
   IconQrcode,
   IconShare,
   IconWallet,
 } from '@tabler/icons-react'
 import CardQrModal from '@/components/card/CardQrModal'
+import CardPresentationMode from '@/components/my-card/CardPresentationMode'
 import CompactCardPreview from '@/components/card/CompactCardPreview'
 import Button from '@/components/ui/abc/Button'
 import { EmptyState, SectionLabel } from '@/components/ui/abc/Bits'
@@ -37,6 +39,7 @@ export default function MyCardView({ data }: { data: MyCardData }) {
   const { card, slug, publicUrl, published } = data
 
   const [qrOpen, setQrOpen] = useState(false)
+  const [presenting, setPresenting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [shareNote, setShareNote] = useState<string | null>(null)
   const [stats, setStats] = useState<CardAnalytics | null>(null)
@@ -107,17 +110,31 @@ export default function MyCardView({ data }: { data: MyCardData }) {
 
   return (
     <div className="mx-auto w-full max-w-[560px] px-4 pb-10 pt-5 sm:px-6 lg:pt-8">
-      <SectionLabel>My card</SectionLabel>
-      <h1 className="mt-2.5 text-[26px] font-bold leading-tight tracking-tight text-abc-text sm:text-[30px]">
-        {card.fullName}
-      </h1>
-      <p className="mt-2 text-[14px] leading-[1.55] text-abc-secondary">
+      {/*
+        The card is the hero. The page used to open with the owner's name at
+        30px directly above a card that renders the same name at similar size —
+        the tallest element on the screen was a duplicate, and on an iPhone it
+        pushed the card itself below the fold.
+      */}
+      <h1 className="text-[15px] font-semibold leading-tight text-abc-text">My card</h1>
+      <p className="mt-1 text-[13px] leading-[1.5] text-abc-secondary">
         This is what someone receives when they scan you.
       </p>
 
       {/* Same renderer the editor previews with, so the two cannot drift. */}
-      <div className="mt-6">
-        <CompactCardPreview card={card} size="large" />
+      <div className="mt-4">
+        {live ? (
+          <button
+            type="button"
+            onClick={() => setPresenting(true)}
+            aria-label="Show your card full screen"
+            className="block w-full rounded-card text-left abc-focus-ring"
+          >
+            <CompactCardPreview card={card} size="large" />
+          </button>
+        ) : (
+          <CompactCardPreview card={card} size="large" />
+        )}
       </div>
 
       {/* ── No slug: the card has never been set up ── */}
@@ -171,19 +188,28 @@ export default function MyCardView({ data }: { data: MyCardData }) {
       {/* ── Live: the card leads, the QR is one tap away ── */}
       {live && slug ? (
         <>
-          <section className="mt-5">
-            <Button onClick={() => setQrOpen(true)} size="lg" fullWidth>
-              <IconQrcode size={19} stroke={1.8} />
-              Show QR code
-            </Button>
+          <section className="mt-4">
+            {/* Showing the card and showing its QR are the two things this
+                screen exists for, so they share the top row. Only one of them
+                is gold: two gold buttons side by side is not a hierarchy. */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <Button onClick={() => setPresenting(true)} size="lg" fullWidth>
+                <IconPresentation size={19} stroke={1.8} />
+                Present card
+              </Button>
+              <Button onClick={() => setQrOpen(true)} variant="surface" size="lg" fullWidth>
+                <IconQrcode size={19} stroke={1.8} />
+                Show QR
+              </Button>
+            </div>
 
             <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-              <Button onClick={() => void share()} variant="surface" size="lg" fullWidth>
-                <IconShare size={18} stroke={1.8} />
+              <Button onClick={() => void share()} variant="surface" size="md" fullWidth>
+                <IconShare size={17} stroke={1.8} />
                 Share
               </Button>
-              <Button onClick={() => void copyLink()} variant="surface" size="lg" fullWidth>
-                {copied ? <IconCheck size={18} stroke={1.9} /> : <IconCopy size={18} stroke={1.8} />}
+              <Button onClick={() => void copyLink()} variant="surface" size="md" fullWidth>
+                {copied ? <IconCheck size={17} stroke={1.9} /> : <IconCopy size={17} stroke={1.8} />}
                 {copied ? 'Copied' : 'Copy link'}
               </Button>
             </div>
@@ -283,6 +309,21 @@ export default function MyCardView({ data }: { data: MyCardData }) {
           Open the scanner
         </Link>
       </p>
+
+      {/*
+        Presentation sits under the QR in the stack, so tapping "Show QR code"
+        from inside it puts the QR on top rather than replacing it — closing the
+        QR returns to the presented card, which is what somebody holding the
+        phone out expects.
+      */}
+      {live ? (
+        <CardPresentationMode
+          card={card}
+          open={presenting}
+          onClose={() => setPresenting(false)}
+          onShowQr={() => setQrOpen(true)}
+        />
+      ) : null}
 
       {slug ? (
         <CardQrModal

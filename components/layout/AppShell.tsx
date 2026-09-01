@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import AppHeader from '@/components/layout/AppHeader'
 import DesktopSidebar from '@/components/layout/DesktopSidebar'
 import MobileNav from '@/components/layout/MobileNav'
+import { CLEARS_MOBILE_NAV } from '@/lib/ui/layout'
 
 /** Routes that render without any app chrome. */
 const BARE_PATHS = [
@@ -47,7 +48,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AppHeader />
-        <main className="min-w-0 flex-1 pb-[calc(72px+env(safe-area-inset-bottom))] lg:pb-0">
+        <main className="min-w-0 flex-1 lg:!pb-0" style={{ paddingBottom: CLEARS_MOBILE_NAV }}>
           {children}
         </main>
       </div>

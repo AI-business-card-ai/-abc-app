@@ -31,7 +31,7 @@ export default function SendConfirmDialog({ pending, onConfirm, onDismiss }: Pro
             type="button"
             onClick={onConfirm}
             className="w-full rounded-xl py-3 text-sm font-bold text-white"
-            style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)' }}
+            style={{ background: 'var(--accent-gradient)' }}
           >
             ✓ Yes, sent
           </button>

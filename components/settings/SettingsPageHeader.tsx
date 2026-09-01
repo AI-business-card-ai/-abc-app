@@ -26,7 +26,7 @@ export default function SettingsPageHeader({
         Settings
       </Link>
 
-      <h1 className="mt-2 text-[26px] font-bold leading-tight tracking-tight text-abc-text sm:text-[30px]">
+      <h1 className="mt-2 page-heading font-bold leading-tight tracking-tight text-abc-text">
         {title}
       </h1>
       <p className="mt-2 text-[14px] leading-[1.55] text-abc-secondary">{description}</p>

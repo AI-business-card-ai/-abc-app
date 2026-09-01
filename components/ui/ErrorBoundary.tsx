@@ -37,7 +37,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
             {this.props.fallback}
             <pre
               style={{
-                color: '#f0197d',
+                color: 'var(--abc-overdue)',
                 fontSize: '12px',
                 padding: '0 20px 20px',
                 whiteSpace: 'pre-wrap',

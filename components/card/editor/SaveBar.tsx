@@ -1,6 +1,7 @@
 'use client'
 
 import { IconAlertTriangle, IconCheck, IconLoader2 } from '@tabler/icons-react'
+import { ABOVE_MOBILE_NAV } from '@/lib/ui/layout'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -24,7 +25,7 @@ export default function SaveBar({
   return (
     <div
       className="sticky z-[60] -mx-4 mt-6 border-t border-abc-border bg-abc-bg/95 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:mx-0 lg:rounded-card lg:border lg:px-4"
-      style={{ bottom: 'calc(72px + env(safe-area-inset-bottom))' }}
+      style={{ bottom: ABOVE_MOBILE_NAV }}
     >
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1" aria-live="polite">

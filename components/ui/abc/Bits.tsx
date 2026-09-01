@@ -23,8 +23,12 @@ export function SectionLabel({
 export function EventChip({ children }: { children: ReactNode }) {
   return (
     <span
-      className="inline-flex max-w-full items-center truncate rounded-md px-1.5 py-0.5 text-[10.5px] font-medium leading-[1.5]"
-      style={{ background: 'var(--abc-chip-bg)', color: 'var(--abc-chip-text)' }}
+      className="inline-flex max-w-full items-center truncate rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium leading-[1.5]"
+      style={{
+        background: 'var(--abc-chip-bg)',
+        color: 'var(--abc-chip-text)',
+        borderColor: 'var(--abc-chip-border)',
+      }}
     >
       {children}
     </span>

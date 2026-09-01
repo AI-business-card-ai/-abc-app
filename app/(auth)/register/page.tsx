@@ -66,7 +66,7 @@ export default function RegisterPage() {
         <div className="text-center">
           <motion.h1
             className="gradient-text text-6xl font-black tracking-tight"
-            style={{ filter: 'drop-shadow(0 0 24px rgba(124,58,237,0.4))' }}
+            style={{ filter: 'drop-shadow(0 0 24px rgba(233, 166, 47, 0.28))' }}
           >
             ABC
           </motion.h1>
@@ -122,7 +122,7 @@ export default function RegisterPage() {
                   style={{
                     border: '0.5px solid rgba(14,165,233,0.4)',
                     background: 'rgba(14,165,233,0.1)',
-                    color: '#38BDF8',
+                    color: 'var(--abc-gold-accent)',
                   }}
                 >
                   {info}

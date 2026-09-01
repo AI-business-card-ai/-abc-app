@@ -22,7 +22,7 @@ export default function OfflinePage() {
       <Link
         href="/scan"
         className="interactive-primary rounded-xl px-5 py-3 text-sm font-semibold text-white"
-        style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)' }}
+        style={{ background: 'var(--accent-gradient)' }}
       >
         Zkusit znovu
       </Link>

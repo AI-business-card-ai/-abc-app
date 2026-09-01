@@ -6,6 +6,7 @@ import { Chip, Field, Section, TextArea } from '@/components/card/editor/EditorP
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import { normalizeAbcProfile, stripProfileSecrets, PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 import { createClientComponent } from '@/lib/supabase'
+import { ABOVE_MOBILE_NAV } from '@/lib/ui/layout'
 import type { ABCProfile } from '@/lib/types'
 
 /**
@@ -284,7 +285,7 @@ export default function FollowUpSettingsView({
       {/* Save */}
       <div
         className="sticky z-[60] -mx-4 mt-6 border-t border-abc-border bg-abc-bg/95 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6"
-        style={{ bottom: 'calc(72px + env(safe-area-inset-bottom))' }}
+        style={{ bottom: ABOVE_MOBILE_NAV }}
       >
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1" aria-live="polite">

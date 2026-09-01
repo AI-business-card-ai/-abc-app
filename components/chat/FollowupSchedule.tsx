@@ -6,7 +6,7 @@ import type { FollowupSequence } from '@/lib/types'
 
 const CHANNEL_META: Record<'linkedin' | 'email' | 'whatsapp', { label: string; color: string }> = {
   linkedin: { label: 'LinkedIn', color: '#0077B5' },
-  email: { label: 'Email', color: '#f0197d' },
+  email: { label: 'Email', color: 'var(--abc-gold-accent)' },
   whatsapp: { label: 'WhatsApp', color: '#25D366' },
 }
 
@@ -48,7 +48,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
 
   return (
     <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px' }}>
-      <div style={{ fontSize: '11px', color: '#f0197d', letterSpacing: '0.08em', marginBottom: '12px' }}>
+      <div style={{ fontSize: '11px', color: 'var(--abc-gold-accent)', letterSpacing: '0.08em', marginBottom: '12px' }}>
         SCHEDULED FOLLOW-UPS
       </div>
 
@@ -94,7 +94,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
                     padding: '6px 12px',
                     borderRadius: '999px',
                     border: 'none',
-                    background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+                    background: 'var(--accent-gradient)',
                     color: '#ffffff',
                     fontSize: '11px',
                     fontWeight: 700,

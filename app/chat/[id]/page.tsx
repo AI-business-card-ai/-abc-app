@@ -11,7 +11,7 @@ type Channel = 'linkedin' | 'email' | 'whatsapp'
 
 const CHANNEL_META: Record<Channel, { label: string; color: string }> = {
   linkedin: { label: 'LinkedIn', color: '#0077B5' },
-  email: { label: 'Email', color: '#f0197d' },
+  email: { label: 'Email', color: 'var(--abc-gold-accent)' },
   whatsapp: { label: 'WhatsApp', color: '#25D366' },
 }
 
@@ -108,7 +108,7 @@ export default function ChatDetailPage() {
   if (loading) {
     return (
       <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f0f' }}>
-        <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#00d4d4', borderRightColor: '#f0197d' }} />
+        <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: 'var(--abc-gold)', borderRightColor: 'var(--abc-gold-accent)' }} />
       </div>
     )
   }
@@ -120,7 +120,7 @@ export default function ChatDetailPage() {
         <button
           type="button"
           onClick={() => router.back()}
-          style={{ color: '#00d4d4', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+          style={{ color: 'var(--abc-gold-accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
         >
           ← Back
         </button>
@@ -142,7 +142,7 @@ export default function ChatDetailPage() {
         type="button"
         className="interactive"
         onClick={() => router.back()}
-        style={{ display: 'inline-block', marginBottom: '20px', color: '#00d4d4', fontSize: '14px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        style={{ display: 'inline-block', marginBottom: '20px', color: 'var(--abc-gold-accent)', fontSize: '14px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
       >
         ← Back
       </button>
@@ -154,7 +154,7 @@ export default function ChatDetailPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={contact.photo_url} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(0,212,212,0.3)', flexShrink: 0 }} />
           ) : (
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#f0197d,#00d4d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
               {initials}
             </div>
           )}

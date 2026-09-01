@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { IconBell } from '@tabler/icons-react'
 import AbcLogo from '@/components/brand/AbcLogo'
+import { SAFE_TOP } from '@/lib/ui/layout'
 import Avatar from '@/components/ui/abc/Avatar'
 import { useAppProfile } from '@/lib/hooks/useAppProfile'
 import { useFollowUpBadge } from '@/lib/hooks/useFollowUpBadge'
@@ -21,7 +22,7 @@ export default function AppHeader() {
   return (
     <header
       className="sticky top-0 z-50 border-b border-abc-border backdrop-blur-xl lg:hidden"
-      style={{ background: 'rgba(10, 10, 11, 0.88)' }}
+      style={{ background: 'rgba(10, 10, 11, 0.88)', paddingTop: SAFE_TOP }}
     >
       <div className="flex h-14 items-center justify-between px-4">
         <Link href="/home" className="rounded-inner abc-focus-ring" aria-label="ABC Card — home">

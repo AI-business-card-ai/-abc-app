@@ -105,7 +105,7 @@ export default function ChatListClient({ initialContacts = [] }: Props) {
                 className="interactive-primary"
                 style={{
                   padding: '12px 24px',
-                  background: 'linear-gradient(135deg,#f0197d,#8b5cf6)',
+                  background: 'var(--accent-gradient)',
                   border: 'none',
                   borderRadius: '10px',
                   color: '#fff',

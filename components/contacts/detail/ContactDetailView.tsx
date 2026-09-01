@@ -93,7 +93,7 @@ export default function ContactDetailView({
       <header className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">
         <Avatar src={contact.photoUrl} name={contact.name} size={76} ring />
         <div className="min-w-0">
-          <h1 className="text-[26px] font-bold leading-tight tracking-tight text-abc-text lg:text-[32px]">
+          <h1 className="page-heading font-bold leading-tight tracking-tight text-abc-text">
             {contact.name}
           </h1>
           {contact.role ? (

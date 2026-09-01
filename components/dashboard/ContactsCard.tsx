@@ -18,7 +18,7 @@ export default function ContactsCard({
   return (
     <section className="abc-surface abc-surface-interactive flex flex-col p-5">
       <header className="flex items-start justify-between">
-        <IconUsers size={30} stroke={1.5} style={{ color: 'var(--abc-violet)' }} />
+        <IconUsers size={30} stroke={1.5} style={{ color: 'var(--abc-accent)' }} />
         <Link
           href="/contacts"
           aria-label="View all contacts"

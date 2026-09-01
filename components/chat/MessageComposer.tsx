@@ -53,7 +53,7 @@ function autoResizeTextarea(el: HTMLTextAreaElement | null) {
 
 const PLATFORM_META: { key: Platform; label: string; color: string }[] = [
   { key: 'linkedin', label: 'LinkedIn', color: '#0077B5' },
-  { key: 'email', label: 'Email', color: '#f0197d' },
+  { key: 'email', label: 'Email', color: 'var(--abc-gold-accent)' },
   { key: 'whatsapp', label: 'WhatsApp', color: '#25D366' },
 ]
 
@@ -350,7 +350,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
     <>
       <div style={CARD}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <div style={{ fontSize: '11px', color: '#00d4d4', letterSpacing: '0.08em' }}>AI MESSAGES</div>
+          <div style={{ fontSize: '11px', color: 'var(--abc-gold-accent)', letterSpacing: '0.08em' }}>AI MESSAGES</div>
           <button
             type="button"
             className="interactive"
@@ -386,7 +386,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
             }}
           >
             {gmailReconnectError}{' '}
-            <Link href="/settings" style={{ color: '#00d4d4', fontWeight: 700 }}>
+            <Link href="/settings" style={{ color: 'var(--abc-gold-accent)', fontWeight: 700 }}>
               Reconnect Email →
             </Link>
           </div>
@@ -433,12 +433,12 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                 style={{
                   background: '#1a1a1a',
                   borderRadius: '12px',
-                  border: `1px solid ${anyChecked ? '#00d4d4' : '#2a2a2a'}`,
+                  border: `1px solid ${anyChecked ? 'var(--abc-gold-accent)' : '#2a2a2a'}`,
                   padding: '16px',
                   width: '100%',
                 }}
               >
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#00d4d4', marginBottom: '10px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--abc-gold-accent)', marginBottom: '10px' }}>
                   Variant {variant.id} · {variant.style}
                 </div>
 
@@ -540,7 +540,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                             padding: '12px 16px',
                             borderRadius: '10px',
                             border: 'none',
-                            background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+                            background: 'var(--accent-gradient)',
                             color: '#0f0f0f',
                             fontWeight: 700,
                             fontSize: '14px',
@@ -610,7 +610,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
             maxWidth: 140,
             height: 44,
             borderRadius: 999,
-            background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+            background: 'var(--accent-gradient)',
             boxShadow: '0 4px 20px rgba(240, 25, 125, 0.35)',
             overflow: 'hidden',
           }}

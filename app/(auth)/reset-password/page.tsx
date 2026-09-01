@@ -105,7 +105,7 @@ export default function ResetPasswordPage() {
         <div className="text-center">
           <h1
             className="gradient-text text-6xl font-black tracking-tight"
-            style={{ filter: 'drop-shadow(0 0 24px rgba(124,58,237,0.4))' }}
+            style={{ filter: 'drop-shadow(0 0 24px rgba(233, 166, 47, 0.28))' }}
           >
             ABC
           </h1>

@@ -26,6 +26,7 @@ import IdentitySection from '@/components/card/editor/IdentitySection'
 import LinksSection from '@/components/card/editor/LinksSection'
 import MediaSection from '@/components/card/editor/MediaSection'
 import PublishSection, { type SlugStatus } from '@/components/card/editor/PublishSection'
+import { SAVE_BAR_HEIGHT } from '@/lib/ui/layout'
 import SaveBar, { type SaveStatus } from '@/components/card/editor/SaveBar'
 import ShowcaseSection from '@/components/card/editor/ShowcaseSection'
 import SocialSection from '@/components/card/editor/SocialSection'
@@ -521,7 +522,7 @@ export default function CardEditorShell() {
   return (
     <div className="mx-auto w-full max-w-[1180px] px-4 pb-6 pt-5 sm:px-6 lg:px-8 lg:pt-8">
       <header className="lg:max-w-[640px]">
-        <h1 className="text-[26px] font-bold leading-tight tracking-tight text-abc-text sm:text-[30px]">
+        <h1 className="page-heading font-bold leading-tight tracking-tight text-abc-text">
           Edit my card
         </h1>
         <p className="mt-2 text-[14px] leading-[1.55] text-abc-secondary">
@@ -751,18 +752,14 @@ export default function CardEditorShell() {
           <SaveBar dirty={dirty} status={saveStatus} error={saveError} onSave={() => void save()} />
 
           {/*
-            Clearance under the sticky save bar, sized from the bar rather than
-            guessed. The bar is held 72px above the viewport bottom and measures
-            ~70px tall, so its top edge sits ~142px up; anything shorter than
-            that leaves the last control behind it at maximum scroll, which is
-            what the owner hit on a real iPhone. 160px covers the bar with a
-            small margin, and the inset keeps the home indicator out of it.
+            Clearance for the sticky save bar, and only the save bar. The app
+            shell already pads every page past the bottom navigation and its
+            safe-area inset, so repeating either here counts them twice — which
+            is what left a screen-and-a-bit of empty space under the last field.
+            What is still needed is the height of the bar sitting above the
+            navigation, which is exactly what this constant is.
           */}
-          <div
-            aria-hidden
-            className="lg:hidden"
-            style={{ height: 'calc(160px + env(safe-area-inset-bottom))' }}
-          />
+          <div aria-hidden className="lg:hidden" style={{ height: SAVE_BAR_HEIGHT }} />
         </div>
       </div>
 

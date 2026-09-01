@@ -3,11 +3,22 @@
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDealValue } from '@/lib/tags'
+import { STAGE_TONES } from '@/lib/pipeline'
 import { getAiNextStep, daysSinceActivity } from '@/lib/pipeline-ai'
 import EnrichingPulse from '@/components/ui/EnrichingPulse'
 import { isContactEnriching } from '@/lib/contact-enrichment-ui'
 import type { PipelineStageId, ScannedContact } from '@/lib/types'
 
+/*
+  The board's five columns, coloured from the one ladder in lib/pipeline.
+  It used to carry its own copy — grey, blue, amber, violet, green — which
+  disagreed with the ladder there on four of the five stages, and blue and
+  violet were the last categorical hues ABC invented for itself.
+
+  Labels stay local: the board says WON, the badge elsewhere says WON ✓, and
+  neither is being renamed here. Only the colour comes from the shared source.
+  LOST is absent because a board of open work has no column for it.
+*/
 const KANBAN_STAGES: {
   id: PipelineStageId
   label: string
@@ -15,11 +26,11 @@ const KANBAN_STAGES: {
   bg: string
   border: string
 }[] = [
-  { id: 'new', label: 'NEW', color: '#9ca3af', bg: 'rgba(156,163,175,0.08)', border: 'rgba(156,163,175,0.35)' },
-  { id: 'follow-up', label: 'FOLLOW-UP', color: '#3b82f6', bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.35)' },
-  { id: 'meeting', label: 'MEETING', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.35)' },
-  { id: 'deal', label: 'DEAL', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.35)' },
-  { id: 'won', label: 'WON', color: '#22c55e', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.35)' },
+  { id: 'new', label: 'NEW', ...STAGE_TONES.new },
+  { id: 'follow-up', label: 'FOLLOW-UP', ...STAGE_TONES['follow-up'] },
+  { id: 'meeting', label: 'MEETING', ...STAGE_TONES.meeting },
+  { id: 'deal', label: 'DEAL', ...STAGE_TONES.deal },
+  { id: 'won', label: 'WON', ...STAGE_TONES.won },
 ]
 
 const NEXT_STAGE: Partial<Record<PipelineStageId, PipelineStageId>> = {
@@ -57,7 +68,7 @@ function ContactAvatar({ contact, size = 28 }: { contact: ScannedContact; size?:
         width: size,
         height: size,
         fontSize: size * 0.38,
-        background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+        background: 'var(--accent-gradient)',
         color: '#ffffff',
       }}
     >
@@ -109,12 +120,12 @@ function PipelineKanbanCard({
       </div>
 
       {dealVal && (
-        <p className="text-xs font-bold mb-1.5 tabular-nums" style={{ color: '#f59e0b' }}>
+        <p className="text-xs font-bold mb-1.5 tabular-nums" style={{ color: 'var(--abc-gold-accent)' }}>
           {dealVal}
         </p>
       )}
 
-      <p className="text-[11px] leading-snug truncate mb-2" style={{ color: '#00d4d4' }} title={step.text}>
+      <p className="text-[11px] leading-snug truncate mb-2" style={{ color: 'var(--abc-gold-accent)' }} title={step.text}>
         {enriching ? <EnrichingPulse compact /> : step.text}
       </p>
 

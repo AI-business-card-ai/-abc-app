@@ -25,13 +25,13 @@ function normalizeWebsiteHref(url: string): string {
 }
 
 const gradientText: React.CSSProperties = {
-  background: 'linear-gradient(90deg,#f0197d,#00d4d4)',
+  background: 'var(--accent-gradient)',
   WebkitBackgroundClip: 'text',
   WebkitTextFillColor: 'transparent',
 }
 
 const gradientBtn: React.CSSProperties = {
-  background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+  background: 'var(--accent-gradient)',
   color: '#fff',
   border: 'none',
   borderRadius: 12,
@@ -144,7 +144,7 @@ export default function DigitalCardClient({ profile }: { profile: PublicCardProf
             borderRadius: '50%',
             margin: '0 auto 18px',
             padding: 2,
-            background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+            background: 'var(--accent-gradient)',
           }}
         >
           <div
@@ -204,7 +204,7 @@ export default function DigitalCardClient({ profile }: { profile: PublicCardProf
         style={{
           height: 1,
           margin: '0 24px',
-          background: 'linear-gradient(90deg,#f0197d,#00d4d4)',
+          background: 'var(--accent-gradient)',
           opacity: 0.4,
         }}
       />

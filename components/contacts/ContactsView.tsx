@@ -236,8 +236,14 @@ export default function ContactsView({
               ) : null}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="abc-scroll-x -mx-1 flex-1 px-1">
+            {/*
+              Stacked on a phone, side by side from sm up. Sharing one wrapping
+              row meant the event dropdown took up to 220px of an iPhone's width
+              and the status chips scrolled inside whatever was left, so the
+              chips were clipped before the row had run out of space.
+            */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="abc-scroll-x -mx-1 w-full min-w-0 px-1 sm:flex-1">
                 <div className="flex gap-2">
                   {CONTACT_FILTERS.map((item) => {
                     const active = filter === item.id
@@ -266,7 +272,7 @@ export default function ContactsView({
                   value={eventFilter}
                   onChange={(e) => setEventFilter(e.target.value)}
                   aria-label="Filter by event"
-                  className="h-10 max-w-[220px] shrink-0 rounded-full border border-abc-border bg-abc-raised px-3 text-[12.5px] text-abc-secondary outline-none transition-colors duration-200 ease-abc focus:border-abc-gold-accent"
+                  className="h-10 w-full shrink-0 rounded-full border border-abc-border bg-abc-raised px-3 text-[12.5px] text-abc-secondary outline-none transition-colors duration-200 ease-abc focus:border-abc-gold-accent sm:w-auto sm:max-w-[220px]"
                 >
                   <option value={ALL_EVENTS}>All events</option>
                   {events.map((event) => (

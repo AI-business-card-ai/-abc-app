@@ -15,7 +15,7 @@ export default function CardNotFound() {
           style={{
             fontSize: 22,
             fontWeight: 800,
-            background: 'linear-gradient(90deg,#f0197d,#00d4d4)',
+            background: 'var(--accent-gradient)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             marginBottom: 8,

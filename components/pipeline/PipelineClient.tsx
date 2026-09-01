@@ -272,7 +272,7 @@ export default function PipelineClient({ initialContacts = [], userId }: Props) 
             whileTap={{ scale: 0.97 }}
             onClick={() => router.push('/scan')}
             className="interactive-primary touch-target rounded-xl px-5 text-sm font-semibold text-white"
-            style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)' }}
+            style={{ background: 'var(--accent-gradient)' }}
           >
             Scan your first card
           </motion.button>

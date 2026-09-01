@@ -16,7 +16,7 @@ export default function EnrichingPulse({ compact, className = '' }: Props) {
         style={{
           width: compact ? 6 : 8,
           height: compact ? 6 : 8,
-          background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+          background: 'var(--accent-gradient)',
         }}
       />
       <span style={{ color: '#b8b8b8' }}>AI enriching…</span>
