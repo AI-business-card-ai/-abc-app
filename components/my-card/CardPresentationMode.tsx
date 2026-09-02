@@ -124,24 +124,21 @@ export default function CardPresentationMode({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5">
         <div className="mx-auto w-full max-w-[420px] pb-2">
           {/*
-            Display-only. The card is the real one, with the real controls, and
-            on this screen none of them should fire: the phone is being held
-            out to somebody else, and a stray thumb landing on "Save contact"
-            or a social link would download the owner's own vCard or navigate
-            away mid-conversation. The wrapper makes the subtree inert rather
-            than the renderer — the public card at /d/<slug> keeps every one of
-            these behaviours.
+            The QR comes first.
 
-            The QR below sits outside this wrapper, because it is the one thing
-            here that is meant to be tapped.
+            It used to sit under the card, which was fine for a sparse profile
+            and wrong for a full one: an owner with socials, events, a showcase
+            and an About section had to scroll their whole card before the other
+            person could scan anything. This screen has two jobs and they are
+            not equal in urgency — somebody scans in seconds, and reads the
+            profile only if they choose to. So the scan comes first and the card
+            continues below it.
+
+            Outside InertContent deliberately: this is the one thing here that
+            is meant to be tapped.
           */}
-          <InertContent>
-            <DigitalCardView card={card} preview />
-          </InertContent>
-
-          {/* The reason this screen exists — not one tap further in. */}
           {card.slug ? (
-            <section className="mt-6 flex flex-col items-center pb-2">
+            <section className="flex flex-col items-center pb-2">
               <p className="text-[13px] font-medium text-abc-secondary">Scan to connect</p>
 
               <button
@@ -156,6 +153,22 @@ export default function CardPresentationMode({
               <p className="mt-3 text-[12px] text-abc-muted">Tap QR to enlarge</p>
             </section>
           ) : null}
+
+          {/*
+            Display-only, and below the QR. The card is the real one, with the
+            real controls, and on this screen none of them should fire: the
+            phone is being held out to somebody else, and a stray thumb landing
+            on "Save contact" or a social link would download the owner's own
+            vCard or navigate away mid-conversation. The wrapper makes the
+            subtree inert rather than the renderer — the public card at
+            /d/<slug> keeps every one of these behaviours, which is what the
+            person scanning the QR above actually receives.
+          */}
+          <div className={card.slug ? 'mt-7' : ''}>
+            <InertContent>
+              <DigitalCardView card={card} preview />
+            </InertContent>
+          </div>
 
           <div style={{ height: 'calc(20px + env(safe-area-inset-bottom))' }} aria-hidden />
         </div>
