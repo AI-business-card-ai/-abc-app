@@ -48,6 +48,18 @@ type StatePayload = {
    * Absent for providers that do not use PKCE, which changes nothing for them.
    */
   verifier?: string
+  /**
+   * Where to send the browser once the connection succeeds.
+   *
+   * Rides here for the same reason the verifier does: signed, owner-bound,
+   * single use, expiring with its flow. The alternative is a query parameter,
+   * and a destination the browser controls is an open redirect waiting to be
+   * written. Callers still check the shape on the way out — this guarantees
+   * only that nobody else chose it.
+   *
+   * Absent for flows that always return to the same place.
+   */
+  returnTo?: string
 }
 
 /**
@@ -79,6 +91,8 @@ export function createOAuthState(args: {
   provider: string
   /** Only for providers that require PKCE; omitted otherwise. */
   verifier?: string
+  /** Only for flows that return somewhere specific; omitted otherwise. */
+  returnTo?: string
 }): string {
   const payload: StatePayload = {
     nonce: randomBytes(NONCE_BYTES).toString('base64url'),
@@ -86,6 +100,7 @@ export function createOAuthState(args: {
     provider: args.provider,
     expiresAt: Math.floor(Date.now() / 1000) + TTL_SECONDS,
     ...(args.verifier ? { verifier: args.verifier } : {}),
+    ...(args.returnTo ? { returnTo: args.returnTo } : {}),
   }
 
   const body = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
@@ -105,7 +120,7 @@ export function createOAuthState(args: {
 }
 
 export type StateResult =
-  | { ok: true; ownerId: string; verifier?: string }
+  | { ok: true; ownerId: string; verifier?: string; returnTo?: string }
   | { ok: false; reason: 'missing' | 'malformed' | 'forged' | 'expired' | 'mismatch' }
 
 /**
@@ -154,5 +169,5 @@ export function consumeOAuthState(args: { state: string | null; provider: string
   // The nonce the provider returned must be the one this cookie was issued for.
   if (!safeEquals(payload.nonce, args.state)) return { ok: false, reason: 'mismatch' }
 
-  return { ok: true, ownerId: payload.ownerId, verifier: payload.verifier }
+  return { ok: true, ownerId: payload.ownerId, verifier: payload.verifier, returnTo: payload.returnTo }
 }

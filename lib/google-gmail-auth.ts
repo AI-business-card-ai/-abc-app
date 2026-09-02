@@ -104,9 +104,19 @@ export async function saveGoogleOAuthTokens(
   }
 ) {
   const supabase = createServiceClient()
-  const updates: Record<string, unknown> = {
-    google_connected: true,
-  }
+  const updates: Record<string, unknown> = {}
+
+  /*
+    google_connected means "this account can send Gmail", not "this account
+    signed in with Google". Those were the same thing while every login asked
+    for gmail.send; now that a sign-in asks only for identity, they are not.
+
+    So it is set only when a refresh token actually arrives — the one thing that
+    makes sending work later — and is otherwise left exactly as it was. An
+    identity-only login therefore cannot claim a capability it did not obtain,
+    and cannot revoke one the user already granted.
+  */
+  if (tokens.refreshToken) updates.google_connected = true
 
   if (tokens.email) updates.google_email = tokens.email
   if (tokens.accessToken) updates.google_access_token = tokens.accessToken
@@ -114,6 +124,10 @@ export async function saveGoogleOAuthTokens(
   if (tokens.expiresIn != null) {
     updates.google_token_expires_at = new Date(Date.now() + tokens.expiresIn * 1000).toISOString()
   }
+
+  // Now that every field is conditional, an empty payload is reachable — and an
+  // UPDATE with nothing in it would touch the row for no reason.
+  if (Object.keys(updates).length === 0) return
 
   const { error } = await supabase.from('abc_profiles').update(updates).eq('id', userId)
   if (error) {

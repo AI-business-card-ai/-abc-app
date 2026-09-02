@@ -2,15 +2,16 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createOAuthCallbackClient, getPkceCookieDebugInfo } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { isGoogleUser } from '@/lib/google-oauth'
-import { saveGoogleOAuthTokens } from '@/lib/google-gmail-auth'
+import { AUTH_ERROR_CODES, type AuthErrorCode } from '@/lib/auth/error-codes'
 import { formatSupabaseError } from '@/lib/supabase-errors'
 import { handleQrConnect } from '@/lib/qr-connect'
 
-function authErrorRedirect(origin: string, reason: string) {
-  console.error('[auth/callback] redirecting to login:', reason)
-  return NextResponse.redirect(
-    `${origin}/login?error=auth&reason=${encodeURIComponent(reason)}`
-  )
+/**
+ * `detail` is for the server log only. It never reaches the URL.
+ */
+function authErrorRedirect(origin: string, code: AuthErrorCode, detail?: unknown) {
+  console.error('[auth/callback] redirecting to login:', code, detail ?? '')
+  return NextResponse.redirect(`${origin}/login?error=auth&reason=${code}`)
 }
 
 function summarizeToken(value: string | null | undefined) {
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
   })
 
   if (!code) {
-    return authErrorRedirect(origin, 'missing_oauth_code')
+    return authErrorRedirect(origin, AUTH_ERROR_CODES.missingCode)
   }
 
   const { supabase, redirectWithAuthCookies } = createOAuthCallbackClient(request)
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
         name: exchangeError.name,
         cookieSummary: getPkceCookieDebugInfo(request),
       })
-      return authErrorRedirect(origin, `exchange_failed:${exchangeError.message}`)
+      return authErrorRedirect(origin, AUTH_ERROR_CODES.exchangeFailed, exchangeError.message)
     }
 
     console.log('[auth/callback] session exchange succeeded')
@@ -73,12 +74,12 @@ export async function GET(request: NextRequest) {
         message: userError.message,
         status: userError.status,
       })
-      return authErrorRedirect(origin, `get_user_failed:${userError.message}`)
+      return authErrorRedirect(origin, AUTH_ERROR_CODES.userFailed, userError.message)
     }
 
     if (!user) {
       console.error('[auth/callback] no user after successful session exchange')
-      return authErrorRedirect(origin, 'user_missing_after_exchange')
+      return authErrorRedirect(origin, AUTH_ERROR_CODES.userFailed, 'user missing after exchange')
     }
 
     console.log('[auth/callback] authenticated user loaded', {
@@ -128,7 +129,7 @@ export async function GET(request: NextRequest) {
         message: sessionError.message,
         status: sessionError.status,
       })
-      return authErrorRedirect(origin, `get_session_failed:${sessionError.message}`)
+      return authErrorRedirect(origin, AUTH_ERROR_CODES.sessionFailed, sessionError.message)
     }
 
     const googleLogin = isGoogleUser(user)
@@ -156,7 +157,7 @@ export async function GET(request: NextRequest) {
         details: profileSelectError.details,
         hint: profileSelectError.hint,
       })
-      return authErrorRedirect(origin, `profile_select_failed:${profileSelectError.message}`)
+      return authErrorRedirect(origin, AUTH_ERROR_CODES.profileFailed, profileSelectError.message)
     }
 
     console.log('[auth/callback] profile lookup result', {
@@ -176,10 +177,16 @@ export async function GET(request: NextRequest) {
       const { error: insertError } = await serviceClient.from('abc_profiles').insert({
         id: user.id,
         email: googleEmail,
-        google_connected: googleLogin,
-        google_email: googleLogin ? googleEmail : null,
-        google_refresh_token: googleLogin ? session?.provider_refresh_token ?? null : null,
-        google_access_token: googleLogin ? session?.provider_token ?? null : null,
+        /*
+          A new profile carries no mailbox. Signing in with Google is not
+          permission to send mail as them, and the tokens a sign-in returns
+          cannot send anyway — the connector fills these in later, for whoever
+          actually authorizes a mailbox.
+        */
+        google_connected: false,
+        google_email: null,
+        google_refresh_token: null,
+        google_access_token: null,
         onboarding_completed: false,
       })
 
@@ -193,65 +200,27 @@ export async function GET(request: NextRequest) {
 
         if (insertError.code === '23505') {
           console.log('[auth/callback] profile already exists (race with trigger), continuing with token save')
-          if (googleLogin) {
-            try {
-              await saveGoogleOAuthTokens(user.id, {
-                accessToken: session?.provider_token,
-                refreshToken: session?.provider_refresh_token,
-                email: googleEmail,
-              })
-              console.log('[auth/callback] google tokens saved after duplicate-profile race')
-            } catch (tokenError) {
-              const message = formatSupabaseError(tokenError)
-              console.error('[auth/callback] google token save failed after duplicate-profile race', {
-                message,
-                raw: tokenError,
-              })
-              return authErrorRedirect(origin, `google_token_save_failed:${message}`)
-            }
-          }
           console.log('[auth/callback] redirecting to onboarding after duplicate-profile race')
           return redirectWithAuthCookies(`${origin}/onboarding`)
         }
 
-        return authErrorRedirect(origin, `profile_insert_failed:${insertError.message}`)
+        return authErrorRedirect(origin, AUTH_ERROR_CODES.profileFailed, insertError.message)
       }
 
-      console.log('[auth/callback] profile created with google tokens', {
-        googleRefreshToken: summarizeToken(session?.provider_refresh_token),
-      })
-      console.log('[auth/callback] redirecting to onboarding (new profile)')
+      console.log('[auth/callback] profile created, redirecting to onboarding (new profile)')
       return redirectWithAuthCookies(`${origin}/onboarding`)
     }
 
-    if (googleLogin) {
-      console.log('[auth/callback] saving Google OAuth tokens via service role', {
-        userId: user.id,
-        providerRefreshToken: summarizeToken(session?.provider_refresh_token),
-      })
+    /*
+      No token handling here at all.
 
-      try {
-        await saveGoogleOAuthTokens(user.id, {
-          accessToken: session?.provider_token,
-          refreshToken: session?.provider_refresh_token,
-          email: googleEmail,
-        })
-      } catch (tokenError) {
-        const message = formatSupabaseError(tokenError)
-        console.error('[auth/callback] saveGoogleOAuthTokens failed', {
-          message,
-          userId: user.id,
-          raw: tokenError,
-        })
-        return authErrorRedirect(origin, `google_token_save_failed:${message}`)
-      }
-
-      console.log('[auth/callback] google tokens saved to abc_profiles', {
-        googleRefreshToken: summarizeToken(session?.provider_refresh_token),
-      })
-    } else {
-      console.log('[auth/callback] non-Google login, skipping google token save')
-    }
+      Signing in asks for identity scopes only, so Google returns no refresh
+      token and there is nothing a sign-in could usefully store. The mailbox is
+      obtained by the connector at /api/auth/google-gmail, which proves both the
+      signed state and the live session before it writes anything. Keeping a
+      token-writing branch in this route would be unreachable code in the one
+      place where "whose credentials are these" must never be ambiguous.
+    */
 
     const destination = profile.onboarding_completed ? safeNext : '/onboarding'
     console.log('[auth/callback] redirecting to final destination', { destination })
@@ -259,6 +228,6 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const message = formatSupabaseError(err)
     console.error('[auth/callback] unhandled error', err)
-    return authErrorRedirect(origin, `unhandled:${message}`)
+    return authErrorRedirect(origin, AUTH_ERROR_CODES.unexpected, message)
   }
 }
