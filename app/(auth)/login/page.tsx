@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
 import AuthOrDivider from '@/components/auth/AuthOrDivider'
+import AppleSignInButton from '@/components/auth/AppleSignInButton'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
 
 const UUID_RE =
@@ -74,6 +75,7 @@ function LoginContent() {
 
         <div className="flex flex-col gap-5">
           <GoogleSignInButton nextPath="/dashboard" variant="primary" connectUserId={connectUserId} />
+          <AppleSignInButton nextPath="/dashboard" variant="primary" connectUserId={connectUserId} />
           <AuthOrDivider />
 
           <div
