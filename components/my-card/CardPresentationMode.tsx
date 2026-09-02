@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { IconQrcode, IconX } from '@tabler/icons-react'
-import CompactCardPreview from '@/components/card/CompactCardPreview'
+import { IconX } from '@tabler/icons-react'
+import CardQrImage from '@/components/card/CardQrImage'
+import DigitalCardView from '@/components/card/DigitalCardView'
+import InertContent from '@/components/ui/InertContent'
 import type { DigitalCardData } from '@/lib/card/types'
 import { SAFE_TOP } from '@/lib/ui/layout'
 
@@ -14,10 +16,10 @@ import { SAFE_TOP } from '@/lib/ui/layout'
  * other person needs to see the card, and then the QR. This drops the chrome
  * and leaves the two.
  *
- * Deliberately thin. The card is the same `CompactCardPreview` the page and the
- * editor render, and the QR is the same `CardQrModal` the page already owns —
- * this component does not draw either, it only clears the space around them.
- * There is no new data here and no second copy of anything.
+ * Deliberately thin. The card is the same `DigitalCardView` the public URL and
+ * the editor preview render, and the QR is the same server-drawn image the
+ * fullscreen modal shows — this component draws neither, it only clears the
+ * space around them. There is no new data here and no second copy of anything.
  *
  * Its insets are in pixels rather than rems. The root font-size drops to 14px
  * on phones, and a phone is the one device where clearing the Dynamic Island
@@ -104,24 +106,59 @@ export default function CardPresentationMode({
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 items-center justify-center px-5">
-        <div className="w-full max-w-[420px]">
-          <CompactCardPreview card={card} size="large" />
-        </div>
-      </div>
+      {/*
+        The real card, scrolling.
 
-      <div
-        className="px-5 pt-3"
-        style={{ paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}
-      >
-        <button
-          type="button"
-          onClick={onShowQr}
-          className="inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-btn bg-abc-gold px-5 text-[15px] font-semibold text-[#1a1205] transition-[filter] duration-200 ease-abc hover:brightness-[1.06] abc-focus-ring"
-        >
-          <IconQrcode size={20} stroke={1.8} />
-          Show QR code
-        </button>
+        This used to render CompactCardPreview, which is documented as "a small,
+        honest stand-in" — it line-clamps the tagline, draws a dead "Save
+        contact" rectangle, and reduces a showcase to the sentence "Portfolio ·
+        8 images". Fine on a dashboard that is only being glanced at; wrong on
+        the screen you hand to somebody, where the whole point is that they see
+        the finished card. DigitalCardView is what the public URL and the
+        editor's preview both render, so this shows exactly what the other
+        person would get.
+
+        A real card can be taller than a phone, so the surface scrolls rather
+        than centring a fixed block and cropping the rest.
+      */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5">
+        <div className="mx-auto w-full max-w-[420px] pb-2">
+          {/*
+            Display-only. The card is the real one, with the real controls, and
+            on this screen none of them should fire: the phone is being held
+            out to somebody else, and a stray thumb landing on "Save contact"
+            or a social link would download the owner's own vCard or navigate
+            away mid-conversation. The wrapper makes the subtree inert rather
+            than the renderer — the public card at /d/<slug> keeps every one of
+            these behaviours.
+
+            The QR below sits outside this wrapper, because it is the one thing
+            here that is meant to be tapped.
+          */}
+          <InertContent>
+            <DigitalCardView card={card} preview />
+          </InertContent>
+
+          {/* The reason this screen exists — not one tap further in. */}
+          {card.slug ? (
+            <section className="mt-6 flex flex-col items-center pb-2">
+              <p className="text-[13px] font-medium text-abc-secondary">Scan to connect</p>
+
+              <button
+                type="button"
+                onClick={onShowQr}
+                aria-label="Enlarge QR code"
+                className="mt-3 rounded-[20px] abc-focus-ring"
+              >
+                <CardQrImage slug={card.slug} width="min(62vw, 260px)" size={512} />
+              </button>
+
+              <p className="mt-3 text-[12px] text-abc-muted">Tap QR to enlarge</p>
+            </section>
+          ) : null}
+
+          <div style={{ height: 'calc(20px + env(safe-area-inset-bottom))' }} aria-hidden />
+        </div>
       </div>
     </div>
   )

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { IconCheck, IconCopy, IconDownload, IconX } from '@tabler/icons-react'
-import { CARD_PUBLIC_BASE } from '@/lib/card/types'
+import CardQrImage, { cardPublicUrl, cardQrSrc } from '@/components/card/CardQrImage'
 
 type Props = {
   slug: string
@@ -24,9 +24,8 @@ export default function CardQrModal({ slug, open, onClose, name, company }: Prop
   const [copied, setCopied] = useState(false)
   const closeRef = useRef<HTMLButtonElement>(null)
 
-  const cardUrl = `${CARD_PUBLIC_BASE}/${slug}`
+  const cardUrl = cardPublicUrl(slug)
   const shareUrl = `${cardUrl}?src=qr`
-  const qrSrc = slug ? `/api/card/qr/${encodeURIComponent(slug)}?size=1024` : ''
 
   const copyLink = useCallback(async () => {
     try {
@@ -112,21 +111,7 @@ export default function CardQrModal({ slug, open, onClose, name, company }: Prop
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-5">
-        {/* Pure white plate — the quiet zone the scanner needs. */}
-        <div
-          className="rounded-[20px] bg-white p-4 sm:p-5"
-          style={{ lineHeight: 0, width: 'min(78vw, 380px)' }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={qrSrc}
-            alt={`QR code linking to ${cardUrl}`}
-            width={1024}
-            height={1024}
-            className="block h-auto w-full"
-            style={{ aspectRatio: '1 / 1' }}
-          />
-        </div>
+        <CardQrImage slug={slug} width="min(78vw, 380px)" size={1024} />
 
         <div className="mt-6 max-w-[340px] text-center">
           {name ? (
@@ -158,7 +143,7 @@ export default function CardQrModal({ slug, open, onClose, name, company }: Prop
             {copied ? 'Copied' : 'Copy link'}
           </button>
           <a
-            href={`/api/card/qr/${encodeURIComponent(slug)}?size=2048`}
+            href={cardQrSrc(slug, 2048)}
             download={`${slug}-qr.png`}
             className="flex h-12 flex-1 items-center justify-center gap-2 rounded-btn border border-abc-border bg-abc-raised text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong abc-focus-ring"
           >
