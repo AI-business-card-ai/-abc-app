@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
+import { hasGmailGrant } from '@/lib/gmail-capability'
 import MessageComposer from '@/components/chat/MessageComposer'
 import FollowupSchedule from '@/components/chat/FollowupSchedule'
 import type { FollowupSequence, ScannedContact } from '@/lib/types'
@@ -79,7 +80,7 @@ export default function ChatDetailPage() {
 
     setContact(c as ScannedContact)
     setSequences((seq as FollowupSequence[]) ?? [])
-    setGoogleConnected(Boolean(profile?.google_connected))
+    setGoogleConnected(hasGmailGrant(profile))
   }, [id, router, supabase])
 
   useEffect(() => {

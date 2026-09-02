@@ -6,6 +6,7 @@ import { logMessageSent } from '@/lib/crm-client'
 import { useOutreachSendConfirm } from '@/lib/hooks/useOutreachSendConfirm'
 import SendConfirmDialog from '@/components/outreach/SendConfirmDialog'
 import { GOOGLE_RECONNECT_CODE } from '@/lib/google-gmail-auth'
+import { gmailReturnPath } from '@/lib/gmail-capability'
 import {
   openEmailComposer,
   openLinkedInComposer,
@@ -103,6 +104,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
   const [emailSubject, setEmailSubject] = useState(contact.email_subject || '')
   const [toast, setToast] = useState<string | null>(null)
   const [googleConnected, setGoogleConnected] = useState(googleConnectedProp)
+  const [connectingGmail, setConnectingGmail] = useState(false)
   const [sendingGmail, setSendingGmail] = useState(false)
   const [gmailReconnectError, setGmailReconnectError] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState(false)
@@ -199,6 +201,26 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
           : v
       )
     )
+  }
+
+  /*
+    Hand off to the Gmail connector.
+
+    A server route, not a Supabase sign-in: the connector reads the current ABC
+    session, binds it into a signed state, and can only ever attach the mailbox
+    to the account that started here. The return path is built from the contact
+    id this component already holds, and is re-validated server side.
+  */
+  async function handleConnectGmail() {
+    setConnectingGmail(true)
+    try {
+      window.location.href = `/api/auth/google-gmail?returnTo=${encodeURIComponent(
+        gmailReturnPath(contact.id)
+      )}`
+    } catch (err) {
+      console.error('[composer] gmail connection failed to start:', err)
+      setConnectingGmail(false)
+    }
   }
 
   async function sendGmailViaApi(subject: string, body: string) {
@@ -569,25 +591,55 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                         </button>
                       </>
                     ) : (
-                      <button
-                        type="button"
-                        className="interactive"
-                        disabled={!variant.text.trim()}
-                        onClick={() => void handleVariantEmailOpen(variant.id)}
-                        style={{
-                          alignSelf: 'flex-start',
-                          padding: '10px 14px',
-                          borderRadius: '8px',
-                          border: '1px solid #2a2a2a',
-                          background: '#242424',
-                          color: '#ffffff',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Open in email app
-                      </button>
+                      <>
+                        {/*
+                          No mailbox granted yet. Signing in with Google no
+                          longer asks for one, so this is where it gets asked
+                          for — at the moment somebody actually wants to send,
+                          which is also the moment the request makes sense.
+                          Offering the send button here instead would put them
+                          straight into a failing API call.
+                        */}
+                        <button
+                          type="button"
+                          className="interactive"
+                          disabled={connectingGmail}
+                          onClick={() => void handleConnectGmail()}
+                          style={{
+                            alignSelf: 'flex-start',
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--abc-gold-border)',
+                            background: 'var(--abc-gold-soft)',
+                            color: 'var(--abc-gold-accent)',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: connectingGmail ? 'wait' : 'pointer',
+                          }}
+                        >
+                          {connectingGmail ? 'Opening Google…' : 'Connect Gmail to send from here'}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="interactive"
+                          disabled={!variant.text.trim()}
+                          onClick={() => void handleVariantEmailOpen(variant.id)}
+                          style={{
+                            alignSelf: 'flex-start',
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            border: '1px solid #2a2a2a',
+                            background: '#242424',
+                            color: '#ffffff',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Open in email app
+                        </button>
+                      </>
                     )}
                   </div>
                 )}
