@@ -133,7 +133,9 @@ export async function GET(request: NextRequest) {
     }
 
     const googleLogin = isGoogleUser(user)
-    const googleEmail = user.email ?? null
+    // Whatever the provider gave us — a Google address, an Apple one, or one
+    // of Apple's @privaterelay.appleid.com aliases. All are valid identities.
+    const accountEmail = user.email ?? null
 
     console.log('[auth/callback] session loaded', {
       hasSession: Boolean(session),
@@ -176,7 +178,7 @@ export async function GET(request: NextRequest) {
 
       const { error: insertError } = await serviceClient.from('abc_profiles').insert({
         id: user.id,
-        email: googleEmail,
+        email: accountEmail,
         /*
           A new profile carries no mailbox. Signing in with Google is not
           permission to send mail as them, and the tokens a sign-in returns

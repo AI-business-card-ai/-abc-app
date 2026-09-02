@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { createClientComponent } from '@/lib/supabase'
 import AuthOrDivider from '@/components/auth/AuthOrDivider'
+import AppleSignInButton from '@/components/auth/AppleSignInButton'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
 
 export default function RegisterPage() {
@@ -74,7 +75,21 @@ export default function RegisterPage() {
         </div>
 
         <div className="flex flex-col gap-5">
-          <GoogleSignInButton nextPath="/onboarding" variant="primary" />
+          {/*
+            Both social buttons ask for /dashboard, on the register screen as
+            much as on the login one.
+
+            Signing in with a provider is identity, and identity does not know
+            which button was pressed to start it. The callback already decides
+            where somebody belongs from what is stored — an incomplete or brand
+            new profile goes to /onboarding regardless of what was asked for,
+            and only a completed one is sent to the requested destination. So
+            asking for /onboarding here changed nothing for the people it was
+            meant to help, and sent somebody who already finished onboarding
+            back through it because they happened to open the wrong page.
+          */}
+          <GoogleSignInButton nextPath="/dashboard" variant="primary" />
+          <AppleSignInButton nextPath="/dashboard" variant="primary" />
           <AuthOrDivider />
 
           <div

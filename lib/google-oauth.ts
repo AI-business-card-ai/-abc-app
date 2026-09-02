@@ -1,4 +1,5 @@
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
+import { getOAuthCallbackUrl } from '@/lib/auth/redirect'
 
 /**
  * Two different things ABC asks Google for, kept apart.
@@ -24,19 +25,13 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 
 export const GOOGLE_GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send'
 
+/**
+ * Kept as the name Google's callers already use; the construction itself moved
+ * to `lib/auth/redirect` when Apple needed the same thing, so there is one
+ * builder rather than one per provider.
+ */
 export function getGoogleOAuthRedirectTo(nextPath = '/dashboard', connectUserId?: string) {
-  const query =
-    `next=${encodeURIComponent(nextPath)}` +
-    (connectUserId ? `&connect=${encodeURIComponent(connectUserId)}` : '')
-
-  // Always use the browser origin so PKCE cookies match the callback domain.
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}/auth/callback?${query}`
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL
-  const base = appUrl || ''
-  return `${base}/auth/callback?${query}`
+  return getOAuthCallbackUrl(nextPath, connectUserId)
 }
 
 /**
