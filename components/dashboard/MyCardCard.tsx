@@ -152,11 +152,17 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
             onClick={() => setQrOpen(true)}
             labelClassName={LABEL}
           />
+          {/*
+            A link, not a second copy of the wallet logic. Whether a pass can
+            actually be issued is a server question with two providers behind
+            it, and answering it twice is how the dashboard ends up disagreeing
+            with My Card. This tile knows where the answer lives.
+          */}
           <IconTile
             icon={IconWallet}
             label="Wallet"
-            disabled
-            title="Apple Wallet — not available yet"
+            href="/my-card#wallet"
+            title="Add your card to Apple Wallet or Google Wallet"
             labelClassName={LABEL}
           />
         </div>

@@ -5,13 +5,15 @@ import DigitalCardView from '@/components/card/DigitalCardView'
 import CardExchangeModal from '@/components/card/CardExchangeModal'
 import type { DigitalCardData } from '@/lib/card/types'
 
-export default function PublicCardClient({
-  card,
-  wallet,
-}: {
-  card: DigitalCardData
-  wallet: { apple: boolean; google: boolean }
-}) {
+/**
+ * A visitor's view of somebody else's card.
+ *
+ * No wallet capability reaches here, and none should: a pass represents its
+ * owner's identity, and the person scanning the QR is not that owner. Adding
+ * another person's card to your own Wallet is a different product from the one
+ * this page is — the owner's wallet actions live on My Card.
+ */
+export default function PublicCardClient({ card }: { card: DigitalCardData }) {
   const [exchangeOpen, setExchangeOpen] = useState(false)
 
   function handleLinkClick(linkId: string) {
@@ -26,7 +28,6 @@ export default function PublicCardClient({
     <>
       <DigitalCardView
         card={card}
-        wallet={wallet}
         onExchange={() => setExchangeOpen(true)}
         onLinkClick={handleLinkClick}
       />

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import MyCardView from '@/components/my-card/MyCardView'
 import { getMyCard } from '@/lib/my-card-data'
+import { walletAvailability } from '@/lib/card/wallet'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,5 +15,9 @@ export default async function MyCardPage() {
   // Middleware already gates this route; this is the safety net.
   if (!data) redirect('/login')
 
-  return <MyCardView data={data} />
+  /*
+    Two booleans, resolved on the server. `walletAvailability` deliberately
+    returns nothing but the answer — the variable names behind it stay here.
+  */
+  return <MyCardView data={data} wallet={walletAvailability()} />
 }
