@@ -2,9 +2,7 @@
 
 import { useState } from 'react'
 import {
-  IconBrandApple,
   IconBrandFacebook,
-  IconBrandGoogle,
   IconBrandGithub,
   IconBrandInstagram,
   IconBrandLinkedin,
@@ -39,8 +37,6 @@ type Props = {
   onExchange?: () => void
   onLinkClick?: (linkId: string, url: string) => void
   onSaveContact?: () => void
-  /** Which wallets can actually issue a pass in this deployment. */
-  wallet?: { apple: boolean; google: boolean }
 }
 
 const SOCIAL_ICONS: Record<SocialNetwork, { Icon: TablerIcon; label: string; urlKey: keyof DigitalCardData }> = {
@@ -88,7 +84,6 @@ export default function DigitalCardView({
   onExchange,
   onLinkClick,
   onSaveContact,
-  wallet = { apple: false, google: false },
 }: Props) {
   const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
   const base = getCardThemeTokens(card.theme)
@@ -364,20 +359,6 @@ export default function DigitalCardView({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 22 }}>
               <ActionRow
-                Icon={IconBrandApple}
-                title="Add to Apple Wallet"
-                subtitle="Not available yet"
-                tokens={t}
-                accent={accent}
-              />
-              <ActionRow
-                Icon={IconBrandGoogle}
-                title="Add to Google Wallet"
-                subtitle="Not available yet"
-                tokens={t}
-                accent={accent}
-              />
-              <ActionRow
                 Icon={IconDownload}
                 title="Save Contact"
                 subtitle="Save to your phone"
@@ -595,38 +576,6 @@ export default function DigitalCardView({
             <IconShare2 size={18} stroke={1.8} />
             {shareState === 'copied' ? 'Link copied' : 'Share card'}
           </button>
-
-          {/* Wallet — shown only where a real pass can be issued */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
-            <WalletButton
-              label="Apple Wallet"
-              Icon={IconBrandApple}
-              href={`/api/card/wallet/apple/${encodeURIComponent(card.slug)}`}
-              available={wallet.apple}
-              tokens={t}
-            />
-            <WalletButton
-              label="Google Wallet"
-              Icon={IconBrandGoogle}
-              href={`/api/card/wallet/google/${encodeURIComponent(card.slug)}`}
-              available={wallet.google}
-              tokens={t}
-            />
-          </div>
-
-          {!wallet.apple && !wallet.google ? (
-            <p
-              style={{
-                margin: '8px 0 0',
-                fontSize: 11.5,
-                lineHeight: 1.45,
-                color: t.muted,
-                textAlign: 'center',
-              }}
-            >
-              Wallet passes are not available yet.
-            </p>
-          ) : null}
         </div>
 
         {/* About */}
@@ -839,12 +788,12 @@ export default function DigitalCardView({
 }
 
 /**
- * One premium row, used for the whole save/share/wallet family so they read as
- * siblings rather than four unrelated controls.
+ * One premium row, used for the whole save/share/connect family so they read
+ * as siblings rather than unrelated controls.
  *
  * A row without an `onClick` is not merely styled as unavailable — it renders
- * as a non-interactive element with `aria-disabled`, so a Wallet row cannot be
- * tapped, focused or activated into pretending a pass was added.
+ * as a non-interactive element with `aria-disabled`, so a row that cannot act
+ * cannot be tapped, focused, or activated into pretending that it did.
  */
 function ActionRow({
   Icon,
@@ -925,63 +874,5 @@ function ActionRow({
     <button type="button" className="interactive" onClick={onClick} style={{ ...shared, cursor: 'pointer' }}>
       {inner}
     </button>
-  )
-}
-
-/**
- * A wallet action is rendered only as honestly as it can behave. When the
- * deployment has no signing credentials the control is visibly unavailable and
- * says so — it is never wired to a vCard download to appear functional.
- */
-function WalletButton({
-  label,
-  Icon,
-  href,
-  available,
-  tokens,
-}: {
-  label: string
-  Icon: TablerIcon
-  href: string
-  available: boolean
-  tokens: { surface: string; border: string; text: string; muted: string }
-}) {
-  const shared = {
-    minHeight: 50,
-    borderRadius: 13,
-    border: `1px solid ${tokens.border}`,
-    fontWeight: 600,
-    fontSize: 13.5,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    textDecoration: 'none',
-  } as const
-
-  if (!available) {
-    return (
-      <span
-        aria-disabled="true"
-        title={`${label} is not available yet`}
-        style={{
-          ...shared,
-          background: 'transparent',
-          color: tokens.muted,
-          cursor: 'not-allowed',
-          opacity: 0.65,
-        }}
-      >
-        <Icon size={17} stroke={1.8} />
-        {label}
-      </span>
-    )
-  }
-
-  return (
-    <a href={href} className="interactive" style={{ ...shared, background: tokens.surface, color: tokens.text }}>
-      <Icon size={17} stroke={1.8} />
-      {label}
-    </a>
   )
 }

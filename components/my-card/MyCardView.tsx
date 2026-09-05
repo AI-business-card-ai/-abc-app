@@ -5,6 +5,8 @@ import Link from 'next/link'
 import {
   IconAddressBook,
   IconAlertCircle,
+  IconBrandApple,
+  IconBrandGoogle,
   IconCheck,
   IconCopy,
   IconDownload,
@@ -15,6 +17,7 @@ import {
   IconShare,
   IconWallet,
 } from '@tabler/icons-react'
+import type { TablerIcon } from '@tabler/icons-react'
 import CardQrModal from '@/components/card/CardQrModal'
 import CardPresentationMode from '@/components/my-card/CardPresentationMode'
 import CompactCardPreview from '@/components/card/CompactCardPreview'
@@ -22,6 +25,7 @@ import Button from '@/components/ui/abc/Button'
 import { EmptyState, SectionLabel } from '@/components/ui/abc/Bits'
 import type { CardAnalytics } from '@/lib/card/types'
 import type { MyCardData } from '@/lib/my-card-data'
+import type { WalletAvailability } from '@/lib/card/wallet'
 import { CARD_EDITOR_PATH } from '@/lib/settings/sections'
 
 /** Identity fields a card needs before it is worth handing to someone. */
@@ -35,7 +39,14 @@ function missingEssentials(data: MyCardData): string[] {
   return missing
 }
 
-export default function MyCardView({ data }: { data: MyCardData }) {
+export default function MyCardView({
+  data,
+  wallet = { apple: false, google: false },
+}: {
+  data: MyCardData
+  /** Which wallets this deployment can actually issue a pass for. */
+  wallet?: WalletAvailability
+}) {
   const { card, slug, publicUrl, published } = data
 
   const [qrOpen, setQrOpen] = useState(false)
@@ -45,6 +56,7 @@ export default function MyCardView({ data }: { data: MyCardData }) {
   const [stats, setStats] = useState<CardAnalytics | null>(null)
 
   const live = Boolean(slug && published && publicUrl)
+  const walletReady = wallet.apple || wallet.google
   const missing = missingEssentials(data)
 
   useEffect(() => {
@@ -289,16 +301,45 @@ export default function MyCardView({ data }: { data: MyCardData }) {
         </div>
       ) : null}
 
-      <section className="mt-4 rounded-card border border-abc-border bg-abc-card p-5">
+      <section
+        id="wallet"
+        className="mt-4 scroll-mt-24 rounded-card border border-abc-border bg-abc-card p-5"
+      >
         <div className="flex gap-3">
           <IconWallet size={19} stroke={1.7} className="mt-0.5 shrink-0 text-abc-muted" />
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold text-abc-text">Wallet passes</p>
             <p className="mt-1.5 text-[13px] leading-[1.55] text-abc-secondary">
-              Apple Wallet and Google Wallet are not connected yet, so there is nothing to add.
-              Until then, <span className="text-abc-text">Show QR</span> is the fastest way to be
-              scanned.
+              {walletReady
+                ? 'Keep your card in the phone you already hold at the door. The QR on the pass opens your live card, so it keeps working after you edit anything.'
+                : 'Apple Wallet and Google Wallet are not connected yet, so there is nothing to add.'}{' '}
+              {live ? (
+                <>
+                  <span className="text-abc-text">Show QR</span> works either way.
+                </>
+              ) : null}
             </p>
+
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <WalletAction
+                label="Add to Apple Wallet"
+                href="/api/card/wallet/apple"
+                Icon={IconBrandApple}
+                available={wallet.apple && live}
+              />
+              <WalletAction
+                label="Add to Google Wallet"
+                href="/api/card/wallet/google"
+                Icon={IconBrandGoogle}
+                available={wallet.google && live}
+              />
+            </div>
+
+            {!live ? (
+              <p className="mt-2 text-[12px] leading-[1.5] text-abc-muted">
+                Publish your card first — a pass points at your public card address.
+              </p>
+            ) : null}
           </div>
         </div>
       </section>
@@ -336,5 +377,53 @@ export default function MyCardView({ data }: { data: MyCardData }) {
         />
       ) : null}
     </div>
+  )
+}
+
+/**
+ * One wallet action, rendered only as honestly as it can behave.
+ *
+ * When the deployment has no credentials — or the card is not published — the
+ * control is a non-interactive element with `aria-disabled`, not a link that
+ * leads to an error. It never says "Added" or "Saved": the pass is handed to
+ * the operating system, and whether the owner then confirms the save happens
+ * somewhere this app cannot see. Claiming otherwise would be a guess presented
+ * as a fact.
+ */
+function WalletAction({
+  label,
+  href,
+  Icon,
+  available,
+}: {
+  label: string
+  href: string
+  Icon: TablerIcon
+  available: boolean
+}) {
+  const shared =
+    'flex flex-1 items-center justify-center gap-2 rounded-btn border px-4 py-3 text-[13.5px] font-semibold transition-colors duration-200 ease-abc'
+
+  if (!available) {
+    return (
+      <span
+        aria-disabled="true"
+        title={`${label} is not available yet`}
+        className={`${shared} cursor-not-allowed border-abc-border text-abc-muted opacity-65`}
+      >
+        <Icon size={17} stroke={1.8} />
+        {label}
+      </span>
+    )
+  }
+
+  return (
+    <a
+      href={href}
+      className={`${shared} border-abc-border bg-abc-raised text-abc-text hover:border-abc-border-strong abc-focus-ring`}
+    >
+      <Icon size={17} stroke={1.8} />
+      {label}
+    </a>
   )
 }
