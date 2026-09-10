@@ -32,7 +32,12 @@ function emptyContext(): MeetingContextValue {
   return { whereMet: '', discussed: '', nextAction: '', followUpAt: null }
 }
 
-export default function ScanClient() {
+/**
+ * `topPadding` exists so the scan screen can place a mode switch above this
+ * component without the two both claiming the page's top offset. It defaults to
+ * the original behaviour, so nothing that already rendered ScanClient changes.
+ */
+export default function ScanClient({ topPadding = true }: { topPadding?: boolean } = {}) {
   const router = useRouter()
   const supabase = useRef(createClientComponent()).current
 
@@ -370,7 +375,17 @@ export default function ScanClient() {
       : 'Preparing camera…'
 
   return (
-    <div className="mx-auto flex w-full max-w-[1000px] flex-col abc-page-top px-4 pb-8 sm:px-6 lg:px-8">
+    <div
+      /*
+        `abc-page-top` or nothing at all — never a hand-typed offset. The page's
+        top spacing is one contract, and a container that types its own is how
+        the iPhone header started overlapping content in the first place. When
+        the mode switch above owns the offset, this contributes none.
+      */
+      className={`mx-auto flex w-full max-w-[1000px] flex-col px-4 pb-8 sm:px-6 lg:px-8 ${
+        topPadding ? 'abc-page-top' : ''
+      }`}
+    >
       {stage === 'capture' || stage === 'processing' ? (
         <>
           <header className="shrink-0">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   IconCalendarEvent,
@@ -94,6 +95,24 @@ export default function MeetingContextCard({ contact }: { contact: ContactDetail
           <p className="mt-1.5 text-[13px] leading-[1.55] text-abc-secondary">
             This is what you will have forgotten in three weeks.
           </p>
+          {/*
+            Said before the owner edits rather than after. This context arrived
+            on several people at once, and editing it here changes only this
+            one — which is the intended behaviour, and worth knowing in advance
+            instead of discovering later on somebody else's screen.
+          */}
+          {contact.scanBatchId ? (
+            <p className="mt-1.5 text-[12.5px] leading-[1.5] text-abc-muted">
+              Captured with others in one scan.{' '}
+              <Link
+                href={`/batches/${contact.scanBatchId}`}
+                className="text-abc-gold-accent abc-focus-ring"
+              >
+                See the batch
+              </Link>
+              . Edits here apply to this contact only.
+            </p>
+          ) : null}
         </div>
         {!editing ? (
           <button

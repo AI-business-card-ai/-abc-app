@@ -153,6 +153,146 @@ export async function extractBusinessCardFromImage(
   return EMPTY_CARD_EXTRACT
 }
 
+/**
+ * One card as read out of a photograph that held several.
+ *
+ * `confidence` is the model's own account of how clearly it could read this
+ * particular card, not a score anyone computes afterwards. It drives a warning
+ * on the review screen and never a rejection: a card photographed at an angle
+ * under trade-fair lighting is still a person the owner met.
+ */
+export type MultiCardExtract = CardExtract & { confidence: number | null }
+
+/** Anything at or below this is not a card, and is dropped before returning. */
+const MULTI_CARD_MIN_CONFIDENCE = 0.15
+
+/**
+ * Read every business card in one image.
+ *
+ * Deliberately a separate call from `extractBusinessCardFromImage` rather than
+ * a flag on it. The single-card prompt says "this business card" and is the
+ * cheaper, more accurate instruction when that is true; asking it to also
+ * consider the possibility of nine others would make every ordinary scan pay
+ * for a case it does not have. The two prompts answer two different questions.
+ *
+ * `maxCards` is passed in rather than hardcoded so the ten-card limit lives in
+ * one constant that the API, the UI and the prompt all read.
+ */
+export async function extractBusinessCardsFromImage(
+  imageBase64: string,
+  mediaType: ImageMediaType,
+  maxCards: number
+): Promise<MultiCardExtract[]> {
+  const prompt = `This photo may contain several business cards laid out together.
+
+Identify each distinct business card and extract its details separately.
+
+Rules:
+- Return AT MOST ${maxCards} cards. If there are more, return the ${maxCards} clearest.
+- One object per physical card. Never merge two people into one object.
+- Never split one card into two objects.
+- If a field is missing on a card, use null. Do not guess or copy it from another card.
+- Ignore anything that is not a business card: hands, table, badges, brochures, phones.
+- "confidence" is 0 to 1: how clearly you could read THIS card.
+
+Return ONLY a JSON array, no markdown:
+[
+  {
+    "name": null,
+    "company": null,
+    "role": null,
+    "email": null,
+    "phone": null,
+    "website": null,
+    "linkedin_url": null,
+    "confidence": 0.0
+  }
+]
+
+If the photo contains no business card at all, return [].`
+
+  /*
+    Roughly 260 tokens per card plus headroom for the array itself. Sized from
+    the single-card budget rather than guessed: an answer truncated mid-array
+    parses as nothing and costs the owner the whole batch.
+  */
+  const maxTokens = 400 + maxCards * 280
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const text = await callClaudeVision(imageBase64, mediaType, prompt, maxTokens)
+      const parsed = parseClaudeJsonArray<MultiCardExtract>(text)
+      if (parsed) {
+        return parsed
+          .filter((card) => card && typeof card === 'object')
+          .map((card) => ({
+            name: card.name ?? null,
+            company: card.company ?? null,
+            role: card.role ?? null,
+            email: card.email ?? null,
+            phone: card.phone ?? null,
+            website: card.website ?? null,
+            linkedin_url: card.linkedin_url ?? null,
+            confidence: normalizeConfidence(card.confidence),
+          }))
+          .filter(
+            (card) =>
+              card.confidence === null || card.confidence > MULTI_CARD_MIN_CONFIDENCE
+          )
+          .slice(0, maxCards)
+      }
+      console.warn(`Claude multi-card JSON parse failed (attempt ${attempt + 1})`)
+    } catch (err) {
+      if (err instanceof ClaudeVisionError) throw err
+      const detail = err instanceof Error ? err.message : String(err)
+      throw new ClaudeVisionError(`Claude Vision multi-card extraction failed: ${detail}`)
+    }
+  }
+
+  /*
+    An empty array, not an exception. "I could not read this photo" and "this
+    photo had no cards in it" look identical from here, and the caller turns
+    both into the same honest message rather than a stack trace.
+  */
+  console.warn('Claude multi-card returning empty result after JSON parse failures')
+  return []
+}
+
+function normalizeConfidence(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  if (value < 0) return 0
+  if (value > 1) return 1
+  return value
+}
+
+/** Array-shaped sibling of `parseClaudeJson`, tolerant of a stray prose line. */
+function parseClaudeJsonArray<T>(text: string): T[] | null {
+  const clean = text.replace(/```json|```/g, '').trim()
+
+  const tryParse = (value: string): T[] | null => {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) return parsed as T[]
+      // A model that found exactly one card sometimes answers with the object.
+      if (parsed && typeof parsed === 'object') return [parsed as T]
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  const direct = tryParse(clean)
+  if (direct) return direct
+
+  const arrayMatch = clean.match(/\[[\s\S]*\]/)
+  if (arrayMatch) {
+    const parsed = tryParse(arrayMatch[0])
+    if (parsed) return parsed
+  }
+
+  return null
+}
+
 export async function analyzeBusinessCard(
   imageBase64: string,
   userProfile: ABCProfile,

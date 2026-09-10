@@ -39,6 +39,7 @@ const CONTACT_COLUMNS = [
   'next_action_date',
   'source',
   'scanned_at',
+  'scan_batch_id',
 ].join(', ')
 
 export type ContactDetail = {
@@ -66,6 +67,16 @@ export type ContactDetail = {
   /** How this contact arrived, already phrased — see `capturePhrase`. */
   capturePhrase: string | null
   scannedAt: string | null
+
+  /**
+   * The multi-card session this contact came out of, when it came out of one.
+   *
+   * Null for every contact scanned singly, which is most of them. Present so
+   * the screen can say the meeting notes were shared with several people —
+   * without it, an owner editing one contact's context has no way to know the
+   * same words are sitting on nine others.
+   */
+  scanBatchId: string | null
 
   /**
    * Every meeting with this person, newest first.
@@ -210,6 +221,7 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
 
       capturePhrase: capturePhrase(clean(row.source)),
       scannedAt: clean(row.scanned_at),
+      scanBatchId: clean(row.scan_batch_id),
 
       encounters: ((encounterRes.data || []) as Record<string, unknown>[]).map((e) => ({
         id: String(e.id),
