@@ -1,26 +1,35 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   IconAlertTriangle,
+  IconArrowBackUp,
   IconCameraPlus,
   IconCheck,
+  IconDeviceMobileRotated,
   IconLayoutGrid,
   IconPhoto,
   IconScan,
+  IconX,
 } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import BatchCardList from '@/components/scan/BatchCardList'
 import BatchExportPanel from '@/components/scan/BatchExportPanel'
 import BatchSharedContextForm from '@/components/scan/BatchSharedContextForm'
-import { compressImageForScan } from '@/lib/image-compress'
+import { prepareImageForVision } from '@/lib/image-compress'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
 import { useCamera } from '@/lib/scan/useCamera'
+import { shouldSuggestLandscape, useOrientation } from '@/lib/scan/useOrientation'
 import type { ContactCandidate } from '@/lib/scan/candidate'
+import { ABOVE_MOBILE_NAV, MOBILE_NAV_HEIGHT, SAFE_TOP } from '@/lib/ui/layout'
 import {
+  batchSaveCount,
   emptySharedContext,
   MAX_BATCH_CARDS,
+  MULTI_CARD_IMAGE_POLICY,
+  remainingInBatch,
+  setItemSelected,
   type BatchSharedContext,
   type ScanBatch,
 } from '@/lib/scan/batch'
@@ -47,6 +56,25 @@ const DETECT_STEPS = [
   'Checking your contacts…',
 ]
 
+/** Long enough to notice a slip and reach Undo; short enough not to linger. */
+const UNDO_WINDOW_MS = 6000
+
+/*
+  A phone held sideways has very little height, and the header and the bottom
+  navigation both stay on screen. The stage is sized to what is left between
+  them, so the viewfinder and its controls are all visible at once.
+*/
+const LANDSCAPE_STAGE_HEIGHT = `calc(100svh - 3.5rem - ${SAFE_TOP} - ${MOBILE_NAV_HEIGHT}px - env(safe-area-inset-bottom) - 24px)`
+
+/** Whether the element that has focus got it from the keyboard. */
+function focusFromKeyboard(): boolean {
+  try {
+    return Boolean(document.activeElement?.matches(':focus-visible'))
+  } catch {
+    return false
+  }
+}
+
 type SaveOutcome = {
   created: { contactId: string; name: string; linked?: boolean }[]
   failed: { itemId: string; name: string; reason: string }[]
@@ -68,16 +96,36 @@ export default function MultiCardClient() {
   const [notice, setNotice] = useState<string | null>(null)
   const [blocked, setBlocked] = useState(false)
   const [outcome, setOutcome] = useState<SaveOutcome | null>(null)
+  /** The card just removed, while it can still be put back. */
+  const [removed, setRemoved] = useState<{ itemId: string; fromKeyboard: boolean } | null>(null)
+  /** Paused while the owner is on the toast — it must not vanish under a finger or a focus ring. */
+  const [holdUndo, setHoldUndo] = useState(false)
+  const [hintDismissed, setHintDismissed] = useState(false)
 
   const uploadRef = useRef<HTMLInputElement>(null)
+  const undoRef = useRef<HTMLButtonElement>(null)
+  /*
+    Removals and restores, in the order they happened. Each is sent as it is
+    made, because a removed card frees its place for the next photo and the
+    server counts that place; detection and save wait for the queue, so neither
+    can overtake a change the owner has already made.
+  */
+  const selectionSync = useRef<Promise<void>>(Promise.resolve())
 
   // The camera runs only while capturing, and is released for review and save.
   const cameraActive = stage === 'capture'
   const { videoRef, status, captureFrame } = useCamera(cameraActive)
+  const orientation = useOrientation()
 
   const items = batch?.items ?? []
-  const selectedCount = items.filter((item) => item.selected && !item.createdContactId).length
-  const remaining = MAX_BATCH_CARDS - items.length
+  const selectedCount = batchSaveCount(items)
+  const activeCount = items.filter((item) => item.selected).length
+  /*
+    Room left in the batch. A removed card gives its place back, so the owner
+    can retake a badly read card without starting over. Mirrors the server's
+    own count, which is the one that is enforced.
+  */
+  const remaining = remainingInBatch(items)
 
   /**
    * Local edits, applied to state immediately and sent with Save.
@@ -98,16 +146,80 @@ export default function MultiCardClient() {
     )
   }, [])
 
-  const patchItemSelected = useCallback((itemId: string, selected: boolean) => {
-    setBatch((current) =>
-      current
-        ? {
-            ...current,
-            items: current.items.map((item) => (item.id === itemId ? { ...item, selected } : item)),
-          }
-        : current
-    )
-  }, [])
+  /*
+    Remove and restore are the one edit that is not held back for Save: the
+    place a removed card frees is counted by the server when the next photo is
+    read. Save still carries every card's final state, so a PATCH lost to bad
+    wifi cannot save a card the owner removed.
+  */
+  const batchId = batch?.id ?? null
+  const setSelected = useCallback(
+    (itemId: string, selected: boolean) => {
+      setBatch((current) =>
+        current ? { ...current, items: setItemSelected(current.items, itemId, selected) } : current
+      )
+      if (!batchId) return
+      selectionSync.current = selectionSync.current.then(() =>
+        fetch(`/api/scan/batch/${batchId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: [{ id: itemId, selected }] }),
+        }).then(
+          () => undefined,
+          () => undefined
+        )
+      )
+    },
+    [batchId]
+  )
+
+  const removeCard = useCallback(
+    (itemId: string) => {
+      const fromKeyboard = focusFromKeyboard()
+      setSelected(itemId, false)
+      setHoldUndo(false)
+      setRemoved({ itemId, fromKeyboard })
+    },
+    [setSelected]
+  )
+
+  const undoRemove = useCallback(() => {
+    if (!removed) return
+    const { itemId } = removed
+    const fromKeyboard = focusFromKeyboard()
+    setSelected(itemId, true)
+    setRemoved(null)
+    setHoldUndo(false)
+    // Back to the card that came back, for someone working by keyboard.
+    if (fromKeyboard) {
+      requestAnimationFrame(() => {
+        const row = document.querySelector<HTMLElement>(`[data-batch-item="${itemId}"] button`)
+        row?.focus()
+        row?.scrollIntoView({ block: 'nearest' })
+      })
+    }
+  }, [removed, setSelected])
+
+  // The Undo window.
+  useEffect(() => {
+    if (!removed || holdUndo) return
+    const timer = setTimeout(() => setRemoved(null), UNDO_WINDOW_MS)
+    return () => clearTimeout(timer)
+  }, [removed, holdUndo])
+
+  /*
+    A removal made from the keyboard puts focus on Undo — the button that was
+    pressed no longer exists, and leaving focus on the page body would drop a
+    keyboard user back at the top of the screen.
+  */
+  useEffect(() => {
+    if (removed?.fromKeyboard) undoRef.current?.focus({ preventScroll: true })
+  }, [removed])
+
+  // Undo belongs to the review it was offered on.
+  useEffect(() => {
+    if (stage !== 'review') setRemoved(null)
+  }, [stage])
 
   const patchItemLink = useCallback((itemId: string, linkToExisting: boolean) => {
     setBatch((current) =>
@@ -155,17 +267,21 @@ export default function MultiCardClient() {
       ]
 
       try {
-        const batchId = await ensureBatch()
-        if (!batchId) {
+        const targetId = await ensureBatch()
+        if (!targetId) {
           setStage('capture')
           return
         }
 
-        const compressed = await compressImageForScan(file)
+        // Sized to what the vision model actually reads, not to a fixed width.
+        const compressed = await prepareImageForVision(file, MULTI_CARD_IMAGE_POLICY)
         const form = new FormData()
         form.append('image', compressed)
 
-        const res = await fetch(`/api/scan/batch/${batchId}/detect`, {
+        // A card removed a moment ago has to have freed its place first.
+        await selectionSync.current
+
+        const res = await fetch(`/api/scan/batch/${targetId}/detect`, {
           method: 'POST',
           body: form,
         })
@@ -211,11 +327,15 @@ export default function MultiCardClient() {
   }, [captureFrame, detect])
 
   const save = useCallback(async () => {
-    if (!batch) return
+    // An empty save is never sent: there is nothing it could create.
+    if (!batch || batchSaveCount(batch.items) === 0) return
     setStage('saving')
     setError(null)
 
     try {
+      // Let a removal or an Undo still in flight land before the save reads it.
+      await selectionSync.current
+
       const res = await fetch(`/api/scan/batch/${batch.id}/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -274,8 +394,14 @@ export default function MultiCardClient() {
           live={status === 'live'}
           status={status}
           blocked={blocked}
-          alreadyCaptured={items.length}
+          capturedCount={activeCount}
           remaining={remaining}
+          sideways={orientation.mobile && !orientation.portrait}
+          suggestLandscape={shouldSuggestLandscape(orientation, {
+            live: status === 'live',
+            dismissed: hintDismissed,
+          })}
+          onDismissHint={() => setHintDismissed(true)}
           onCapture={() => void capture()}
           onPickFile={() => uploadRef.current?.click()}
           onReview={items.length > 0 ? () => setStage('review') : undefined}
@@ -289,7 +415,9 @@ export default function MultiCardClient() {
           <BatchCardList
             items={items}
             onFieldsChange={patchItemFields}
-            onSelectedChange={patchItemSelected}
+            onSelectedChange={(itemId, selected) =>
+              selected ? setSelected(itemId, true) : removeCard(itemId)
+            }
             onLinkChange={patchItemLink}
             disabled={stage === 'saving'}
           />
@@ -312,7 +440,52 @@ export default function MultiCardClient() {
             </button>
           ) : null}
 
-          <div className="sticky bottom-0 z-10 -mx-4 mt-1 border-t border-abc-border bg-abc-bg px-4 py-3 sm:mx-0 sm:rounded-card sm:border sm:px-4">
+          {/*
+            Every card removed. Nothing to save, and nothing wrong either — the
+            owner can photograph more, or begin a fresh batch.
+          */}
+          {activeCount === 0 && stage === 'review' ? (
+            <button
+              type="button"
+              onClick={restart}
+              className="mx-auto flex h-[44px] items-center px-4 text-[13px] font-medium text-abc-secondary transition-colors duration-200 ease-abc hover:text-abc-text abc-focus-ring rounded-inner"
+            >
+              Start over
+            </button>
+          ) : null}
+
+          {/*
+            Sits above the bottom navigation on a phone, like the editor's save
+            bar, so the count and Undo are on screen while the list scrolls.
+          */}
+          <div
+            className="sticky z-[60] -mx-4 mt-1 border-t border-abc-border bg-abc-bg px-4 py-3 sm:mx-0 sm:rounded-card sm:border sm:px-4 lg:!bottom-0"
+            style={{ bottom: ABOVE_MOBILE_NAV }}
+          >
+            <div aria-live="polite" aria-atomic="true">
+              {removed ? (
+                <div
+                  className="mb-2.5 flex items-center gap-2 rounded-inner border border-abc-border bg-abc-raised py-0.5 pl-3.5 pr-1 text-[13px] text-abc-secondary"
+                  onFocus={() => setHoldUndo(true)}
+                  onBlur={() => setHoldUndo(false)}
+                  onPointerEnter={() => setHoldUndo(true)}
+                  onPointerLeave={() => setHoldUndo(false)}
+                >
+                  <span>Card removed</span>
+                  <span aria-hidden="true">·</span>
+                  <button
+                    ref={undoRef}
+                    type="button"
+                    onClick={undoRemove}
+                    className="flex h-[44px] items-center gap-1.5 rounded-inner px-2.5 font-semibold text-abc-gold-accent transition-colors duration-200 ease-abc hover:bg-abc-card abc-focus-ring"
+                  >
+                    <IconArrowBackUp size={15} stroke={2} aria-hidden="true" />
+                    Undo
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
             <Button
               onClick={() => void save()}
               disabled={stage === 'saving' || selectedCount === 0}
@@ -322,7 +495,7 @@ export default function MultiCardClient() {
               {stage === 'saving'
                 ? 'Saving…'
                 : selectedCount === 0
-                  ? 'Select a card to save'
+                  ? 'No cards to save'
                   : `Save ${selectedCount} contact${selectedCount === 1 ? '' : 's'}`}
             </Button>
             <p className="mt-2 text-center text-[12px] text-abc-muted">
@@ -379,8 +552,11 @@ function CaptureStage({
   live,
   status,
   blocked,
-  alreadyCaptured,
+  capturedCount,
   remaining,
+  sideways,
+  suggestLandscape,
+  onDismissHint,
   onCapture,
   onPickFile,
   onReview,
@@ -389,14 +565,38 @@ function CaptureStage({
   live: boolean
   status: string
   blocked: boolean
-  alreadyCaptured: number
+  capturedCount: number
   remaining: number
+  /** A phone held landscape. */
+  sideways: boolean
+  suggestLandscape: boolean
+  onDismissHint: () => void
   onCapture: () => void
   onPickFile: () => void
   onReview?: () => void
 }) {
+  const stageRef = useRef<HTMLDivElement>(null)
+
+  /*
+    Turning the phone sideways leaves room for the viewfinder and little else,
+    so the stage is brought fully into view — the owner is looking at the
+    cards, not scrolling for the shutter.
+  */
+  useEffect(() => {
+    if (sideways) stageRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [sideways])
+
   return (
-    <div className="mt-4 flex min-h-0 flex-col" style={{ height: 'min(72vh, 640px)' }}>
+    /*
+      Upright: viewfinder above, controls below. Sideways on a phone: the
+      viewfinder takes the width and the controls move beside it, because
+      stacked they would leave a letterbox too short to frame anything in.
+    */
+    <div
+      ref={stageRef}
+      className="mt-4 flex h-[min(72vh,640px)] min-h-0 scroll-mt-[calc(3.5rem_+_env(safe-area-inset-top)_+_12px)] flex-col max-lg:landscape:h-[min(var(--abc-sideways-stage),640px)] max-lg:landscape:min-h-[220px] max-lg:landscape:flex-row max-lg:landscape:gap-3"
+      style={{ '--abc-sideways-stage': LANDSCAPE_STAGE_HEIGHT } as React.CSSProperties}
+    >
       <div
         className="relative min-h-0 flex-1 overflow-hidden rounded-card border border-abc-border"
         style={{ background: '#050506' }}
@@ -411,19 +611,27 @@ function CaptureStage({
           }`}
         />
 
-        {live ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-            {/*
-              A wide frame rather than a card-shaped one: the owner is being
-              asked to fill it with several cards, and a single-card guide would
-              be telling them the opposite of what this mode wants.
-            */}
-            <div
-              className="h-[58%] w-full rounded-card border-2 border-dashed"
-              style={{ borderColor: 'rgba(217, 164, 65, 0.45)' }}
-            />
+        <div className="pointer-events-none absolute inset-0 flex flex-col">
+          {suggestLandscape ? <LandscapeHint onDismiss={onDismissHint} /> : null}
+
+          <div className="flex min-h-0 flex-1 items-center justify-center px-3 pt-3 sm:px-5 sm:pt-5">
+            {live ? <WideFrame /> : null}
           </div>
-        ) : null}
+
+          <p className="shrink-0 px-4 pb-3 pt-2 text-center [text-shadow:0_1px_2px_rgba(0,0,0,0.65)]">
+            <span className="block text-[13.5px] font-semibold text-white max-lg:landscape:inline">
+              {capturedCount > 0
+                ? `${capturedCount} card${capturedCount === 1 ? '' : 's'} so far · ${remaining} left`
+                : `Scan up to ${MAX_BATCH_CARDS} cards at once`}
+            </span>
+            <span className="hidden text-white/60 max-lg:landscape:inline" aria-hidden="true">
+              {' · '}
+            </span>
+            <span className="mt-0.5 block text-[12px] text-white/75 max-lg:landscape:mt-0 max-lg:landscape:inline">
+              Keep cards flat, separated and well lit.
+            </span>
+          </p>
+        </div>
 
         {!live ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
@@ -432,23 +640,16 @@ function CaptureStage({
             </p>
           </div>
         ) : null}
-
-        <div className="absolute inset-x-0 bottom-0 p-4">
-          <p className="mb-3 text-center text-[13px] text-white/80">
-            {alreadyCaptured > 0
-              ? `${alreadyCaptured} card${alreadyCaptured === 1 ? '' : 's'} so far · ${remaining} left`
-              : `Lay the cards flat and fill the frame — up to ${MAX_BATCH_CARDS} at once`}
-          </p>
-        </div>
       </div>
 
-      <div className="mt-3 flex flex-col gap-2">
+      <div className="mt-3 flex shrink-0 flex-col gap-2 max-lg:landscape:mt-0 max-lg:landscape:w-[196px] max-lg:landscape:justify-center">
         <Button onClick={onCapture} disabled={!live || blocked || remaining <= 0} size="lg" fullWidth>
           <IconScan size={19} stroke={1.8} />
-          {alreadyCaptured > 0 ? 'Capture more cards' : 'Capture cards'}
+          {capturedCount > 0 ? 'Capture more cards' : 'Capture cards'}
         </Button>
 
-        <div className="flex gap-2">
+        {/* Never gated on orientation: a photo already taken can be any shape. */}
+        <div className="flex gap-2 max-lg:landscape:flex-col">
           <Button onClick={onPickFile} disabled={blocked || remaining <= 0} variant="surface" size="md" fullWidth>
             <IconPhoto size={17} stroke={1.8} />
             Upload a photo
@@ -456,10 +657,89 @@ function CaptureStage({
           {onReview ? (
             <Button onClick={onReview} variant="surface" size="md" fullWidth>
               <IconLayoutGrid size={17} stroke={1.8} />
-              Review {alreadyCaptured}
+              {capturedCount > 0 ? `Review ${capturedCount}` : 'Back to review'}
             </Button>
           ) : null}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Turn the phone sideways — a suggestion, never a gate.
+ *
+ * Ten cards laid out on a table are wider than they are tall, and an upright
+ * phone spends most of its pixels on the table above and below them, which is
+ * what made small print unreadable in the first real test. Not a modal: it
+ * takes no focus and blocks nothing, so rotation lock, an upload, or simply
+ * preferring portrait all still work. It goes the moment the phone turns, and
+ * stays gone once dismissed.
+ */
+function LandscapeHint({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div
+      role="status"
+      className="pointer-events-auto mx-3 mt-3 flex shrink-0 items-start gap-3 rounded-inner py-2 pl-3 pr-1 backdrop-blur-md"
+      style={{ background: 'rgba(10, 10, 11, 0.78)', border: '1px solid var(--abc-border)' }}
+    >
+      <span
+        className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+        style={{ background: 'var(--abc-gold-soft)', border: '1px solid var(--abc-gold-border)' }}
+      >
+        <IconDeviceMobileRotated
+          size={18}
+          stroke={1.8}
+          aria-hidden="true"
+          style={{ color: 'var(--abc-gold-accent)' }}
+        />
+      </span>
+      <span className="min-w-0 flex-1 py-1">
+        <span className="block text-[14px] font-semibold text-abc-text">Turn your phone sideways</span>
+        <span className="mt-0.5 block text-[12.5px] leading-[1.45] text-abc-secondary">
+          Fit all cards in the frame and leave a little space between them.
+        </span>
+      </span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss rotation tip"
+        className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full text-abc-muted transition-colors duration-200 ease-abc hover:text-abc-text abc-focus-ring"
+      >
+        <IconX size={16} stroke={2} aria-hidden="true" />
+      </button>
+    </div>
+  )
+}
+
+/**
+ * The multi-card guide: a wide tabletop, with the faint outline of six cards
+ * laid out on it.
+ *
+ * It says "several, side by side, with room between them" before a word is
+ * read — the one thing the single-card guide must not say, which is why the
+ * two are separate components and the single-card one is untouched. As wide
+ * as the viewfinder allows, so the owner can come closer to the cards instead
+ * of stepping back to fit them in.
+ */
+function WideFrame() {
+  const corner = 'absolute h-8 w-8 border-abc-gold-accent/80'
+  return (
+    <div className="relative aspect-[3/2] max-h-full w-full [container-type:size]">
+      <span className={`${corner} left-0 top-0 rounded-tl-lg border-l-2 border-t-2`} />
+      <span className={`${corner} right-0 top-0 rounded-tr-lg border-r-2 border-t-2`} />
+      <span className={`${corner} bottom-0 left-0 rounded-bl-lg border-b-2 border-l-2`} />
+      <span className={`${corner} bottom-0 right-0 rounded-br-lg border-b-2 border-r-2`} />
+      <div
+        className="absolute inset-0 grid grid-cols-[repeat(3,auto)] place-content-center gap-x-[3cqw] gap-y-[5cqh]"
+        aria-hidden="true"
+      >
+        {Array.from({ length: 6 }, (_, index) => (
+          <span
+            key={index}
+            className="aspect-[85/55] w-[min(24cqw,54cqh)] rounded-[4px] border border-dashed border-white/25"
+          />
+        ))}
       </div>
     </div>
   )

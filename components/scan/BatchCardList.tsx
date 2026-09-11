@@ -8,6 +8,7 @@ import {
   IconBrandLinkedin,
   IconCheck,
   IconChevronDown,
+  IconTrash,
   IconMail,
   IconPhone,
   IconUser,
@@ -16,7 +17,12 @@ import {
 import type { TablerIcon } from '@tabler/icons-react'
 import { SectionLabel } from '@/components/ui/abc/Bits'
 import type { ContactCandidate } from '@/lib/scan/candidate'
-import { batchItemIsSaveable, warningLabel, type BatchItem } from '@/lib/scan/batch'
+import {
+  batchItemIsSaveable,
+  isActiveBatchItem,
+  warningLabel,
+  type BatchItem,
+} from '@/lib/scan/batch'
 
 /**
  * The detected cards, as a list the owner can work down.
@@ -49,36 +55,52 @@ export default function BatchCardList({
 }: {
   items: BatchItem[]
   onFieldsChange: (itemId: string, fields: ContactCandidate) => void
+  /**
+   * The mechanism behind "Remove card". Removing sets `selected` to false,
+   * which the save path already skips — so a removed card creates no contact,
+   * no encounter, costs no credit and never reaches the CRM, without a second
+   * way of saying so.
+   */
   onSelectedChange: (itemId: string, selected: boolean) => void
   /** Keep this card as its own person instead of adding to the matched one. */
   onLinkChange: (itemId: string, linkToExisting: boolean) => void
   disabled?: boolean
 }) {
   const [openId, setOpenId] = useState<string | null>(null)
+  const active = items.filter(isActiveBatchItem)
 
   return (
     <section className="abc-surface p-4 sm:p-5">
       <div className="flex items-baseline justify-between gap-3">
         <SectionLabel>Cards found</SectionLabel>
-        <span className="text-[12.5px] text-abc-muted">
-          {items.filter((i) => i.selected).length} of {items.length} selected
+        <span className="text-[12.5px] text-abc-muted" aria-live="polite">
+          {active.length} {active.length === 1 ? 'card' : 'cards'}
         </span>
       </div>
 
-      <ul className="mt-3 flex flex-col gap-2">
-        {items.map((item) => (
-          <BatchCardRow
-            key={item.id}
-            item={item}
-            open={openId === item.id}
-            onToggleOpen={() => setOpenId(openId === item.id ? null : item.id)}
-            onFieldsChange={(fields) => onFieldsChange(item.id, fields)}
-            onSelectedChange={(selected) => onSelectedChange(item.id, selected)}
-            onLinkChange={(link) => onLinkChange(item.id, link)}
-            disabled={disabled}
-          />
-        ))}
-      </ul>
+      {active.length === 0 ? (
+        <p className="mt-3 rounded-inner border border-dashed border-abc-border px-4 py-6 text-center text-[13.5px] text-abc-secondary">
+          No cards selected.
+        </p>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-2">
+          {active.map((item) => (
+            <BatchCardRow
+              key={item.id}
+              item={item}
+              open={openId === item.id}
+              onToggleOpen={() => setOpenId(openId === item.id ? null : item.id)}
+              onFieldsChange={(fields) => onFieldsChange(item.id, fields)}
+              onRemove={() => {
+                if (openId === item.id) setOpenId(null)
+                onSelectedChange(item.id, false)
+              }}
+              onLinkChange={(link) => onLinkChange(item.id, link)}
+              disabled={disabled}
+            />
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
@@ -88,7 +110,7 @@ function BatchCardRow({
   open,
   onToggleOpen,
   onFieldsChange,
-  onSelectedChange,
+  onRemove,
   onLinkChange,
   disabled,
 }: {
@@ -96,7 +118,7 @@ function BatchCardRow({
   open: boolean
   onToggleOpen: () => void
   onFieldsChange: (fields: ContactCandidate) => void
-  onSelectedChange: (selected: boolean) => void
+  onRemove: () => void
   onLinkChange: (linkToExisting: boolean) => void
   disabled: boolean
 }) {
@@ -107,6 +129,15 @@ function BatchCardRow({
   const saved = Boolean(item.createdContactId)
   const saveable = batchItemIsSaveable(item)
   const contactLine = [fields.email, fields.phone].filter(Boolean).join(' · ')
+  const label = name || fields.company || 'Unreadable card'
+
+  /*
+    Role and company under the name — and role on its own when there is no
+    company, because a card that gave up only a name and a title still has to
+    be told apart from its neighbours. When the name is missing, the company is
+    already the headline and is not repeated.
+  */
+  const secondary = [fields.role, name ? fields.company : ''].filter(Boolean).join(' · ')
 
   /*
     A card that cannot be saved is not silently dropped at save time — it is
@@ -116,87 +147,90 @@ function BatchCardRow({
 
   return (
     <li
-      className={`rounded-inner border transition-colors duration-200 ease-abc ${
-        item.selected ? 'border-abc-border bg-abc-raised' : 'border-abc-border bg-transparent'
-      }`}
+      data-batch-item={item.id}
+      className="rounded-inner border border-abc-border bg-abc-raised transition-colors duration-200 ease-abc"
     >
-      <div className="flex items-start gap-3 p-3">
-        {/*
-          The tick is the primary control on this row, so it is a real checkbox
-          rather than a styled div — it reaches the keyboard and the screen
-          reader for free, and this list is long enough for that to matter.
-        */}
-        <label className="mt-0.5 flex shrink-0 cursor-pointer items-center">
-          <input
-            type="checkbox"
-            checked={item.selected}
-            disabled={disabled || saved}
-            onChange={(e) => onSelectedChange(e.target.checked)}
-            aria-label={`Keep ${name || fields.company || 'this card'}`}
-            className="h-[18px] w-[18px] cursor-pointer accent-[var(--abc-gold-accent)]"
-          />
-        </label>
-
+      <div className="flex items-start gap-2 py-3 pl-3 pr-1.5">
         <button
           type="button"
           onClick={onToggleOpen}
-          className="min-w-0 flex-1 text-left abc-focus-ring rounded"
+          className="flex min-w-0 flex-1 items-start gap-2 rounded text-left abc-focus-ring"
           aria-expanded={open}
         >
-          <span className="flex items-center gap-2">
-            <span
-              className={`truncate text-[14.5px] font-semibold ${
-                item.selected ? 'text-abc-text' : 'text-abc-muted'
-              }`}
-            >
-              {name || fields.company || 'Unreadable card'}
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="truncate text-[14.5px] font-semibold text-abc-text">{label}</span>
+              {saved ? (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                  style={{
+                    background: 'var(--abc-gold-soft)',
+                    color: 'var(--abc-gold-accent)',
+                  }}
+                >
+                  <IconCheck size={11} stroke={2.5} />
+                  Saved
+                </span>
+              ) : null}
             </span>
-            {saved ? (
-              <span
-                className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                style={{
-                  background: 'var(--abc-gold-soft)',
-                  color: 'var(--abc-gold-accent)',
-                }}
-              >
-                <IconCheck size={11} stroke={2.5} />
-                Saved
+
+            {secondary ? (
+              <span className="mt-0.5 block truncate text-[12.5px] text-abc-secondary">
+                {secondary}
+              </span>
+            ) : null}
+
+            {contactLine ? (
+              <span className="mt-0.5 block truncate text-[12px] text-abc-muted">{contactLine}</span>
+            ) : null}
+
+            {item.warnings.length > 0 || blocking ? (
+              <span className="mt-1.5 flex flex-wrap gap-1.5">
+                {blocking ? <Warning text="Add a name, company or email" /> : null}
+                {item.warnings
+                  // The duplicate warning is replaced by the choice below, which
+                  // says the same thing and does something about it.
+                  .filter((warning) => !(matched && warning === 'possible_duplicate'))
+                  .map((warning) => (
+                    <Warning key={warning} text={warningLabel(warning)} />
+                  ))}
               </span>
             ) : null}
           </span>
 
-          {fields.company && name ? (
-            <span className="mt-0.5 block truncate text-[12.5px] text-abc-secondary">
-              {[fields.role, fields.company].filter(Boolean).join(' · ')}
-            </span>
-          ) : null}
-
-          {contactLine ? (
-            <span className="mt-0.5 block truncate text-[12px] text-abc-muted">{contactLine}</span>
-          ) : null}
-
-          {item.warnings.length > 0 || blocking ? (
-            <span className="mt-1.5 flex flex-wrap gap-1.5">
-              {blocking ? <Warning text="Add a name, company or email" /> : null}
-              {item.warnings
-                // The duplicate warning is replaced by the choice below, which
-                // says the same thing and does something about it.
-                .filter((warning) => !(matched && warning === 'possible_duplicate'))
-                .map((warning) => (
-                  <Warning key={warning} text={warningLabel(warning)} />
-                ))}
-            </span>
-          ) : null}
+          <IconChevronDown
+            size={16}
+            stroke={2}
+            aria-hidden="true"
+            className={`mt-1 shrink-0 text-abc-muted transition-transform duration-200 ${
+              open ? 'rotate-180' : ''
+            }`}
+          />
         </button>
 
-        <IconChevronDown
-          size={16}
-          stroke={2}
-          onClick={onToggleOpen}
-          className={`mt-1 shrink-0 cursor-pointer text-abc-muted transition-transform duration-200 ${
-            open ? 'rotate-180' : ''
-          }`}
-        />
+        {/*
+          Remove, top-right of the row it removes — so there is no doubt about
+          which card goes. Secondary in weight: the data is what the owner is
+          reading, and a warning is what they should notice next; removal is
+          the choice they make last. A full 44px target, because this is used
+          with a thumb at a stand, and a named button rather than a bare icon so
+          a screen reader says which card it would remove.
+
+          Not offered on a card that already became a contact: at that point it
+          is a person, and deleting a person is the contact screen's decision.
+        */}
+        {!saved ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={disabled}
+            aria-label={`Remove card: ${label}`}
+            title="Remove card"
+            className="-mt-1 flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-inner text-abc-muted transition-colors duration-200 ease-abc hover:bg-abc-card hover:text-abc-text abc-focus-ring disabled:opacity-40"
+          >
+            <IconTrash size={18} stroke={1.8} aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
 
       {/*

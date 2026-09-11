@@ -10,6 +10,7 @@ import {
   deriveWarnings,
   encounterEventText,
   MAX_BATCH_CARDS,
+  MAX_BATCH_ROWS,
   type BatchItem,
   type BatchItemWarning,
   type BatchSharedContext,
@@ -177,19 +178,35 @@ export async function loadBatch(
  * Read from the database rather than from a count the client sent, because the
  * ceiling is the whole point: a guided session appends photo by photo, and each
  * request has to be checked against what is already stored.
+ *
+ * Only cards still in the batch count toward the ten. A card the owner removed
+ * is not one of the cards they are keeping, so it gives its place back —
+ * otherwise removing a badly read card and retaking it would be impossible
+ * once the batch was full. The total row cap stops a session from growing
+ * without bound through repeated detect-and-remove.
  */
 export async function remainingCapacity(
   supabase: SupabaseClient,
   ownerId: string,
   batchId: string
 ): Promise<number> {
-  const { count } = await supabase
-    .from('scan_batch_items')
-    .select('id', { count: 'exact', head: true })
-    .eq('batch_id', batchId)
-    .eq('user_id', ownerId)
+  const [{ count: active }, { count: total }] = await Promise.all([
+    supabase
+      .from('scan_batch_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('batch_id', batchId)
+      .eq('user_id', ownerId)
+      .eq('selected', true),
+    supabase
+      .from('scan_batch_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('batch_id', batchId)
+      .eq('user_id', ownerId),
+  ])
 
-  return Math.max(0, MAX_BATCH_CARDS - (count || 0))
+  const byActive = MAX_BATCH_CARDS - (active || 0)
+  const byRows = MAX_BATCH_ROWS - (total || 0)
+  return Math.max(0, Math.min(byActive, byRows))
 }
 
 /**
@@ -387,6 +404,39 @@ export async function applyItemPatches(
       .eq('batch_id', batchId)
       .eq('user_id', ownerId)
   }
+}
+
+/**
+ * Drop any restore that would take the batch past ten active cards.
+ *
+ * A removed card gives its place back, so a batch can hold more rows than it
+ * holds cards — and a request that re-selected every row at once would
+ * otherwise save more than the ten a batch is for. Removals are counted first,
+ * so swapping one card for another in the same request is honoured. The rest
+ * of a patch (a corrected field, a link decision) still applies; only the
+ * restore is refused.
+ */
+export function capReselection(
+  items: Pick<BatchItem, 'id' | 'selected'>[],
+  patches: ItemPatch[]
+): ItemPatch[] {
+  const selected = new Map(items.map((item) => [item.id, item.selected]))
+  for (const patch of patches) {
+    if (patch.selected === false && selected.has(patch.id)) selected.set(patch.id, false)
+  }
+
+  let active = Array.from(selected.values()).filter(Boolean).length
+
+  return patches.map((patch) => {
+    if (patch.selected !== true || selected.get(patch.id) !== false) return patch
+    if (active >= MAX_BATCH_CARDS) {
+      const { selected: _refused, ...rest } = patch
+      return rest
+    }
+    active += 1
+    selected.set(patch.id, true)
+    return patch
+  })
 }
 
 export async function saveSharedContext(

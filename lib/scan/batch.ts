@@ -22,6 +22,40 @@ import type { ContactCandidate } from '@/lib/scan/candidate'
  */
 export const MAX_BATCH_CARDS = 10
 
+/**
+ * The most rows one batch may accumulate, removed cards included.
+ *
+ * A removed card frees its place among the ten, so the owner can retake a bad
+ * card without starting over. Rows are still written for every detection, and
+ * this bounds how many a single session can pile up.
+ */
+export const MAX_BATCH_ROWS = MAX_BATCH_CARDS * 3
+
+/**
+ * How a multi-card photo is prepared before the vision model reads it.
+ *
+ * Ten cards in one frame need far more detail than one card does, and the
+ * binding limit is not our resize but the model's: `claude-sonnet-4-5` is on
+ * the standard vision tier, which reads at most 1568 px on the long edge and
+ * 1568 patches of 28×28 px — a 4:3 photo reaches it as roughly 1269×952,
+ * whatever resolution it was sent at. Sending more than that buys nothing.
+ *
+ * So the policy targets that budget exactly, with one high-quality resample and
+ * one light JPEG encode, so the pixels the model does get are as clean as they
+ * can be. Most of the remaining gain is framing — landscape and close, so the
+ * cards fill the frame instead of the table around them.
+ *
+ * Moving extraction to a high-resolution-tier model (Claude 4.7 and later:
+ * 2576 px, 4784 patches, about three times the pixels per card) raises the
+ * ceiling. When that happens, these two numbers change with it and nothing
+ * else in this flow does.
+ */
+export const MULTI_CARD_IMAGE_POLICY = {
+  maxLongEdge: 1568,
+  maxVisualTokens: 1568,
+  quality: 0.92,
+} as const
+
 export type BatchStatus = 'draft' | 'saved'
 export type BatchSourceKind = 'single_photo' | 'guided' | 'mixed'
 
@@ -138,6 +172,53 @@ export function batchItemIsSaveable(item: BatchItem): boolean {
 
 export function selectedItems(batch: ScanBatch): BatchItem[] {
   return batch.items.filter((item) => item.selected && !item.createdContactId)
+}
+
+/**
+ * Whether a card is still part of what the owner is reviewing.
+ *
+ * "Remove card" is `selected = false`: the row is kept, because it is the record
+ * that the card was detected, but it leaves the list the owner works down — and
+ * the save path, which only ever takes selected rows, never sees it. So a
+ * removed card creates no contact, no encounter, costs no credit and never
+ * reaches the CRM, without a second way of saying so. A card that already
+ * became a contact stays visible: it is a person now, not a draft.
+ */
+export function isActiveBatchItem(item: Pick<BatchItem, 'selected' | 'createdContactId'>): boolean {
+  return item.selected || Boolean(item.createdContactId)
+}
+
+/** How many cards the next Save would turn into contacts. The number on the button. */
+export function batchSaveCount(items: Pick<BatchItem, 'selected' | 'createdContactId'>[]): number {
+  return items.filter((item) => item.selected && !item.createdContactId).length
+}
+
+/**
+ * Room left in a batch for more cards.
+ *
+ * Counted in active cards, so a removed card gives its place back and the
+ * owner can retake a badly read one without starting over — and bounded by the
+ * rows the batch has accumulated, so a session cannot detect without end. The
+ * server enforces the same arithmetic against the database.
+ */
+export function remainingInBatch(items: Pick<BatchItem, 'selected'>[]): number {
+  const active = items.filter((item) => item.selected).length
+  return Math.max(0, Math.min(MAX_BATCH_CARDS - active, MAX_BATCH_ROWS - items.length))
+}
+
+/**
+ * The batch with one card removed or restored, and nothing else touched.
+ *
+ * Every other item is returned as the same object, and the card keeps its
+ * place and its fields — which is what lets Undo put it back exactly where it
+ * was, with any correction the owner had already typed.
+ */
+export function setItemSelected<T extends Pick<BatchItem, 'id' | 'selected'>>(
+  items: T[],
+  itemId: string,
+  selected: boolean
+): T[] {
+  return items.map((item) => (item.id === itemId ? { ...item, selected } : item))
 }
 
 /**

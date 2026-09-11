@@ -14,7 +14,7 @@ import {
   markBatchSource,
   remainingCapacity,
 } from '@/lib/scan/batch-store'
-import { MAX_BATCH_CARDS } from '@/lib/scan/batch'
+import { MAX_BATCH_CARDS, remainingInBatch } from '@/lib/scan/batch'
 import type { ABCProfile } from '@/lib/types'
 
 /**
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         !entitlement.unmetered &&
         entitlement.available < capacity &&
         detected.length >= allowed,
-      remaining: Math.max(0, MAX_BATCH_CARDS - (refreshed?.items.length || 0)),
+      remaining: remainingInBatch(refreshed?.items || []),
     })
   } catch (err) {
     console.error('[scan/batch] detect failed:', err)

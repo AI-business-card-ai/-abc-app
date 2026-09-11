@@ -20,16 +20,30 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 import {
   batchItemIsSaveable,
+  batchSaveCount,
   deriveWarnings,
   emptySharedContext,
   encounterEventText,
+  isActiveBatchItem,
   MAX_BATCH_CARDS,
+  MAX_BATCH_ROWS,
+  MULTI_CARD_IMAGE_POLICY,
+  remainingInBatch,
+  setItemSelected,
   sharedContextHasContent,
   warningLabel,
   type BatchItem,
 } from '@/lib/scan/batch'
 import { emptyCandidate } from '@/lib/scan/candidate'
-import { saveBatchContacts } from '@/lib/scan/batch-store'
+import {
+  applyItemPatches,
+  batchExportTargets,
+  capReselection,
+  remainingCapacity,
+  saveBatchContacts,
+} from '@/lib/scan/batch-store'
+import { fitToVisionBudget, visualTokens } from '@/lib/image-compress'
+import { shouldSuggestLandscape } from '@/lib/scan/useOrientation'
 import {
   consumeScanCredits,
   isFounder,
@@ -121,9 +135,14 @@ function stubClient(seed: {
     function flush() {
       if (!state.pendingUpdate) return
       const payload = state.pendingUpdate
-      if (name === 'scan_batch_items' && payload.created_contact_id && state.filters.id) {
+      /*
+        The whole row update, not just the contact link: a removal is an
+        update to `selected`, and the export reads `created_encounter_id`, so
+        a fake that dropped either would let those tests pass on stale rows.
+      */
+      if (name === 'scan_batch_items' && state.filters.id) {
         const target = itemRows.find((row) => row.id === state.filters.id)
-        if (target) target.created_contact_id = payload.created_contact_id
+        if (target) Object.assign(target, payload)
       }
       if (name === 'scan_batches') Object.assign(seed.batch, payload)
       state.pendingUpdate = null
@@ -766,6 +785,300 @@ async function run() {
   check('F7o founder requires a confirmed address', entitlementLib.includes('if (!identity.email_confirmed_at && !identity.confirmed_at) return false'), true)
   check('F7p the founder address is defined once', read('lib/scan-limits.ts').match(/im\.expoguy@gmail\.com/g)?.length, 1)
   check('F7q the other exempt account is preserved', read('lib/scan-limits.ts').includes('bury.esco@gmail.com'), true)
+
+  // ═══════════ REAL-WORLD QA POLISH V2: CAPTURE ═══════════
+
+  const cameraStage = code('components/scan/CameraStage.tsx')
+  const orientationLib = code('lib/scan/useOrientation.ts')
+  const imageLib = code('lib/image-compress.ts')
+  const hintSrc = multiClient.slice(
+    multiClient.indexOf('function LandscapeHint'),
+    multiClient.indexOf('function WideFrame')
+  )
+  const phone = { mobile: true, portrait: true }
+
+  // 1. Portrait mobile gets the landscape recommendation.
+  check('Q1a an upright phone is told to turn sideways', shouldSuggestLandscape(phone, { live: true, dismissed: false }), true)
+  check('Q1b with the approved headline', hintSrc.includes('Turn your phone sideways'), true)
+  check('Q1c and the approved supporting line', hintSrc.includes('Fit all cards in the frame and leave a little space between them.'), true)
+  check('Q1d using the existing icon set', hintSrc.includes('IconDeviceMobileRotated'), true)
+  check('Q1e "mobile" means touch-first, not a narrow window', orientationLib.includes("'(hover: none) and (pointer: coarse)'"), true)
+  check('Q1f and orientation is followed live', orientationLib.includes("'(orientation: portrait)'") && orientationLib.includes("addEventListener?.('change', read)"), true)
+  check('Q1g the client feeds the live state in', multiClient.includes('suggestLandscape={shouldSuggestLandscape(orientation, {'), true)
+
+  // 2. Landscape, desktop, a dismissed tip or no camera: no interruption at all.
+  check('Q2a a phone already sideways is not interrupted', shouldSuggestLandscape({ mobile: true, portrait: false }, { live: true, dismissed: false }), false)
+  check('Q2b a desktop is never told to rotate', shouldSuggestLandscape({ mobile: false, portrait: true }, { live: true, dismissed: false }), false)
+  check('Q2c a dismissed tip stays dismissed', shouldSuggestLandscape(phone, { live: true, dismissed: true }), false)
+  check('Q2d no tip without a live viewfinder', shouldSuggestLandscape(phone, { live: false, dismissed: false }), false)
+  check('Q2e the tip is not a modal', /aria-modal|role="dialog"|role="alertdialog"/.test(hintSrc), false)
+  check('Q2f the tip is dismissible', hintSrc.includes('onClick={onDismiss}') && hintSrc.includes('aria-label="Dismiss rotation tip"'), true)
+  check('Q2g orientation is never locked', /orientation\.lock|screen\.orientation/.test(multiClient), false)
+  check('Q2h capture is never gated on orientation', multiClient.includes('disabled={!live || blocked || remaining <= 0}'), true)
+
+  // 3. Multi-Card uses a wide frame.
+  check('Q3a there is a wide multi-card frame', multiClient.includes('function WideFrame()') && multiClient.includes('aspect-[3/2] max-h-full w-full'), true)
+  check('Q3b it shows several cards side by side', multiClient.includes('Array.from({ length: 6 }') && multiClient.includes('aspect-[85/55]'), true)
+  check('Q3c sideways on a phone the viewfinder takes the width', multiClient.includes('max-lg:landscape:flex-row') && multiClient.includes('max-lg:landscape:w-[196px]'), true)
+  check('Q3d the sideways stage is sized between header and navigation', multiClient.includes('MOBILE_NAV_HEIGHT') && multiClient.includes("env(safe-area-inset-bottom)"), true)
+  check('Q3e microcopy leads with the count', multiClient.includes('Scan up to ${MAX_BATCH_CARDS} cards at once'), true)
+  check('Q3f then the one practical instruction', multiClient.includes('Keep cards flat, separated and well lit.'), true)
+  check('Q3g the old paragraph over the camera is gone', multiClient.includes('Lay the cards flat and fill the frame'), false)
+
+  // 4. Single Card framing is unchanged.
+  check('Q4a the single-card guides are still the corner guides', cameraStage.includes('function Guides()') && cameraStage.includes('absolute inset-6 sm:inset-10'), true)
+  check('Q4b and know nothing of the wide frame', /WideFrame|LandscapeHint|useOrientation/.test(cameraStage + scanClient), false)
+  check('Q4c single-card still compresses the way it did', scanClient.includes('await compressImageForScan(file)'), true)
+  check('Q4d with the same defaults', imageLib.includes('opts.maxWidth ?? 1600') && imageLib.includes('opts.quality ?? 0.82'), true)
+
+  // 5. Upload a photo remains available.
+  check('Q5a upload is offered', multiClient.includes('Upload a photo'), true)
+  check('Q5b and is never gated on orientation', multiClient.includes('onClick={onPickFile} disabled={blocked || remaining <= 0}'), true)
+  // Raw source: `image/*` reads as a comment opener to the comment stripper.
+  const multiRaw = read('components/scan/MultiCardClient.tsx')
+  check('Q5c gallery images of any shape are accepted', /accept="image\/\*"\s*className="hidden"/.test(multiRaw) && !/capture="environment"/.test(multiRaw), true)
+
+  // 6. The multi-card image policy keeps more useful detail.
+  const landscapeFrame = fitToVisionBudget(1920, 1080, MULTI_CARD_IMAGE_POLICY)
+  check('Q6a a 1920×1080 frame is sent at exactly what the model reads', landscapeFrame, { width: 1456, height: 819 })
+  check('Q6b within the patch budget', visualTokens(landscapeFrame.width, landscapeFrame.height) <= MULTI_CARD_IMAGE_POLICY.maxVisualTokens, true)
+  const docsExample = fitToVisionBudget(2000, 1500, MULTI_CARD_IMAGE_POLICY)
+  check('Q6c the documented 2000×1500 example lands on ~1269×952', Math.abs(docsExample.width - 1269) <= 3 && Math.abs(docsExample.height - 952) <= 3, true)
+  const twelveMp = fitToVisionBudget(4032, 3024, MULTI_CARD_IMAGE_POLICY)
+  check('Q6d a 12 MP gallery photo is brought to the budget, not sent raw', twelveMp.width <= 1568 && visualTokens(twelveMp.width, twelveMp.height) <= 1568 && twelveMp.width > 1200, true)
+  check('Q6e an upright frame fits too', visualTokens(fitToVisionBudget(1080, 1920, MULTI_CARD_IMAGE_POLICY).width, fitToVisionBudget(1080, 1920, MULTI_CARD_IMAGE_POLICY).height) <= 1568, true)
+  check('Q6f a small image is never enlarged', fitToVisionBudget(1000, 700, MULTI_CARD_IMAGE_POLICY), { width: 1000, height: 700 })
+  /*
+    Before: the same 1920×1080 frame went through the single-card resize to
+    1600×900 at quality 0.82 — still over the model's patch budget, so the API
+    resampled it a second time before reading. After: one resample, straight
+    to the size the model reads, at 0.92.
+  */
+  check('Q6g the old 1600×900 upload was over budget (a second resample)', visualTokens(1600, 900) > MULTI_CARD_IMAGE_POLICY.maxVisualTokens, true)
+  check('Q6h the new upload is not', visualTokens(landscapeFrame.width, landscapeFrame.height) <= MULTI_CARD_IMAGE_POLICY.maxVisualTokens && landscapeFrame.width <= MULTI_CARD_IMAGE_POLICY.maxLongEdge, true)
+  check('Q6i one lighter encode than before', MULTI_CARD_IMAGE_POLICY.quality > 0.82, true)
+  check('Q6j multi-card uses the vision policy', multiClient.includes('prepareImageForVision(file, MULTI_CARD_IMAGE_POLICY)'), true)
+  check('Q6k and not the single-card resize', multiClient.includes('compressImageForScan'), false)
+  check('Q6l the policy matches the standard vision tier', MULTI_CARD_IMAGE_POLICY, { maxLongEdge: 1568, maxVisualTokens: 1568, quality: 0.92 })
+  check('Q6m which is still the tier of the model in use', claude.includes("model: 'claude-sonnet-4-5'"), true)
+  check('Q6n the resample is stepped and high quality', imageLib.includes("imageSmoothingQuality = 'high'"), true)
+  check('Q6o only small JPEG/PNG/WebP pass through untouched', imageLib.includes("const PASS_THROUGH_TYPES = ['image/jpeg', 'image/png', 'image/webp']") && imageLib.includes('file.size <= PASS_THROUGH_BYTES'), true)
+  check('Q6p so a gallery HEIC is always re-encoded', /heic/i.test(imageLib), false)
+
+  // ═══════════ REAL-WORLD QA POLISH V2: REMOVE BEFORE SAVE ═══════════
+
+  // 7. Every draft review item exposes Remove card.
+  check('Q7a each unsaved row has a Remove card control', cardList.includes('aria-label={`Remove card: ${label}`}'), true)
+  check('Q7b only on cards not yet saved', /\{!saved \? \(\s*<button[\s\S]{0,200}onClick=\{onRemove\}/.test(cardList), true)
+  // Pixels, not rem: the phone root font is 14px, so h-11 would render at 38.5px.
+  check('Q7c with a 44px thumb-sized target', /onClick=\{onRemove\}[\s\S]{0,300}h-\[44px\] w-\[44px\]/.test(cardList), true)
+  check('Q7e Undo, the tip dismiss and Start over are 44px too', (multiClient.match(/h-\[44px\]/g) || []).length, 3)
+  check('Q7d worded as a card, never as a contact', /Delete contact/i.test(cardList + multiClient), false)
+
+  // 8 & 9. Remove makes the item inactive and takes it out of the list.
+  const three = [item({ id: 'x1', position: 0 }), item({ id: 'x2', position: 1 }), item({ id: 'x3', position: 2 })]
+  const withoutX2 = setItemSelected(three, 'x2', false)
+  check('Q8a remove makes the card inactive', isActiveBatchItem(withoutX2[1]), false)
+  check('Q8b by unselecting it, not deleting it', withoutX2.length, 3)
+  check('Q9a the review list no longer shows it', withoutX2.filter(isActiveBatchItem).map((i) => i.id), ['x1', 'x3'])
+  check('Q9b the list renders active cards only', cardList.includes('const active = items.filter(isActiveBatchItem)') && cardList.includes('active.map((item)'), true)
+  check('Q9c a saved card stays visible', isActiveBatchItem(item({ selected: false, createdContactId: 'c' })), true)
+
+  // 10. The Save count follows immediately.
+  const ten = Array.from({ length: 10 }, (_, i) => item({ id: `n${i}`, position: i }))
+  check('Q10a ten detected, Save 10', batchSaveCount(ten), 10)
+  check('Q10b remove one, Save 9', batchSaveCount(setItemSelected(ten, 'n4', false)), 9)
+  check('Q10c the button reads the live count', multiClient.includes('const selectedCount = batchSaveCount(items)') && multiClient.includes('`Save ${selectedCount} contact${selectedCount === 1 ?'), true)
+
+  // 11–14 and 20/21. Ten detected, two removed, eight saved.
+  function tenCardSeed() {
+    return {
+      batch: { ...seed.batch, status: 'draft', total_saved: 0, total_detected: 10 },
+      items: Array.from({ length: 10 }, (_, i) => ({
+        id: `t${i}`, batch_id: 'batch-1', position: i, first_name: `Person${i}`, email: `p${i}@x.co`,
+        selected: true, warnings: [], confidence: 0.9, created_contact_id: null,
+      })),
+    }
+  }
+
+  const removal = stubClient(tenCardSeed())
+  await applyItemPatches(removal.client, 'owner-1', 'batch-1', [
+    { id: 't3', selected: false },
+    { id: 't7', selected: false },
+  ])
+  check('Q11a the removal is stored as selected = false', removal.itemRows.filter((row) => row.selected === false).map((row) => row.id), ['t3', 't7'])
+  const eight = await quietly(() => saveBatchContacts(removal.client, 'owner-1', 'batch-1', 50))
+  const eightContacts = removal.writes.filter((w) => w.table === 'scanned_contacts' && w.op === 'insert')
+  const eightEncounters = removal.writes.filter((w) => w.table === 'contact_encounters' && w.op === 'insert')
+  check('Q11b ten detected, two removed: eight contacts', eightContacts.length, 8)
+  check('Q11c no contact for a removed card', eightContacts.some((w) => ['t3', 't7'].includes(String((w.payload as Record<string, unknown>).scan_batch_item_id))), false)
+  check('Q11d the removed rows never gain a contact', removal.itemRows.filter((row) => ['t3', 't7'].includes(String(row.id))).map((row) => row.created_contact_id ?? null), [null, null])
+  check('Q12a eight encounters, not ten', eightEncounters.length, 8)
+  check('Q12b the shared meeting reaches only kept cards', eightEncounters.every((w) => (w.payload as Record<string, unknown>).event === 'Web Summit · Hall 3'), true)
+  check('Q13a exactly eight credits for eight cards', eight?.creditsConsumed, 8)
+  check('Q13b a removed card is never marked paid', removal.itemRows.filter((row) => ['t3', 't7'].includes(String(row.id))).some((row) => row.credit_consumed === true), false)
+  check('Q13c nothing is reported as failed for a removal', eight?.failed.length, 0)
+
+  const exportTargets = await batchExportTargets(removal.client, 'owner-1', 'batch-1')
+  check('Q14a the CRM export holds the eight kept cards', exportTargets.length, 8)
+  const keptContactIds = new Set(removal.itemRows.filter((row) => row.selected !== false).map((row) => String(row.created_contact_id)))
+  check('Q14b and nothing from a removed card', exportTargets.every((target) => keptContactIds.has(target.contactId)), true)
+
+  // A retry after all that charges nothing and creates nothing.
+  const eightRetry = await quietly(() => saveBatchContacts(removal.client, 'owner-1', 'batch-1', 50))
+  check('Q13d a retry is not charged again', eightRetry?.creditsConsumed, 0)
+  check('Q13e and writes no contact', removal.writes.filter((w) => w.table === 'scanned_contacts' && w.op === 'insert').length, 8)
+
+  // 15. Removing one card touches no other card.
+  const isolation = stubClient(tenCardSeed())
+  const before = JSON.stringify(isolation.itemRows.filter((row) => row.id !== 't2'))
+  await applyItemPatches(isolation.client, 'owner-1', 'batch-1', [{ id: 't2', selected: false }])
+  check('Q15a one removal is one row update', isolation.writes.filter((w) => w.table === 'scan_batch_items' && w.op === 'update').length, 1)
+  check('Q15b every other row is exactly as it was', JSON.stringify(isolation.itemRows.filter((row) => row.id !== 't2')), before)
+  const reshaped = setItemSelected(ten, 'n2', false)
+  check('Q15c the client keeps every other card as the same object', reshaped.every((entry, i) => i === 2 || entry === ten[i]), true)
+  check('Q15d and does not mutate what it was given', ten[2].selected, true)
+
+  // 16. Manual completion stays available for an incomplete card.
+  const phoneOnly = item({ id: 'inc', fields: { ...emptyCandidate(), company: '', phone: '+49 30 1' } })
+  check('Q16a an incomplete card is not removed for being incomplete', isActiveBatchItem(phoneOnly), true)
+  check('Q16b it is flagged instead', cardList.includes('Add a name, company or email'), true)
+  check('Q16c its fields stay editable', cardList.includes('disabled={disabled || saved}'), true)
+  const completion = stubClient({
+    batch: { ...seed.batch, status: 'draft', total_saved: 0 },
+    items: [{ id: 'inc', batch_id: 'batch-1', position: 0, phone: '+49 30 1', company: 'Siemens', selected: true, warnings: ['no_name'], confidence: 0.4, created_contact_id: null }],
+  })
+  await applyItemPatches(completion.client, 'owner-1', 'batch-1', [
+    { id: 'inc', fields: { ...emptyCandidate(), first_name: 'Werner', company: 'Siemens', phone: '+49 30 1' } },
+  ])
+  const completed = await quietly(() => saveBatchContacts(completion.client, 'owner-1', 'batch-1', 5))
+  check('Q16d a card the owner completed by hand saves', completed?.created.length, 1)
+  check('Q16e with the name they typed', completion.itemRows[0].first_name, 'Werner')
+
+  // 17. All removed: Save is disabled and no empty save is sent.
+  const allGone = ten.reduce((list, entry) => setItemSelected(list, entry.id, false), ten)
+  check('Q17a every card removed leaves nothing to save', batchSaveCount(allGone), 0)
+  check('Q17b the Save button is disabled at zero', multiClient.includes("disabled={stage === 'saving' || selectedCount === 0}"), true)
+  check('Q17c and says why', multiClient.includes("'No cards to save'"), true)
+  check('Q17d the list says no cards are selected', cardList.includes('No cards selected.'), true)
+  check('Q17e Add another photo is still offered', remainingInBatch(allGone) > 0 && multiClient.includes('Add another photo'), true)
+  check('Q17f an empty save is never sent', multiClient.includes('if (!batch || batchSaveCount(batch.items) === 0) return'), true)
+  check('Q17g and the server refuses one anyway', saveRoute.includes("reason: 'nothing_selected'"), true)
+  const emptySave = stubClient({
+    batch: { ...seed.batch, status: 'draft', total_saved: 0 },
+    items: tenCardSeed().items.map((row) => ({ ...row, selected: false })),
+  })
+  const emptyResult = await quietly(() => saveBatchContacts(emptySave.client, 'owner-1', 'batch-1', 50))
+  check('Q17h saving an all-removed batch creates nothing', [emptyResult?.created.length, emptyResult?.creditsConsumed], [0, 0])
+
+  // 18. Undo restores the card, in place, with its data.
+  const restored = setItemSelected(withoutX2, 'x2', true)
+  check('Q18a Undo restores the card exactly', restored, three)
+  check('Q18b in the same position', restored.findIndex((entry) => entry.id === 'x2'), 1)
+  check('Q18c the toast reads Card removed · Undo', /Card removed<\/span>\s*<span aria-hidden="true">·<\/span>[\s\S]{0,120}onClick=\{undoRemove\}[\s\S]{0,400}Undo/.test(multiClient), true)
+  check('Q18d it is temporary', multiClient.includes('const UNDO_WINDOW_MS = 6000'), true)
+  check('Q18e restoring sends selected = true', multiClient.includes('setSelected(itemId, true)'), true)
+
+  // 19. A restored card saves normally.
+  const undoStub = stubClient(tenCardSeed())
+  await applyItemPatches(undoStub.client, 'owner-1', 'batch-1', [{ id: 't5', selected: false }])
+  await applyItemPatches(undoStub.client, 'owner-1', 'batch-1', [{ id: 't5', selected: true }])
+  const afterUndo = await quietly(() => saveBatchContacts(undoStub.client, 'owner-1', 'batch-1', 50))
+  check('Q19a the restored card becomes a contact', afterUndo?.created.some((entry) => entry.itemId === 't5'), true)
+  check('Q19b with its own meeting', undoStub.writes.filter((w) => w.table === 'contact_encounters' && w.op === 'insert').length, 10)
+  check('Q19c and costs its one credit', afterUndo?.creditsConsumed, 10)
+
+  // 20. Founder stays unlimited through a removal.
+  const founderRemoval = stubClient(tenCardSeed())
+  await applyItemPatches(founderRemoval.client, 'founder-uid', 'batch-1', [
+    { id: 't0', selected: false },
+    { id: 't9', selected: false },
+  ])
+  const founderEight = await quietly(() =>
+    saveBatchContacts(founderRemoval.client, 'founder-uid', 'batch-1', founder.available)
+  )
+  check('Q20a the founder saves the eight kept cards', founderEight?.created.length, 8)
+  const founderEightCounter = counterStub()
+  await consumeScanCredits(founderEightCounter.client, { ...exhaustedFree, id: 'founder-uid' }, founderEight?.creditsConsumed ?? 0, founderIdentity)
+  check('Q20b with zero decrements', founderEightCounter.updates.length, 0)
+
+  // 21. Normal metering stays exact.
+  const starter: EntitlementProfile = { plan: 'starter', email: 'someone@example.com', scans_used: 10 }
+  const starterBalance = readScanEntitlement(starter, normalIdentity)
+  check('Q21a a metered user has a finite balance', [starterBalance.unmetered, starterBalance.available], [false, 40])
+  const meteredCounter = counterStub()
+  await consumeScanCredits(meteredCounter.client, { ...starter, id: 'normal-uid' }, eight?.creditsConsumed ?? 0, normalIdentity)
+  check('Q21b eight kept cards cost exactly eight', meteredCounter.updates[0], { scans_used: 18 })
+  const shortOfOne = stubClient(tenCardSeed())
+  await applyItemPatches(shortOfOne.client, 'owner-1', 'batch-1', [
+    { id: 't1', selected: false },
+    { id: 't2', selected: false },
+  ])
+  const sevenOfEight = await quietly(() => saveBatchContacts(shortOfOne.client, 'owner-1', 'batch-1', 7))
+  check('Q21c a balance of seven keeps seven of the eight', [sevenOfEight?.created.length, sevenOfEight?.creditsConsumed, sevenOfEight?.stoppedForCredits], [7, 7, true])
+
+  // ═══════════ CAPACITY AFTER REMOVAL ═══════════
+
+  const selections = (active: number, removedCount: number) => [
+    ...Array.from({ length: active }, () => ({ selected: true })),
+    ...Array.from({ length: removedCount }, () => ({ selected: false })),
+  ]
+  check('Q22a a full batch has no room', remainingInBatch(selections(10, 0)), 0)
+  check('Q22b removing two frees two places', remainingInBatch(selections(8, 2)), 2)
+  check('Q22c rows are bounded too', MAX_BATCH_ROWS, 30)
+  check('Q22d so a session cannot detect without end', remainingInBatch(selections(3, 25)), 2)
+  check('Q22e and stops at the row limit', remainingInBatch(selections(5, 25)), 0)
+
+  function countClient(rows: { selected: boolean }[]) {
+    return {
+      from: () => {
+        const filters: Record<string, unknown> = {}
+        const chain: Record<string, unknown> = {
+          select: () => chain,
+          eq: (column: string, value: unknown) => {
+            filters[column] = value
+            return chain
+          },
+        }
+        chain.then = (resolve: (value: unknown) => void) =>
+          resolve({
+            count: rows.filter((row) => filters.selected === undefined || row.selected === filters.selected).length,
+            error: null,
+          })
+        return chain
+      },
+    } as unknown as SupabaseClient
+  }
+  check('Q22f the server frees the same places', await remainingCapacity(countClient(selections(8, 2)), 'owner-1', 'batch-1'), 2)
+  check('Q22g and agrees at the row limit', await remainingCapacity(countClient(selections(5, 25)), 'owner-1', 'batch-1'), 0)
+  check('Q22h the detect response reports the same room', detectRoute.includes('remaining: remainingInBatch(refreshed?.items || [])'), true)
+
+  const tenPlusRemoved = [...Array.from({ length: 10 }, (_, i) => ({ id: `a${i}`, selected: true })), { id: 'gone', selected: false }]
+  check('Q23a a restore past ten active cards is refused', capReselection(tenPlusRemoved, [{ id: 'gone', selected: true }]), [{ id: 'gone' }])
+  check('Q23b a swap in one request is honoured', capReselection(tenPlusRemoved, [{ id: 'a0', selected: false }, { id: 'gone', selected: true }]), [{ id: 'a0', selected: false }, { id: 'gone', selected: true }])
+  const nineTwo = [...Array.from({ length: 9 }, (_, i) => ({ id: `b${i}`, selected: true })), { id: 'r1', selected: false }, { id: 'r2', selected: false }]
+  check('Q23c restores fill the batch and stop at ten', capReselection(nineTwo, [{ id: 'r1', selected: true }, { id: 'r2', selected: true }]), [{ id: 'r1', selected: true }, { id: 'r2' }])
+  check('Q23d the rest of a refused patch still applies', capReselection(tenPlusRemoved, [{ id: 'gone', selected: true, linkToExisting: false }]), [{ id: 'gone', linkToExisting: false }])
+  check('Q23e both write routes enforce it', patchRoute.includes('capReselection(') && saveRoute.includes('capReselection('), true)
+
+  // The removal is persisted before anything that depends on it.
+  check('Q24a a removal is sent as it happens', multiClient.includes("method: 'PATCH'") && multiClient.includes('items: [{ id: itemId, selected }]'), true)
+  check('Q24b detection and save wait for it', (multiClient.match(/await selectionSync\.current/g) || []).length, 2)
+  check('Q24c save still carries every card’s final state', multiClient.includes('selected: item.selected'), true)
+
+  // ═══════════ ACCESSIBILITY AND LAYOUT ═══════════
+
+  check('Q25a the remove control is named "Remove card"', /aria-label=\{`Remove card: /.test(cardList), true)
+  check('Q25b Undo is a real, focusable button', /<button\s+ref=\{undoRef\}\s+type="button"/.test(multiClient), true)
+  check('Q25c Undo is announced', multiClient.includes('<div aria-live="polite" aria-atomic="true">'), true)
+  check('Q25d Undo waits while the owner is on it', multiClient.includes('onFocus={() => setHoldUndo(true)}') && multiClient.includes('onPointerEnter={() => setHoldUndo(true)}'), true)
+  check('Q25e a keyboard removal moves focus to Undo', multiClient.includes('if (removed?.fromKeyboard) undoRef.current?.focus({ preventScroll: true })'), true)
+  check('Q25f the rotation tip traps nothing', /\.focus\(|tabIndex|FocusTrap|inert/.test(hintSrc), false)
+  check('Q25g the rotation tip is announced, not modal', hintSrc.includes('role="status"'), true)
+  check('Q25h warnings carry words and an icon, not colour alone', /function Warning[\s\S]*IconAlertTriangle[\s\S]*\{text\}/.test(cardList), true)
+  check('Q25i the review bar stays above the phone navigation', multiClient.includes('style={{ bottom: ABOVE_MOBILE_NAV }}'), true)
+  check('Q25j review rows still show role, company and contact line', cardList.includes('[fields.role, name ? fields.company : \'\']') && cardList.includes('[fields.email, fields.phone]'), true)
+  check('Q25k and the existing-contact match', cardList.includes('Already in your contacts as'), true)
 
   const total = passed + failures.length
   if (failures.length) {

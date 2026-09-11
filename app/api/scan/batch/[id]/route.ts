@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServerSupabase } from '@/lib/supabase'
-import { applyItemPatches, loadBatch, saveSharedContext, type ItemPatch } from '@/lib/scan/batch-store'
+import {
+  applyItemPatches,
+  capReselection,
+  loadBatch,
+  saveSharedContext,
+  type ItemPatch,
+} from '@/lib/scan/batch-store'
 import { emptySharedContext, type BatchSharedContext } from '@/lib/scan/batch'
 import { isoOrNull } from '@/lib/encounters'
 
@@ -80,7 +86,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const editable = new Set(
         existing.items.filter((item) => !item.createdContactId).map((item) => item.id)
       )
-      const patches = body.items.filter((patch) => editable.has(patch.id))
+      // A restore can never take the batch past ten active cards.
+      const patches = capReselection(
+        existing.items,
+        body.items.filter((patch) => editable.has(patch.id))
+      )
       if (patches.length > 0) await applyItemPatches(supabase, user.id, params.id, patches)
     }
 
