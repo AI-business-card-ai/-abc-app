@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import {
   IconAlertTriangle,
+  IconArrowBackUp,
   IconBriefcase,
   IconBuilding,
   IconBrandLinkedin,
@@ -20,6 +21,10 @@ import type { ContactCandidate } from '@/lib/scan/candidate'
 import {
   batchItemIsSaveable,
   isActiveBatchItem,
+  MAX_BATCH_CARDS,
+  removedBatchItems,
+  removedCardLabel,
+  restoreRoom,
   warningLabel,
   type BatchItem,
 } from '@/lib/scan/batch'
@@ -50,6 +55,7 @@ export default function BatchCardList({
   items,
   onFieldsChange,
   onSelectedChange,
+  onRestore,
   onLinkChange,
   disabled = false,
 }: {
@@ -62,12 +68,15 @@ export default function BatchCardList({
    * way of saying so.
    */
   onSelectedChange: (itemId: string, selected: boolean) => void
+  /** Bring removed cards back — one, or all of them. */
+  onRestore: (itemIds: string[]) => unknown
   /** Keep this card as its own person instead of adding to the matched one. */
   onLinkChange: (itemId: string, linkToExisting: boolean) => void
   disabled?: boolean
 }) {
   const [openId, setOpenId] = useState<string | null>(null)
   const active = items.filter(isActiveBatchItem)
+  const removed = removedBatchItems(items)
 
   return (
     <section className="abc-surface p-4 sm:p-5">
@@ -101,7 +110,157 @@ export default function BatchCardList({
           ))}
         </ul>
       )}
+
+      {removed.length > 0 ? (
+        <RemovedCards
+          items={removed}
+          room={restoreRoom(items)}
+          onRestore={onRestore}
+          disabled={disabled}
+        />
+      ) : null}
     </section>
+  )
+}
+
+/** Whether the element that has focus got it from the keyboard. */
+function focusFromKeyboard(): boolean {
+  try {
+    return Boolean(document.activeElement?.matches(':focus-visible'))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Every card removed from this review, and the way back for each.
+ *
+ * The quick Undo only ever names the last card removed; this is where every
+ * earlier one stays until Save. Collapsed to one line, because the owner is
+ * working down the cards they are keeping, not the ones they set aside — and
+ * a removed card is still in the batch, unselected, so nothing about it is
+ * lost: its reading, the owner's corrections, its match and its place.
+ */
+function RemovedCards({
+  items,
+  room,
+  onRestore,
+  disabled,
+}: {
+  items: BatchItem[]
+  /** Active places left before the batch is at ten again. */
+  room: number
+  onRestore: (itemIds: string[]) => unknown
+  disabled: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const count = items.length
+  const full = room === 0
+  const allFit = count <= room
+
+  /*
+    A restored card leaves this list, taking the focused button with it. For
+    someone working by keyboard, focus moves to the next removed card — or, once
+    none are left, to the card that just came back.
+  */
+  function restore(itemIds: string[]) {
+    const fromKeyboard = focusFromKeyboard()
+    const index = items.findIndex((item) => item.id === itemIds[0])
+    const rest = items.filter((item) => !itemIds.includes(item.id))
+    onRestore(itemIds)
+    if (!fromKeyboard) return
+    requestAnimationFrame(() => {
+      const next = rest[Math.min(Math.max(index, 0), rest.length - 1)]
+      const target = next
+        ? document.querySelector<HTMLElement>(`[data-removed-item="${next.id}"] button`)
+        : document.querySelector<HTMLElement>(`[data-batch-item="${itemIds[0]}"] button`)
+      target?.focus()
+    })
+  }
+
+  return (
+    <div className="mt-3 border-t border-abc-border pt-2">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls="batch-removed-cards"
+        className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-inner px-1 text-left abc-focus-ring"
+      >
+        <span className="flex items-center gap-2 text-[13.5px] font-medium text-abc-secondary">
+          <IconTrash size={15} stroke={1.8} aria-hidden="true" />
+          {count} {count === 1 ? 'card' : 'cards'} removed
+        </span>
+        <span className="flex items-center gap-1 text-[12.5px] text-abc-muted">
+          {open ? 'Hide' : 'Show'}
+          <IconChevronDown
+            size={15}
+            stroke={2}
+            aria-hidden="true"
+            className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          />
+        </span>
+      </button>
+
+      {open ? (
+        <div id="batch-removed-cards" className="mt-1.5">
+          {full ? (
+            <p className="mb-2 px-1 text-[12.5px] leading-[1.5] text-abc-muted">
+              A batch holds up to {MAX_BATCH_CARDS} cards. Remove one to restore another.
+            </p>
+          ) : null}
+
+          <ul className="flex flex-col gap-1.5">
+            {items.map((item) => {
+              const { title, detail } = removedCardLabel(item)
+              return (
+                <li
+                  key={item.id}
+                  data-removed-item={item.id}
+                  className="flex items-center gap-3 rounded-inner border border-dashed border-abc-border py-1 pl-3 pr-1"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13.5px] text-abc-text">{title}</span>
+                    {detail ? (
+                      <span className="block truncate text-[12px] text-abc-muted">{detail}</span>
+                    ) : null}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => restore([item.id])}
+                    disabled={disabled || full}
+                    aria-label={`Restore card: ${title}`}
+                    className="flex h-[44px] shrink-0 items-center gap-1.5 rounded-inner px-3 text-[13px] font-semibold text-abc-gold-accent transition-colors duration-200 ease-abc hover:bg-abc-card abc-focus-ring disabled:opacity-40"
+                  >
+                    <IconArrowBackUp size={15} stroke={2} aria-hidden="true" />
+                    Restore
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+
+          {count > 1 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => restore(items.map((item) => item.id))}
+                disabled={disabled || !allFit}
+                className="mt-2 flex h-[44px] w-full items-center justify-center gap-1.5 rounded-inner border border-abc-border text-[13px] font-semibold text-abc-gold-accent transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring disabled:opacity-40"
+              >
+                <IconArrowBackUp size={15} stroke={2} aria-hidden="true" />
+                Restore all
+              </button>
+              {!allFit && !full ? (
+                <p className="mt-1.5 px-1 text-[12.5px] leading-[1.5] text-abc-muted">
+                  Only {room} more {room === 1 ? 'fits' : 'fit'} in this batch — restore them one by one.
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   )
 }
 

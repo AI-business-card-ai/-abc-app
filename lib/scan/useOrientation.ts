@@ -33,6 +33,42 @@ export function shouldSuggestLandscape(
   return orientation.mobile && orientation.portrait && live && !dismissed
 }
 
+/**
+ * Whether the multi-card camera should take over the whole screen.
+ *
+ * A phone held sideways with the camera live is the one moment the owner is
+ * framing a table of cards, and every pixel of height the app keeps for its
+ * own chrome is a pixel the cards do not get. So exactly then — a touch phone,
+ * landscape, the multi-card capture stage, a live camera and room to capture —
+ * the camera becomes the screen. Back opts out until the phone goes upright
+ * again or a new capture begins; anything else keeps the ordinary page.
+ */
+export function shouldEnterImmersive(
+  orientation: OrientationState,
+  {
+    capturing,
+    live,
+    canCapture,
+    exited,
+  }: { capturing: boolean; live: boolean; canCapture: boolean; exited: boolean }
+): boolean {
+  return orientation.mobile && !orientation.portrait && capturing && live && canCapture && !exited
+}
+
+/**
+ * The shape of the picture in the full-screen camera, from the stream's own.
+ *
+ * The picture is sized to the stream so nothing captured is hidden off screen.
+ * Taken as landscape whichever way round a stream reports itself mid-rotation,
+ * and kept between 4:3 and 21:9 so an odd or not-yet-known stream can never
+ * produce a sliver.
+ */
+export function landscapeCameraAspect(ratio: number): number {
+  if (!Number.isFinite(ratio) || ratio <= 0) return 16 / 9
+  const landscape = ratio >= 1 ? ratio : 1 / ratio
+  return Math.min(Math.max(landscape, 4 / 3), 21 / 9)
+}
+
 export function useOrientation(): OrientationState {
   const [state, setState] = useState({ mobile: false, portrait: false })
 

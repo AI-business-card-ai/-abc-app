@@ -14,6 +14,7 @@
  * Every source assertion runs on comment-stripped text, so a claim written in
  * prose can never satisfy a test about code.
  */
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -29,6 +30,9 @@ import {
   MAX_BATCH_ROWS,
   MULTI_CARD_IMAGE_POLICY,
   remainingInBatch,
+  removedBatchItems,
+  removedCardLabel,
+  restoreRoom,
   setItemSelected,
   sharedContextHasContent,
   warningLabel,
@@ -43,7 +47,11 @@ import {
   saveBatchContacts,
 } from '@/lib/scan/batch-store'
 import { fitToVisionBudget, visualTokens } from '@/lib/image-compress'
-import { shouldSuggestLandscape } from '@/lib/scan/useOrientation'
+import {
+  landscapeCameraAspect,
+  shouldEnterImmersive,
+  shouldSuggestLandscape,
+} from '@/lib/scan/useOrientation'
 import {
   consumeScanCredits,
   isFounder,
@@ -872,7 +880,10 @@ async function run() {
   check('Q7b only on cards not yet saved', /\{!saved \? \(\s*<button[\s\S]{0,200}onClick=\{onRemove\}/.test(cardList), true)
   // Pixels, not rem: the phone root font is 14px, so h-11 would render at 38.5px.
   check('Q7c with a 44px thumb-sized target', /onClick=\{onRemove\}[\s\S]{0,300}h-\[44px\] w-\[44px\]/.test(cardList), true)
-  check('Q7e Undo, the tip dismiss and Start over are 44px too', (multiClient.match(/h-\[44px\]/g) || []).length, 3)
+  // Each control named rather than counted: the full-screen camera adds 44px controls of its own.
+  check('Q7e Undo is 44px', /onClick=\{undoRemove\}[\s\S]{0,120}h-\[44px\]/.test(multiClient), true)
+  check('Q7f the rotation tip dismiss is 44px', /aria-label="Dismiss rotation tip"\s*className="flex h-\[44px\] w-\[44px\]/.test(multiClient), true)
+  check('Q7g Start over is 44px', /onClick=\{restart\}\s*className="mx-auto flex h-\[44px\]/.test(multiClient), true)
   check('Q7d worded as a card, never as a contact', /Delete contact/i.test(cardList + multiClient), false)
 
   // 8 & 9. Remove makes the item inactive and takes it out of the list.
@@ -977,7 +988,7 @@ async function run() {
   check('Q18b in the same position', restored.findIndex((entry) => entry.id === 'x2'), 1)
   check('Q18c the toast reads Card removed · Undo', /Card removed<\/span>\s*<span aria-hidden="true">·<\/span>[\s\S]{0,120}onClick=\{undoRemove\}[\s\S]{0,400}Undo/.test(multiClient), true)
   check('Q18d it is temporary', multiClient.includes('const UNDO_WINDOW_MS = 6000'), true)
-  check('Q18e restoring sends selected = true', multiClient.includes('setSelected(itemId, true)'), true)
+  check('Q18e restoring sends selected = true', multiClient.includes('setSelected(itemIds, true)') && multiClient.includes('if (!restoreCards([itemId])) return'), true)
 
   // 19. A restored card saves normally.
   const undoStub = stubClient(tenCardSeed())
@@ -1062,7 +1073,7 @@ async function run() {
   check('Q23e both write routes enforce it', patchRoute.includes('capReselection(') && saveRoute.includes('capReselection('), true)
 
   // The removal is persisted before anything that depends on it.
-  check('Q24a a removal is sent as it happens', multiClient.includes("method: 'PATCH'") && multiClient.includes('items: [{ id: itemId, selected }]'), true)
+  check('Q24a a removal is sent as it happens', multiClient.includes("method: 'PATCH'") && multiClient.includes('items: itemIds.map((id) => ({ id, selected }))') && multiClient.includes('setSelected([itemId], false)'), true)
   check('Q24b detection and save wait for it', (multiClient.match(/await selectionSync\.current/g) || []).length, 2)
   check('Q24c save still carries every card’s final state', multiClient.includes('selected: item.selected'), true)
 
@@ -1079,6 +1090,227 @@ async function run() {
   check('Q25i the review bar stays above the phone navigation', multiClient.includes('style={{ bottom: ABOVE_MOBILE_NAV }}'), true)
   check('Q25j review rows still show role, company and contact line', cardList.includes('[fields.role, name ? fields.company : \'\']') && cardList.includes('[fields.email, fields.phone]'), true)
   check('Q25k and the existing-contact match', cardList.includes('Already in your contacts as'), true)
+
+  // ═══════════ PHONE QA FIX #2: EVERY REMOVED CARD STAYS RECOVERABLE ═══════════
+
+  const deck = Array.from({ length: 10 }, (_, i) =>
+    item({ id: `r${i}`, position: i, fields: { ...emptyCandidate(), first_name: `Name${i}`, company: `Co${i}`, email: `n${i}@x.co` } })
+  )
+  // Removed in this order: A, B, C, D.
+  const removalOrder = ['r1', 'r7', 'r3', 'r8']
+  const fourOut = removalOrder.reduce((list, id) => setItemSelected(list, id, false), deck)
+
+  // 1. Remove one → quick Undo works.
+  const oneOut = setItemSelected(deck, 'r4', false)
+  check('M1a removing one card takes it out of the review', oneOut.filter(isActiveBatchItem).length, 9)
+  check('M1b quick Undo brings exactly that card back', setItemSelected(oneOut, 'r4', true), deck)
+  check('M1c the quick Undo names the latest removal', multiClient.includes('setRemoved({ itemId, fromKeyboard })') && multiClient.includes('if (!restoreCards([itemId])) return'), true)
+
+  // 2. Remove four → all four stay recoverable.
+  check('M2a four removed, four recoverable', removedBatchItems(fourOut).map((entry) => entry.id), ['r1', 'r3', 'r7', 'r8'])
+  check('M2b the removed list is derived from the batch, not a single last-removed slot', cardList.includes('const removed = removedBatchItems(items)'), true)
+
+  // 3. Quick Undo of the latest loses none of the earlier ones.
+  const undoneD = setItemSelected(fourOut, 'r8', true)
+  check('M3a quick Undo restores only the latest', undoneD.find((entry) => entry.id === 'r8')?.selected, true)
+  check('M3b the three earlier removals are still recoverable', removedBatchItems(undoneD).map((entry) => entry.id), ['r1', 'r3', 'r7'])
+  check('M3c the toast running out ends only the toast', multiClient.includes('const timer = setTimeout(() => setRemoved(null), UNDO_WINDOW_MS)'), true)
+
+  // 4. The persistent Removed control shows the right count and names each card.
+  check('M4a the Removed control counts every removed card', removedBatchItems(fourOut).length, 4)
+  check('M4b and says so', cardList.includes("{count} {count === 1 ? 'card' : 'cards'} removed"), true)
+  check('M4c it opens to list them', cardList.includes('aria-expanded={open}') && cardList.includes('aria-controls="batch-removed-cards"'), true)
+  check('M4d a removed card is named by its person', removedCardLabel(item({ fields: { ...emptyCandidate(), first_name: 'Ada', last_name: 'Lovelace', company: 'Analytical' } })), { title: 'Ada Lovelace', detail: 'Analytical' })
+  check('M4e or by its company', removedCardLabel(item({ fields: { ...emptyCandidate(), company: 'Northwind' } })), { title: 'Northwind', detail: '' })
+  check('M4f or plainly', removedCardLabel(item({ fields: { ...emptyCandidate(), phone: '+49 1' } })), { title: 'Removed card', detail: '' })
+
+  // 5. Restore any one of them.
+  const bBack = setItemSelected(fourOut, 'r7', true)
+  check('M5a any removed card can be restored on its own', removedBatchItems(bBack).map((entry) => entry.id), ['r1', 'r3', 'r8'])
+  check('M5b each removed card has its own Restore', cardList.includes('onClick={() => restore([item.id])}') && cardList.includes('aria-label={`Restore card: ${title}`}'), true)
+
+  // 6. Restore all.
+  const allBack = setItemSelected(fourOut, removedBatchItems(fourOut).map((entry) => entry.id), true)
+  check('M6a Restore all brings every removed card back', removedBatchItems(allBack).length, 0)
+  check('M6b leaving the batch exactly as detected', allBack, deck)
+  check('M6c Restore all is offered once more than one card is removed', cardList.includes('{count > 1 ? (') && cardList.includes('onClick={() => restore(items.map((item) => item.id))}'), true)
+  check('M6d sent as one request', multiClient.includes('onRestore={restoreCards}') && multiClient.includes('items: itemIds.map((id) => ({ id, selected }))'), true)
+
+  // 7. Edits, reading and match survive a remove and a restore.
+  const touched = setItemSelected(
+    deck.map((entry) => (entry.id === 'r3' ? { ...entry, fields: { ...entry.fields, first_name: 'Corrected', role: 'CFO' }, linkContactId: 'existing-3', linkContactName: 'Known', linkToExisting: false, confidence: 0.42, warnings: ['low_confidence' as const] } : entry)),
+    'r3',
+    false
+  )
+  const touchedBack = setItemSelected(touched, 'r3', true).find((entry) => entry.id === 'r3')
+  check('M7a a restored card keeps the owner’s corrections', [touchedBack?.fields.first_name, touchedBack?.fields.role], ['Corrected', 'CFO'])
+  check('M7b and its existing-contact match and decision', [touchedBack?.linkContactId, touchedBack?.linkToExisting], ['existing-3', false])
+  check('M7c and what the model read', [touchedBack?.confidence, touchedBack?.warnings], [0.42, ['low_confidence']])
+
+  // 8. Restored cards return to their original place.
+  const reordered = setItemSelected(setItemSelected(fourOut, 'r7', true), 'r1', true)
+  check('M8a restored out of order, they land in batch order', reordered.filter(isActiveBatchItem).map((entry) => entry.id), ['r0', 'r1', 'r2', 'r4', 'r5', 'r6', 'r7', 'r9'])
+
+  // 9. The Save count follows every step.
+  const counts: number[] = [batchSaveCount(deck)]
+  let running = deck
+  for (const id of removalOrder) {
+    running = setItemSelected(running, id, false)
+    counts.push(batchSaveCount(running))
+  }
+  running = setItemSelected(running, 'r8', true)
+  counts.push(batchSaveCount(running))
+  running = setItemSelected(running, 'r7', true)
+  counts.push(batchSaveCount(running))
+  running = setItemSelected(running, removedBatchItems(running).map((entry) => entry.id), true)
+  counts.push(batchSaveCount(running))
+  check('M9a Save 10 → 9 → 8 → 7 → 6 → Undo 7 → Restore 8 → Restore all 10', counts, [10, 9, 8, 7, 6, 7, 8, 10])
+
+  // 10–15. Through the real store: remove four, quick-Undo the last, save.
+  const partial = stubClient(tenCardSeed())
+  for (const id of ['t1', 't7', 't3', 't8']) {
+    await applyItemPatches(partial.client, 'owner-1', 'batch-1', [{ id, selected: false }])
+  }
+  await applyItemPatches(partial.client, 'owner-1', 'batch-1', [{ id: 't8', selected: true }])
+  const seven = await quietly(() => saveBatchContacts(partial.client, 'owner-1', 'batch-1', 50))
+  const stillRemoved = ['t1', 't3', 't7']
+  const sevenContacts = partial.writes.filter((w) => w.table === 'scanned_contacts' && w.op === 'insert')
+  const sevenEncounters = partial.writes.filter((w) => w.table === 'contact_encounters' && w.op === 'insert')
+  check('M10a the three still removed create no contact', sevenContacts.some((w) => stillRemoved.includes(String((w.payload as Record<string, unknown>).scan_batch_item_id))), false)
+  check('M10b seven kept cards, seven contacts', sevenContacts.length, 7)
+  check('M11a no encounter for a removed card', sevenEncounters.length, 7)
+  check('M12a no credit for a removed card', seven?.creditsConsumed, 7)
+  check('M12b none of them is marked paid', partial.itemRows.filter((row) => stillRemoved.includes(String(row.id))).some((row) => row.credit_consumed === true), false)
+  const partialExport = await batchExportTargets(partial.client, 'owner-1', 'batch-1')
+  const partialKept = new Set(partial.itemRows.filter((row) => row.selected !== false).map((row) => String(row.created_contact_id)))
+  check('M13a the CRM export holds the seven', partialExport.length, 7)
+  check('M13b and nothing removed', partialExport.every((target) => partialKept.has(target.contactId)), true)
+  check('M14a the quick-Undone card saves normally', seven?.created.some((entry) => entry.itemId === 't8'), true)
+
+  // Restore all through the store: one request, then every card saves.
+  const whole = stubClient(tenCardSeed())
+  for (const id of ['t1', 't7', 't3', 't8']) {
+    await applyItemPatches(whole.client, 'owner-1', 'batch-1', [{ id, selected: false }])
+  }
+  const restoreAllPatch = capReselection(
+    whole.itemRows.map((row) => ({ id: String(row.id), selected: row.selected !== false })),
+    ['t1', 't7', 't3', 't8'].map((id) => ({ id, selected: true }))
+  )
+  await applyItemPatches(whole.client, 'owner-1', 'batch-1', restoreAllPatch)
+  const wholeSave = await quietly(() => saveBatchContacts(whole.client, 'owner-1', 'batch-1', 50))
+  check('M14b after Restore all every card saves', wholeSave?.created.length, 10)
+  check('M14c and each costs its one credit', wholeSave?.creditsConsumed, 10)
+  check('M15a no batch row is ever added by a remove or restore', [partial, whole].every((stub) => stub.writes.every((w) => !(w.table === 'scan_batch_items' && w.op === 'insert'))), true)
+  check('M15b the batch still has exactly its ten rows', [partial.itemRows.length, whole.itemRows.length], [10, 10])
+  const wholeItemIds = whole.writes.filter((w) => w.table === 'scanned_contacts' && w.op === 'insert').map((w) => (w.payload as Record<string, unknown>).scan_batch_item_id)
+  check('M15c and no card becomes two contacts', new Set(wholeItemIds).size, wholeItemIds.length)
+
+  // 16. A restore past ten active cards is refused — on screen and on the server.
+  const fullWithRemoved = [...Array.from({ length: 10 }, (_, i) => ({ id: `f${i}`, selected: true })), ...['x1', 'x2', 'x3', 'x4'].map((id) => ({ id, selected: false }))]
+  check('M16a a full batch has no room to restore', restoreRoom(fullWithRemoved), 0)
+  check('M16b the server refuses Restore all past ten', capReselection(fullWithRemoved, ['x1', 'x2', 'x3', 'x4'].map((id) => ({ id, selected: true }))), [{ id: 'x1' }, { id: 'x2' }, { id: 'x3' }, { id: 'x4' }])
+  check('M16c the client checks the same ceiling before it shows a card as back', multiClient.includes('if (itemIds.length > restoreRoom(batch?.items ?? [])) {'), true)
+  check('M16d Restore is disabled on a full batch, and Restore all when not all fit', cardList.includes('disabled={disabled || full}') && cardList.includes('disabled={disabled || !allFit}'), true)
+  check('M16e and the owner is told why', cardList.includes('A batch holds up to {MAX_BATCH_CARDS} cards. Remove one to restore another.'), true)
+
+  // 17 & 18. Metering is untouched by any of it.
+  const founderFix2 = counterStub()
+  await consumeScanCredits(founderFix2.client, { ...exhaustedFree, id: 'founder-uid' }, seven?.creditsConsumed ?? 0, founderIdentity)
+  check('M17a the founder saving after removals and restores is not charged', founderFix2.updates.length, 0)
+  const meteredFix2 = counterStub()
+  await consumeScanCredits(meteredFix2.client, { ...starter, id: 'normal-uid' }, seven?.creditsConsumed ?? 0, normalIdentity)
+  check('M18a a metered user pays for the seven cards kept', meteredFix2.updates[0], { scans_used: 17 })
+
+  // ═══════════ PHONE QA FIX #2: FULL-SCREEN LANDSCAPE CAMERA ═══════════
+
+  const sidewaysPhone = { mobile: true, portrait: false }
+  const uprightPhone = { mobile: true, portrait: true }
+  const readyToShoot = { capturing: true, live: true, canCapture: true, exited: false }
+  const immersiveFrameSrc = multiClient.slice(multiClient.indexOf('function ImmersiveFrame()'), multiClient.indexOf('function LandscapeHint'))
+
+  // 19. Upright, the rotation tip still shows and the page stays a page.
+  check('I19a portrait Multi-Card still recommends turning sideways', shouldSuggestLandscape(uprightPhone, { live: true, dismissed: false }), true)
+  check('I19b and stays the ordinary screen', shouldEnterImmersive(uprightPhone, readyToShoot), false)
+
+  // 20. Sideways with the camera live, the camera takes over.
+  check('I20a sideways and live: full-screen camera', shouldEnterImmersive(sidewaysPhone, readyToShoot), true)
+  check('I20b not before the camera is live', shouldEnterImmersive(sidewaysPhone, { ...readyToShoot, live: false }), false)
+  check('I20c not outside the capture stage', shouldEnterImmersive(sidewaysPhone, { ...readyToShoot, capturing: false }), false)
+  check('I20d never on a desktop', shouldEnterImmersive({ mobile: false, portrait: false }, readyToShoot), false)
+  check('I20e not when nothing more can be captured', shouldEnterImmersive(sidewaysPhone, { ...readyToShoot, canCapture: false }), false)
+  check('I20f derived from the live state, with no extra confirmation', multiClient.includes('const immersive = shouldEnterImmersive(orientation, {') && multiClient.includes("capturing: stage === 'capture'") && multiClient.includes('canCapture: !blocked && remaining > 0'), true)
+
+  // 21 & 22. Header and bottom navigation leave the camera viewport.
+  const zOf = (src: string, pattern: RegExp) => Number((src.match(pattern) || [])[1] || 0)
+  const headerZ = zOf(code('components/layout/AppHeader.tsx'), /sticky top-0 z-(\d+)/)
+  const navZ = zOf(code('components/layout/MobileNav.tsx'), /fixed bottom-0 left-0 right-0 z-\[(\d+)\]/)
+  const surfaceZ = zOf(multiClient, /'fixed inset-0 z-\[(\d+)\] flex h-\[100dvh\]/)
+  check('I21a the camera surface is the whole viewport', multiClient.includes("'fixed inset-0 z-[200] flex h-[100dvh] touch-none overflow-hidden overscroll-none'"), true)
+  check('I21b above the app header', headerZ > 0 && surfaceZ > headerZ, true)
+  check('I22a above the bottom navigation', navZ > 0 && surfaceZ > navZ, true)
+  check('I22b and the page behind is withheld from assistive tech', multiClient.includes("role={immersive ? 'dialog' : undefined}") && multiClient.includes('aria-modal={immersive ? true : undefined}'), true)
+
+  // 23. No instructions over the full-screen camera.
+  check('I23a the tip, the ghost-card frame and the caption are not rendered full screen', /\{!immersive \? \(\s*<div className="pointer-events-none absolute inset-0 flex flex-col">\s*\{suggestLandscape \? <LandscapeHint/.test(multiClient), true)
+  check('I23b nor the camera status text', multiClient.includes('{!live && !immersive ? ('), true)
+
+  // 24. One large frame, using the full height.
+  check('I24a one large frame inside a thin margin', immersiveFrameSrc.includes('absolute bottom-3 left-[60px] right-3 top-3'), true)
+  check('I24b the picture takes the full height, at the stream’s shape', multiClient.includes("'relative h-full max-w-full overflow-hidden rounded-[14px]'") && multiClient.includes('aspectRatio: String(landscapeCameraAspect(videoAspect))'), true)
+  check('I24c a 16:9 stream stays 16:9', landscapeCameraAspect(1920 / 1080), 1920 / 1080)
+  check('I24d a stream still reporting portrait is read sideways', landscapeCameraAspect(1080 / 1920), 1920 / 1080)
+  check('I24e an unknown stream never makes a sliver', [landscapeCameraAspect(0), landscapeCameraAspect(1), landscapeCameraAspect(5)], [16 / 9, 4 / 3, 21 / 9])
+  check('I24f no ghost cards in the full-screen frame', immersiveFrameSrc.includes('border-dashed'), false)
+
+  // 25. One gold circular shutter.
+  check('I25a a single gold circular shutter named Capture photo', /aria-label="Capture photo"\s*className="relative flex h-\[72px\] w-\[72px\][\s\S]{0,200}style=\{\{ border: '3px solid var\(--abc-gold\)' \}\}/.test(multiClient), true)
+  check('I25b beside the frame, not over it', multiClient.includes('flex w-[92px] shrink-0 items-center justify-center'), true)
+  check('I25c no text Capture button full screen', /\{!immersive \? \(\s*<div className="mt-3 flex shrink-0 flex-col gap-2[\s\S]{0,300}Capture more cards/.test(multiClient), true)
+
+  // 26. Back.
+  check('I26a a small Back control', /ref=\{backRef\}\s*type="button"\s*onClick=\{onExitImmersive\}\s*aria-label="Back"/.test(multiClient), true)
+  check('I26b Back only leaves the full-screen camera', multiClient.includes('onExitImmersive={() => setImmersiveExited(true)}'), true)
+  check('I26c Escape does the same', multiClient.includes("if (e.key === 'Escape') {"), true)
+
+  // 27. Upload is hidden only inside the full-screen camera.
+  check('I27a Upload is not on the full-screen camera', /\{!immersive \? \(\s*<div className="mt-3 flex shrink-0 flex-col gap-2[\s\S]{0,900}Upload a photo/.test(multiClient), true)
+  check('I27b and is on the ordinary screen, ungated by orientation', multiClient.includes('onClick={onPickFile} disabled={blocked || remaining <= 0}'), true)
+
+  // 28. Back restores the ordinary Multi-Card screen and keeps everything.
+  check('I28a after Back the ordinary screen returns', shouldEnterImmersive(sidewaysPhone, { ...readyToShoot, exited: true }), false)
+  check('I28b Back neither saves nor discards the batch', /onExitImmersive=\{\(\) => setImmersiveExited\(true\)\}/.test(multiClient) && !/setImmersiveExited\(true\)[^}]*(restart|setBatch|save\()/.test(multiClient), true)
+  check('I28c and a new capture offers the full-screen camera again', multiClient.includes("if (stage !== 'capture') setImmersiveExited(false)"), true)
+
+  // 29. Turning upright leaves the full-screen camera.
+  check('I29a upright ends the full-screen camera', shouldEnterImmersive(uprightPhone, readyToShoot), false)
+  check('I29b and clears Back for the next turn', multiClient.includes('if (orientation.portrait) setImmersiveExited(false)'), true)
+  check('I29c orientation is followed live', orientationLib.includes("addEventListener?.('change', read)"), true)
+
+  // 30 & 31. Single Card never sees any of it, and is byte-for-byte what it was.
+  check('I30a Single Card has no full-screen camera', /immersive|ImmersiveFrame|shouldEnterImmersive|landscapeCameraAspect/i.test(cameraStage + scanClient), false)
+  const fingerprint = (rel: string) => crypto.createHash('sha256').update(read(rel).replace(/\r\n/g, '\n')).digest('hex')
+  // Pinned at the approved release. A deliberate Single Card change updates these on purpose.
+  check('I31a CameraStage.tsx unchanged', fingerprint('components/scan/CameraStage.tsx'), 'd5749dc37fe65cfc824e3df7b3ebf4ed6287fcfa453acee0182d403281b82179')
+  check('I31b ScanClient.tsx unchanged', fingerprint('components/scan/ScanClient.tsx'), '5c411531b2f10008601c4af26fac397ace6c9ef784df7ed01d1727d3841a83e9')
+  check('I31c the shared camera hook unchanged', fingerprint('lib/scan/useCamera.ts'), '8abb68903680a757855c7233e13f830926c0a4f09d83524aafe3086466480006')
+
+  // 32. The shutter uses the existing multi-card image pipeline.
+  check('I32a the shutter captures through the existing flow', /ref=\{shutterRef\}\s*type="button"\s*onClick=\{onCapture\}/.test(multiClient) && multiClient.includes('onCapture={() => void capture()}'), true)
+  check('I32b which prepares the photo with the multi-card policy', multiClient.includes('prepareImageForVision(file, MULTI_CARD_IMAGE_POLICY)'), true)
+  check('I32c unchanged', [MULTI_CARD_IMAGE_POLICY, claude.includes("model: 'claude-sonnet-4-5'")], [{ maxLongEdge: 1568, maxVisualTokens: 1568, quality: 0.92 }, true])
+
+  // 33. A capture leaves the full-screen camera for reading and review.
+  check('I33a reading a photo is not the capture stage, so the camera steps aside', multiClient.includes("setStage('detecting')") && !shouldEnterImmersive(sidewaysPhone, { ...readyToShoot, capturing: false }), true)
+
+  // 34. Nothing overflows the viewport.
+  check('I34a the camera surface is clipped to the viewport', multiClient.includes('touch-none overflow-hidden overscroll-none'), true)
+  check('I34b and sits inside the safe area', multiClient.includes("paddingBottom: 'max(6px, env(safe-area-inset-bottom))'") && multiClient.includes("paddingLeft: 'max(6px, env(safe-area-inset-left))'") && multiClient.includes("paddingRight: 'env(safe-area-inset-right)'"), true)
+  check('I34c sized to the dynamic viewport', multiClient.includes('h-[100dvh]'), true)
+
+  // 35. The page does not scroll under the full-screen camera.
+  check('I35a scroll-locked only while the camera is full screen', /useEffect\(\(\) => \{\s*if \(!immersive\) return\s*const root = document\.documentElement/.test(multiClient), true)
+  check('I35b and restored exactly as it was', multiClient.includes('root.style.overflow = previous.root') && multiClient.includes('document.body.style.overflow = previous.body'), true)
+  check('I35c touch on the camera neither scrolls nor zooms the page', multiClient.includes('touch-none'), true)
 
   const total = passed + failures.length
   if (failures.length) {

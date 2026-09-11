@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   IconAlertTriangle,
   IconArrowBackUp,
+  IconArrowLeft,
   IconCameraPlus,
   IconCheck,
   IconDeviceMobileRotated,
@@ -20,7 +21,12 @@ import BatchSharedContextForm from '@/components/scan/BatchSharedContextForm'
 import { prepareImageForVision } from '@/lib/image-compress'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
 import { useCamera } from '@/lib/scan/useCamera'
-import { shouldSuggestLandscape, useOrientation } from '@/lib/scan/useOrientation'
+import {
+  landscapeCameraAspect,
+  shouldEnterImmersive,
+  shouldSuggestLandscape,
+  useOrientation,
+} from '@/lib/scan/useOrientation'
 import type { ContactCandidate } from '@/lib/scan/candidate'
 import { ABOVE_MOBILE_NAV, MOBILE_NAV_HEIGHT, SAFE_TOP } from '@/lib/ui/layout'
 import {
@@ -29,6 +35,7 @@ import {
   MAX_BATCH_CARDS,
   MULTI_CARD_IMAGE_POLICY,
   remainingInBatch,
+  restoreRoom,
   setItemSelected,
   type BatchSharedContext,
   type ScanBatch,
@@ -66,6 +73,19 @@ const UNDO_WINDOW_MS = 6000
 */
 const LANDSCAPE_STAGE_HEIGHT = `calc(100svh - 3.5rem - ${SAFE_TOP} - ${MOBILE_NAV_HEIGHT}px - env(safe-area-inset-bottom) - 24px)`
 
+/*
+  The full-screen camera sits inside the safe area — clear of the notch, the
+  rounded corners and the home indicator — with a hair of margin where the
+  inset is zero. Black, because it is a camera, not a page.
+*/
+const IMMERSIVE_SURFACE_STYLE: React.CSSProperties = {
+  background: '#000',
+  paddingTop: 'max(6px, env(safe-area-inset-top))',
+  paddingBottom: 'max(6px, env(safe-area-inset-bottom))',
+  paddingLeft: 'max(6px, env(safe-area-inset-left))',
+  paddingRight: 'env(safe-area-inset-right)',
+}
+
 /** Whether the element that has focus got it from the keyboard. */
 function focusFromKeyboard(): boolean {
   try {
@@ -101,6 +121,8 @@ export default function MultiCardClient() {
   /** Paused while the owner is on the toast — it must not vanish under a finger or a focus ring. */
   const [holdUndo, setHoldUndo] = useState(false)
   const [hintDismissed, setHintDismissed] = useState(false)
+  /** Back was pressed in the full-screen camera; cleared when the phone goes upright or a new capture begins. */
+  const [immersiveExited, setImmersiveExited] = useState(false)
 
   const uploadRef = useRef<HTMLInputElement>(null)
   const undoRef = useRef<HTMLButtonElement>(null)
@@ -126,6 +148,43 @@ export default function MultiCardClient() {
     own count, which is the one that is enforced.
   */
   const remaining = remainingInBatch(items)
+
+  /*
+    Full-screen camera: a phone held sideways, capturing, camera live. Nothing
+    is stored about it — it is a way of looking at the capture stage, so
+    turning the phone upright or taking the photo simply ends it.
+  */
+  const immersive = shouldEnterImmersive(orientation, {
+    capturing: stage === 'capture',
+    live: status === 'live',
+    canCapture: !blocked && remaining > 0,
+    exited: immersiveExited,
+  })
+
+  // Back opts out of the full-screen camera only until the next chance to use it.
+  useEffect(() => {
+    if (orientation.portrait) setImmersiveExited(false)
+  }, [orientation.portrait])
+  useEffect(() => {
+    if (stage !== 'capture') setImmersiveExited(false)
+  }, [stage])
+
+  /*
+    The page behind the full-screen camera must not move under the owner's
+    hands. Locked only for as long as the camera covers it, and put back
+    exactly as it was — the rest of ABC scrolls as it always did.
+  */
+  useEffect(() => {
+    if (!immersive) return
+    const root = document.documentElement
+    const previous = { root: root.style.overflow, body: document.body.style.overflow }
+    root.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    return () => {
+      root.style.overflow = previous.root
+      document.body.style.overflow = previous.body
+    }
+  }, [immersive])
 
   /**
    * Local edits, applied to state immediately and sent with Save.
@@ -154,16 +213,18 @@ export default function MultiCardClient() {
   */
   const batchId = batch?.id ?? null
   const setSelected = useCallback(
-    (itemId: string, selected: boolean) => {
+    (itemIds: string[], selected: boolean) => {
+      if (itemIds.length === 0) return
       setBatch((current) =>
-        current ? { ...current, items: setItemSelected(current.items, itemId, selected) } : current
+        current ? { ...current, items: setItemSelected(current.items, itemIds, selected) } : current
       )
       if (!batchId) return
+      // One request for a Restore all, not one per card.
       selectionSync.current = selectionSync.current.then(() =>
         fetch(`/api/scan/batch/${batchId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: [{ id: itemId, selected }] }),
+          body: JSON.stringify({ items: itemIds.map((id) => ({ id, selected })) }),
         }).then(
           () => undefined,
           () => undefined
@@ -176,20 +237,40 @@ export default function MultiCardClient() {
   const removeCard = useCallback(
     (itemId: string) => {
       const fromKeyboard = focusFromKeyboard()
-      setSelected(itemId, false)
+      setSelected([itemId], false)
       setHoldUndo(false)
       setRemoved({ itemId, fromKeyboard })
     },
     [setSelected]
   )
 
+  /*
+    Every way a removed card comes back — Undo, a single Restore, Restore all —
+    goes through here, so the ten-card ceiling is checked in one place. The
+    server refuses the same restore; checking first keeps the screen from
+    showing a card as back when the batch could not take it.
+  */
+  const restoreCards = useCallback(
+    (itemIds: string[]) => {
+      if (itemIds.length === 0) return false
+      if (itemIds.length > restoreRoom(batch?.items ?? [])) {
+        setNotice(`A batch holds up to ${MAX_BATCH_CARDS} cards. Remove one to restore another.`)
+        return false
+      }
+      setSelected(itemIds, true)
+      // The quick Undo is for the card it names; once that card is back, it has nothing to offer.
+      setRemoved((current) => (current && itemIds.includes(current.itemId) ? null : current))
+      setHoldUndo(false)
+      return true
+    },
+    [batch, setSelected]
+  )
+
   const undoRemove = useCallback(() => {
     if (!removed) return
     const { itemId } = removed
     const fromKeyboard = focusFromKeyboard()
-    setSelected(itemId, true)
-    setRemoved(null)
-    setHoldUndo(false)
+    if (!restoreCards([itemId])) return
     // Back to the card that came back, for someone working by keyboard.
     if (fromKeyboard) {
       requestAnimationFrame(() => {
@@ -198,7 +279,7 @@ export default function MultiCardClient() {
         row?.scrollIntoView({ block: 'nearest' })
       })
     }
-  }, [removed, setSelected])
+  }, [removed, restoreCards])
 
   // The Undo window.
   useEffect(() => {
@@ -402,6 +483,9 @@ export default function MultiCardClient() {
             dismissed: hintDismissed,
           })}
           onDismissHint={() => setHintDismissed(true)}
+          immersive={immersive}
+          immersiveError={error}
+          onExitImmersive={() => setImmersiveExited(true)}
           onCapture={() => void capture()}
           onPickFile={() => uploadRef.current?.click()}
           onReview={items.length > 0 ? () => setStage('review') : undefined}
@@ -416,8 +500,9 @@ export default function MultiCardClient() {
             items={items}
             onFieldsChange={patchItemFields}
             onSelectedChange={(itemId, selected) =>
-              selected ? setSelected(itemId, true) : removeCard(itemId)
+              selected ? restoreCards([itemId]) : removeCard(itemId)
             }
+            onRestore={restoreCards}
             onLinkChange={patchItemLink}
             disabled={stage === 'saving'}
           />
@@ -477,7 +562,8 @@ export default function MultiCardClient() {
                     ref={undoRef}
                     type="button"
                     onClick={undoRemove}
-                    className="flex h-[44px] items-center gap-1.5 rounded-inner px-2.5 font-semibold text-abc-gold-accent transition-colors duration-200 ease-abc hover:bg-abc-card abc-focus-ring"
+                    disabled={restoreRoom(items) === 0}
+                    className="flex h-[44px] items-center gap-1.5 rounded-inner px-2.5 font-semibold text-abc-gold-accent transition-colors duration-200 ease-abc hover:bg-abc-card abc-focus-ring disabled:opacity-40"
                   >
                     <IconArrowBackUp size={15} stroke={2} aria-hidden="true" />
                     Undo
@@ -557,6 +643,9 @@ function CaptureStage({
   sideways,
   suggestLandscape,
   onDismissHint,
+  immersive,
+  immersiveError,
+  onExitImmersive,
   onCapture,
   onPickFile,
   onReview,
@@ -571,11 +660,18 @@ function CaptureStage({
   sideways: boolean
   suggestLandscape: boolean
   onDismissHint: () => void
+  /** The camera is the whole screen: a phone held sideways, capturing, camera live. */
+  immersive: boolean
+  immersiveError: string | null
+  onExitImmersive: () => void
   onCapture: () => void
   onPickFile: () => void
   onReview?: () => void
 }) {
   const stageRef = useRef<HTMLDivElement>(null)
+  const backRef = useRef<HTMLButtonElement>(null)
+  const shutterRef = useRef<HTMLButtonElement>(null)
+  const [videoAspect, setVideoAspect] = useState(16 / 9)
 
   /*
     Turning the phone sideways leaves room for the viewfinder and little else,
@@ -586,82 +682,242 @@ function CaptureStage({
     if (sideways) stageRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }, [sideways])
 
+  // The stream's real shape, so the full-screen camera shows what is captured.
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    const read = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        setVideoAspect(video.videoWidth / video.videoHeight)
+      }
+    }
+    read()
+    video.addEventListener('loadedmetadata', read)
+    video.addEventListener('resize', read)
+    return () => {
+      video.removeEventListener('loadedmetadata', read)
+      video.removeEventListener('resize', read)
+    }
+  }, [videoRef])
+
+  // The shutter is what the full-screen camera is for.
+  useEffect(() => {
+    if (immersive) shutterRef.current?.focus({ preventScroll: true })
+  }, [immersive])
+
+  /*
+    A camera surface, not a page: Escape is Back, and Tab moves between the
+    only two controls on it rather than into the page hidden behind.
+  */
+  function onSurfaceKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      onExitImmersive()
+      return
+    }
+    if (e.key !== 'Tab') return
+    const stops = [backRef.current, shutterRef.current].filter(
+      (el): el is HTMLButtonElement => Boolean(el && !el.disabled)
+    )
+    if (stops.length === 0) return
+    e.preventDefault()
+    const index = stops.indexOf(document.activeElement as HTMLButtonElement)
+    const next = e.shiftKey
+      ? index <= 0
+        ? stops.length - 1
+        : index - 1
+      : (index + 1) % stops.length
+    stops[next].focus()
+  }
+
   return (
     /*
       Upright: viewfinder above, controls below. Sideways on a phone: the
-      viewfinder takes the width and the controls move beside it, because
-      stacked they would leave a letterbox too short to frame anything in.
+      camera becomes the whole screen (below); after Back, the viewfinder takes
+      the width and the controls move beside it.
     */
     <div
       ref={stageRef}
       className="mt-4 flex h-[min(72vh,640px)] min-h-0 scroll-mt-[calc(3.5rem_+_env(safe-area-inset-top)_+_12px)] flex-col max-lg:landscape:h-[min(var(--abc-sideways-stage),640px)] max-lg:landscape:min-h-[220px] max-lg:landscape:flex-row max-lg:landscape:gap-3"
       style={{ '--abc-sideways-stage': LANDSCAPE_STAGE_HEIGHT } as React.CSSProperties}
     >
+      {/*
+        The camera surface. One element in both layouts, because the live
+        stream is attached to this <video>: a second element for the full-screen
+        camera would open on a black frame. Only its classes change.
+
+        Full screen, it covers the app header, the page, and the bottom
+        navigation (z-50 and z-[100]) — the camera surface is the whole
+        viewport, inside the safe area, and the page behind is scroll-locked.
+      */}
       <div
-        className="relative min-h-0 flex-1 overflow-hidden rounded-card border border-abc-border"
-        style={{ background: '#050506' }}
+        role={immersive ? 'dialog' : undefined}
+        aria-modal={immersive ? true : undefined}
+        aria-label={immersive ? 'Multi-Card camera' : undefined}
+        onKeyDown={immersive ? onSurfaceKey : undefined}
+        className={
+          immersive
+            ? 'fixed inset-0 z-[200] flex h-[100dvh] touch-none overflow-hidden overscroll-none'
+            : 'relative min-h-0 flex-1 overflow-hidden rounded-card border border-abc-border'
+        }
+        style={immersive ? IMMERSIVE_SURFACE_STYLE : { background: '#050506' }}
       >
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          autoPlay
-          className={`h-full w-full object-cover transition-opacity duration-300 ${
-            live ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
+        <div
+          className={
+            immersive ? 'flex min-w-0 flex-1 items-center justify-center' : 'absolute inset-0'
+          }
+        >
+          {/*
+            Full screen, the picture takes the full height and the stream's own
+            shape, so what the owner frames is what is captured — no part of the
+            photo hidden above or below the screen, where it would shrink every
+            card in it.
+          */}
+          <div
+            className={
+              immersive
+                ? 'relative h-full max-w-full overflow-hidden rounded-[14px]'
+                : 'relative h-full w-full'
+            }
+            style={immersive ? { aspectRatio: String(landscapeCameraAspect(videoAspect)) } : undefined}
+          >
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              autoPlay
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+                live ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
 
-        <div className="pointer-events-none absolute inset-0 flex flex-col">
-          {suggestLandscape ? <LandscapeHint onDismiss={onDismissHint} /> : null}
+            {immersive ? <ImmersiveFrame /> : null}
 
-          <div className="flex min-h-0 flex-1 items-center justify-center px-3 pt-3 sm:px-5 sm:pt-5">
-            {live ? <WideFrame /> : null}
+            {immersive ? (
+              <button
+                ref={backRef}
+                type="button"
+                onClick={onExitImmersive}
+                aria-label="Back"
+                className="absolute left-2 top-2 flex h-[44px] w-[44px] items-center justify-center rounded-full text-white backdrop-blur-md transition-colors duration-200 ease-abc abc-focus-ring"
+                style={{ background: 'rgba(10, 10, 11, 0.55)' }}
+              >
+                <IconArrowLeft size={20} stroke={2} aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
-
-          <p className="shrink-0 px-4 pb-3 pt-2 text-center [text-shadow:0_1px_2px_rgba(0,0,0,0.65)]">
-            <span className="block text-[13.5px] font-semibold text-white max-lg:landscape:inline">
-              {capturedCount > 0
-                ? `${capturedCount} card${capturedCount === 1 ? '' : 's'} so far · ${remaining} left`
-                : `Scan up to ${MAX_BATCH_CARDS} cards at once`}
-            </span>
-            <span className="hidden text-white/60 max-lg:landscape:inline" aria-hidden="true">
-              {' · '}
-            </span>
-            <span className="mt-0.5 block text-[12px] text-white/75 max-lg:landscape:mt-0 max-lg:landscape:inline">
-              Keep cards flat, separated and well lit.
-            </span>
-          </p>
         </div>
 
-        {!live ? (
+        {!immersive ? (
+          <div className="pointer-events-none absolute inset-0 flex flex-col">
+            {suggestLandscape ? <LandscapeHint onDismiss={onDismissHint} /> : null}
+
+            <div className="flex min-h-0 flex-1 items-center justify-center px-3 pt-3 sm:px-5 sm:pt-5">
+              {live ? <WideFrame /> : null}
+            </div>
+
+            <p className="shrink-0 px-4 pb-3 pt-2 text-center [text-shadow:0_1px_2px_rgba(0,0,0,0.65)]">
+              <span className="block text-[13.5px] font-semibold text-white max-lg:landscape:inline">
+                {capturedCount > 0
+                  ? `${capturedCount} card${capturedCount === 1 ? '' : 's'} so far · ${remaining} left`
+                  : `Scan up to ${MAX_BATCH_CARDS} cards at once`}
+              </span>
+              <span className="hidden text-white/60 max-lg:landscape:inline" aria-hidden="true">
+                {' · '}
+              </span>
+              <span className="mt-0.5 block text-[12px] text-white/75 max-lg:landscape:mt-0 max-lg:landscape:inline">
+                Keep cards flat, separated and well lit.
+              </span>
+            </p>
+          </div>
+        ) : null}
+
+        {!live && !immersive ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
             <p className="text-[14px] text-abc-secondary">
               {status === 'starting' ? 'Starting camera…' : 'Camera unavailable — upload a photo instead.'}
             </p>
           </div>
         ) : null}
+
+        {/*
+          The shutter lives beside the picture, not under it: on a phone held
+          sideways height is the scarce dimension, and a shutter row below the
+          frame would take a fifth of it. Right-hand side, where the thumb is —
+          as in the phone's own camera.
+        */}
+        {immersive ? (
+          <div className="flex w-[92px] shrink-0 items-center justify-center">
+            <button
+              ref={shutterRef}
+              type="button"
+              onClick={onCapture}
+              disabled={!live}
+              aria-label="Capture photo"
+              className="relative flex h-[72px] w-[72px] items-center justify-center rounded-full transition-transform duration-200 ease-abc active:scale-95 disabled:opacity-40 abc-focus-ring"
+              style={{ border: '3px solid var(--abc-gold)' }}
+            >
+              <span className="h-[56px] w-[56px] rounded-full" style={{ background: 'var(--abc-gold)' }} />
+            </button>
+          </div>
+        ) : null}
+
+        {immersive && immersiveError ? (
+          <p
+            role="alert"
+            className="absolute left-1/2 top-3 max-w-[70%] -translate-x-1/2 rounded-full px-3.5 py-2 text-center text-[12.5px] backdrop-blur-md"
+            style={{ background: 'rgba(10, 10, 11, 0.8)', color: '#fca5a5' }}
+          >
+            {immersiveError}
+          </p>
+        ) : null}
       </div>
 
-      <div className="mt-3 flex shrink-0 flex-col gap-2 max-lg:landscape:mt-0 max-lg:landscape:w-[196px] max-lg:landscape:justify-center">
-        <Button onClick={onCapture} disabled={!live || blocked || remaining <= 0} size="lg" fullWidth>
-          <IconScan size={19} stroke={1.8} />
-          {capturedCount > 0 ? 'Capture more cards' : 'Capture cards'}
-        </Button>
-
-        {/* Never gated on orientation: a photo already taken can be any shape. */}
-        <div className="flex gap-2 max-lg:landscape:flex-col">
-          <Button onClick={onPickFile} disabled={blocked || remaining <= 0} variant="surface" size="md" fullWidth>
-            <IconPhoto size={17} stroke={1.8} />
-            Upload a photo
+      {!immersive ? (
+        <div className="mt-3 flex shrink-0 flex-col gap-2 max-lg:landscape:mt-0 max-lg:landscape:w-[196px] max-lg:landscape:justify-center">
+          <Button onClick={onCapture} disabled={!live || blocked || remaining <= 0} size="lg" fullWidth>
+            <IconScan size={19} stroke={1.8} />
+            {capturedCount > 0 ? 'Capture more cards' : 'Capture cards'}
           </Button>
-          {onReview ? (
-            <Button onClick={onReview} variant="surface" size="md" fullWidth>
-              <IconLayoutGrid size={17} stroke={1.8} />
-              {capturedCount > 0 ? `Review ${capturedCount}` : 'Back to review'}
+
+          {/* Never gated on orientation: a photo already taken can be any shape. */}
+          <div className="flex gap-2 max-lg:landscape:flex-col">
+            <Button onClick={onPickFile} disabled={blocked || remaining <= 0} variant="surface" size="md" fullWidth>
+              <IconPhoto size={17} stroke={1.8} />
+              Upload a photo
             </Button>
-          ) : null}
+            {onReview ? (
+              <Button onClick={onReview} variant="surface" size="md" fullWidth>
+                <IconLayoutGrid size={17} stroke={1.8} />
+                {capturedCount > 0 ? `Review ${capturedCount}` : 'Back to review'}
+              </Button>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * The full-screen framing guide: one large rectangle and nothing inside it.
+ *
+ * As tall as the picture, minus a thin margin, and as wide as it, minus the
+ * corner the Back button sits in — so the owner can come right up to the
+ * cards. No ghost cards here: at this size they would only be something to
+ * look past.
+ */
+function ImmersiveFrame() {
+  const corner = 'absolute h-9 w-9 border-abc-gold-accent'
+  return (
+    <div
+      className="pointer-events-none absolute bottom-3 left-[60px] right-3 top-3 rounded-[10px] border border-white/25"
+      aria-hidden="true"
+    >
+      <span className={`${corner} -left-px -top-px rounded-tl-[10px] border-l-[3px] border-t-[3px]`} />
+      <span className={`${corner} -right-px -top-px rounded-tr-[10px] border-r-[3px] border-t-[3px]`} />
+      <span className={`${corner} -bottom-px -left-px rounded-bl-[10px] border-b-[3px] border-l-[3px]`} />
+      <span className={`${corner} -bottom-px -right-px rounded-br-[10px] border-b-[3px] border-r-[3px]`} />
     </div>
   )
 }

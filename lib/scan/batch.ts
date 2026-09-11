@@ -207,18 +207,53 @@ export function remainingInBatch(items: Pick<BatchItem, 'selected'>[]): number {
 }
 
 /**
- * The batch with one card removed or restored, and nothing else touched.
+ * The batch with cards removed or restored, and nothing else touched.
  *
- * Every other item is returned as the same object, and the card keeps its
- * place and its fields — which is what lets Undo put it back exactly where it
- * was, with any correction the owner had already typed.
+ * Every other item is returned as the same object, and each card keeps its
+ * place and its fields — which is what lets a restore put it back exactly where
+ * it was, with any correction the owner had already typed.
  */
 export function setItemSelected<T extends Pick<BatchItem, 'id' | 'selected'>>(
   items: T[],
-  itemId: string,
+  itemIds: string | string[],
   selected: boolean
 ): T[] {
-  return items.map((item) => (item.id === itemId ? { ...item, selected } : item))
+  const targets = new Set(Array.isArray(itemIds) ? itemIds : [itemIds])
+  return items.map((item) => (targets.has(item.id) ? { ...item, selected } : item))
+}
+
+/**
+ * Every card the owner has removed from this review, in the batch's own order.
+ *
+ * Derived from the batch rather than kept as a separate history, so there is no
+ * second list to fall out of step: a card is removed exactly when it is
+ * unselected and not yet a contact, and it stays restorable for as long as the
+ * batch is unsaved — however many were removed after it.
+ */
+export function removedBatchItems<T extends Pick<BatchItem, 'selected' | 'createdContactId'>>(
+  items: T[]
+): T[] {
+  return items.filter((item) => !item.selected && !item.createdContactId)
+}
+
+/** How many removed cards can come back before the batch is at ten again. */
+export function restoreRoom(items: Pick<BatchItem, 'selected'>[]): number {
+  return Math.max(0, MAX_BATCH_CARDS - items.filter((item) => item.selected).length)
+}
+
+/**
+ * What to call a removed card in the list of removed cards.
+ *
+ * The name when there is one, the company when there is not, and a plain
+ * fallback for a card that gave up neither — which is often exactly the card
+ * the owner removed.
+ */
+export function removedCardLabel(item: Pick<BatchItem, 'fields'>): { title: string; detail: string } {
+  const { first_name, last_name, company, email } = item.fields
+  const name = [first_name, last_name].filter(Boolean).join(' ').trim()
+  if (name) return { title: name, detail: company || email || '' }
+  if (company) return { title: company, detail: email || '' }
+  return { title: 'Removed card', detail: email || '' }
 }
 
 /**
