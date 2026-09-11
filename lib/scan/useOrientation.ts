@@ -56,18 +56,22 @@ export function shouldEnterImmersive(
 }
 
 /**
- * The shape of the picture in the full-screen camera, from the stream's own.
+ * Where the full-screen multi-card frame sits, as CSS lengths from each edge.
  *
- * The picture is sized to the stream so nothing captured is hidden off screen.
- * Taken as landscape whichever way round a stream reports itself mid-rotation,
- * and kept between 4:3 and 21:9 so an odd or not-yet-known stream can never
- * produce a sliver.
+ * The camera itself runs edge to edge; only the guide and the two controls
+ * keep clear of the phone's own shape. The frame stays a thin 10–12px off
+ * every edge. Top and bottom it also clears the safe area (the home indicator
+ * sits there). On the sides it reaches into the landscape safe area to within
+ * 16px of its inner line — past the notch or island, which is narrower than
+ * the inset iOS reports — because width is what lets the owner bring the phone
+ * closer to a row of cards. The controls, by contrast, sit wholly inside it.
  */
-export function landscapeCameraAspect(ratio: number): number {
-  if (!Number.isFinite(ratio) || ratio <= 0) return 16 / 9
-  const landscape = ratio >= 1 ? ratio : 1 / ratio
-  return Math.min(Math.max(landscape, 4 / 3), 21 / 9)
-}
+export const IMMERSIVE_FRAME_INSETS = {
+  top: 'max(10px, calc(env(safe-area-inset-top) + 8px))',
+  bottom: 'max(10px, calc(env(safe-area-inset-bottom) + 4px))',
+  left: 'max(12px, calc(env(safe-area-inset-left) - 16px))',
+  right: 'max(12px, calc(env(safe-area-inset-right) - 16px))',
+} as const
 
 export function useOrientation(): OrientationState {
   const [state, setState] = useState({ mobile: false, portrait: false })

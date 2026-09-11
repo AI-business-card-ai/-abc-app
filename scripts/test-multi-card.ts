@@ -48,7 +48,7 @@ import {
 } from '@/lib/scan/batch-store'
 import { fitToVisionBudget, visualTokens } from '@/lib/image-compress'
 import {
-  landscapeCameraAspect,
+  IMMERSIVE_FRAME_INSETS,
   shouldEnterImmersive,
   shouldSuggestLandscape,
 } from '@/lib/scan/useOrientation'
@@ -1244,8 +1244,8 @@ async function run() {
   const zOf = (src: string, pattern: RegExp) => Number((src.match(pattern) || [])[1] || 0)
   const headerZ = zOf(code('components/layout/AppHeader.tsx'), /sticky top-0 z-(\d+)/)
   const navZ = zOf(code('components/layout/MobileNav.tsx'), /fixed bottom-0 left-0 right-0 z-\[(\d+)\]/)
-  const surfaceZ = zOf(multiClient, /'fixed inset-0 z-\[(\d+)\] flex h-\[100dvh\]/)
-  check('I21a the camera surface is the whole viewport', multiClient.includes("'fixed inset-0 z-[200] flex h-[100dvh] touch-none overflow-hidden overscroll-none'"), true)
+  const surfaceZ = zOf(multiClient, /'fixed inset-0 z-\[(\d+)\] h-\[100dvh\]/)
+  check('I21a the camera surface is the whole viewport', multiClient.includes("'fixed inset-0 z-[200] h-[100dvh] w-full touch-none overflow-hidden overscroll-none'"), true)
   check('I21b above the app header', headerZ > 0 && surfaceZ > headerZ, true)
   check('I22a above the bottom navigation', navZ > 0 && surfaceZ > navZ, true)
   check('I22b and the page behind is withheld from assistive tech', multiClient.includes("role={immersive ? 'dialog' : undefined}") && multiClient.includes('aria-modal={immersive ? true : undefined}'), true)
@@ -1255,16 +1255,16 @@ async function run() {
   check('I23b nor the camera status text', multiClient.includes('{!live && !immersive ? ('), true)
 
   // 24. One large frame, using the full height.
-  check('I24a one large frame inside a thin margin', immersiveFrameSrc.includes('absolute bottom-3 left-[60px] right-3 top-3'), true)
-  check('I24b the picture takes the full height, at the stream’s shape', multiClient.includes("'relative h-full max-w-full overflow-hidden rounded-[14px]'") && multiClient.includes('aspectRatio: String(landscapeCameraAspect(videoAspect))'), true)
-  check('I24c a 16:9 stream stays 16:9', landscapeCameraAspect(1920 / 1080), 1920 / 1080)
-  check('I24d a stream still reporting portrait is read sideways', landscapeCameraAspect(1080 / 1920), 1920 / 1080)
-  check('I24e an unknown stream never makes a sliver', [landscapeCameraAspect(0), landscapeCameraAspect(1), landscapeCameraAspect(5)], [16 / 9, 4 / 3, 21 / 9])
+  check('I24a one large frame, placed by the shared insets', ['top', 'bottom', 'left', 'right'].every((side) => immersiveFrameSrc.includes(side + ": 'var(--mc-frame-" + side + ")'") && multiClient.includes("'--mc-frame-" + side + "': IMMERSIVE_FRAME_INSETS." + side)), true)
+  check('I24b the picture fills the whole app viewport', multiClient.includes("<div className={immersive ? 'absolute inset-0' : 'relative h-full w-full'}>") && multiClient.includes('absolute inset-0 h-full w-full object-cover'), true)
+  check('I24c the picture is cropped, never stretched', /object-(fill|contain|none|scale-down)/.test(multiClient), false)
+  check('I24d no camera box bound to the stream shape remains', /aspectRatio|rounded-\[14px\]|max-w-full overflow-hidden/.test(multiClient), false)
+  check('I24e the frame is never narrowed for Back', immersiveFrameSrc.includes('left-[60px]'), false)
   check('I24f no ghost cards in the full-screen frame', immersiveFrameSrc.includes('border-dashed'), false)
 
   // 25. One gold circular shutter.
-  check('I25a a single gold circular shutter named Capture photo', /aria-label="Capture photo"\s*className="relative flex h-\[72px\] w-\[72px\][\s\S]{0,200}style=\{\{ border: '3px solid var\(--abc-gold\)' \}\}/.test(multiClient), true)
-  check('I25b beside the frame, not over it', multiClient.includes('flex w-[92px] shrink-0 items-center justify-center'), true)
+  check('I25a a single gold circular shutter named Capture photo', /aria-label="Capture photo"\s*className="absolute top-1\/2 flex h-\[68px\] w-\[68px\][\s\S]{0,400}border: '3px solid var\(--abc-gold\)'/.test(multiClient), true)
+  check('I25b over the picture, not in a column beside it', !multiClient.includes('w-[92px]') && /aria-label="Capture photo"\s*className="absolute top-1\/2/.test(multiClient), true)
   check('I25c no text Capture button full screen', /\{!immersive \? \(\s*<div className="mt-3 flex shrink-0 flex-col gap-2[\s\S]{0,300}Capture more cards/.test(multiClient), true)
 
   // 26. Back.
@@ -1287,7 +1287,7 @@ async function run() {
   check('I29c orientation is followed live', orientationLib.includes("addEventListener?.('change', read)"), true)
 
   // 30 & 31. Single Card never sees any of it, and is byte-for-byte what it was.
-  check('I30a Single Card has no full-screen camera', /immersive|ImmersiveFrame|shouldEnterImmersive|landscapeCameraAspect/i.test(cameraStage + scanClient), false)
+  check('I30a Single Card has no full-screen camera', /immersive|ImmersiveFrame|shouldEnterImmersive|IMMERSIVE_FRAME_INSETS/i.test(cameraStage + scanClient), false)
   const fingerprint = (rel: string) => crypto.createHash('sha256').update(read(rel).replace(/\r\n/g, '\n')).digest('hex')
   // Pinned at the approved release. A deliberate Single Card change updates these on purpose.
   check('I31a CameraStage.tsx unchanged', fingerprint('components/scan/CameraStage.tsx'), 'd5749dc37fe65cfc824e3df7b3ebf4ed6287fcfa453acee0182d403281b82179')
@@ -1304,13 +1304,88 @@ async function run() {
 
   // 34. Nothing overflows the viewport.
   check('I34a the camera surface is clipped to the viewport', multiClient.includes('touch-none overflow-hidden overscroll-none'), true)
-  check('I34b and sits inside the safe area', multiClient.includes("paddingBottom: 'max(6px, env(safe-area-inset-bottom))'") && multiClient.includes("paddingLeft: 'max(6px, env(safe-area-inset-left))'") && multiClient.includes("paddingRight: 'env(safe-area-inset-right)'"), true)
+  check('I34b the frame and controls respect the safe area', ['top', 'bottom', 'left', 'right'].every((side) => IMMERSIVE_FRAME_INSETS[side as keyof typeof IMMERSIVE_FRAME_INSETS].includes('env(safe-area-inset-' + side + ')')) && multiClient.includes('env(safe-area-inset-left))') && multiClient.includes('env(safe-area-inset-right))'), true)
   check('I34c sized to the dynamic viewport', multiClient.includes('h-[100dvh]'), true)
 
   // 35. The page does not scroll under the full-screen camera.
   check('I35a scroll-locked only while the camera is full screen', /useEffect\(\(\) => \{\s*if \(!immersive\) return\s*const root = document\.documentElement/.test(multiClient), true)
   check('I35b and restored exactly as it was', multiClient.includes('root.style.overflow = previous.root') && multiClient.includes('document.body.style.overflow = previous.body'), true)
   check('I35c touch on the camera neither scrolls nor zooms the page', multiClient.includes('touch-none'), true)
+
+  // ═══════════ PHONE QA FIX #3: THE CAMERA TAKES THE FULL WIDTH ═══════════
+
+  /*
+    Evaluates exactly the inset expressions the component uses —
+    max(Apx, calc(env(safe-area-inset-side) ± Bpx)) — so the frame's real size
+    can be computed for a phone's viewport and safe area without a browser. An
+    expression of any other shape fails loudly rather than being guessed at.
+  */
+  function insetPx(expr: string, safe: Partial<Record<'top' | 'bottom' | 'left' | 'right', number>>): number {
+    const match = expr.match(/^max\((\d+)px, calc\(env\(safe-area-inset-(top|bottom|left|right)\) ([+-]) (\d+)px\)\)$/)
+    if (!match) throw new Error(`unexpected inset expression: ${expr}`)
+    const [, floor, side, sign, delta] = match
+    const fromSafe = (safe[side as 'top'] ?? 0) + (sign === '+' ? 1 : -1) * Number(delta)
+    return Math.max(Number(floor), fromSafe)
+  }
+  function fullScreenFrame(width: number, height: number, safe: Partial<Record<'top' | 'bottom' | 'left' | 'right', number>> = {}) {
+    const left = insetPx(IMMERSIVE_FRAME_INSETS.left, safe)
+    const right = insetPx(IMMERSIVE_FRAME_INSETS.right, safe)
+    const top = insetPx(IMMERSIVE_FRAME_INSETS.top, safe)
+    const bottom = insetPx(IMMERSIVE_FRAME_INSETS.bottom, safe)
+    return { width: width - left - right, height: height - top - bottom, left, right }
+  }
+
+  // The previous release's full-screen frame, measured in the browser at these sizes (no safe area).
+  const previousFrames: Record<string, { width: number; height: number; unusedRight: number }> = {
+    '844x390': { width: 601, height: 356, unusedRight: 140 },
+    '844x350': { width: 530, height: 316, unusedRight: 176 },
+    '915x412': { width: 640, height: 378, unusedRight: 156 },
+    '932x430': { width: 672, height: 396, unusedRight: 149 },
+    '667x375': { width: 499, height: 342, unusedRight: 103 },
+  }
+  for (const [size, before] of Object.entries(previousFrames)) {
+    const [w, h] = size.split('x').map(Number)
+    const now = fullScreenFrame(w, h)
+    check(`W1 ${size} the frame uses at least 92% of the width`, now.width / w >= 0.92, true)
+    check(`W2 ${size} the frame is materially wider than before (≥ +20%)`, now.width >= before.width * 1.2, true)
+    check(`W3 ${size} the frame is no shorter than before`, now.height >= before.height, true)
+    check(`W4 ${size} no large unused space right of the frame`, now.right <= 16 && now.right < before.unusedRight, true)
+  }
+
+  // A real landscape iPhone: 47px side insets, 21px home indicator — in Safari's viewport and full height.
+  const iPhoneSafe = { left: 47, right: 47, top: 0, bottom: 21 }
+  for (const [w, h] of [[844, 350], [844, 390]]) {
+    const now = fullScreenFrame(w, h, iPhoneSafe)
+    /*
+      The previous release on the same phone: 6px/21px of surface padding top
+      and bottom, 47px each side, a 92px shutter column and a 16:9 box — so the
+      frame was the box less 72px across and 24px down.
+    */
+    const boxHeight = h - 6 - 21
+    const boxWidth = Math.min(w - 47 - 47 - 92, Math.round(boxHeight * (16 / 9)))
+    const beforeWidth = boxWidth - 72
+    const beforeHeight = boxHeight - 24
+    check(`W5 iPhone ${w}x${h} the frame uses at least 92% of the width`, now.width / w >= 0.92, true)
+    check(`W6 iPhone ${w}x${h} the frame is at least 30% wider than before`, now.width >= beforeWidth * 1.3, true)
+    check(`W7 iPhone ${w}x${h} and no shorter`, now.height >= beforeHeight, true)
+    check(`W8 iPhone ${w}x${h} the frame clears the home indicator`, h - now.height - insetPx(IMMERSIVE_FRAME_INSETS.top, iPhoneSafe) >= 21, true)
+  }
+
+  // 1. No dedicated shutter or control column.
+  check('W9 no layout column is reserved for the shutter', !multiClient.includes('w-[92px]') && !/shrink-0 items-center justify-center">\s*<button\s+ref=\{shutterRef\}/.test(multiClient), true)
+  // 2. The camera surface fills the viewport: no padding, no box, no rounding.
+  check('W10 the camera surface has no padding', !/padding(Top|Bottom|Left|Right):/.test(multiClient.slice(multiClient.indexOf('const IMMERSIVE_SURFACE_STYLE'), multiClient.indexOf('function focusFromKeyboard'))), true)
+  check('W11 and fills the dynamic viewport edge to edge', multiClient.includes("'fixed inset-0 z-[200] h-[100dvh] w-full"), true)
+  // 3 & 4. Shutter and Back are overlays, positioned inside the safe area.
+  check('W12 the shutter is an overlay, vertically centred at the right', /aria-label="Capture photo"\s*className="absolute top-1\/2/.test(multiClient) && multiClient.includes("right: 'max(calc(var(--mc-frame-right) + 10px), env(safe-area-inset-right))'"), true)
+  check('W13 Back is an overlay in the frame corner', /aria-label="Back"\s*className="absolute flex h-\[44px\] w-\[44px\]/.test(multiClient) && multiClient.includes("top: 'calc(var(--mc-frame-top) + 8px)'") && multiClient.includes("left: 'max(calc(var(--mc-frame-left) + 8px), env(safe-area-inset-left))'"), true)
+  check('W14 the shutter stays a large target', multiClient.includes('h-[68px] w-[68px]'), true)
+  // 8. Still scroll-locked, only while full screen.
+  check('W15 landscape stays scroll-locked while full screen', /useEffect\(\(\) => \{\s*if \(!immersive\) return\s*const root = document\.documentElement/.test(multiClient), true)
+  // 9. Portrait guidance unchanged.
+  check('W16 portrait still gets the rotation tip', shouldSuggestLandscape(uprightPhone, { live: true, dismissed: false }) && hintSrc.includes('Turn your phone sideways'), true)
+  // 10–12. Single Card, remove/restore and the image pipeline are covered by I31, M1–M18 and Q6/I32 above.
+  check('W17 the same video element serves both layouts', (multiClient.match(/<video\b/g) || []).length, 1)
 
   const total = passed + failures.length
   if (failures.length) {

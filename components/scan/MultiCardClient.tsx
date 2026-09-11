@@ -22,7 +22,7 @@ import { prepareImageForVision } from '@/lib/image-compress'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
 import { useCamera } from '@/lib/scan/useCamera'
 import {
-  landscapeCameraAspect,
+  IMMERSIVE_FRAME_INSETS,
   shouldEnterImmersive,
   shouldSuggestLandscape,
   useOrientation,
@@ -74,17 +74,18 @@ const UNDO_WINDOW_MS = 6000
 const LANDSCAPE_STAGE_HEIGHT = `calc(100svh - 3.5rem - ${SAFE_TOP} - ${MOBILE_NAV_HEIGHT}px - env(safe-area-inset-bottom) - 24px)`
 
 /*
-  The full-screen camera sits inside the safe area — clear of the notch, the
-  rounded corners and the home indicator — with a hair of margin where the
-  inset is zero. Black, because it is a camera, not a page.
+  The full-screen camera: no padding at all, so the picture runs to every edge
+  of the app viewport. The frame and the two controls position themselves from
+  these insets instead, each clearing the phone's own shape on its own terms.
+  Black shows only for the instant before the stream starts.
 */
-const IMMERSIVE_SURFACE_STYLE: React.CSSProperties = {
+const IMMERSIVE_SURFACE_STYLE = {
   background: '#000',
-  paddingTop: 'max(6px, env(safe-area-inset-top))',
-  paddingBottom: 'max(6px, env(safe-area-inset-bottom))',
-  paddingLeft: 'max(6px, env(safe-area-inset-left))',
-  paddingRight: 'env(safe-area-inset-right)',
-}
+  '--mc-frame-top': IMMERSIVE_FRAME_INSETS.top,
+  '--mc-frame-bottom': IMMERSIVE_FRAME_INSETS.bottom,
+  '--mc-frame-left': IMMERSIVE_FRAME_INSETS.left,
+  '--mc-frame-right': IMMERSIVE_FRAME_INSETS.right,
+} as React.CSSProperties
 
 /** Whether the element that has focus got it from the keyboard. */
 function focusFromKeyboard(): boolean {
@@ -671,7 +672,6 @@ function CaptureStage({
   const stageRef = useRef<HTMLDivElement>(null)
   const backRef = useRef<HTMLButtonElement>(null)
   const shutterRef = useRef<HTMLButtonElement>(null)
-  const [videoAspect, setVideoAspect] = useState(16 / 9)
 
   /*
     Turning the phone sideways leaves room for the viewfinder and little else,
@@ -681,24 +681,6 @@ function CaptureStage({
   useEffect(() => {
     if (sideways) stageRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }, [sideways])
-
-  // The stream's real shape, so the full-screen camera shows what is captured.
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-    const read = () => {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        setVideoAspect(video.videoWidth / video.videoHeight)
-      }
-    }
-    read()
-    video.addEventListener('loadedmetadata', read)
-    video.addEventListener('resize', read)
-    return () => {
-      video.removeEventListener('loadedmetadata', read)
-      video.removeEventListener('resize', read)
-    }
-  }, [videoRef])
 
   // The shutter is what the full-screen camera is for.
   useEffect(() => {
@@ -747,8 +729,11 @@ function CaptureStage({
         camera would open on a black frame. Only its classes change.
 
         Full screen, it covers the app header, the page, and the bottom
-        navigation (z-50 and z-[100]) — the camera surface is the whole
-        viewport, inside the safe area, and the page behind is scroll-locked.
+        navigation (z-50 and z-[100]), and the page behind is scroll-locked.
+        The picture fills the whole app viewport, edge to edge, cropped rather
+        than stretched (object-cover). Nothing is laid out beside it: the
+        shutter and Back float over the picture, so no column of the screen
+        is spent on controls.
       */}
       <div
         role={immersive ? 'dialog' : undefined}
@@ -757,30 +742,13 @@ function CaptureStage({
         onKeyDown={immersive ? onSurfaceKey : undefined}
         className={
           immersive
-            ? 'fixed inset-0 z-[200] flex h-[100dvh] touch-none overflow-hidden overscroll-none'
+            ? 'fixed inset-0 z-[200] h-[100dvh] w-full touch-none overflow-hidden overscroll-none'
             : 'relative min-h-0 flex-1 overflow-hidden rounded-card border border-abc-border'
         }
         style={immersive ? IMMERSIVE_SURFACE_STYLE : { background: '#050506' }}
       >
-        <div
-          className={
-            immersive ? 'flex min-w-0 flex-1 items-center justify-center' : 'absolute inset-0'
-          }
-        >
-          {/*
-            Full screen, the picture takes the full height and the stream's own
-            shape, so what the owner frames is what is captured — no part of the
-            photo hidden above or below the screen, where it would shrink every
-            card in it.
-          */}
-          <div
-            className={
-              immersive
-                ? 'relative h-full max-w-full overflow-hidden rounded-[14px]'
-                : 'relative h-full w-full'
-            }
-            style={immersive ? { aspectRatio: String(landscapeCameraAspect(videoAspect)) } : undefined}
-          >
+        <div className="absolute inset-0">
+          <div className={immersive ? 'absolute inset-0' : 'relative h-full w-full'}>
             <video
               ref={videoRef}
               playsInline
@@ -793,14 +761,19 @@ function CaptureStage({
 
             {immersive ? <ImmersiveFrame /> : null}
 
+            {/* Back floats in the frame's top-left corner, inside the safe area. */}
             {immersive ? (
               <button
                 ref={backRef}
                 type="button"
                 onClick={onExitImmersive}
                 aria-label="Back"
-                className="absolute left-2 top-2 flex h-[44px] w-[44px] items-center justify-center rounded-full text-white backdrop-blur-md transition-colors duration-200 ease-abc abc-focus-ring"
-                style={{ background: 'rgba(10, 10, 11, 0.55)' }}
+                className="absolute flex h-[44px] w-[44px] items-center justify-center rounded-full text-white backdrop-blur-md transition-colors duration-200 ease-abc abc-focus-ring"
+                style={{
+                  top: 'calc(var(--mc-frame-top) + 8px)',
+                  left: 'max(calc(var(--mc-frame-left) + 8px), env(safe-area-inset-left))',
+                  background: 'rgba(10, 10, 11, 0.55)',
+                }}
               >
                 <IconArrowLeft size={20} stroke={2} aria-hidden="true" />
               </button>
@@ -841,25 +814,30 @@ function CaptureStage({
         ) : null}
 
         {/*
-          The shutter lives beside the picture, not under it: on a phone held
-          sideways height is the scarce dimension, and a shutter row below the
-          frame would take a fifth of it. Right-hand side, where the thumb is —
-          as in the phone's own camera.
+          The shutter floats over the picture at the right, vertically centred
+          — where the thumb is, as in the phone's own camera — and wholly inside
+          the safe area. It takes no width from the camera or the frame: it sits
+          over the frame's right edge, and the photo is taken of everything
+          underneath it. A dark wash behind the ring keeps it readable over a
+          bright table.
         */}
         {immersive ? (
-          <div className="flex w-[92px] shrink-0 items-center justify-center">
-            <button
-              ref={shutterRef}
-              type="button"
-              onClick={onCapture}
-              disabled={!live}
-              aria-label="Capture photo"
-              className="relative flex h-[72px] w-[72px] items-center justify-center rounded-full transition-transform duration-200 ease-abc active:scale-95 disabled:opacity-40 abc-focus-ring"
-              style={{ border: '3px solid var(--abc-gold)' }}
-            >
-              <span className="h-[56px] w-[56px] rounded-full" style={{ background: 'var(--abc-gold)' }} />
-            </button>
-          </div>
+          <button
+            ref={shutterRef}
+            type="button"
+            onClick={onCapture}
+            disabled={!live}
+            aria-label="Capture photo"
+            className="absolute top-1/2 flex h-[68px] w-[68px] -translate-y-1/2 items-center justify-center rounded-full transition-transform duration-200 ease-abc active:scale-95 disabled:opacity-40 abc-focus-ring"
+            style={{
+              right: 'max(calc(var(--mc-frame-right) + 10px), env(safe-area-inset-right))',
+              border: '3px solid var(--abc-gold)',
+              background: 'rgba(10, 10, 11, 0.35)',
+              boxShadow: '0 2px 14px rgba(0, 0, 0, 0.45)',
+            }}
+          >
+            <span className="h-[52px] w-[52px] rounded-full" style={{ background: 'var(--abc-gold)' }} />
+          </button>
         ) : null}
 
         {immersive && immersiveError ? (
@@ -902,16 +880,23 @@ function CaptureStage({
 /**
  * The full-screen framing guide: one large rectangle and nothing inside it.
  *
- * As tall as the picture, minus a thin margin, and as wide as it, minus the
- * corner the Back button sits in — so the owner can come right up to the
- * cards. No ghost cards here: at this size they would only be something to
- * look past.
+ * Nearly the whole screen — a thin margin off each edge, set by
+ * `IMMERSIVE_FRAME_INSETS` — so the owner can bring the phone right up to the
+ * cards. Back and the shutter float over its corner and its right edge rather
+ * than narrowing it. No ghost cards here: at this size they would only be
+ * something to look past.
  */
 function ImmersiveFrame() {
   const corner = 'absolute h-9 w-9 border-abc-gold-accent'
   return (
     <div
-      className="pointer-events-none absolute bottom-3 left-[60px] right-3 top-3 rounded-[10px] border border-white/25"
+      className="pointer-events-none absolute rounded-[10px] border border-white/25"
+      style={{
+        top: 'var(--mc-frame-top)',
+        bottom: 'var(--mc-frame-bottom)',
+        left: 'var(--mc-frame-left)',
+        right: 'var(--mc-frame-right)',
+      }}
       aria-hidden="true"
     >
       <span className={`${corner} -left-px -top-px rounded-tl-[10px] border-l-[3px] border-t-[3px]`} />
