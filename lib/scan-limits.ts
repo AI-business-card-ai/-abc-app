@@ -2,11 +2,27 @@
 
 export const INTERNAL_TEST_PLAN = 'INTERNAL_TEST' as const
 
-/** Emails that bypass scan limits (in addition to INTERNAL_TEST plan). */
-export const SCAN_LIMIT_EXEMPT_EMAILS = [
-  'bury.esco@gmail.com',
-  'im.expoguy@gmail.com',
-] as const
+/**
+ * The founder. Lifetime access to everything, for real-world testing.
+ *
+ * Defined once, here, and read by the entitlement layer — which is where the
+ * decision is actually made, and made from the verified auth identity rather
+ * than from any copy of an email address stored on a profile. Nothing outside
+ * `lib/scan/entitlement.ts` should compare against this list.
+ */
+export const FOUNDER_EMAILS = ['im.expoguy@gmail.com'] as const
+
+/**
+ * Emails that bypass scan limits (in addition to INTERNAL_TEST plan).
+ *
+ * Derived from the founder list rather than repeating the address, so the two
+ * cannot drift. The founder stays here as a fallback: `abc_profiles.email` is
+ * written only by service-role code from the verified auth email and is not in
+ * the authenticated column grant, so this path cannot be reached by a user
+ * editing their own profile. It grants unmetered scanning only — founder and
+ * Pro capability come from the auth identity alone.
+ */
+export const SCAN_LIMIT_EXEMPT_EMAILS = [...FOUNDER_EMAILS, 'bury.esco@gmail.com'] as const
 
 export const PLAN_SCAN_LIMITS: Record<string, number> = {
   free: 3,

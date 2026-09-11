@@ -87,7 +87,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       who can keep none of them is a worse experience than telling them now.
     */
     const profile = profileRow as ABCProfile
-    const entitlement = readScanEntitlement(profile)
+    // The verified session user, so founder access is decided by identity.
+    const entitlement = readScanEntitlement(profile, user)
 
     if (entitlement.available <= 0) {
       return NextResponse.json(

@@ -7,7 +7,8 @@ import {
   ClaudeAnalysisError,
 } from '@/lib/claude'
 import { contactMatchesOwnerProfile } from '@/lib/contact-owner-guard'
-import { isScanLimitReached, getScanLimitForPlan } from '@/lib/scan-limits'
+import { getScanLimitForPlan } from '@/lib/scan-limits'
+import { consumeScanCredits, readScanEntitlement } from '@/lib/scan/entitlement'
 import {
   SCAN_CARD_UNREADABLE_ERROR,
   hasUsableCardData,
@@ -143,7 +144,15 @@ export async function POST(req: NextRequest) {
     const dbProfile = profileRow as ABCProfile
     const used = dbProfile.scans_used || 0
 
-    if (isScanLimitReached(dbProfile)) {
+    /*
+      The same entitlement multi-card reads, so the two scanners cannot give one
+      person two different answers. The verified session user is passed because
+      founder access is decided by identity, not by the profile's stored copy of
+      an email address.
+    */
+    const entitlement = readScanEntitlement(dbProfile, user)
+
+    if (entitlement.available <= 0) {
       const plan = dbProfile.plan || 'free'
       const limit = getScanLimitForPlan(plan)
       return NextResponse.json(
@@ -214,12 +223,12 @@ export async function POST(req: NextRequest) {
     // was called and answered. Whether the owner keeps the result is a separate
     // question from whether the work was done, so the quota moves here, where
     // the insert used to sit, rather than following the contact to save time.
-    if (dbProfile.plan !== 'INTERNAL_TEST') {
-      await supabase
-        .from('abc_profiles')
-        .update({ scans_used: used + 1 })
-        .eq('id', userId)
-    }
+    //
+    // Through the shared seam rather than by hand. The hand-written version
+    // exempted only the INTERNAL_TEST plan, so an account that was unmetered by
+    // any other route — the founder among them — was never blocked but was
+    // still counted down on every scan.
+    await consumeScanCredits(supabase, { ...dbProfile, id: userId }, 1, user)
 
     return NextResponse.json({
       success: true,

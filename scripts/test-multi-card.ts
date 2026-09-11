@@ -30,6 +30,13 @@ import {
 } from '@/lib/scan/batch'
 import { emptyCandidate } from '@/lib/scan/candidate'
 import { saveBatchContacts } from '@/lib/scan/batch-store'
+import {
+  consumeScanCredits,
+  isFounder,
+  readScanEntitlement,
+  type AuthIdentity,
+  type EntitlementProfile,
+} from '@/lib/scan/entitlement'
 
 const ROOT = process.cwd()
 
@@ -523,7 +530,8 @@ async function run() {
   check('121 detect spends nothing', /scans_used/.test(detectRoute), false)
   check('122 detect still refuses a zero balance', detectRoute.includes('entitlement.available <= 0'), true)
   check('123 credits are spent at save', saveRoute.includes('consumeScanCredits'), true)
-  check('124 per accepted card, not per new person', saveRoute.includes('consumeScanCredits(supabase, profile, result.creditsConsumed)'), true)
+  check('124 per accepted card, not per new person', saveRoute.includes('consumeScanCredits(supabase, profile, result.creditsConsumed, user)'), true)
+  check('124b never charged by new-person count', /consumeScanCredits\([^)]*newContacts/.test(saveRoute), false)
   check('125 the save is capped by the balance', saveRoute.includes('entitlement.available'), true)
   check('126 running out is reported, not silent', store.includes('stoppedForCredits = true'), true)
 
@@ -648,6 +656,116 @@ async function run() {
   check('140 it sends this batch meeting, not the newest', store.includes('created_encounter_id'), true)
   check('141 a contact is exported once per batch', store.includes('seen.has(contactId)'), true)
   check('142 the encounter id is stored at save', store.includes('created_encounter_id: linkedEncounter.id'), true)
+
+  // ───────────── FOUNDER LIFETIME ACCESS ─────────────
+
+  const confirmed = '2026-01-01T00:00:00.000Z'
+  const founderIdentity: AuthIdentity = {
+    id: 'founder-uid',
+    email: 'im.expoguy@gmail.com',
+    email_confirmed_at: confirmed,
+  }
+  const normalIdentity: AuthIdentity = {
+    id: 'normal-uid',
+    email: 'someone@example.com',
+    email_confirmed_at: confirmed,
+  }
+  // A free-plan profile that has already used its allowance.
+  const exhaustedFree: EntitlementProfile = { plan: 'free', email: 'someone@example.com', scans_used: 3 }
+
+  // 1. Normal users remain metered.
+  const normal = readScanEntitlement({ plan: 'free', email: 'someone@example.com', scans_used: 1 }, normalIdentity)
+  check('F1a a normal user is metered', normal.unmetered, false)
+  check('F1b with a finite balance', normal.available, 2)
+  check('F1c and is not the founder', [normal.founder, normal.pro], [false, false])
+  check('F1d an exhausted normal user is blocked', readScanEntitlement(exhaustedFree, normalIdentity).available, 0)
+
+  // 2. The founder is unmetered, with lifetime Pro.
+  const founder = readScanEntitlement(exhaustedFree, founderIdentity)
+  check('F2a the founder is unmetered', founder.unmetered, true)
+  check('F2b with an unlimited balance', founder.available, Infinity)
+  check('F2c resolves as founder', founder.founder, true)
+  check('F2d with lifetime Pro', founder.pro, true)
+
+  // 3. The founder can go past the free limit — even on a profile that says
+  //    the free allowance is long gone.
+  check('F3a past the free limit', readScanEntitlement({ plan: 'free', scans_used: 5000 }, founderIdentity).available > 3, true)
+  check('F3b regardless of plan', readScanEntitlement({ plan: 'starter', scans_used: 99999 }, founderIdentity).unmetered, true)
+
+  // 4. A full ten-card batch is not capped for the founder.
+  const tenCards = Array.from({ length: 10 }, (_, i) => ({
+    id: `f${i}`, batch_id: 'batch-1', position: i, first_name: `Card${i}`, email: `c${i}@x.co`,
+    selected: true, warnings: [], confidence: 0.9, created_contact_id: null,
+  }))
+  const founderBatch = stubClient({ batch: { ...seed.batch, status: 'draft', total_saved: 0 }, items: tenCards })
+  const founderSave = await quietly(() =>
+    saveBatchContacts(founderBatch.client, 'founder-uid', 'batch-1', founder.available)
+  )
+  check('F4a all ten cards are accepted', founderSave?.created.length, 10)
+  check('F4b none stopped for credits', founderSave?.stoppedForCredits, false)
+  check('F4c the same batch is capped for a normal exhausted user', (await quietly(() =>
+    saveBatchContacts(stubClient({ batch: { ...seed.batch, status: 'draft', total_saved: 0 }, items: tenCards }).client, 'normal-uid', 'batch-1', 0)
+  ))?.created.length, 0)
+
+  // 5 & 6. The counter: never moves for the founder, still moves for others.
+  function counterStub() {
+    const updates: Record<string, unknown>[] = []
+    const client = {
+      from: () => ({
+        update: (payload: Record<string, unknown>) => {
+          updates.push(payload)
+          return { eq: async () => ({ error: null }) }
+        },
+      }),
+    } as unknown as SupabaseClient
+    return { client, updates }
+  }
+
+  const founderCounter = counterStub()
+  await consumeScanCredits(founderCounter.client, { ...exhaustedFree, id: 'founder-uid' }, 10, founderIdentity)
+  check('F5a founder saving ten cards writes nothing to the counter', founderCounter.updates.length, 0)
+
+  const founderSingle = counterStub()
+  await consumeScanCredits(founderSingle.client, { plan: 'free', scans_used: 0, id: 'founder-uid' }, 1, founderIdentity)
+  check('F5b nor does a founder single-card scan', founderSingle.updates.length, 0)
+
+  const normalCounter = counterStub()
+  await consumeScanCredits(normalCounter.client, { plan: 'free', scans_used: 1, id: 'normal-uid' }, 2, normalIdentity)
+  check('F6a a normal user is still charged', normalCounter.updates.length, 1)
+  check('F6b by exactly the cards accepted', normalCounter.updates[0], { scans_used: 3 })
+
+  // 7. Nothing a caller can send makes someone the founder.
+  check('F7a an unconfirmed founder address is not the founder', isFounder({ id: 'x', email: 'im.expoguy@gmail.com' }), false)
+  check('F7b a different address is not', isFounder({ id: 'x', email: 'not-founder@gmail.com', email_confirmed_at: confirmed }), false)
+  check('F7c no identity is not', isFounder(null), false)
+  check('F7d an identity with no id is not', isFounder({ id: '', email: 'im.expoguy@gmail.com', email_confirmed_at: confirmed }), false)
+  check('F7e case and whitespace do not matter', isFounder({ id: 'x', email: '  IM.ExpoGuy@Gmail.com ', email_confirmed_at: confirmed }), true)
+  check('F7f confirmed_at alone is accepted', isFounder({ id: 'x', email: 'im.expoguy@gmail.com', confirmed_at: confirmed }), true)
+
+  // A profile row claiming the founder address does not make its owner the
+  // founder — founder and Pro come from the verified identity alone.
+  const profileClaim = readScanEntitlement({ plan: 'free', email: 'im.expoguy@gmail.com', scans_used: 0 }, normalIdentity)
+  check('F7g a profile email cannot grant founder status', profileClaim.founder, false)
+  check('F7h nor Pro', profileClaim.pro, false)
+
+  // Every scanning route resolves the identity from the verified session.
+  const singleScan = code('app/api/card/scan/route.ts')
+  const entitlementLib = code('lib/scan/entitlement.ts')
+  for (const [name, src, call] of [
+    ['single-card', singleScan, 'readScanEntitlement(dbProfile, user)'],
+    ['multi-card detect', detectRoute, 'readScanEntitlement(profile, user)'],
+    ['multi-card save', saveRoute, 'readScanEntitlement(profile, user)'],
+  ] as const) {
+    check(`F7i ${name} passes the verified session user`, src.includes(call), true)
+    check(`F7j ${name} takes user from auth.getUser()`, src.includes('auth.getUser()'), true)
+    check(`F7k ${name} never reads identity from the request`, /isFounder\(|body\.email|body\.userId|searchParams\.get\(['"]email/.test(src), false)
+  }
+  check('F7l both scanners charge through the seam', singleScan.includes('consumeScanCredits(supabase, { ...dbProfile, id: userId }, 1, user)'), true)
+  check('F7m single-card no longer hand-rolls the counter', /scans_used: used \+ 1/.test(singleScan), false)
+  check('F7n the founder rule lives in one place', /im\.expoguy/.test(entitlementLib + singleScan + detectRoute + saveRoute), false)
+  check('F7o founder requires a confirmed address', entitlementLib.includes('if (!identity.email_confirmed_at && !identity.confirmed_at) return false'), true)
+  check('F7p the founder address is defined once', read('lib/scan-limits.ts').match(/im\.expoguy@gmail\.com/g)?.length, 1)
+  check('F7q the other exempt account is preserved', read('lib/scan-limits.ts').includes('bury.esco@gmail.com'), true)
 
   const total = passed + failures.length
   if (failures.length) {

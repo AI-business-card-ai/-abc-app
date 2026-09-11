@@ -92,7 +92,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     const profile = profileRow as EntitlementProfile & { id: string }
-    const entitlement = readScanEntitlement(profile)
+    // The verified session user, so founder access is decided by identity.
+    const entitlement = readScanEntitlement(profile, user)
 
     const result = await saveBatchContacts(supabase, user.id, params.id, entitlement.available)
     if (!result) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       before it can be charged again. A retry therefore pays for exactly the
       cards it completes on that attempt.
     */
-    await consumeScanCredits(supabase, profile, result.creditsConsumed)
+    await consumeScanCredits(supabase, profile, result.creditsConsumed, user)
 
     if (result.created.length === 0 && result.failed.length === 0) {
       return NextResponse.json(
