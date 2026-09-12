@@ -484,6 +484,12 @@ export type SaveBatchResult = {
    * given room for.
    */
   creditsConsumed: number
+  /**
+   * The items this attempt paid for — one id per credit in `creditsConsumed`.
+   * The caller charges each under its own ledger key, so a repeated save can
+   * never charge an item twice.
+   */
+  paidItemIds: string[]
   /** Set when the owner's remaining credits, not their selection, ended it. */
   stoppedForCredits: boolean
 }
@@ -529,6 +535,7 @@ export async function saveBatchContacts(
   let newContacts = 0
   let linkedContacts = 0
   let creditsConsumed = 0
+  const paidItemIds: string[] = []
   let stoppedForCredits = false
 
   for (const item of batch.items) {
@@ -650,6 +657,7 @@ export async function saveBatchContacts(
 
       linkedContacts += 1
       if (!alreadyPaid) creditsConsumed += 1
+      if (!alreadyPaid) paidItemIds.push(item.id)
       created.push({
         itemId: item.id,
         contactId: item.linkContactId,
@@ -734,6 +742,7 @@ export async function saveBatchContacts(
 
     newContacts += 1
     if (!alreadyPaid) creditsConsumed += 1
+    if (!alreadyPaid) paidItemIds.push(item.id)
     created.push({
       itemId: item.id,
       contactId: contact.id as string,
@@ -766,6 +775,7 @@ export async function saveBatchContacts(
     newContacts,
     linkedContacts,
     creditsConsumed,
+    paidItemIds,
     stoppedForCredits,
   }
 }

@@ -434,7 +434,7 @@ async function run() {
   check('47 detect refuses a full batch', detectRoute.includes("reason: 'batch_full'"), true)
   // Entitlement, not plan tier. The commercial model is moving to prepaid
   // Smart Scan credits, so the batch asks for a balance and never for a plan.
-  check('48 detect checks the entitlement balance', detectRoute.includes('readScanEntitlement'), true)
+  check('48 detect checks the entitlement balance', detectRoute.includes('resolveScanEntitlement'), true)
   check('49 the batch is capped by what the balance covers', detectRoute.includes('entitlement.unmetered ? capacity : entitlement.available'), true)
   check('50 and says so rather than truncating silently', detectRoute.includes('cappedByPlan'), true)
   check('51 detect charges nothing, because nothing is kept yet', /scans_used/.test(detectRoute), false)
@@ -556,9 +556,12 @@ async function run() {
   check('120 detect no longer reads plan limits directly', /getScanLimitForPlan|isScanLimitReached|PLAN_SCAN_LIMITS/.test(detectRoute), false)
   check('121 detect spends nothing', /scans_used/.test(detectRoute), false)
   check('122 detect still refuses a zero balance', detectRoute.includes('entitlement.available <= 0'), true)
-  check('123 credits are spent at save', saveRoute.includes('consumeScanCredits'), true)
-  check('124 per accepted card, not per new person', saveRoute.includes('consumeScanCredits(supabase, profile, result.creditsConsumed, user)'), true)
-  check('124b never charged by new-person count', /consumeScanCredits\([^)]*newContacts/.test(saveRoute), false)
+  // The charge moved behind the ledger-aware seam: one key per accepted batch
+  // item, so the count is still accepted cards and a repeat charges nothing.
+  check('123 credits are spent at save', saveRoute.includes('chargeAcceptedCards'), true)
+  check('124 per accepted card, not per new person', saveRoute.includes('result.paidItemIds.map((itemId)') && saveRoute.includes('ledgerKeys.batchItem(itemId)'), true)
+  const saveCharge = saveRoute.slice(saveRoute.indexOf('await chargeAcceptedCards('), saveRoute.indexOf('ledgerKeys.batchItem(itemId)'))
+  check('124b never charged by new-person count', /consumeScanCredits\([^)]*newContacts/.test(saveRoute) || saveCharge.length === 0 || saveCharge.includes('newContacts'), false)
   check('125 the save is capped by the balance', saveRoute.includes('entitlement.available'), true)
   check('126 running out is reported, not silent', store.includes('stoppedForCredits = true'), true)
 
@@ -778,16 +781,19 @@ async function run() {
   // Every scanning route resolves the identity from the verified session.
   const singleScan = code('app/api/card/scan/route.ts')
   const entitlementLib = code('lib/scan/entitlement.ts')
+  // The routes resolve through the ledger-aware seam; the verified `user` is
+  // still the identity argument, and the profile id is the session user's.
   for (const [name, src, call] of [
-    ['single-card', singleScan, 'readScanEntitlement(dbProfile, user)'],
-    ['multi-card detect', detectRoute, 'readScanEntitlement(profile, user)'],
-    ['multi-card save', saveRoute, 'readScanEntitlement(profile, user)'],
+    ['single-card', singleScan, 'resolveScanEntitlement(supabase, { ...dbProfile, id: userId }, user)'],
+    ['multi-card detect', detectRoute, 'resolveScanEntitlement(supabase, { ...profile, id: user.id }, user)'],
+    ['multi-card save', saveRoute, 'resolveScanEntitlement(supabase, profile, user)'],
   ] as const) {
     check(`F7i ${name} passes the verified session user`, src.includes(call), true)
     check(`F7j ${name} takes user from auth.getUser()`, src.includes('auth.getUser()'), true)
     check(`F7k ${name} never reads identity from the request`, /isFounder\(|body\.email|body\.userId|searchParams\.get\(['"]email/.test(src), false)
   }
-  check('F7l both scanners charge through the seam', singleScan.includes('consumeScanCredits(supabase, { ...dbProfile, id: userId }, 1, user)'), true)
+  // One read, one card: the single-card scanner charges exactly one accepted card through the seam.
+  check('F7l both scanners charge through the seam', /chargeAcceptedCards\(supabase, \{ \.\.\.dbProfile, id: userId \}, user, \[\s*\{ source: 'single_scan', ref: scanDigest, idempotencyKey: ledgerKeys\.singleScan\(scanDigest\) \},\s*\]\)/.test(singleScan), true)
   check('F7m single-card no longer hand-rolls the counter', /scans_used: used \+ 1/.test(singleScan), false)
   check('F7n the founder rule lives in one place', /im\.expoguy/.test(entitlementLib + singleScan + detectRoute + saveRoute), false)
   check('F7o founder requires a confirmed address', entitlementLib.includes('if (!identity.email_confirmed_at && !identity.confirmed_at) return false'), true)

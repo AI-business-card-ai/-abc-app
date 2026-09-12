@@ -8,7 +8,8 @@ import {
 } from '@/lib/claude'
 import { contactMatchesOwnerProfile } from '@/lib/contact-owner-guard'
 import { getScanLimitForPlan } from '@/lib/scan-limits'
-import { consumeScanCredits, readScanEntitlement } from '@/lib/scan/entitlement'
+import { chargeAcceptedCards, resolveScanEntitlement } from '@/lib/scan/entitlement'
+import { ledgerKeys, singleScanDigest } from '@/lib/billing/ledger'
 import {
   SCAN_CARD_UNREADABLE_ERROR,
   hasUsableCardData,
@@ -150,7 +151,7 @@ export async function POST(req: NextRequest) {
       founder access is decided by identity, not by the profile's stored copy of
       an email address.
     */
-    const entitlement = readScanEntitlement(dbProfile, user)
+    const entitlement = await resolveScanEntitlement(supabase, { ...dbProfile, id: userId }, user)
 
     if (entitlement.available <= 0) {
       const plan = dbProfile.plan || 'free'
@@ -228,7 +229,12 @@ export async function POST(req: NextRequest) {
     // exempted only the INTERNAL_TEST plan, so an account that was unmetered by
     // any other route — the founder among them — was never blocked but was
     // still counted down on every scan.
-    await consumeScanCredits(supabase, { ...dbProfile, id: userId }, 1, user)
+    //
+    // Keyed by the image read, so a retried upload of the same photo spends once.
+    const scanDigest = singleScanDigest(userId, buffer)
+    await chargeAcceptedCards(supabase, { ...dbProfile, id: userId }, user, [
+      { source: 'single_scan', ref: scanDigest, idempotencyKey: ledgerKeys.singleScan(scanDigest) },
+    ])
 
     return NextResponse.json({
       success: true,

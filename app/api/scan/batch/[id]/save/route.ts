@@ -11,10 +11,11 @@ import {
 } from '@/lib/scan/batch-store'
 import { emptySharedContext, type BatchSharedContext } from '@/lib/scan/batch'
 import {
-  consumeScanCredits,
-  readScanEntitlement,
+  chargeAcceptedCards,
+  resolveScanEntitlement,
   type EntitlementProfile,
 } from '@/lib/scan/entitlement'
+import { ledgerKeys } from '@/lib/billing/ledger'
 import { isoOrNull } from '@/lib/encounters'
 
 /**
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const profile = profileRow as EntitlementProfile & { id: string }
     // The verified session user, so founder access is decided by identity.
-    const entitlement = readScanEntitlement(profile, user)
+    const entitlement = await resolveScanEntitlement(supabase, profile, user)
 
     const result = await saveBatchContacts(supabase, user.id, params.id, entitlement.available)
     if (!result) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
@@ -112,7 +113,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       before it can be charged again. A retry therefore pays for exactly the
       cards it completes on that attempt.
     */
-    await consumeScanCredits(supabase, profile, result.creditsConsumed, user)
+    await chargeAcceptedCards(
+      supabase,
+      profile,
+      user,
+      result.paidItemIds.map((itemId) => ({
+        source: 'batch_item' as const,
+        ref: itemId,
+        idempotencyKey: ledgerKeys.batchItem(itemId),
+      }))
+    )
 
     if (result.created.length === 0 && result.failed.length === 0) {
       return NextResponse.json(

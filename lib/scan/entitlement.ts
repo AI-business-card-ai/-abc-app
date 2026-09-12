@@ -5,6 +5,13 @@ import {
   isScanLimitExempt,
   normalizeEmail,
 } from '@/lib/scan-limits'
+import {
+  consumeScanCredit,
+  ensureLegacyOpeningBalance,
+  getScanCreditBalance,
+  ledgerEnabled,
+  type ConsumeOutcome,
+} from '@/lib/billing/ledger'
 
 /**
  * Whether this owner may read another business card, and the one place that
@@ -158,4 +165,113 @@ export async function consumeScanCredits(
     */
     console.error('[scan/entitlement] credit consumption failed:', error)
   }
+}
+
+// ---------------------------------------------------------------------------
+// The credit ledger
+// ---------------------------------------------------------------------------
+
+/**
+ * The entitlement, answered from the durable ledger when it is authoritative.
+ *
+ * Same question, same shape, plus where the answer came from:
+ *
+ *   founder  lifetime, unmetered, Pro — from the verified identity alone, and
+ *            never touching the ledger: the founder has no balance to read and
+ *            never receives a debit that merely pretends to be unlimited
+ *   exempt   internal plans and exempt accounts, unmetered as before
+ *   ledger   the sum of this owner's ledger rows (SMART_SCAN_LEDGER=on)
+ *   legacy   the plan counters that serve production today (ledger off)
+ *
+ * With the ledger on, the first answer for an owner carries their remaining
+ * legacy allowance across as an opening balance, once, so nobody who had scans
+ * left is stranded by the switch.
+ *
+ * If the ledger cannot be read the answer is zero. Scanning at a fair depends on
+ * the same database the ledger lives in; an owner is not given free credits
+ * because a read failed.
+ */
+export type ScanCreditState = ScanEntitlement & {
+  source: 'founder' | 'exempt' | 'ledger' | 'legacy'
+  /** The owner's credit balance where one applies; null when unmetered. */
+  creditBalance: number | null
+}
+
+export async function resolveScanEntitlement(
+  db: SupabaseClient,
+  profile: EntitlementProfile & { id: string },
+  identity?: AuthIdentity | null,
+  env: Record<string, string | undefined> = process.env
+): Promise<ScanCreditState> {
+  const legacy = readScanEntitlement(profile, identity)
+
+  if (legacy.founder) return { ...legacy, source: 'founder', creditBalance: null }
+  if (legacy.unmetered) return { ...legacy, source: 'exempt', creditBalance: null }
+  if (!ledgerEnabled(env)) return { ...legacy, source: 'legacy', creditBalance: legacy.available }
+
+  try {
+    await ensureLegacyOpeningBalance(db, profile.id, legacy.available)
+  } catch (err) {
+    console.error('[scan/entitlement] legacy bridge unavailable')
+    return { available: 0, unmetered: false, founder: false, pro: false, source: 'ledger', creditBalance: null }
+  }
+
+  const balance = await getScanCreditBalance(db, profile.id)
+  const available = balance === null ? 0 : Math.max(0, balance)
+  return { available, unmetered: false, founder: false, pro: false, source: 'ledger', creditBalance: balance }
+}
+
+export type AcceptedCard = {
+  source: 'single_scan' | 'batch_item'
+  /** The card's own identity: a batch item id, or a single-scan digest. */
+  ref: string
+  idempotencyKey: string
+}
+
+export type AcceptedCardCharge = ConsumeOutcome | 'unmetered' | 'legacy'
+
+/**
+ * Spend for accepted cards, each at most once.
+ *
+ * Unmetered owners are never charged and no ledger row is written for them.
+ * With the ledger off, the legacy counter moves by the number of cards, exactly
+ * as `consumeScanCredits` always did. With it on, every card spends under its
+ * own key, so a repeated save or a retried request charges nothing new.
+ */
+export async function chargeAcceptedCards(
+  db: SupabaseClient,
+  profile: EntitlementProfile & { id: string },
+  identity: AuthIdentity | null | undefined,
+  cards: AcceptedCard[],
+  env: Record<string, string | undefined> = process.env
+): Promise<AcceptedCardCharge[]> {
+  if (cards.length === 0) return []
+
+  const entitlement = readScanEntitlement(profile, identity)
+  if (entitlement.unmetered) return cards.map(() => 'unmetered')
+
+  if (!ledgerEnabled(env)) {
+    await consumeScanCredits(db, profile, cards.length, identity)
+    return cards.map(() => 'legacy')
+  }
+
+  const outcomes: AcceptedCardCharge[] = []
+  for (const card of cards) {
+    const { outcome } = await consumeScanCredit(db, {
+      userId: profile.id,
+      source: card.source,
+      sourceRef: card.ref,
+      idempotencyKey: card.idempotencyKey,
+    })
+    if (outcome === 'insufficient' || outcome === 'error') {
+      /*
+        Logged, not thrown. The contact already exists by the time a card is
+        charged, and telling the owner otherwise would be a lie; an undercharge
+        is recoverable, a phantom failure at a stand is not.
+      */
+      console.error('[scan/entitlement] card not charged', { source: card.source, outcome })
+    }
+    outcomes.push(outcome)
+  }
+  return outcomes
 }

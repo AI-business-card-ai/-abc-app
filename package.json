@@ -11,6 +11,7 @@
     "setup-stripe": "tsx scripts/setup-stripe.ts",
     "test:multi-card": "tsx scripts/test-multi-card.ts",
     "test:events": "tsx scripts/test-events.ts",
+    "test:billing": "tsx scripts/test-billing.ts",
     "test:wallet": "tsx scripts/test-wallet.ts"
   },
   "dependencies": {
@@ -33,6 +34,7 @@
     "stripe": "^17.7.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@types/node": "^20.17.6",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

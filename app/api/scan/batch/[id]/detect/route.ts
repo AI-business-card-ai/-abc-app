@@ -6,7 +6,7 @@ import {
   ClaudeVisionError,
   extractBusinessCardsFromImage,
 } from '@/lib/claude'
-import { readScanEntitlement } from '@/lib/scan/entitlement'
+import { resolveScanEntitlement } from '@/lib/scan/entitlement'
 import { isTechnicalScanReadError } from '@/lib/scan-card-validation'
 import {
   appendDetectedCards,
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     */
     const profile = profileRow as ABCProfile
     // The verified session user, so founder access is decided by identity.
-    const entitlement = readScanEntitlement(profile, user)
+    const entitlement = await resolveScanEntitlement(supabase, { ...profile, id: user.id }, user)
 
     if (entitlement.available <= 0) {
       return NextResponse.json(
