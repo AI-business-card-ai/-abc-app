@@ -1,11 +1,12 @@
 -- Smart Scan credit ledger, Stripe webhook idempotency, and Pro billing state.
 --
--- ADDITIVE ONLY. Three new tables, five functions and one trigger function.
+-- ADDITIVE ONLY. Three new tables, six functions and two trigger functions.
 -- No existing table, column, row, constraint or policy is altered, dropped or
 -- backfilled — `abc_profiles.plan`, `scans_used` and `stripe_customer_id` keep
 -- serving production exactly as they do today. The application reads this
 -- ledger only when SMART_SCAN_LEDGER=on, so applying this migration changes no
--- behaviour by itself.
+-- behaviour by itself. (Section 4's function writes contacts, encounters and
+-- batch items when it is called; the migration itself writes no row.)
 --
 -- Why a ledger rather than a balance column. A number on a profile can say how
 -- many credits somebody has; it cannot say why, and a Smart Scan credit is money
@@ -446,6 +447,162 @@ begin
   return case when v_rows > 0 then 'applied' else 'stale' end;
 end;
 $$;
+
+-- ---------------------------------------------------------------
+-- 4. Accepting a Multi-Card card: saved and paid for in one transaction
+-- ---------------------------------------------------------------
+-- With the ledger on, a card the owner accepts from a batch becomes a person
+-- (or a further meeting with somebody already on file), a meeting, a debit and
+-- a finished item — and those writes are one transaction. There is no moment at
+-- which a contact exists for a card nobody paid for, and none at which a credit
+-- is gone for a card that was never saved: a failure, a timeout or a crash
+-- anywhere before COMMIT leaves all of it unwritten, and a retry does the whole
+-- thing once.
+--
+-- Inside the transaction:
+--   1. Lock the item row. Two saves of one card queue here, and the second finds
+--      it finished and answers `already_saved` without writing anything.
+--   2. Refuse what cannot be accepted: an item that is not this owner's, one
+--      already saved, one deselected, a match whose contact no longer exists.
+--   3. Pay — unless the caller says this owner is unmetered, or the card was
+--      already paid for: the `batch_item:<id>` key is in the ledger
+--      (consume_scan_credit answers `already_consumed` and writes nothing), or
+--      the card was paid under the pre-ledger counter (`credit_consumed`). No
+--      credit: `insufficient`, and nothing has been written.
+--   4. Write the person — or reuse the one on file — and the meeting.
+--   5. Mark the item saved and paid.
+--
+-- The rows are built by the application, which already defines what a contact
+-- and an encounter look like; this function inserts only the columns it is
+-- given, and overwrites the ones that decide ownership and provenance, so no
+-- row can be attached to another owner, batch or card whatever it contains.
+--
+-- `p_charge` is decided by the server from the verified session (founder and
+-- exempt accounts are unmetered). Executable by the service role only.
+create or replace function public.accept_scan_batch_item(
+  p_user_id uuid,
+  p_item_id uuid,
+  p_charge boolean,
+  p_contact jsonb,
+  p_encounter jsonb
+)
+returns table (
+  outcome text,
+  contact_id uuid,
+  encounter_id uuid,
+  contact_name text,
+  charged boolean,
+  balance integer
+)
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_item public.scan_batch_items%rowtype;
+  v_key text := 'batch_item:' || p_item_id::text;
+  v_linked boolean;
+  v_debit text;
+  v_charged boolean := false;
+  v_contact_id uuid;
+  v_contact_name text;
+  v_encounter_id uuid;
+  v_row jsonb;
+  v_columns text;
+begin
+  if p_user_id is null or p_item_id is null or p_charge is null then
+    raise exception 'accept_scan_batch_item: owner, item and charge are required' using errcode = '22023';
+  end if;
+  if p_encounter is null or jsonb_typeof(p_encounter) <> 'object' then
+    raise exception 'accept_scan_batch_item: an encounter row is required' using errcode = '22023';
+  end if;
+
+  select * into v_item
+  from public.scan_batch_items i
+  where i.id = p_item_id and i.user_id = p_user_id
+  for update;
+
+  if not found then
+    return query select 'not_found'::text, null::uuid, null::uuid, null::text, false, null::integer;
+    return;
+  end if;
+
+  if v_item.created_contact_id is not null then
+    return query select 'already_saved'::text, v_item.created_contact_id, v_item.created_encounter_id,
+      null::text, false, null::integer;
+    return;
+  end if;
+
+  if not v_item.selected then
+    return query select 'not_selected'::text, null::uuid, null::uuid, null::text, false, null::integer;
+    return;
+  end if;
+
+  v_linked := v_item.link_contact_id is not null and v_item.link_to_existing;
+
+  if v_linked then
+    select c.id, c.name into v_contact_id, v_contact_name
+    from public.scanned_contacts c
+    where c.id = v_item.link_contact_id and c.user_id = p_user_id;
+
+    if v_contact_id is null then
+      return query select 'link_missing'::text, null::uuid, null::uuid, null::text, false, null::integer;
+      return;
+    end if;
+  elsif p_contact is null or jsonb_typeof(p_contact) <> 'object' then
+    raise exception 'accept_scan_batch_item: a contact row is required' using errcode = '22023';
+  end if;
+
+  if p_charge and not v_item.credit_consumed then
+    select c.outcome into v_debit
+    from public.consume_scan_credit(
+      p_user_id, 'batch_item', p_item_id::text, v_key,
+      jsonb_build_object('batch_id', v_item.batch_id)
+    ) c;
+
+    if v_debit = 'insufficient' then
+      return query select 'insufficient'::text, null::uuid, null::uuid, null::text, false,
+        public.scan_credit_balance(p_user_id);
+      return;
+    end if;
+    v_charged := v_debit = 'consumed';
+  end if;
+
+  if not v_linked then
+    v_row := (p_contact - 'id' - 'user_id' - 'scan_batch_id' - 'scan_batch_item_id')
+      || jsonb_build_object('user_id', p_user_id, 'scan_batch_id', v_item.batch_id, 'scan_batch_item_id', v_item.id);
+    select string_agg(quote_ident(k), ', ') into v_columns from jsonb_object_keys(v_row) as k;
+    execute format(
+      'insert into public.scanned_contacts as t (%1$s) '
+      || 'select %1$s from jsonb_populate_record(null::public.scanned_contacts, $1) returning t.id, t.name',
+      v_columns
+    ) using v_row into v_contact_id, v_contact_name;
+  end if;
+
+  v_row := (p_encounter - 'id' - 'contact_id' - 'user_id')
+    || jsonb_build_object('contact_id', v_contact_id, 'user_id', p_user_id);
+  select string_agg(quote_ident(k), ', ') into v_columns from jsonb_object_keys(v_row) as k;
+  execute format(
+    'insert into public.contact_encounters as t (%1$s) '
+    || 'select %1$s from jsonb_populate_record(null::public.contact_encounters, $1) returning t.id',
+    v_columns
+  ) using v_row into v_encounter_id;
+
+  update public.scan_batch_items i
+  set created_contact_id = v_contact_id,
+      created_encounter_id = v_encounter_id,
+      credit_consumed = true,
+      updated_at = now()
+  where i.id = p_item_id and i.user_id = p_user_id;
+
+  return query select 'saved'::text, v_contact_id, v_encounter_id, v_contact_name, v_charged,
+    public.scan_credit_balance(p_user_id);
+end;
+$$;
+
+revoke all on function public.accept_scan_batch_item(uuid, uuid, boolean, jsonb, jsonb) from public;
+revoke all on function public.accept_scan_batch_item(uuid, uuid, boolean, jsonb, jsonb) from anon, authenticated;
+grant execute on function public.accept_scan_batch_item(uuid, uuid, boolean, jsonb, jsonb) to service_role;
 
 -- ---------------------------------------------------------------
 -- Row-level security and privileges

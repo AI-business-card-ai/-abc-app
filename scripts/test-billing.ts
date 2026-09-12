@@ -104,6 +104,9 @@ const USER_B = '22222222-2222-4222-8222-222222222222'
 const FOUNDER = '33333333-3333-4333-8333-333333333333'
 const LEGACY = '44444444-4444-4444-8444-444444444444'
 const BUYER = '55555555-5555-4555-8555-555555555555'
+const SAVER = '66666666-6666-4666-8666-666666666666'
+const PARTIAL = '77777777-7777-4777-8777-777777777777'
+const BROKE = '88888888-8888-4888-8888-888888888888'
 
 const confirmed = '2026-01-01T00:00:00.000Z'
 const identity = (id: string, email = `${id.slice(0, 4)}@example.com`): AuthIdentity => ({
@@ -141,9 +144,29 @@ async function freshDatabase(): Promise<PGlite> {
       stripe_subscription_id text,
       plan_activated_at timestamptz
     );
+
+    -- The slice of scanned_contacts the batch save writes and the encounters
+    -- migration reads. Encounters and batches themselves are the real migrations.
+    create table public.scanned_contacts (
+      id uuid primary key default gen_random_uuid(),
+      user_id uuid not null references auth.users (id) on delete cascade,
+      name text, first_name text, last_name text, company text, role text,
+      email text, phone text, website text, linkedin_url text,
+      status text, scan_status text, source text, capture_origin text, capture_kind text,
+      enrichment_status text, enrichment_step text, lead_source text,
+      meeting_date text, meeting_event_date text, raw_event_text text, meeting_event_name text,
+      event_name text, meeting_location text, meeting_topic text, next_action text, next_step text,
+      followup_note text, next_action_date timestamptz,
+      scanned_at timestamptz,
+      created_at timestamptz not null default now()
+    );
+    grant select, insert, update, delete on public.scanned_contacts to service_role;
   `)
+  // The tables a Multi-Card save writes, from their real migrations, in order.
+  await db.exec(read('supabase/migrations/20260823120000_contact_encounters.sql'))
+  await db.exec(read('supabase/migrations/20260910120000_multi_card_scan_batches.sql'))
   await db.exec(read(MIGRATION_FILE))
-  for (const id of [USER_A, USER_B, FOUNDER, LEGACY, BUYER]) {
+  for (const id of [USER_A, USER_B, FOUNDER, LEGACY, BUYER, SAVER, PARTIAL, BROKE]) {
     await db.query('insert into auth.users (id) values ($1)', [id])
     await db.query("insert into public.abc_profiles (id, plan, scans_used) values ($1, 'free', 0)", [id])
   }
@@ -205,6 +228,10 @@ function supabaseOver(db: PGlite): SupabaseClient {
       },
       is(column: string, value: null) {
         if (value === null) filters.push({ sql: `${column} is null` })
+        return builder
+      },
+      in(column: string, values: unknown[]) {
+        filters.push({ sql: `${column}::text in (select jsonb_array_elements_text($?::jsonb))`, value: JSON.stringify(values) })
         return builder
       },
       order(column: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) {
@@ -441,59 +468,254 @@ async function run() {
   }
   check('9c ledger rows are immutable even to the table owner', immutable, true)
 
-  // 10–15. The real batch save, charged through the real ledger.
+  // ═══════════════════ MULTI-CARD: SAVED AND PAID IN ONE TRANSACTION ═══════════════════
+  //
+  // The real batch save in ledger mode — saveBatchContacts → accept_scan_batch_item — over
+  // the real migrations for contacts, encounters, batches and the ledger. The balance handed
+  // to the save is 0 every time: the database decides whether a card is paid for, not a
+  // number read before the loop.
   process.env.SMART_SCAN_LEDGER = 'on'
-  await grantScanCredits(client, { userId: BUYER, amount: 10, kind: 'grant', source: 'manual', sourceRef: null, productKey: null, idempotencyKey: 'test:grant:buyer' })
+  // No real Supabase: the CRM side effect after a save must fail here, never reach a project.
+  delete process.env.NEXT_PUBLIC_SUPABASE_URL
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  const batchSeed = {
-    batch: { id: 'batch-1', status: 'draft', source_kind: 'single_photo', shared_event: 'MEDICA 2026', shared_location: null, shared_discussed: null, shared_next_action: null, shared_follow_up_at: null, shared_met_at: '2026-09-10T10:00:00.000Z', total_detected: 4, total_saved: 0, created_at: '2026-09-10T10:00:00.000Z' },
-    items: [
-      { id: 'new-person', batch_id: 'batch-1', position: 0, first_name: 'New', email: 'n@x.co', selected: true, warnings: [], confidence: 0.9, created_contact_id: null },
-      { id: 'known-person', batch_id: 'batch-1', position: 1, first_name: 'Known', email: 'k@x.co', selected: true, warnings: [], confidence: 0.9, created_contact_id: null, link_contact_id: 'existing-1', link_to_existing: true },
-      { id: 'removed-card', batch_id: 'batch-1', position: 2, first_name: 'Removed', email: 'r@x.co', selected: false, warnings: [], confidence: 0.9, created_contact_id: null },
-      { id: 'unusable-card', batch_id: 'batch-1', position: 3, selected: true, warnings: [], confidence: 0.2, created_contact_id: null },
-    ],
+  const ids = new Map<string, string>()
+  const id = (label: string) => {
+    if (!ids.has(label)) ids.set(label, '00000000-0000-4000-8000-' + String(ids.size + 1).padStart(12, '0'))
+    return ids.get(label) as string
   }
-  const buyerProfile = { id: BUYER, plan: 'free', scans_used: 0 }
-  const buyer = identity(BUYER)
-
-  const batchStub = batchStubClient(batchSeed)
-  const saved = await quietly(() => saveBatchContacts(batchStub.client, BUYER, 'batch-1', 10))
-  const charged = await chargeAcceptedCards(client, buyerProfile, buyer, (saved?.paidItemIds ?? []).map((itemId) => ({ source: 'batch_item' as const, ref: itemId, idempotencyKey: ledgerKeys.batchItem(itemId) })))
-  const buyerRows = (await ledgerRows(db, BUYER)).filter((r) => r.kind === 'consume')
-
-  check('10 a removed card consumes zero', buyerRows.some((r) => r.idempotency_key.includes('removed-card')), false)
-  check('11 a failed card consumes zero', buyerRows.some((r) => r.idempotency_key.includes('unusable-card')), false)
-  check('12 an existing person with a new encounter consumes one', buyerRows.filter((r) => r.idempotency_key === ledgerKeys.batchItem('known-person')).length, 1)
-  check('13 a new person with an encounter consumes one', buyerRows.filter((r) => r.idempotency_key === ledgerKeys.batchItem('new-person')).length, 1)
-  check('13b two accepted cards, two consumptions', [charged, await getScanCreditBalance(client, BUYER)], [['consumed', 'consumed'], 8])
-
-  // 14. A card that failed first and later succeeds is charged once.
-  const retrySeed = {
-    batch: { ...batchSeed.batch, id: 'batch-2' },
-    items: [{ id: 'flaky-card', batch_id: 'batch-2', position: 0, first_name: 'Flaky', email: 'f@x.co', selected: true, warnings: [], confidence: 0.9, created_contact_id: null }],
+  type SeedItem = {
+    key: string
+    position: number
+    first_name?: string
+    email?: string
+    selected?: boolean
+    link_contact_id?: string
+    credit_consumed?: boolean
+    created_contact_id?: string
   }
-  const failing = batchStubClient(retrySeed, { failContactInsert: true })
-  const firstTry = await quietly(() => saveBatchContacts(failing.client, BUYER, 'batch-2', 10))
-  await chargeAcceptedCards(client, buyerProfile, buyer, (firstTry?.paidItemIds ?? []).map((itemId) => ({ source: 'batch_item' as const, ref: itemId, idempotencyKey: ledgerKeys.batchItem(itemId) })))
-  check('14 a failed save pays for nothing', [firstTry?.paidItemIds, await getScanCreditBalance(client, BUYER)], [[], 8])
-  const working = batchStubClient(retrySeed)
-  const secondTry = await quietly(() => saveBatchContacts(working.client, BUYER, 'batch-2', 10))
-  await chargeAcceptedCards(client, buyerProfile, buyer, (secondTry?.paidItemIds ?? []).map((itemId) => ({ source: 'batch_item' as const, ref: itemId, idempotencyKey: ledgerKeys.batchItem(itemId) })))
-  check('14b and exactly one when it finally succeeds', [secondTry?.paidItemIds, await getScanCreditBalance(client, BUYER)], [['flaky-card'], 7])
+  async function seedBatch(owner: string, batchKey: string, cards: SeedItem[], discussed: string | null = null) {
+    await db.query(
+      "insert into public.scan_batches (id, user_id, shared_event, shared_discussed, shared_met_at, total_detected) values ($1, $2, 'MEDICA 2026', $3, '2026-09-10T10:00:00Z', $4)",
+      [id(batchKey), owner, discussed, cards.length]
+    )
+    for (const card of cards) {
+      await db.query(
+        'insert into public.scan_batch_items (id, batch_id, user_id, position, first_name, email, selected, link_contact_id, credit_consumed, created_contact_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+        [id(card.key), id(batchKey), owner, card.position, card.first_name ?? null, card.email ?? null, card.selected ?? true, card.link_contact_id ?? null, card.credit_consumed ?? false, card.created_contact_id ?? null]
+      )
+    }
+    return id(batchKey)
+  }
+  const count = async (sql: string, params: unknown[]) => Number((await db.query<{ n: number }>(sql, params)).rows[0].n)
+  const debits = (key: string) => count('select count(*)::int as n from public.scan_credit_ledger where idempotency_key = $1', [ledgerKeys.batchItem(id(key))])
+  const contactsOfItem = (key: string) => count('select count(*)::int as n from public.scanned_contacts where scan_batch_item_id = $1', [id(key)])
+  const peopleOf = (owner: string) => count('select count(*)::int as n from public.scanned_contacts where user_id = $1', [owner])
+  const meetingsOf = (owner: string) => count('select count(*)::int as n from public.contact_encounters where user_id = $1', [owner])
+  const meetingsWith = (contactId: string | null) => count('select count(*)::int as n from public.contact_encounters where contact_id = $1', [contactId])
+  const itemRow = async (key: string) =>
+    (
+      await db.query<{ created_contact_id: string | null; created_encounter_id: string | null; credit_consumed: boolean }>(
+        'select created_contact_id, created_encounter_id, credit_consumed from public.scan_batch_items where id = $1',
+        [id(key)]
+      )
+    ).rows[0]
+  const untouched = async (key: string) => {
+    const row = await itemRow(key)
+    return (
+      row.created_contact_id === null &&
+      row.created_encounter_id === null &&
+      row.credit_consumed === false &&
+      (await contactsOfItem(key)) === 0 &&
+      (await debits(key)) === 0
+    )
+  }
+  const ledgerSave = (owner: string, batchId: string, charge = true, over: SupabaseClient = client) =>
+    quietly(() => saveBatchContacts(over, owner, batchId, 0, { ledger: { charge } }))
+  const acceptDirect = (owner: string, key: string, charge = true) =>
+    db
+      .query<{ outcome: string; charged: boolean }>(
+        'select outcome, charged from public.accept_scan_batch_item($1, $2, $3, $4::jsonb, $5::jsonb)',
+        [owner, id(key), charge, JSON.stringify({ name: 'Direct', first_name: 'Direct' }), JSON.stringify({ event: 'MEDICA 2026', capture_origin: 'camera', capture_kind: 'business_card' })]
+      )
+      .then((result) => result.rows[0])
+  const grant = (owner: string, amount: number, key: string) =>
+    grantScanCredits(client, { userId: owner, amount, kind: 'grant', source: 'manual', sourceRef: null, productKey: null, idempotencyKey: key })
+  const positionsOf = (entries: { itemId: string }[] | undefined, cards: SeedItem[]) =>
+    (entries ?? []).map((entry) => cards.findIndex((card) => id(card.key) === entry.itemId))
 
-  // 15. Repeating a successful save charges nothing more — even if the route re-charges the same ids.
-  const thirdTry = await quietly(() => saveBatchContacts(working.client, BUYER, 'batch-2', 10))
-  const replay = await chargeAcceptedCards(client, buyerProfile, buyer, [{ source: 'batch_item', ref: 'flaky-card', idempotencyKey: ledgerKeys.batchItem('flaky-card') }])
-  check('15 a repeated successful save pays for nothing new', [thirdTry?.paidItemIds, replay, await getScanCreditBalance(client, BUYER)], [[], ['already_consumed'], 7])
+  // Failure injection for the crash tests. Inert unless a test switches it on.
+  await db.exec(`
+    create function public.test_inject_failure() returns trigger language plpgsql as $f$
+    begin
+      if tg_table_name = 'contact_encounters' then
+        if new.discussed = 'FAIL_MEETING_WRITE' then
+          raise exception 'simulated failure writing the meeting';
+        end if;
+      elsif current_setting('test.fail_item_update', true) = 'on' then
+        raise exception 'simulated crash at the last write';
+      end if;
+      return new;
+    end
+    $f$;
+    create trigger test_inject_failure before insert on public.contact_encounters
+      for each row execute function public.test_inject_failure();
+    create trigger test_inject_failure before update on public.scan_batch_items
+      for each row execute function public.test_inject_failure();
+  `)
+
+  // One batch: a new person, a person already on file, a removed card, an unusable card.
+  await grant(SAVER, 10, 'test:grant:saver')
+  const known = (await db.query<{ id: string }>("insert into public.scanned_contacts (user_id, name, first_name, email) values ($1, 'Known Person', 'Known', 'k@x.co') returning id", [SAVER])).rows[0].id
+  const firstCards: SeedItem[] = [
+    { key: 'new-person', position: 0, first_name: 'New', email: 'n@x.co' },
+    { key: 'known-person', position: 1, first_name: 'Known', email: 'k@x.co', link_contact_id: known },
+    { key: 'removed-card', position: 2, first_name: 'Removed', email: 'r@x.co', selected: false },
+    { key: 'unusable-card', position: 3 },
+  ]
+  const batch1 = await seedBatch(SAVER, 'batch-1', firstCards)
+  const saved1 = await ledgerSave(SAVER, batch1)
+  const newRow = await itemRow('new-person')
+  const knownRow = await itemRow('known-person')
+
+  check('A1 an accepted card is saved and debited once, in the same commit', [Boolean(newRow.created_contact_id && newRow.created_encounter_id), newRow.credit_consumed, await debits('new-person')], [true, true, 1])
+  check('A1b under the canonical key batch_item:<scan_batch_items.id>', (await db.query<{ k: string }>("select idempotency_key as k from public.scan_credit_ledger where source = 'batch_item' and source_ref = $1", [id('new-person')])).rows.map((r) => r.k), [ledgerKeys.batchItem(id('new-person'))])
+  check('A2 an existing person gets a new meeting and one debit — the same person, not a copy', [knownRow.created_contact_id === known, await meetingsWith(known), await debits('known-person')], [true, 1, 1])
+  check('A2b no second person was created for them', [await peopleOf(SAVER), saved1?.linkedContacts, saved1?.newContacts], [2, 1, 1])
+  check('A3 a new person is one person, one meeting, one debit', [await contactsOfItem('new-person'), await meetingsWith(newRow.created_contact_id), await debits('new-person')], [1, 1, 1])
+  check('A4 a removed card is neither saved nor debited', [await untouched('removed-card'), saved1?.failed.some((f) => f.itemId === id('removed-card'))], [true, false])
+  check('A5 a card that cannot be saved is not debited', [await untouched('unusable-card'), positionsOf(saved1?.failed, firstCards)], [true, [3]])
+  check('A15 two accepted cards, two debits', [saved1?.creditsConsumed, positionsOf(saved1?.paidItemIds.map((itemId) => ({ itemId })), firstCards), await getScanCreditBalance(client, SAVER)], [2, [0, 1], 8])
+  check('10 a removed card consumes zero', await debits('removed-card'), 0)
+  check('11 a failed card consumes zero', await debits('unusable-card'), 0)
+  check('12 an existing person with a new encounter consumes one', await debits('known-person'), 1)
+  check('13 a new person with an encounter consumes one', await debits('new-person'), 1)
+
+  // Pressing Save again on the same batch.
+  const saved1Again = await ledgerSave(SAVER, batch1)
+  check('A9 pressing Save again debits nothing more', [saved1Again?.creditsConsumed, await debits('new-person'), await debits('known-person'), await getScanCreditBalance(client, SAVER)], [0, 1, 1, 8])
+  check('A9b and duplicates nobody', [await peopleOf(SAVER), await meetingsOf(SAVER)], [2, 2])
+  check('15 a repeated successful save pays for nothing new', saved1Again?.paidItemIds, [])
+
+  // Crashes and failures before COMMIT.
+  const crashBatch = await seedBatch(SAVER, 'batch-crash', [{ key: 'crash-card', position: 0, first_name: 'Crash', email: 'c@x.co' }])
+  await db.exec('begin')
+  const inFlight = await acceptDirect(SAVER, 'crash-card')
+  await db.exec('rollback') // the process died before COMMIT
+  check('A7 a save interrupted before commit leaves no person, meeting, debit or finished item', [inFlight.outcome, await untouched('crash-card'), await peopleOf(SAVER), await getScanCreditBalance(client, SAVER)], ['saved', true, 2, 8])
+
+  await db.exec("set test.fail_item_update = 'on'")
+  const lastWrite = await ledgerSave(SAVER, crashBatch)
+  await db.exec("set test.fail_item_update = 'off'")
+  check('A7b a failure at the very last write undoes the person, the meeting and the debit before it', [lastWrite?.created.length, lastWrite?.failed.map((f) => f.reason), await untouched('crash-card'), await peopleOf(SAVER), await meetingsOf(SAVER), await getScanCreditBalance(client, SAVER)], [0, ['Could not save this contact.'], true, 2, 2, 8])
+
+  const meetingBatch = await seedBatch(SAVER, 'batch-meeting', [{ key: 'meeting-fails', position: 0, first_name: 'Meet', email: 'm@x.co' }], 'FAIL_MEETING_WRITE')
+  const noMeeting = await ledgerSave(SAVER, meetingBatch)
+  check('A7c a failed meeting write leaves no person and gives back the debit taken first', [noMeeting?.created.length, await untouched('meeting-fails'), await getScanCreditBalance(client, SAVER)], [0, true, 8])
+  check('A5b a failed save is 0 even though its debit was written earlier in the transaction', await debits('meeting-fails'), 0)
+
+  await db.query('update public.scan_batches set shared_discussed = null where id = $1', [meetingBatch])
+  const retried = await ledgerSave(SAVER, meetingBatch)
+  const crashRetry = await ledgerSave(SAVER, crashBatch)
+  check('14 a card that failed and later saves is debited exactly once', [retried?.creditsConsumed, await debits('meeting-fails'), await contactsOfItem('meeting-fails')], [1, 1, 1])
+  check('14b and so is the card whose save crashed', [crashRetry?.creditsConsumed, await debits('crash-card'), await contactsOfItem('crash-card'), await getScanCreditBalance(client, SAVER)], [1, 1, 1, 6])
+
+  // The transaction committed; the answer never arrived.
+  const lostBatch = await seedBatch(SAVER, 'batch-lost', [{ key: 'lost-reply', position: 0, first_name: 'Lost', email: 'l@x.co' }])
+  const committed = await acceptDirect(SAVER, 'lost-reply') // committed — the app never hears back
+  const afterLoss = await ledgerSave(SAVER, lostBatch)
+  check('A8 a committed save whose answer was lost is not debited again when Save is pressed again', [committed.outcome, committed.charged, afterLoss?.creditsConsumed, await debits('lost-reply'), await contactsOfItem('lost-reply'), await getScanCreditBalance(client, SAVER)], ['saved', true, 0, 1, 1, 5])
+  const replayed = await acceptDirect(SAVER, 'lost-reply')
+  check('A8b replaying the transaction itself answers already_saved and debits nothing', [replayed.outcome, replayed.charged, await debits('lost-reply')], ['already_saved', false, 1])
+
+  const adapter = client as unknown as {
+    from: (table: string) => unknown
+    rpc: (name: string, params: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>
+  }
+  let dropNextAnswer = true
+  const lossy = {
+    from: adapter.from,
+    async rpc(name: string, params: Record<string, unknown>) {
+      const answer = await adapter.rpc(name, params)
+      if (name === 'accept_scan_batch_item' && dropNextAnswer) {
+        dropNextAnswer = false
+        return { data: null, error: { code: 'fetch_failed', message: 'network connection lost' } }
+      }
+      return answer
+    },
+  } as unknown as SupabaseClient
+  const inlineBatch = await seedBatch(SAVER, 'batch-inline', [{ key: 'answer-dropped', position: 0, first_name: 'Dropped', email: 'd@x.co' }])
+  const recovered = await ledgerSave(SAVER, inlineBatch, true, lossy)
+  check('A8c an answer lost mid-request: the save asks again, finds it committed, reports it once', [recovered?.created.map((c) => c.itemId), recovered?.failed.length, recovered?.creditsConsumed, await debits('answer-dropped'), await contactsOfItem('answer-dropped'), await getScanCreditBalance(client, SAVER)], [[id('answer-dropped')], 0, 1, 1, 1, 4])
+
+  await seedBatch(SAVER, 'batch-race', [{ key: 'double-tap', position: 0, first_name: 'Double', email: 'dt@x.co' }])
+  const taps = await Promise.all([acceptDirect(SAVER, 'double-tap'), acceptDirect(SAVER, 'double-tap')])
+  check('A8d two saves of one card at once: one saves, the other finds it saved, one debit', [taps.map((t) => t.outcome).sort(), await debits('double-tap'), await contactsOfItem('double-tap'), await getScanCreditBalance(client, SAVER)], [['already_saved', 'saved'], 1, 1, 3])
+  // PGlite is one connection, so two truly parallel transactions cannot be staged here: A8d runs
+  // them back to back. What makes a parallel second save wait and then answer already_saved is
+  // the row lock, and that is pinned in the source rather than claimed as exercised.
+  check('A8e the item row is locked for the whole transaction (static pin, not a parallel run)', /from public\.scan_batch_items i\s+where i\.id = p_item_id and i\.user_id = p_user_id\s+for update;/.test(read(MIGRATION_FILE)), true)
+
+  // The flag says unpaid, the ledger says paid: the ledger wins.
+  const flagBatch = await seedBatch(SAVER, 'batch-flag', [{ key: 'key-already-spent', position: 0, first_name: 'Flag', email: 'fl@x.co' }])
+  await consumeScanCredit(client, { userId: SAVER, source: 'batch_item', sourceRef: id('key-already-spent'), idempotencyKey: ledgerKeys.batchItem(id('key-already-spent')) })
+  const flagSave = await ledgerSave(SAVER, flagBatch)
+  check('A10 credit_consumed false cannot cause a second debit when the ledger already holds the key', [flagSave?.created.length, flagSave?.creditsConsumed, await debits('key-already-spent'), (await itemRow('key-already-spent')).credit_consumed, await getScanCreditBalance(client, SAVER)], [1, 0, 1, true, 2])
+
+  // The flag says paid, the ledger has no row: paid under the pre-ledger counter.
+  const legacyContact = (await db.query<{ id: string }>("insert into public.scanned_contacts (user_id, name) values ($1, 'Saved Before The Ledger') returning id", [SAVER])).rows[0].id
+  const legacyBatch = await seedBatch(SAVER, 'batch-legacy', [
+    { key: 'legacy-saved', position: 0, first_name: 'Legacy', email: 'lg@x.co', credit_consumed: true, created_contact_id: legacyContact },
+    { key: 'legacy-paid-unsaved', position: 1, first_name: 'Paid', email: 'pd@x.co', credit_consumed: true },
+  ])
+  const peopleBefore = await peopleOf(SAVER)
+  const legacySave = await ledgerSave(SAVER, legacyBatch)
+  check('A11 a card already paid under the old counter is never debited by the ledger', [legacySave?.creditsConsumed, await debits('legacy-saved'), await debits('legacy-paid-unsaved'), await getScanCreditBalance(client, SAVER)], [0, 0, 0, 2])
+  check('A11b the finished card is left alone; a paid card with no saved person is saved once, uncharged', [(await itemRow('legacy-saved')).created_contact_id === legacyContact, legacySave?.created.map((c) => c.itemId), (await peopleOf(SAVER)) - peopleBefore], [true, [id('legacy-paid-unsaved')], 1])
+  const legacyAgain = await ledgerSave(SAVER, legacyBatch)
+  check('A11c and saving again changes nothing', [legacyAgain?.created.length, legacyAgain?.creditsConsumed, (await peopleOf(SAVER)) - peopleBefore], [0, 0, 1])
+
+  // Ten detected, eight selected, five credits.
+  await grant(PARTIAL, 5, 'test:grant:partial')
+  const tenCards: SeedItem[] = Array.from({ length: 10 }, (_, i) => ({ key: 'partial-' + i, position: i, first_name: 'Card ' + i, email: 'p' + i + '@x.co', selected: i !== 3 && i !== 7 }))
+  const partialBatch = await seedBatch(PARTIAL, 'batch-partial', tenCards)
+  const partial = await ledgerSave(PARTIAL, partialBatch)
+  check('A12 the first five selected cards in reading order are saved and paid', [positionsOf(partial?.created, tenCards), partial?.creditsConsumed, await getScanCreditBalance(client, PARTIAL)], [[0, 1, 2, 4, 5], 5, 0])
+  check('A12b the other three selected cards are refused for credits, not saved', [positionsOf(partial?.failed, tenCards), partial?.stoppedForCredits, Array.from(new Set(partial?.failed.map((f) => f.reason)))], [[6, 8, 9], true, ['No Smart Scan credits left for this card.']])
+  check('A12c nothing saved without a debit; waiting and removed cards untouched and still as the owner left them', [await peopleOf(PARTIAL), await meetingsOf(PARTIAL), await untouched('partial-6'), await untouched('partial-9'), await untouched('partial-3'), await untouched('partial-7'), await count('select count(*)::int as n from public.scan_batch_items where batch_id = $1 and selected', [partialBatch])], [5, 5, true, true, true, true, 8])
+  await grant(PARTIAL, 3, 'test:grant:partial-top-up')
+  const topUp = await ledgerSave(PARTIAL, partialBatch)
+  check('A12d after buying more, Save finishes exactly the three that were waiting', [positionsOf(topUp?.created, tenCards), topUp?.creditsConsumed, await peopleOf(PARTIAL), await getScanCreditBalance(client, PARTIAL)], [[6, 8, 9], 3, 8, 0])
+
+  // A normal owner with nothing left.
+  const brokeBatch = await seedBatch(BROKE, 'batch-broke', [{ key: 'broke-card', position: 0, first_name: 'Broke', email: 'b@x.co' }])
+  const broke = await ledgerSave(BROKE, brokeBatch)
+  check('A6 no credit: the card is refused, never saved as an unpaid success', [broke?.created.length, broke?.failed.map((f) => f.reason), broke?.stoppedForCredits], [0, ['No Smart Scan credits left for this card.'], true])
+  check('A14 a normal owner at zero gets no person, meeting or ledger row for free', [await untouched('broke-card'), await peopleOf(BROKE), await meetingsOf(BROKE), (await ledgerRows(db, BROKE)).length], [true, 0, 0, 0])
+  check('A14b the transaction itself answers insufficient', (await acceptDirect(BROKE, 'broke-card')).outcome, 'insufficient')
+
+  // Founder: the same transaction, no debit, no ledger row.
+  const founderBatch = await seedBatch(FOUNDER, 'batch-founder', [
+    { key: 'founder-a', position: 0, first_name: 'Founder', email: 'fa@x.co' },
+    { key: 'founder-b', position: 1, first_name: 'Guest', email: 'fb@x.co' },
+  ])
+  const founderSave = await ledgerSave(FOUNDER, founderBatch, false)
+  check('A13 the founder saves at a zero balance with no ledger row at all', [founderSave?.created.length, founderSave?.creditsConsumed, (await ledgerRows(db, FOUNDER)).length, await peopleOf(FOUNDER)], [2, 0, 0, 2])
+  const saveRouteCode = code('app/api/scan/batch/[id]/save/route.ts')
+  check('A13b the route takes the charge decision from the verified entitlement, never the request', saveRouteCode.includes('ledger ? { ledger: { charge: !entitlement.unmetered } } : {}'), true)
+  check('A13c and charges after the save only when the ledger is off', /if \(!ledger\) \{\s*await chargeAcceptedCards\(/.test(saveRouteCode), true)
+  check('A13d a signed-in user cannot call the save-and-charge transaction', await asRole(db, 'authenticated', SAVER, () => db.query("select * from public.accept_scan_batch_item($1, $2, false, '{}'::jsonb, '{}'::jsonb)", [SAVER, id('broke-card')])), 'denied')
 
   // 16. Single scan: one read of one image, at most one debit.
+  await grant(BUYER, 10, 'test:grant:buyer')
+  const buyerProfile = { id: BUYER, plan: 'free', scans_used: 0 }
+  const buyer = identity(BUYER)
   const image = new TextEncoder().encode('the same compressed card image bytes')
   const digest = singleScanDigest(BUYER, image)
   const scanCard = { source: 'single_scan' as const, ref: digest, idempotencyKey: ledgerKeys.singleScan(digest) }
   await chargeAcceptedCards(client, buyerProfile, buyer, [scanCard])
   const retriedUpload = await chargeAcceptedCards(client, buyerProfile, buyer, [{ ...scanCard, idempotencyKey: ledgerKeys.singleScan(singleScanDigest(BUYER, new TextEncoder().encode('the same compressed card image bytes'))) }])
-  check('16 a retried single-scan upload is charged once', [retriedUpload, await getScanCreditBalance(client, BUYER)], [['already_consumed'], 6])
+  check('16 a retried single-scan upload is charged once', [retriedUpload, await getScanCreditBalance(client, BUYER)], [['already_consumed'], 9])
   check('16b a different photo is a different read', singleScanDigest(BUYER, new TextEncoder().encode('another photo')) === digest, false)
   check('16c the same image for another owner is not the same key', singleScanDigest(USER_A, image) === digest, false)
   check('16d the key holds no image content, only a digest', /^[0-9a-f]{64}$/.test(digest), true)
@@ -751,60 +973,6 @@ async function quietly<T>(fn: () => Promise<T>): Promise<T> {
   } finally {
     console.error = original
   }
-}
-
-/** The batch store's queries over in-memory rows. Mirrors the multi-card suite's stub. */
-function batchStubClient(
-  seed: { batch: Record<string, unknown>; items: Record<string, unknown>[] },
-  options: { failContactInsert?: boolean } = {}
-) {
-  const itemRows = seed.items.map((row) => ({ ...row }))
-  const batch = { ...seed.batch }
-  let contactSeq = 0
-
-  function table(name: string) {
-    const state: { filters: Record<string, unknown>; pendingUpdate: Record<string, unknown> | null } = { filters: {}, pendingUpdate: null }
-    function flush() {
-      if (!state.pendingUpdate) return
-      if (name === 'scan_batch_items' && state.filters.id) {
-        const target = itemRows.find((row) => row.id === state.filters.id)
-        if (target) Object.assign(target, state.pendingUpdate)
-      }
-      if (name === 'scan_batches') Object.assign(batch, state.pendingUpdate)
-      state.pendingUpdate = null
-    }
-    const chain: Record<string, unknown> = {
-      select: () => chain,
-      eq(column: string, value: unknown) { state.filters[column] = value; flush(); return chain },
-      order: () => chain,
-      limit: () => chain,
-      in(_c: string, values: unknown[]) { state.filters.in = values; return chain },
-      insert(payload: Record<string, unknown>) {
-        if (name === 'scanned_contacts') {
-          if (options.failContactInsert) return { select: () => ({ single: async () => ({ data: null, error: { message: 'insert failed' } }) }) }
-          contactSeq += 1
-          return { select: () => ({ single: async () => ({ data: { ...payload, id: `contact-${contactSeq}` }, error: null }) }) }
-        }
-        if (name === 'contact_encounters') return { select: () => ({ single: async () => ({ data: { ...payload, id: `encounter-${contactSeq}` }, error: null }) }) }
-        return { select: () => ({ single: async () => ({ data: payload, error: null }) }) }
-      },
-      update(payload: Record<string, unknown>) { state.pendingUpdate = payload; return chain },
-      maybeSingle: async () => {
-        if (name === 'scan_batches') return { data: batch, error: null }
-        if (name === 'scanned_contacts' && typeof state.filters.id === 'string') return { data: { id: state.filters.id, name: 'Existing Person' }, error: null }
-        return { data: null, error: null }
-      },
-      then: undefined,
-    }
-    ;(chain as { then?: unknown }).then = (resolve: (value: unknown) => void) => {
-      if (name === 'scan_batch_items') return resolve({ data: itemRows, error: null })
-      if (name === 'scanned_contacts' && Array.isArray(state.filters.in)) return resolve({ data: (state.filters.in as string[]).map((id) => ({ id, name: 'Existing Person' })), error: null })
-      return resolve({ data: [], error: null })
-    }
-    return chain
-  }
-
-  return { client: { from: (name: string) => table(name) } as unknown as SupabaseClient, itemRows }
 }
 
 run().catch((err) => {

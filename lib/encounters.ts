@@ -93,7 +93,8 @@ export function meetingHasContent(input: MeetingInput): boolean {
   return Boolean(input.event || input.discussed || input.nextAction || input.followUpAt)
 }
 
-function encounterPayload(input: MeetingInput, capture: EncounterCapture) {
+/** The columns a new meeting is written with. Shared with the Multi-Card save transaction. */
+export function encounterPayload(input: MeetingInput, capture: EncounterCapture) {
   return {
     met_at: input.metAt || new Date().toISOString(),
     event: input.event,

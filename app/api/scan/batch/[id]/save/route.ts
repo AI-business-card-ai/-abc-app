@@ -15,7 +15,7 @@ import {
   resolveScanEntitlement,
   type EntitlementProfile,
 } from '@/lib/scan/entitlement'
-import { ledgerKeys } from '@/lib/billing/ledger'
+import { ledgerEnabled, ledgerKeys } from '@/lib/billing/ledger'
 import { isoOrNull } from '@/lib/encounters'
 
 /**
@@ -101,11 +101,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // The verified session user, so founder access is decided by identity.
     const entitlement = await resolveScanEntitlement(supabase, profile, user)
 
-    const result = await saveBatchContacts(supabase, user.id, params.id, entitlement.available)
+    /*
+      With the ledger on, every accepted card is saved and paid for inside one
+      database transaction, so there is nothing left to charge afterwards and no
+      moment at which a saved card is unpaid. Unmetered owners — the founder
+      among them — go through the same transaction with no debit.
+    */
+    const ledger = ledgerEnabled()
+    const result = await saveBatchContacts(
+      supabase,
+      user.id,
+      params.id,
+      entitlement.available,
+      ledger ? { ledger: { charge: !entitlement.unmetered } } : {}
+    )
     if (!result) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
 
     /*
-      Charged for the cards this attempt accepted, and nothing else.
+      Ledger off: production's counter, exactly as before. Charged for the cards
+      this attempt accepted, and nothing else.
 
       That single fact carries the whole credit contract: a false detection is
       never accepted, an unticked card is never accepted, a card that failed to
@@ -113,16 +127,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       before it can be charged again. A retry therefore pays for exactly the
       cards it completes on that attempt.
     */
-    await chargeAcceptedCards(
-      supabase,
-      profile,
-      user,
-      result.paidItemIds.map((itemId) => ({
-        source: 'batch_item' as const,
-        ref: itemId,
-        idempotencyKey: ledgerKeys.batchItem(itemId),
-      }))
-    )
+    if (!ledger) {
+      await chargeAcceptedCards(
+        supabase,
+        profile,
+        user,
+        result.paidItemIds.map((itemId) => ({
+          source: 'batch_item' as const,
+          ref: itemId,
+          idempotencyKey: ledgerKeys.batchItem(itemId),
+        }))
+      )
+    }
 
     if (result.created.length === 0 && result.failed.length === 0) {
       return NextResponse.json(

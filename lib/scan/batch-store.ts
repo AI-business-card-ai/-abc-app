@@ -1,5 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { createEncounter } from '@/lib/encounters'
+import {
+  createEncounter,
+  encounterPayload,
+  type EncounterCapture,
+  type MeetingInput,
+} from '@/lib/encounters'
+import { ledgerKeys } from '@/lib/billing/ledger'
 import { sanitizeEventName } from '@/lib/event-normalizer'
 import { findExistingContactMatches } from '@/lib/contacts/duplicate-match'
 import { onCardScanned } from '@/lib/crm-engine'
@@ -486,8 +492,8 @@ export type SaveBatchResult = {
   creditsConsumed: number
   /**
    * The items this attempt paid for — one id per credit in `creditsConsumed`.
-   * The caller charges each under its own ledger key, so a repeated save can
-   * never charge an item twice.
+   * With the ledger on they are already debited, by the same transaction that
+   * saved them. With it off the caller charges them to the legacy counter.
    */
   paidItemIds: string[]
   /** Set when the owner's remaining credits, not their selection, ended it. */
@@ -521,7 +527,8 @@ export async function saveBatchContacts(
   supabase: SupabaseClient,
   ownerId: string,
   batchId: string,
-  creditsAvailable: number = Infinity
+  creditsAvailable: number = Infinity,
+  options: SaveBatchOptions = {}
 ): Promise<SaveBatchResult | null> {
   const batch = await loadBatch(supabase, ownerId, batchId)
   if (!batch) return null
@@ -529,6 +536,17 @@ export async function saveBatchContacts(
   const context = batch.sharedContext
   const eventText = encounterEventText(context)
   const metAt = context.metAt || new Date().toISOString()
+
+  // The one meeting every card in this batch is saved with.
+  const meeting: MeetingInput = {
+    event: eventText,
+    eventNormalized: sanitizeEventName(context.event) || null,
+    discussed: context.discussed.trim() || null,
+    nextAction: context.nextAction.trim() || null,
+    followUpAt: context.followUpAt,
+    metAt,
+  }
+  const capture: EncounterCapture = { captureOrigin: 'camera', captureKind: 'business_card' }
 
   const created: SavedBatchContact[] = []
   const failed: SaveBatchResult['failed'] = []
@@ -571,6 +589,59 @@ export async function saveBatchContacts(
       guarantee should not depend on that staying true.
     */
     const alreadyPaid = item.creditConsumed
+
+    /*
+      Ledger mode. The person, the meeting, the debit and the finished item are
+      written by one database transaction, so a crash, a timeout or a lost
+      response leaves this card either saved and paid or untouched — never one
+      without the other. The database decides whether there is a credit for it:
+      the balance read before this loop is not consulted, because another
+      session may have spent it since.
+
+      Once one card has been refused for credits the remaining unpaid cards are
+      refused without asking, so a short balance saves the first cards in
+      reading order and never whichever happened to get there first.
+    */
+    if (options.ledger) {
+      if (!alreadyPaid && stoppedForCredits) {
+        failed.push({ itemId: item.id, name: label, reason: NO_CREDITS_REASON })
+        continue
+      }
+
+      const accepted = await acceptItemInTransaction(supabase, ownerId, item.id, {
+        charge: options.ledger.charge,
+        contact: batchContactRow(ownerId, batchId, item),
+        encounter: encounterPayload(meeting, capture),
+      })
+
+      if ((accepted.outcome === 'saved' || accepted.outcome === 'already_saved') && accepted.contactId) {
+        const linked = Boolean(item.linkContactId && item.linkToExisting)
+        if (linked) linkedContacts += 1
+        else newContacts += 1
+        if (accepted.charged) {
+          creditsConsumed += 1
+          paidItemIds.push(item.id)
+        }
+        // CRM defaults once the person exists, which is after the commit.
+        if (!linked && accepted.outcome === 'saved') {
+          onCardScanned(accepted.contactId, ownerId, { enrichmentPending: false }).catch(console.error)
+        }
+        created.push({
+          itemId: item.id,
+          contactId: accepted.contactId,
+          encounterId: accepted.encounterId,
+          name: (linked && accepted.contactName) || label,
+          linked,
+        })
+        continue
+      }
+
+      if (accepted.outcome === 'insufficient') stoppedForCredits = true
+      if (accepted.outcome !== 'not_selected') {
+        failed.push({ itemId: item.id, name: label, reason: acceptFailureReason(accepted.outcome) })
+      }
+      continue
+    }
 
     /*
       The card is about to be processed into its saved state, so it needs a
@@ -619,15 +690,8 @@ export async function saveBatchContacts(
       const linkedEncounter = await createEncounter(supabase, {
         contactId: item.linkContactId,
         userId: ownerId,
-        meeting: {
-          event: eventText,
-          eventNormalized: sanitizeEventName(context.event) || null,
-          discussed: context.discussed.trim() || null,
-          nextAction: context.nextAction.trim() || null,
-          followUpAt: context.followUpAt,
-          metAt,
-        },
-        capture: { captureOrigin: 'camera', captureKind: 'business_card' },
+        meeting,
+        capture,
       })
 
       if (!linkedEncounter) {
@@ -670,29 +734,7 @@ export async function saveBatchContacts(
 
     const { data: contact, error } = await supabase
       .from('scanned_contacts')
-      .insert({
-        user_id: ownerId,
-        name: fullName || item.fields.company.trim(),
-        first_name: firstName || null,
-        last_name: lastName || null,
-        company: item.fields.company.trim() || null,
-        role: item.fields.role.trim() || null,
-        email: item.fields.email.trim() || null,
-        phone: item.fields.phone.trim() || null,
-        website: item.fields.website.trim() || null,
-        linkedin_url: item.fields.linkedin_url.trim() || null,
-        status: 'pending',
-        scan_status: 'basic',
-        source: 'business_card',
-        capture_origin: 'camera',
-        capture_kind: 'business_card',
-        enrichment_status: 'DONE',
-        enrichment_step: 'none',
-        lead_source: 'ABC AI Business Card',
-        scanned_at: new Date().toISOString(),
-        scan_batch_id: batchId,
-        scan_batch_item_id: item.id,
-      })
+      .insert(batchContactRow(ownerId, batchId, item))
       .select('*')
       .single()
 
@@ -711,15 +753,8 @@ export async function saveBatchContacts(
     const encounter = await createEncounter(supabase, {
       contactId: contact.id as string,
       userId: ownerId,
-      meeting: {
-        event: eventText,
-        eventNormalized: sanitizeEventName(context.event) || null,
-        discussed: context.discussed.trim() || null,
-        nextAction: context.nextAction.trim() || null,
-        followUpAt: context.followUpAt,
-        metAt,
-      },
-      capture: { captureOrigin: 'camera', captureKind: 'business_card' },
+      meeting,
+      capture,
     })
 
     // Contact link and charge in one write, for the same reason as above.
@@ -778,6 +813,144 @@ export async function saveBatchContacts(
     paidItemIds,
     stoppedForCredits,
   }
+}
+
+/** How a batch save pays for the cards it accepts. */
+export type SaveBatchOptions = {
+  /**
+   * Present when SMART_SCAN_LEDGER is on. Each accepted card is then saved and
+   * debited by one database transaction. `charge` is false for unmetered
+   * owners, whose cards go through the same transaction with no ledger row.
+   */
+  ledger?: { charge: boolean }
+}
+
+const NO_CREDITS_REASON = 'No Smart Scan credits left for this card.'
+
+/** The person a card becomes. Both save paths write exactly this row. */
+function batchContactRow(ownerId: string, batchId: string, item: BatchItem) {
+  const firstName = item.fields.first_name.trim()
+  const lastName = item.fields.last_name.trim()
+  const fullName = [firstName, lastName].filter(Boolean).join(' ')
+
+  return {
+    user_id: ownerId,
+    name: fullName || item.fields.company.trim(),
+    first_name: firstName || null,
+    last_name: lastName || null,
+    company: item.fields.company.trim() || null,
+    role: item.fields.role.trim() || null,
+    email: item.fields.email.trim() || null,
+    phone: item.fields.phone.trim() || null,
+    website: item.fields.website.trim() || null,
+    linkedin_url: item.fields.linkedin_url.trim() || null,
+    status: 'pending',
+    scan_status: 'basic',
+    source: 'business_card',
+    capture_origin: 'camera',
+    capture_kind: 'business_card',
+    enrichment_status: 'DONE',
+    enrichment_step: 'none',
+    lead_source: 'ABC AI Business Card',
+    scanned_at: new Date().toISOString(),
+    scan_batch_id: batchId,
+    scan_batch_item_id: item.id,
+  }
+}
+
+type AcceptOutcome =
+  | 'saved'
+  | 'already_saved'
+  | 'not_selected'
+  | 'not_found'
+  | 'link_missing'
+  | 'insufficient'
+  | 'error'
+
+type AcceptResult = {
+  outcome: AcceptOutcome
+  contactId: string | null
+  encounterId: string | null
+  contactName: string | null
+  charged: boolean
+}
+
+const ACCEPT_OUTCOMES: readonly AcceptOutcome[] = [
+  'saved',
+  'already_saved',
+  'not_selected',
+  'not_found',
+  'link_missing',
+  'insufficient',
+]
+
+function acceptFailureReason(outcome: AcceptOutcome): string {
+  if (outcome === 'insufficient') return NO_CREDITS_REASON
+  if (outcome === 'link_missing') return 'The matching contact could not be found.'
+  return 'Could not save this contact.'
+}
+
+function toAcceptResult(data: unknown): AcceptResult {
+  const row = (Array.isArray(data) ? data[0] : data) as Row | undefined
+  const outcome = str(row?.outcome) as AcceptOutcome
+  return {
+    outcome: ACCEPT_OUTCOMES.includes(outcome) ? outcome : 'error',
+    contactId: nullableStr(row?.contact_id),
+    encounterId: nullableStr(row?.encounter_id),
+    contactName: nullableStr(row?.contact_name),
+    charged: row?.charged === true,
+  }
+}
+
+/**
+ * Save and pay for one accepted card: `accept_scan_batch_item`, one transaction.
+ *
+ * A call that errors may still have committed — the database finished and the
+ * answer never arrived. So an error is followed by exactly one more call, which
+ * is safe for the same reason pressing Save twice is: the locked item row says
+ * whether the card is already finished. If the second call finds it finished,
+ * the first call finished it; it is reported as saved, and whether it was
+ * debited is read back from the ledger rather than assumed.
+ */
+async function acceptItemInTransaction(
+  supabase: SupabaseClient,
+  ownerId: string,
+  itemId: string,
+  args: { charge: boolean; contact: Record<string, unknown>; encounter: Record<string, unknown> }
+): Promise<AcceptResult> {
+  const call = () =>
+    supabase.rpc('accept_scan_batch_item', {
+      p_user_id: ownerId,
+      p_item_id: itemId,
+      p_charge: args.charge,
+      p_contact: args.contact,
+      p_encounter: args.encounter,
+    })
+
+  const first = await call()
+  if (!first.error) return toAcceptResult(first.data)
+
+  console.error('[scan/batch] accept failed, checking whether it committed:', first.error.code ?? 'unknown')
+  const second = await call()
+  if (second.error) {
+    console.error('[scan/batch] accept failed:', second.error.code ?? 'unknown')
+    return { outcome: 'error', contactId: null, encounterId: null, contactName: null, charged: false }
+  }
+
+  const result = toAcceptResult(second.data)
+  if (result.outcome !== 'already_saved') return result
+
+  let charged = false
+  if (args.charge) {
+    const { data: debit } = await supabase
+      .from('scan_credit_ledger')
+      .select('id')
+      .eq('idempotency_key', ledgerKeys.batchItem(itemId))
+      .eq('user_id', ownerId)
+      .maybeSingle()
+    charged = Boolean(debit)
+  }
+  return { ...result, outcome: 'saved', charged }
 }
 
 /**
