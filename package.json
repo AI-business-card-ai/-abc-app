@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "setup-stripe": "tsx scripts/setup-stripe.ts",
     "test:multi-card": "tsx scripts/test-multi-card.ts",
+    "test:events": "tsx scripts/test-events.ts",
     "test:wallet": "tsx scripts/test-wallet.ts"
   },
   "dependencies": {

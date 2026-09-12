@@ -61,6 +61,7 @@ export async function middleware(req: NextRequest) {
     '/scan',
     '/contacts',
     '/follow-ups',
+    '/events',
     '/chat',
     '/settings',
     '/profile',

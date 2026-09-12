@@ -1,5 +1,6 @@
 import { createServerComponentClient } from '@/lib/supabase-server'
 import { bucketFollowUps, type FollowUpBuckets } from '@/lib/followups'
+import { groupEncountersIntoEvents, type EventSummary } from '@/lib/events/workspace'
 
 export type DashboardContact = {
   id: string
@@ -44,6 +45,8 @@ export type DashboardData = {
   followUps: FollowUpBuckets
   activity: DashboardActivity[]
   card: DashboardCard
+  /** The most recent events, for the way in to the event workspaces. */
+  events: EventSummary[]
 }
 
 function firstNameOf(fullName: string | null, email: string | null): string {
@@ -65,7 +68,7 @@ export async function getDashboardData(): Promise<DashboardData | null> {
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const [profileRes, contactsRes, dueRes, countRes, activityRes] = await Promise.all([
+  const [profileRes, contactsRes, dueRes, countRes, activityRes, encounterRes] = await Promise.all([
     supabase
       .from('abc_profiles')
       .select(
@@ -98,6 +101,17 @@ export async function getDashboardData(): Promise<DashboardData | null> {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(4),
+
+    /*
+      One query for the event workspaces card. Grouping happens in memory, so
+      the dashboard pays a single round trip for it rather than one per event.
+    */
+    supabase
+      .from('contact_encounters')
+      .select('id, contact_id, met_at, event, event_normalized, follow_up_at')
+      .eq('user_id', user.id)
+      .order('met_at', { ascending: false })
+      .limit(1000),
   ])
 
   const profile = profileRes.data
@@ -154,8 +168,29 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     }
   })
 
+  /*
+    The event workspaces, from the encounters just fetched. No CRM mapping is
+    read here, so the card shows people and follow-ups only — the numbers it
+    can state truthfully from one query.
+  */
+  const events = groupEncountersIntoEvents({
+    encounters: (encounterRes.data ?? []).map((row) => ({
+      id: String(row.id),
+      contactId: String(row.contact_id),
+      metAt: row.met_at ?? null,
+      event: row.event ?? null,
+      eventNormalized: row.event_normalized ?? null,
+      discussed: null,
+      nextAction: null,
+      followUpAt: row.follow_up_at ?? null,
+    })),
+    people: new Map(),
+    crmByEncounter: new Map(),
+  })
+
   return {
     firstName: firstNameOf(profile?.full_name ?? null, profile?.email ?? user.email ?? null),
+    events: events.slice(0, 3),
     contacts,
     contactsTotal: countRes.count ?? contacts.length,
     followUps: bucketFollowUps(dueRes.data ?? []),

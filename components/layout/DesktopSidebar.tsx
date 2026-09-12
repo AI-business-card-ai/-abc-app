@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   IconAddressBook,
+  IconCalendarEvent,
   IconChevronRight,
   IconHome,
   IconLayoutKanban,
@@ -33,6 +34,7 @@ const PRIMARY: NavItem[] = [
 // /settings/integrations, reached through the Settings hub — the nav lists
 // destinations, not the categories inside one. Pipeline is preserved but demoted.
 const SECONDARY: NavItem[] = [
+  { icon: IconCalendarEvent, label: 'Events', path: '/events' },
   { icon: IconLayoutKanban, label: 'Pipeline', path: '/pipeline' },
   { icon: IconSettings, label: 'Settings', path: '/settings' },
 ]

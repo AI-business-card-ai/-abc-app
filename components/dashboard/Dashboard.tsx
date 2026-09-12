@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { IconBell, IconChevronDown } from '@tabler/icons-react'
+import EventsCard from '@/components/dashboard/EventsCard'
 import ContactsCard from '@/components/dashboard/ContactsCard'
 import FollowUpsCard from '@/components/dashboard/FollowUpsCard'
 import MyCardCard from '@/components/dashboard/MyCardCard'
@@ -78,6 +79,10 @@ export default function Dashboard({ data }: { data: DashboardData }) {
 
         <div className="min-[430px]:col-span-2 lg:col-span-1">
           <FollowUpsCard counts={data.followUps} />
+        </div>
+
+        <div className="min-[430px]:col-span-2 lg:col-span-1">
+          <EventsCard events={data.events} />
         </div>
       </div>
 
