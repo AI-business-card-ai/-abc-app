@@ -25,3 +25,33 @@ export const AUTH_ERROR_CODES = {
 } as const
 
 export type AuthErrorCode = (typeof AUTH_ERROR_CODES)[keyof typeof AUTH_ERROR_CODES]
+
+const GENERIC_AUTH_ERROR = 'We could not finish signing you in. Please try again.'
+
+/**
+ * The sentence the login page shows for each code — chosen here, never read
+ * from the URL. An unrecognised reason gets the generic line, so a crafted
+ * link can only make the page say something this file already says.
+ *
+ * These existed as codes before they had words: a failed callback landed on
+ * the login page and the page said nothing, which looks exactly like the
+ * button not working. The exchange failure names its commonest real cause. A
+ * reset link opens in whatever the mail app hands it to, and an installed
+ * iPhone app keeps its cookies apart from Safari's, so the browser that opens
+ * the link does not hold the half of the handshake the app started.
+ */
+export const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
+  oauth_missing_code: 'Sign-in was cancelled before it finished. Please try again.',
+  oauth_exchange_failed:
+    'We could not finish signing you in. If you opened a link from an email, it has to be opened in the same browser or app you requested it from — request a new one here and try again.',
+  oauth_user_failed: GENERIC_AUTH_ERROR,
+  oauth_session_failed: GENERIC_AUTH_ERROR,
+  oauth_profile_failed: GENERIC_AUTH_ERROR,
+  oauth_token_save_failed: GENERIC_AUTH_ERROR,
+  oauth_unexpected: GENERIC_AUTH_ERROR,
+}
+
+export function authErrorMessage(reason: string | null | undefined): string {
+  const known = Object.values(AUTH_ERROR_CODES) as string[]
+  return reason && known.includes(reason) ? AUTH_ERROR_MESSAGES[reason as AuthErrorCode] : GENERIC_AUTH_ERROR
+}

@@ -1,4 +1,5 @@
 import type { ScanResult } from '@/lib/types'
+import { NETWORK_FAILURE_MESSAGE, isNetworkFailure } from '@/lib/network-error'
 
 export const SCAN_CARD_UNREADABLE_ERROR =
   "We couldn't read a business card in this photo. Please try again with better lighting and make sure the card fills the frame."
@@ -70,6 +71,8 @@ export function isTechnicalScanReadError(message: string): boolean {
 }
 
 export function formatScanErrorForUser(message: string): string {
+  // First: a scan that never reached the server says nothing about the card.
+  if (isNetworkFailure(message)) return NETWORK_FAILURE_MESSAGE
   if (isTechnicalScanReadError(message)) return SCAN_CARD_UNREADABLE_ERROR
   if (message === 'No contact returned' || message === 'Scan failed') {
     return SCAN_CARD_UNREADABLE_ERROR

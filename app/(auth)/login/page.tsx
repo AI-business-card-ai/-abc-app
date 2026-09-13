@@ -8,6 +8,7 @@ import { createClientComponent } from '@/lib/supabase'
 import AuthOrDivider from '@/components/auth/AuthOrDivider'
 import AppleSignInButton from '@/components/auth/AppleSignInButton'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
+import { authErrorMessage } from '@/lib/auth/error-codes'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -25,6 +26,9 @@ function LoginContent() {
     whether the flag is exactly "1"; nothing from the URL reaches the page.
   */
   const justReset = searchParams.get('reset') === '1'
+
+  // The callback's failure code selects a fixed sentence; the URL's text is never shown.
+  const authError = searchParams.get('error') === 'auth' ? authErrorMessage(searchParams.get('reason')) : null
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -96,6 +100,15 @@ function LoginContent() {
                 role="status"
               >
                 Password updated. Sign in with your new password.
+              </p>
+            )}
+
+            {authError && !justReset && (
+              <p
+                className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+                role="alert"
+              >
+                {authError}
               </p>
             )}
 

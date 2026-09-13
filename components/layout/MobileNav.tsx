@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { IconAddressBook, IconScan, IconSend, IconUsers } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
+import { SAFE_LEFT, SAFE_RIGHT } from '@/lib/ui/layout'
 
 type Tab = { icon: TablerIcon; label: string; path: string }
 
@@ -24,6 +25,8 @@ export default function MobileNav() {
       style={{
         background: 'rgba(10, 10, 11, 0.92)',
         paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingLeft: SAFE_LEFT,
+        paddingRight: SAFE_RIGHT,
       }}
       aria-label="Primary"
     >

@@ -101,8 +101,17 @@ export async function middleware(req: NextRequest) {
   return response
 }
 
+/*
+  Static files and service-worker infrastructure skip the middleware.
+
+  The worker fetches these while it installs: it precaches the public images
+  and loads its helper scripts with importScripts. Run through the onboarding
+  gate, a signed-in account that has not finished onboarding got a redirect to
+  /onboarding instead of the file, which failed the worker's install (a script
+  that is really HTML) or stored the onboarding page under an image URL.
+*/
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|icons/|sw.js|workbox-|manifest.json|offline).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|icon.svg|icons/|hero/|wallet/|sw.js|sw-cache-cleanup.js|workbox-|swe-worker-|fallback-|manifest.json|offline).*)',
   ],
 }

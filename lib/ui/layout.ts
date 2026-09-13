@@ -44,3 +44,15 @@ export const SAVE_BAR_HEIGHT = 78
  * is why the first heading on a page appeared to sit under the notch.
  */
 export const SAFE_TOP = 'env(safe-area-inset-top)'
+
+/**
+ * The side insets.
+ *
+ * A phone held sideways puts the notch or Dynamic Island on one side and the
+ * rounded corners on both. Both are zero upright and on every desktop, so the
+ * chrome can pad by them unconditionally: nothing moves until the phone turns,
+ * and then the logo, the tabs and the first column of every page stop sitting
+ * under the sensor housing.
+ */
+export const SAFE_LEFT = 'env(safe-area-inset-left)'
+export const SAFE_RIGHT = 'env(safe-area-inset-right)'

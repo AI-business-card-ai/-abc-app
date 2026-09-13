@@ -20,6 +20,7 @@ import BatchExportPanel from '@/components/scan/BatchExportPanel'
 import BatchSharedContextForm from '@/components/scan/BatchSharedContextForm'
 import { prepareImageForVision } from '@/lib/image-compress'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
+import { userFacingRequestError } from '@/lib/network-error'
 import { useCamera } from '@/lib/scan/useCamera'
 import {
   IMMERSIVE_FRAME_INSETS,
@@ -389,7 +390,7 @@ export default function MultiCardClient() {
         hapticSuccess()
         setStage('review')
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not read that photo.')
+        setError(userFacingRequestError(err, 'Could not read that photo.'))
         // A failed photo must not lose the cards already in the batch.
         setStage(items.length > 0 ? 'review' : 'capture')
       } finally {
@@ -451,7 +452,7 @@ export default function MultiCardClient() {
       hapticSuccess()
       setStage('saved')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save these contacts.')
+      setError(userFacingRequestError(err, 'Could not save these contacts.'))
       setStage('review')
     }
   }, [batch, context])

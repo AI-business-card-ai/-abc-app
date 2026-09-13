@@ -11,6 +11,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
+  applicationName: 'ABC Card',
   title: 'ABC — Scan. Know. Connect.',
   description: 'AI Business Card — from card scan to a sent message in 10 seconds.',
   manifest: '/manifest.json',
@@ -20,10 +21,17 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'ABC',
+    // The label under the home-screen icon on iOS; the manifest names it elsewhere.
+    title: 'ABC Card',
   },
+  /*
+    Slots, not artwork. Both point at the icon the manifest already ships, so
+    the favicon, the iOS home-screen icon and the installed-app icon stay one
+    picture. Final brand exports replace the files at these paths.
+  */
   icons: {
-    apple: '/icons/icon-192.png',
+    icon: [{ url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+    apple: [{ url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
   },
 }
 
