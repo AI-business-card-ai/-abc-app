@@ -3,11 +3,43 @@ const withPWA = require('@ducanh2912/next-pwa').default({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
+  /*
+    No reload when the connection comes back.
+
+    The plugin's default listens for the browser's `online` event and reloads
+    the page. At a fair the Wi-Fi drops and returns all day, and a reload at
+    that moment throws away whatever was on screen: cards captured but not yet
+    sent, meeting notes half typed, an unsaved edit to the card. Every screen
+    already reports its own failed request, so the reload bought nothing.
+  */
+  reloadOnOnline: false,
+  /*
+    The start URL is not cached.
+
+    The plugin's default keeps its own copy of `/` and serves it whenever the
+    network fails. It turns a redirect into an empty 200 before storing it, so
+    an offline launch could open onto a blank screen instead of the offline
+    page, and a copy stored before a deploy points at build files that no
+    longer exist. Navigations are network-only below, with /offline as the one
+    fallback.
+
+    Both flags, because in this version of the plugin the documented one does
+    nothing on its own: `dynamicStartUrl` is what registers the `start-url`
+    route in the worker and the client hook that fills it. Turning it off
+    precaches nothing in its place.
+  */
+  cacheStartUrl: false,
+  dynamicStartUrl: false,
   fallbacks: {
     document: '/offline',
   },
   workboxOptions: {
     disableDevLogs: true,
+    /*
+      Removes the caches earlier workers filled with private responses. See the
+      file itself for which, and why deleting them has to be explicit.
+    */
+    importScripts: ['/sw-cache-cleanup.js'],
     /*
       The background-removal runtime must never be precached. Workbox already
       skips the 24 MB wasm for size, but the two onnxruntime .mjs files are
@@ -59,11 +91,19 @@ const withPWA = require('@ducanh2912/next-pwa').default({
           /\.wasm$/i.test(url.pathname),
         handler: 'NetworkOnly',
       },
+      /*
+        Build output, and nothing else, is served cache-first.
+
+        Everything under /_next/static/ is named by its content hash, so a
+        stored copy can never be stale. The previous pattern matched any URL on
+        any origin ending in .js or .css, which would have pinned a file
+        without a hash for a month.
+      */
       {
-        urlPattern: /^https?.*\.(?:js|css|woff2?|ttf|otf|eot)$/i,
+        urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/_next/static/'),
         handler: 'CacheFirst',
         options: {
-          cacheName: 'static-assets',
+          cacheName: 'next-static',
           expiration: {
             maxEntries: 128,
             maxAgeSeconds: 30 * 24 * 60 * 60,
@@ -71,43 +111,61 @@ const withPWA = require('@ducanh2912/next-pwa').default({
           cacheableResponse: { statuses: [200] },
         },
       },
+      /*
+        ABC's own public images: the icons, the wallet logo, the landing visual.
+
+        Same origin only. Images on other hosts include Supabase Storage — card
+        photos, avatars, pictures of other people's business cards — and those
+        belong to an account rather than to the device, so they stay with the
+        browser's ordinary HTTP cache. API routes are excluded for the same
+        reason. Stale-while-revalidate rather than cache-first because these
+        files keep their names when they change: a replaced icon should reach
+        an installed app on its next launch, not a month later.
+      */
       {
-        urlPattern: /^https?.*\.(?:png|jpg|jpeg|svg|gif|webp|ico|avif)$/i,
-        handler: 'CacheFirst',
+        urlPattern: ({ url, sameOrigin }) =>
+          sameOrigin &&
+          !url.pathname.startsWith('/api/') &&
+          !url.pathname.startsWith('/_next/') &&
+          /\.(?:png|jpg|jpeg|svg|gif|webp|ico|avif)$/i.test(url.pathname),
+        handler: 'StaleWhileRevalidate',
         options: {
-          cacheName: 'image-assets',
+          cacheName: 'public-images',
           expiration: {
-            maxEntries: 128,
+            maxEntries: 64,
             maxAgeSeconds: 30 * 24 * 60 * 60,
           },
           cacheableResponse: { statuses: [200] },
         },
       },
+      /*
+        Pages always come from the network. The worker stores nothing ABC
+        renders for a signed-in person.
+
+        This used to be network-first with a day-long page cache, which kept
+        private screens — contacts, meetings, billing — on the device after
+        sign-out and served them back whenever the network took longer than
+        three seconds, to whoever was signed in by then. Supabase responses had
+        the same rule and the same problem. That rule is gone rather than
+        replaced: with no route, the worker never touches those requests.
+
+        The empty `options` is load-bearing. It is what the plugin attaches the
+        offline fallback to, so a failed navigation shows /offline instead of
+        the browser's own error page — which, in an installed app with no
+        address bar, is a dead end.
+
+        API routes and the auth callback are left out altogether. They are
+        redirects and downloads — OAuth hops, the vCard, a Wallet pass — which
+        the browser should handle exactly as it would with no worker at all.
+      */
       {
-        urlPattern: /^https:\/\/[^/]+\.supabase\.co\/.*/i,
-        handler: 'NetworkFirst',
-        options: {
-          cacheName: 'supabase-api',
-          networkTimeoutSeconds: 3,
-          expiration: {
-            maxEntries: 64,
-            maxAgeSeconds: 24 * 60 * 60,
-          },
-          cacheableResponse: { statuses: [200] },
-        },
-      },
-      {
-        urlPattern: ({ request }) => request.mode === 'navigate',
-        handler: 'NetworkFirst',
-        options: {
-          cacheName: 'pages',
-          networkTimeoutSeconds: 3,
-          expiration: {
-            maxEntries: 64,
-            maxAgeSeconds: 24 * 60 * 60,
-          },
-          cacheableResponse: { statuses: [200] },
-        },
+        urlPattern: ({ request, url, sameOrigin }) =>
+          request.mode === 'navigate' &&
+          sameOrigin &&
+          !url.pathname.startsWith('/api/') &&
+          !url.pathname.startsWith('/auth/'),
+        handler: 'NetworkOnly',
+        options: {},
       },
     ],
   },

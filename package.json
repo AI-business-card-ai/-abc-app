@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "setup-stripe": "tsx scripts/setup-stripe.ts",
-    "test:multi-card": "tsx scripts/test-multi-card.ts"
+    "test:multi-card": "tsx scripts/test-multi-card.ts",
+    "test:pwa-private-cache": "tsx scripts/test-pwa-private-cache-hotfix.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

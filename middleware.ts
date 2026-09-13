@@ -100,8 +100,17 @@ export async function middleware(req: NextRequest) {
   return response
 }
 
+/*
+  Service-worker helper scripts skip the middleware.
+
+  The worker loads these with importScripts while it installs. Run through the
+  onboarding gate, a signed-in account that had not finished onboarding got a
+  redirect to /onboarding instead of the script, and a script that is really
+  HTML fails the install — leaving that device on the previous worker, still
+  holding the private caches the cleanup script is there to delete.
+*/
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|icons/|sw.js|workbox-|manifest.json|offline).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|icons/|sw.js|sw-cache-cleanup.js|workbox-|swe-worker-|fallback-|manifest.json|offline).*)',
   ],
 }
