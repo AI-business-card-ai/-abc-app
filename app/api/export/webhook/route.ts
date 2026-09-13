@@ -1,140 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@/lib/supabase-route'
-import { createServiceClient } from '@/lib/supabase/service'
-import { logActivity } from '@/lib/crm'
+import { NextResponse } from 'next/server'
 
-export async function POST(req: NextRequest) {
-  const supabase = createRouteHandlerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+/**
+ * Retired: generic webhook export.
+ *
+ * This route took a destination URL from the browser and POSTed the owner's
+ * contacts to it from ABC's servers — to any host, following redirects,
+ * private and internal addresses included — then stored that URL on the
+ * profile and in the activity log. Nothing in the app called it, and ABC has no
+ * webhook integration whose destination is configured and owned server-side:
+ * the only "configured" destination was whatever the last request said.
+ *
+ * A browser must never be able to say "send my contacts to this address", so
+ * the route is closed rather than defended. It reads nothing, sends nothing and
+ * writes nothing; every request gets the same answer. CSV export and CRM sync
+ * are the supported ways to take contacts elsewhere. A webhook product would
+ * need a stored, owner-configured destination and network-level protection, and
+ * belongs in a design of its own.
+ */
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+const RETIRED = {
+  error: 'Webhook export is no longer available. Use CSV export or CRM sync instead.',
+  code: 'webhook_export_retired',
+} as const
 
-  const { webhookUrl, contactIds } = (await req.json()) as {
-    webhookUrl?: string
-    contactIds?: string[]
-  }
-
-  if (!webhookUrl) {
-    return NextResponse.json({ error: 'Missing webhookUrl' }, { status: 400 })
-  }
-
-  let query = supabase.from('scanned_contacts').select('*').eq('user_id', user.id)
-
-  if (contactIds?.length) {
-    query = query.in('id', contactIds)
-  }
-
-  const { data: contacts, error } = await query
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  if (!contacts?.length) {
-    return NextResponse.json({ error: 'No contacts found' }, { status: 404 })
-  }
-
-  const payload = {
-    source: 'ABC AI Business Card',
-    exported_at: new Date().toISOString(),
-    user_id: user.id,
-    total_contacts: contacts.length,
-    contacts: contacts.map((c) => {
-      const nameParts = (c.name || '').split(' ')
-      const summary = c.company_summary || c.notes || ''
-      return {
-        id: c.id,
-        first_name: nameParts[0] || '',
-        last_name: nameParts.slice(1).join(' ') || '',
-        full_name: c.name || '',
-        company: c.company || '',
-        job_title: c.role || '',
-        email: c.email || '',
-        phone: c.phone || '',
-        website: c.website || '',
-        linkedin_url: c.linkedin_url || '',
-        notes: summary,
-        ai_lead_score: c.ai_lead_score || 0,
-        crm_status: c.crm_status || 'NEW',
-        pipeline_stage: c.pipeline_stage || 'new',
-        tags: c.tags || [],
-        contact_count: c.contact_count || 0,
-        scanned_at: c.created_at,
-        last_activity_at: c.last_activity_at,
-        last_activity_type: c.last_activity_type,
-        salesforce: {
-          FirstName: nameParts[0] || '',
-          LastName: nameParts.slice(1).join(' ') || c.name || '',
-          Company: c.company || '',
-          Title: c.role || '',
-          Email: c.email || '',
-          Phone: c.phone || '',
-          Website: c.website || '',
-          Description: summary,
-          LeadSource: 'ABC AI Business Card',
-        },
-        hubspot: {
-          firstname: nameParts[0] || '',
-          lastname: nameParts.slice(1).join(' ') || c.name || '',
-          company: c.company || '',
-          jobtitle: c.role || '',
-          email: c.email || '',
-          phone: c.phone || '',
-          website: c.website || '',
-          notes: summary,
-        },
-      }
-    }),
-  }
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 10000)
-
-  try {
-    const webhookResponse = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeout)
-
-    if (!webhookResponse.ok) {
-      throw new Error(`Webhook returned ${webhookResponse.status}`)
-    }
-
-    const service = createServiceClient()
-    await service
-      .from('abc_profiles')
-      .update({ webhook_url: webhookUrl })
-      .eq('id', user.id)
-
-    for (const c of contacts.slice(0, 10)) {
-      logActivity({
-        contactId: c.id,
-        userId: user.id,
-        activityType: 'WEBHOOK_SENT',
-        activityDetail: 'Contacts sent to webhook',
-        metadata: { webhookUrl, count: contacts.length },
-      }).catch(console.error)
-    }
-
-    return NextResponse.json({
-      success: true,
-      contacts_sent: contacts.length,
-      webhook_status: webhookResponse.status,
-    })
-  } catch (err) {
-    clearTimeout(timeout)
-    return NextResponse.json(
-      {
-        error: 'Webhook delivery failed',
-        details: err instanceof Error ? err.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
-  }
+export async function POST() {
+  return NextResponse.json(RETIRED, { status: 410 })
 }

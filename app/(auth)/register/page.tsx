@@ -33,17 +33,18 @@ export default function RegisterPage() {
       })
       if (e2) throw new Error(e2.message)
 
-      fetch('/api/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'welcome',
-          to: email,
-          name: name || data.user?.user_metadata?.full_name || 'there',
-        }),
-      }).catch(() => {})
-
       if (data.session) {
+        /*
+          The server sends the welcome to the signed-in account's own address.
+          Without a session — confirmation still pending — there is nobody
+          verified to send it to, so it is not asked for.
+        */
+        fetch('/api/email/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'welcome' }),
+        }).catch(() => {})
+
         router.push('/scan')
         router.refresh()
       } else {
