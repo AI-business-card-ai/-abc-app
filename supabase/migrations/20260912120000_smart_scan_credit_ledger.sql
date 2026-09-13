@@ -463,7 +463,8 @@ $$;
 --   1. Lock the item row. Two saves of one card queue here, and the second finds
 --      it finished and answers `already_saved` without writing anything.
 --   2. Refuse what cannot be accepted: an item that is not this owner's, one
---      already saved, one deselected, a match whose contact no longer exists.
+--      already saved, one whose saved contact the owner has since deleted, one
+--      deselected, a match whose contact no longer exists.
 --   3. Pay — unless the caller says this owner is unmetered, or the card was
 --      already paid for: the `batch_item:<id>` key is in the ledger
 --      (consume_scan_credit answers `already_consumed` and writes nothing), or
@@ -530,6 +531,13 @@ begin
   if v_item.created_contact_id is not null then
     return query select 'already_saved'::text, v_item.created_contact_id, v_item.created_encounter_id,
       null::text, false, null::integer;
+    return;
+  end if;
+
+  -- Saved once, and the owner has since deleted that person
+  -- (20260911120000_contact_delete_batch_history): history, never saved again.
+  if v_item.contact_deleted_at is not null then
+    return query select 'contact_deleted'::text, null::uuid, null::uuid, null::text, false, null::integer;
     return;
   end if;
 

@@ -87,6 +87,8 @@ function rowToItem(row: Row, linkNames: Map<string, string> = new Map()): BatchI
     linkContactName: linkNames.get(nullableStr(row.link_contact_id) ?? '') ?? null,
     linkToExisting: row.link_to_existing !== false,
     creditConsumed: row.credit_consumed === true,
+    // Only when true, so every other item keeps exactly the shape it always had.
+    ...(row.contact_deleted_at != null ? { contactDeleted: true } : {}),
   }
 }
 
@@ -565,6 +567,12 @@ export async function saveBatchContacts(
     */
     if (!item.selected || item.createdContactId) continue
 
+    /*
+      So is a card whose person was saved and then deleted by the owner. It stays
+      as scan history; saving the batch again must not quietly bring them back.
+    */
+    if (item.contactDeleted) continue
+
     const firstName = item.fields.first_name.trim()
     const lastName = item.fields.last_name.trim()
     const fullName = [firstName, lastName].filter(Boolean).join(' ')
@@ -637,7 +645,7 @@ export async function saveBatchContacts(
       }
 
       if (accepted.outcome === 'insufficient') stoppedForCredits = true
-      if (accepted.outcome !== 'not_selected') {
+      if (accepted.outcome !== 'not_selected' && accepted.outcome !== 'contact_deleted') {
         failed.push({ itemId: item.id, name: label, reason: acceptFailureReason(accepted.outcome) })
       }
       continue
@@ -787,7 +795,9 @@ export async function saveBatchContacts(
     })
   }
 
-  const totalSaved = batch.items.filter((i) => i.createdContactId).length + created.length
+  // A card whose person was deleted afterwards was still kept by this session.
+  const totalSaved =
+    batch.items.filter((i) => i.createdContactId || i.contactDeleted).length + created.length
 
   await supabase
     .from('scan_batches')
@@ -865,6 +875,7 @@ type AcceptOutcome =
   | 'not_found'
   | 'link_missing'
   | 'insufficient'
+  | 'contact_deleted'
   | 'error'
 
 type AcceptResult = {
@@ -882,6 +893,7 @@ const ACCEPT_OUTCOMES: readonly AcceptOutcome[] = [
   'not_found',
   'link_missing',
   'insufficient',
+  'contact_deleted',
 ]
 
 function acceptFailureReason(outcome: AcceptOutcome): string {

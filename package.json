@@ -12,6 +12,7 @@
     "test:multi-card": "tsx scripts/test-multi-card.ts",
     "test:events": "tsx scripts/test-events.ts",
     "test:billing": "tsx scripts/test-billing.ts",
+    "test:contact-delete": "tsx scripts/test-contact-delete.ts",
     "test:wallet": "tsx scripts/test-wallet.ts"
   },
   "dependencies": {

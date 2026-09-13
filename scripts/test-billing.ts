@@ -165,6 +165,7 @@ async function freshDatabase(): Promise<PGlite> {
   // The tables a Multi-Card save writes, from their real migrations, in order.
   await db.exec(read('supabase/migrations/20260823120000_contact_encounters.sql'))
   await db.exec(read('supabase/migrations/20260910120000_multi_card_scan_batches.sql'))
+  await db.exec(read('supabase/migrations/20260911120000_contact_delete_batch_history.sql'))
   await db.exec(read(MIGRATION_FILE))
   for (const id of [USER_A, USER_B, FOUNDER, LEGACY, BUYER, SAVER, PARTIAL, BROKE]) {
     await db.query('insert into auth.users (id) values ($1)', [id])

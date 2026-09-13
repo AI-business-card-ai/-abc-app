@@ -132,6 +132,13 @@ export type BatchItem = {
    * meeting with one already on file.
    */
   creditConsumed: boolean
+  /**
+   * The person this card was saved as has since been deleted by the owner.
+   *
+   * The card stays as scan history — what was read, whether it was paid for —
+   * and is never saved again. Present only when true.
+   */
+  contactDeleted?: boolean
 }
 
 /** Whether saving this card will add to somebody rather than create them. */
