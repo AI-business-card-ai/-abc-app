@@ -81,13 +81,12 @@ export type ScanEntitlement = {
   /** Lifetime internal access. Resolved from the auth identity only. */
   founder: boolean
   /**
-   * ABC Pro capability.
+   * Founder Pro, as the scanner sees it.
    *
-   * Only the founder resolves to Pro today. Nothing in the app gates on Pro
-   * yet, and the paid Pro products — Event Pass, monthly, annual — arrive with
-   * their own entitlement; mapping today's legacy plan names onto them here
-   * would be a guess about a product that does not exist. This is the field
-   * those checks should read when they are written.
+   * True only for the founder. Paid ABC Pro — Event Pass, monthly, annual — is
+   * resolved by `resolveProEntitlement` in `lib/entitlements`, which every Pro gate
+   * reads. Scanning never asks about Pro: Smart Scan is credits for everybody,
+   * and Pro is not a scan allowance.
    */
   pro: boolean
 }

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { isTokenEncryptionConfigured } from '@/lib/crm/encryption'
 import { createOAuthState } from '@/lib/crm/oauth-state'
+import { proRequiredPath } from '@/lib/billing/pro-features'
+import { requirePro } from '@/lib/entitlements'
+import { createServiceClient } from '@/lib/supabase/service'
 import {
   createPkce,
   getSalesforceAuthorizeUrl,
@@ -32,6 +35,12 @@ export async function GET(request: NextRequest) {
 
   if (!user) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // CRM sync is ABC Pro. Refused before Salesforce is ever asked for access.
+  const gate = await requirePro(createServiceClient(), user, 'crm')
+  if (!gate.ok) {
+    return NextResponse.redirect(new URL(proRequiredPath('crm'), request.url))
   }
 
   const config = getSalesforceConfig()

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { consumeOAuthState } from '@/lib/crm/oauth-state'
 import { saveCrmConnection } from '@/lib/crm/connections'
+import { proRequiredPath } from '@/lib/billing/pro-features'
+import { requirePro } from '@/lib/entitlements'
+import { createServiceClient } from '@/lib/supabase/service'
 import {
   exchangePipedriveCode,
   getPipedriveAccountId,
@@ -41,6 +44,7 @@ type Stage =
   | 'config_missing'
   | 'session_user_missing'
   | 'owner_mismatch'
+  | 'pro_required'
   | 'token_exchange_failed'
   | 'api_domain_missing'
   | 'account_identity_failed'
@@ -121,6 +125,17 @@ export async function GET(request: NextRequest) {
     if (user.id !== validated.ownerId) {
       logStage('owner_mismatch')
       return backTo(request, 'error')
+    }
+
+    /*
+      ABC Pro, checked again at the return: Pro can lapse between the consent
+      screen and this callback, and no token is stored for an account that cannot
+      use it. Nothing already stored is touched.
+    */
+    const gate = await requirePro(createServiceClient(), user, 'crm')
+    if (!gate.ok) {
+      logStage('pro_required')
+      return NextResponse.redirect(new URL(proRequiredPath('crm'), request.nextUrl.origin))
     }
 
     const config = getPipedriveConfig()

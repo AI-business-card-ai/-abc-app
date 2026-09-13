@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { IconPlug } from '@tabler/icons-react'
+import ProRequiredNote from '@/components/billing/ProRequiredNote'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import {
   CRM_PROVIDERS,
@@ -29,6 +30,10 @@ import {
  * push card uses, so the two cannot disagree about what "connected" means. A
  * connection that needs reauthorising is not connected: it exists and it cannot
  * be used.
+ *
+ * CRM sync is ABC Pro. A Free account still sees every connection it has, and
+ * can always disconnect one — connecting and syncing are what Pro adds, and the
+ * server refuses them regardless of what this screen shows.
  */
 
 const STATUS_TEXT: Record<CrmStatusLabel, string> = {
@@ -45,7 +50,7 @@ const STATUS_COLOR: Record<CrmStatusLabel, string> = {
 
 type ConnectionMap = Record<string, CrmConnectionView>
 
-export default function IntegrationsSettingsView() {
+export default function IntegrationsSettingsView({ pro }: { pro: boolean }) {
   const [connections, setConnections] = useState<ConnectionMap>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -98,6 +103,12 @@ export default function IntegrationsSettingsView() {
         <span>Connect a CRM and you can push a contact to it from the contact screen.</span>
       </p>
 
+      {pro ? null : (
+        <div className="mt-4">
+          <ProRequiredNote feature="crm" />
+        </div>
+      )}
+
       {error ? (
         <p className="mt-4 text-[12.5px]" style={{ color: 'var(--abc-overdue)' }} role="alert">
           {error}
@@ -124,14 +135,16 @@ export default function IntegrationsSettingsView() {
                 </span>
               </div>
 
-              {loading ? null : (
+              {loading || (!pro && !connected) ? null : (
                 <div className="mt-3.5 flex flex-wrap gap-2">
-                  <a
-                    href={provider.connectPath}
-                    className="inline-flex h-[44px] items-center justify-center rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong abc-focus-ring"
-                  >
-                    {label === 'needs_reconnect' ? 'Reconnect' : label === 'connected' ? 'Reconnect' : 'Connect'}
-                  </a>
+                  {pro ? (
+                    <a
+                      href={provider.connectPath}
+                      className="inline-flex h-[44px] items-center justify-center rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong abc-focus-ring"
+                    >
+                      {label === 'needs_reconnect' ? 'Reconnect' : label === 'connected' ? 'Reconnect' : 'Connect'}
+                    </a>
+                  ) : null}
 
                   {connected ? (
                     <button

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { pushContactEncounterToCrm } from '@/lib/crm/export'
 import { logActivity } from '@/lib/crm'
+import { requirePro } from '@/lib/entitlements'
+import { createServiceClient } from '@/lib/supabase/service'
 
 /**
  * Push one contact and one meeting into the owner's CRM.
@@ -38,6 +40,10 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // CRM sync is ABC Pro. Existing connections and pushed records are untouched either way.
+    const gate = await requirePro(createServiceClient(), user, 'crm')
+    if (!gate.ok) return NextResponse.json(gate.body, { status: gate.status })
 
     const body = (await req.json()) as Body
     const provider = (body.provider || 'hubspot') as Provider

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { consumeOAuthState } from '@/lib/crm/oauth-state'
 import { saveGoogleOAuthTokens } from '@/lib/google-gmail-auth'
+import { proRequiredPath } from '@/lib/billing/pro-features'
+import { requirePro } from '@/lib/entitlements'
+import { createServiceClient } from '@/lib/supabase/service'
 import {
   GMAIL_CONNECT_PROVIDER,
   exchangeGmailCode,
@@ -79,6 +82,17 @@ export async function GET(request: NextRequest) {
   if (!user) return failed(request, returnTo, 'no ABC session at callback')
   if (user.id !== verified.ownerId) {
     return failed(request, returnTo, 'session owner differs from the account that started the flow')
+  }
+
+  /*
+    Checked again here, not only at the start: Pro can lapse between the consent
+    screen and the return, and no token is stored for an account that cannot use
+    it. A mailbox already connected is left exactly as it is.
+  */
+  const gate = await requirePro(createServiceClient(), user, 'gmail')
+  if (!gate.ok) {
+    console.log('[google-gmail/callback] refused: ABC Pro is not active')
+    return NextResponse.redirect(new URL(proRequiredPath('gmail'), request.nextUrl.origin))
   }
 
   try {

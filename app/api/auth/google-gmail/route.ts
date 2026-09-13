@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createOAuthState } from '@/lib/crm/oauth-state'
+import { proRequiredPath } from '@/lib/billing/pro-features'
+import { requirePro } from '@/lib/entitlements'
+import { createServiceClient } from '@/lib/supabase/service'
 import {
   GMAIL_CONNECT_PROVIDER,
   getGmailAuthorizeUrl,
@@ -27,6 +30,16 @@ export async function GET(request: NextRequest) {
 
   if (!user) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  /*
+    Sending from Gmail is ABC Pro. Refused before any consent screen, so a Free
+    account is never asked to grant a mailbox it cannot use. Signing in with
+    Google is a different route and is never gated.
+  */
+  const gate = await requirePro(createServiceClient(), user, 'gmail')
+  if (!gate.ok) {
+    return NextResponse.redirect(new URL(proRequiredPath('gmail'), request.url))
   }
 
   const config = getGmailConnectConfig()

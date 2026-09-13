@@ -3,6 +3,7 @@ import { PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { generatePersonalizedMessages } from '@/lib/ai-messages'
+import { requirePro } from '@/lib/entitlements'
 import { buildMeetingContext } from '@/lib/contact-enrichment-ui'
 import { isLinkedInDataTrusted, stripUntrustedLinkedInFields } from '@/lib/linkedin-identity'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
@@ -21,6 +22,10 @@ export async function POST(
     }
 
     const supabase = createServiceClient()
+
+    // Contextual follow-up messages are Smart Follow-up, which is ABC Pro.
+    const gate = await requirePro(supabase, user, 'smart_follow_up')
+    if (!gate.ok) return NextResponse.json(gate.body, { status: gate.status })
 
     const { data: contact, error: contactError } = await supabase
       .from('scanned_contacts')

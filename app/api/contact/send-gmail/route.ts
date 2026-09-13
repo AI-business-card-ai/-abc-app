@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { requirePro } from '@/lib/entitlements'
+import { createServiceClient } from '@/lib/supabase/service'
 import {
   GoogleReconnectRequiredError,
   GOOGLE_RECONNECT_CODE,
@@ -9,13 +11,18 @@ import {
 export async function POST(req: NextRequest) {
   try {
     const authClient = createRouteHandlerClient()
+    // getUser, not getSession: whether this account may send is decided by a verified identity.
     const {
-      data: { session },
-    } = await authClient.auth.getSession()
+      data: { user },
+    } = await authClient.auth.getUser()
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // Sending from Gmail is ABC Pro. A lapsed Pro stops sending; the stored connection stays.
+    const gate = await requirePro(createServiceClient(), user, 'gmail')
+    if (!gate.ok) return NextResponse.json(gate.body, { status: gate.status })
 
     const body = (await req.json()) as {
       contactId?: string
@@ -28,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await sendGmailForContact(
-      session.user.id,
+      user.id,
       body.contactId,
       body.subject,
       body.body

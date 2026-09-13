@@ -1,13 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   PRODUCT_KEYS,
-  PRO_KEYS,
   PRODUCTS,
   resolveProduct,
   type ProKey,
   type ProductKey,
 } from '@/lib/billing/catalog'
+import type { ProSource } from '@/lib/billing/pro-features'
 import { readStripeConfig } from '@/lib/billing/stripe'
+import { resolveProState } from '@/lib/entitlements'
 import {
   resolveScanEntitlement,
   type AuthIdentity,
@@ -20,9 +21,13 @@ import {
  *
  * No Stripe object, customer id, subscription id, secret or payment detail
  * leaves this function — only the facts a screen needs: how many Smart Scan
- * credits there are (or that none are needed), whether Pro is active and until
- * when, and which products can currently be bought. A product whose quantity is
- * not decided is reported as unavailable, with no quantity at all.
+ * credits there are (or that none are needed), whether ABC Pro is active, where
+ * it comes from and when it ends, and which products can currently be bought. A
+ * product whose quantity is not decided is reported as unavailable, with no
+ * quantity at all.
+ *
+ * Pro is read through `resolveProState`, the same resolver every Pro gate uses,
+ * so this page and the gates cannot disagree about whether somebody is Pro.
  */
 
 type Env = Record<string, string | undefined>
@@ -39,6 +44,13 @@ export type BillingStatus = {
     active: boolean
     /** Founder Pro is lifetime and independent of any purchase. */
     viaFounder: boolean
+    /** Where current access comes from; `none` when not active. */
+    source: ProSource
+    /** When current access ends or renews. Null for the founder and when not active. */
+    endsAt: string | null
+    /** A subscription that will renew; false for an Event Pass or a cancelling subscription. */
+    renews: boolean
+    /** The current entitlement's product, or the most recent one when none is active. */
     productKey: ProKey | null
     status: string | null
     currentPeriodEnd: string | null
@@ -56,14 +68,6 @@ export type BillingStatus = {
   }[]
 }
 
-type EntitlementRow = {
-  product_key: string
-  status: string
-  current_period_end: string | null
-}
-
-const ACTIVE = new Set(['active', 'trialing'])
-
 export async function readBillingStatus(
   db: SupabaseClient,
   profile: EntitlementProfile & { id: string },
@@ -72,46 +76,18 @@ export async function readBillingStatus(
   now: Date = new Date()
 ): Promise<BillingStatus> {
   const scan = await resolveScanEntitlement(db, profile, identity, env)
+  const proState = await resolveProState(db, identity, now)
+  const shown = proState.current ?? proState.lastKnown
 
-  let pro: BillingStatus['pro'] = {
-    active: scan.founder,
-    viaFounder: scan.founder,
-    productKey: null,
-    status: null,
-    currentPeriodEnd: null,
-  }
-
-  if (!scan.founder) {
-    const { data, error } = await db
-      .from('billing_entitlements')
-      .select('product_key, status, current_period_end')
-      .eq('user_id', profile.id)
-      .order('current_period_end', { ascending: false, nullsFirst: false })
-      .limit(10)
-
-    if (error) {
-      console.error('[billing/status] entitlement read failed:', error.code ?? 'unknown')
-    } else {
-      const rows = (data ?? []) as EntitlementRow[]
-      const current = rows.find(
-        (row) =>
-          ACTIVE.has(row.status) &&
-          (PRO_KEYS as readonly string[]).includes(row.product_key) &&
-          (!row.current_period_end || new Date(row.current_period_end) > now)
-      )
-      const latest = current ?? rows[0]
-      if (latest) {
-        pro = {
-          active: Boolean(current),
-          viaFounder: false,
-          productKey: (PRO_KEYS as readonly string[]).includes(latest.product_key)
-            ? (latest.product_key as ProKey)
-            : null,
-          status: latest.status,
-          currentPeriodEnd: latest.current_period_end,
-        }
-      }
-    }
+  const pro: BillingStatus['pro'] = {
+    active: proState.pro,
+    viaFounder: proState.founder,
+    source: proState.proSource,
+    endsAt: proState.proEndsAt,
+    renews: proState.proRenews,
+    productKey: shown?.productKey ?? null,
+    status: shown?.status ?? null,
+    currentPeriodEnd: shown?.currentPeriodEnd ?? null,
   }
 
   const stripeConfigured = readStripeConfig(env).ok

@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { IconCreditCard } from '@tabler/icons-react'
+import ProRequiredNote from '@/components/billing/ProRequiredNote'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import type { ProKey } from '@/lib/billing/catalog'
+import { PRO_SOURCE_LABELS, type ProFeature } from '@/lib/billing/pro-features'
+import type { BillingStatus } from '@/lib/billing/status'
 import { planSummary } from '@/lib/settings/plan-summary'
 import type { ABCProfile } from '@/lib/types'
 
@@ -17,12 +21,58 @@ import type { ABCProfile } from '@/lib/types'
  *
  * The plan figures come from `planSummary` so that this page and the settings
  * hub cannot describe the same plan differently.
+ *
+ * ABC Pro has its own section, fed by the server's entitlement resolver: whether
+ * it is active, where from, and until when. It offers a purchase only for a Pro
+ * product that is actually configured to be bought, and names no price — the
+ * checkout shows the real one. Otherwise it says plainly that Pro cannot be
+ * bought yet.
  */
-export default function BillingSettingsView({ profile }: { profile: Partial<ABCProfile> }) {
+
+export type ProProductOption = { key: ProKey; available: boolean }
+
+const PRODUCT_LABELS: Record<ProKey, string> = {
+  pro_event: PRO_SOURCE_LABELS.event_pass,
+  pro_monthly: PRO_SOURCE_LABELS.monthly,
+  pro_annual: PRO_SOURCE_LABELS.annual,
+}
+
+function formatDate(value: string | null): string | null {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function proLine(pro: BillingStatus['pro']): string {
+  if (pro.viaFounder) return 'Included with founder access.'
+  if (!pro.active) return 'Not active.'
+
+  const label = PRO_SOURCE_LABELS[pro.source]
+  const date = formatDate(pro.endsAt)
+  if (!date) return label
+  if (pro.source === 'event_pass') return `${label} · until ${date}`
+  return pro.renews ? `${label} · renews ${date}` : `${label} · ends ${date}`
+}
+
+export default function BillingSettingsView({
+  profile,
+  pro,
+  proProducts,
+  requiredFeature,
+}: {
+  profile: Partial<ABCProfile>
+  pro: BillingStatus['pro']
+  proProducts: ProProductOption[]
+  requiredFeature: ProFeature | null
+}) {
   const [portalLoading, setPortalLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [checkoutKey, setCheckoutKey] = useState<ProKey | null>(null)
+  const [proError, setProError] = useState<string | null>(null)
 
   const { planLabel, paid, exempt, usageLine } = planSummary(profile)
+  const buyable = proProducts.filter((product) => product.available)
 
   async function openBillingPortal() {
     setPortalLoading(true)
@@ -35,6 +85,24 @@ export default function BillingSettingsView({ profile }: { profile: Partial<ABCP
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not open the billing portal.')
       setPortalLoading(false)
+    }
+  }
+
+  async function startProCheckout(productKey: ProKey) {
+    setCheckoutKey(productKey)
+    setProError(null)
+    try {
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productKey }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.url) throw new Error(data.error || 'Could not start checkout.')
+      window.location.href = data.url
+    } catch (err) {
+      setProError(err instanceof Error ? err.message : 'Could not start checkout.')
+      setCheckoutKey(null)
     }
   }
 
@@ -78,6 +146,53 @@ export default function BillingSettingsView({ profile }: { profile: Partial<ABCP
         {error ? (
           <p className="mt-3 text-[12.5px]" style={{ color: 'var(--abc-overdue)' }} role="alert">
             {error}
+          </p>
+        ) : null}
+      </section>
+
+      <section id="pro" className="mt-3 rounded-card border border-abc-border bg-abc-card p-4">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[15px] font-semibold text-abc-text">ABC Pro</span>
+          {pro.active ? (
+            <span className="text-[11.5px] font-medium" style={{ color: 'var(--abc-green)' }}>
+              Active
+            </span>
+          ) : null}
+        </div>
+
+        <p className="mt-2 text-[13px] text-abc-secondary">{proLine(pro)}</p>
+        <p className="mt-1.5 text-[12.5px] leading-[1.5] text-abc-muted">
+          Smart Follow-up, scheduled follow-ups, sending from Gmail and CRM sync. Smart Scan credits are
+          separate.
+        </p>
+
+        {requiredFeature && !pro.active ? (
+          <div className="mt-3">
+            <ProRequiredNote feature={requiredFeature} showPlanLink={false} />
+          </div>
+        ) : null}
+
+        {pro.active ? null : buyable.length > 0 ? (
+          <div className="mt-3.5 flex flex-wrap gap-2">
+            {buyable.map((product) => (
+              <button
+                key={product.key}
+                type="button"
+                onClick={() => void startProCheckout(product.key)}
+                disabled={checkoutKey !== null}
+                className="inline-flex h-[44px] items-center justify-center rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong disabled:opacity-50 abc-focus-ring"
+              >
+                {checkoutKey === product.key ? 'Opening…' : PRODUCT_LABELS[product.key]}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-[13px] text-abc-secondary">ABC Pro isn’t available to buy yet.</p>
+        )}
+
+        {proError ? (
+          <p className="mt-3 text-[12.5px]" style={{ color: 'var(--abc-overdue)' }} role="alert">
+            {proError}
           </p>
         ) : null}
       </section>

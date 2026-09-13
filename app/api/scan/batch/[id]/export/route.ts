@@ -4,6 +4,7 @@ import { createServerSupabase } from '@/lib/supabase'
 import { pushContactEncounterToCrm } from '@/lib/crm/export'
 import { logActivity } from '@/lib/crm'
 import { batchExportTargets } from '@/lib/scan/batch-store'
+import { requirePro } from '@/lib/entitlements'
 
 /**
  * Push every contact this batch produced into the owner's CRM.
@@ -39,6 +40,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     } = await auth.auth.getUser()
 
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // CRM sync is ABC Pro. The batch and its contacts stay available either way.
+    const gate = await requirePro(createServerSupabase(), user, 'crm')
+    if (!gate.ok) return NextResponse.json(gate.body, { status: gate.status })
 
     const body = (await req.json().catch(() => ({}))) as Body
     const provider = (body.provider || 'hubspot') as Provider

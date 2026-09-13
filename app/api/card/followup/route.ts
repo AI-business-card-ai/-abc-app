@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServerSupabase } from '@/lib/supabase'
+import { requirePro } from '@/lib/entitlements'
 
 /**
  * Schedules the three-step follow-up sequence for one contact.
@@ -25,6 +26,10 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // Scheduled sequences are ABC Pro. Checked before the old schedule is replaced, so a lapsed Pro keeps what it already has.
+    const gate = await requirePro(createServerSupabase(), user, 'follow_up_sequence')
+    if (!gate.ok) return NextResponse.json(gate.body, { status: gate.status })
 
     const { contactId, userId } = (await req.json()) as {
       contactId?: string

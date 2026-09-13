@@ -2,6 +2,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { getLanguageInstruction } from '@/lib/ai-messages'
+import { requirePro } from '@/lib/entitlements'
+import { createServiceClient } from '@/lib/supabase/service'
 
 /**
  * Smart follow-up generation for the rebuilt contact detail.
@@ -59,6 +61,10 @@ export async function POST(req: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Smart Follow-up drafts are ABC Pro. Contacts and meetings stay readable either way.
+    const gate = await requirePro(createServiceClient(), user, 'smart_follow_up')
+    if (!gate.ok) return NextResponse.json(gate.body, { status: gate.status })
 
     const body = (await req.json()) as {
       contactId?: string
