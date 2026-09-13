@@ -183,7 +183,7 @@ async function run() {
   const { renderWelcomeEmailHtml } = await import('@/lib/email')
   const injected = renderWelcomeEmailHtml('<img src=x onerror=alert(1)><a href="https://evil.example">')
   check('13e the one variable in the welcome is escaped', [injected.includes('<img src=x'), injected.includes('&lt;img src=x onerror=alert(1)&gt;'), injected.includes('href="https://evil.example"')], [false, true, false])
-  check('13f and the greeting is one bounded line', [welcomeName('  Anna\n\rNovák  '), welcomeName('x'.repeat(200)).length, welcomeName(42), welcomeName('   ')], ['Anna Novák', 80, 'there', 'there'])
+  check('13f and the greeting is one bounded line', [welcomeName('  Anna\n\rNovák' + String.fromCharCode(0) + ' '), welcomeName('x'.repeat(200)).length, welcomeName(42), welcomeName('   ')], ['Anna Novák', 80, 'there', 'there'])
 
   // ═══════════════════ WEBHOOK EXPORT ═══════════════════
 

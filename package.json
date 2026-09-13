@@ -15,6 +15,7 @@
     "test:contact-delete": "tsx scripts/test-contact-delete.ts",
     "test:pro": "tsx scripts/test-pro-entitlements.ts",
     "test:security": "tsx scripts/test-security-hardening.ts",
+    "test:email": "tsx scripts/test-email-templates.ts",
     "test:wallet": "tsx scripts/test-wallet.ts"
   },
   "dependencies": {
