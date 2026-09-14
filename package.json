@@ -17,7 +17,8 @@
     "test:security": "tsx scripts/test-security-hardening.ts",
     "test:email": "tsx scripts/test-email-templates.ts",
     "test:wallet": "tsx scripts/test-wallet.ts",
-    "test:pwa": "tsx scripts/test-pwa.ts"
+    "test:pwa": "tsx scripts/test-pwa.ts",
+    "test:pwa-private-cache": "tsx scripts/test-pwa-private-cache-hotfix.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
