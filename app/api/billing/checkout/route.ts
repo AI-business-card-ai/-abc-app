@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { createCheckoutSession } from '@/lib/billing/checkout'
+import {
+  NATIVE_PURCHASES_UNAVAILABLE_CODE,
+  NATIVE_PURCHASES_UNAVAILABLE_MESSAGE,
+  webCheckoutAvailable,
+} from '@/lib/billing/commerce'
 import { profileCustomerStore } from '@/lib/billing/customer'
 import { readStripeConfig, stripeClient } from '@/lib/billing/stripe'
+import { nativePlatformFromHeaders } from '@/lib/native/runtime'
 
 /**
  * Start a purchase for the signed-in owner.
@@ -12,6 +18,9 @@ import { readStripeConfig, stripeClient } from '@/lib/billing/stripe'
  * else is read from it. The buyer is the verified session user; the Stripe
  * customer, price and quantity all come from the server. Returns the Checkout
  * URL, or a code saying honestly why the product cannot be bought yet.
+ *
+ * Refused outright from the store apps, which do not offer the web checkout
+ * (lib/billing/commerce.ts).
  */
 
 export const dynamic = 'force-dynamic'
@@ -26,6 +35,10 @@ const MESSAGES: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest) {
+  if (!webCheckoutAvailable(nativePlatformFromHeaders(req.headers))) {
+    return NextResponse.json({ error: NATIVE_PURCHASES_UNAVAILABLE_MESSAGE, code: NATIVE_PURCHASES_UNAVAILABLE_CODE }, { status: 403 })
+  }
+
   const auth = createRouteHandlerClient()
   const {
     data: { user },

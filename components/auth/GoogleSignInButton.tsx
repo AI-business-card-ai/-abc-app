@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { createClientComponent } from '@/lib/supabase'
 import { signInWithGoogle } from '@/lib/google-oauth'
+import { startNativeSignIn } from '@/lib/native/auth-client'
+import { isNativeApp } from '@/lib/native/runtime'
 
 type Props = {
   nextPath?: string
@@ -16,6 +18,10 @@ type Props = {
  *
  * Identity only — `signInWithGoogle` no longer asks for the mailbox, so the
  * consent screen here says who you are and nothing about sending mail.
+ *
+ * Inside the native app the same button opens Google in the system browser
+ * instead, because Google refuses sign-in inside an embedded WebView; the app
+ * finishes the sign-in when the browser hands back. See lib/native/auth-flow.ts.
  *
  * The four colours in the mark are Google's own and stay exactly as they are;
  * a brand mark is not ours to restyle. Everything around them used to be
@@ -36,6 +42,13 @@ export default function GoogleSignInButton({
     setLoading(true)
     setFailed(false)
     try {
+      if (isNativeApp()) {
+        // The browser sheet is up once this resolves; the button is ready again behind it.
+        if (!(await startNativeSignIn('google', nextPath, connectUserId))) setFailed(true)
+        setLoading(false)
+        return
+      }
+
       const supabase = createClientComponent()
       const { error } = await signInWithGoogle(supabase, nextPath, connectUserId)
       if (error) {

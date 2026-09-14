@@ -4,6 +4,7 @@ import { isTokenEncryptionConfigured } from '@/lib/crm/encryption'
 import { createOAuthState } from '@/lib/crm/oauth-state'
 import { proRequiredPath } from '@/lib/billing/pro-features'
 import { requirePro } from '@/lib/entitlements'
+import { refuseNativeConnect } from '@/lib/native/connect-gate'
 import { createServiceClient } from '@/lib/supabase/service'
 import {
   createPkce,
@@ -26,8 +27,14 @@ import {
  * PKCE is required by External Client Apps, and the verifier rides inside the
  * signed state cookie rather than a second cookie of its own, so it is bound to
  * the same owner and consumed by the same single use.
+ *
+ * Declined from the native app, where the callback could never complete; see
+ * lib/native/connect-gate.ts.
  */
 export async function GET(request: NextRequest) {
+  const nativeRefusal = refuseNativeConnect(request)
+  if (nativeRefusal) return nativeRefusal
+
   const supabase = createRouteHandlerClient()
   const {
     data: { user },

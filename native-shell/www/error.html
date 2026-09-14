@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ABC Card</title>
+<!--
+  Shown by the native shell when ABC cannot be loaded at all — no connection at
+  launch, or the server unreachable. It promises nothing the app does not do:
+  nothing is stored or queued on the phone. On Android this page has no access to
+  Capacitor plugins, so it relies on nothing but a link.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #0a0a0b; color: #f5f5f4; }
+  body {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+    box-sizing: border-box;
+  }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  p { margin: 0 auto 28px; max-width: 320px; color: #a8a29e; }
+  button {
+    font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 12px 22px;
+    background: #d9a441; color: #1a1205;
+  }
+  button:focus-visible { outline: 3px solid rgba(233, 166, 47, 0.45); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main role="alert">
+  <h1>Can’t reach ABC Card</h1>
+  <p>ABC Card needs an internet connection. Your card and contacts are kept in your account, not on this phone. Check your connection and try again.</p>
+  <button id="retry" type="button">Try again</button>
+</main>
+<script src="native-origin.js"></script>
+<script>
+  document.getElementById('retry').addEventListener('click', function () {
+    if (window.ABC_NATIVE_ORIGIN) window.location.replace(window.ABC_NATIVE_ORIGIN + '/home')
+    else window.location.reload()
+  })
+</script>
+</body>
+</html>

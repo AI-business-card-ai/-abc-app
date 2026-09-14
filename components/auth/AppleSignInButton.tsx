@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { createClientComponent } from '@/lib/supabase'
 import { signInWithApple } from '@/lib/apple-oauth'
+import { startNativeSignIn } from '@/lib/native/auth-client'
+import { isNativeApp } from '@/lib/native/runtime'
 
 type Props = {
   nextPath?: string
@@ -19,6 +21,10 @@ type Props = {
  * behaviour. Two sign-in buttons that behave differently would be two things to
  * keep in step, and the difference would show up as inconsistency on the one
  * screen where a stranger is deciding whether to trust the product.
+ *
+ * Inside the native app it takes the same system-browser path as Google, for
+ * the same reason: a sign-in that finishes outside the app's WebView must be
+ * handed back into it. See lib/native/auth-flow.ts.
  *
  * The mark is Apple's own glyph in plain white, which is what their guidelines
  * ask for on a dark button. Everything around it is the app's own palette.
@@ -41,6 +47,13 @@ export default function AppleSignInButton({
     setLoading(true)
     setFailed(false)
     try {
+      if (isNativeApp()) {
+        // The browser sheet is up once this resolves; the button is ready again behind it.
+        if (!(await startNativeSignIn('apple', nextPath, connectUserId))) setFailed(true)
+        setLoading(false)
+        return
+      }
+
       const supabase = createClientComponent()
       const { error } = await signInWithApple(supabase, nextPath, connectUserId)
       if (error) {

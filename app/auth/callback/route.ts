@@ -3,6 +3,7 @@ import { createOAuthCallbackClient, getPkceCookieDebugInfo } from '@/lib/supabas
 import { createServiceClient } from '@/lib/supabase/service'
 import { isGoogleUser } from '@/lib/google-oauth'
 import { AUTH_ERROR_CODES, type AuthErrorCode } from '@/lib/auth/error-codes'
+import { resolveSignInDestination } from '@/lib/auth/sign-in-destination'
 import { formatSupabaseError } from '@/lib/supabase-errors'
 import { handleQrConnect } from '@/lib/qr-connect'
 
@@ -144,75 +145,6 @@ export async function GET(request: NextRequest) {
       providerRefreshToken: summarizeToken(session?.provider_refresh_token),
     })
 
-    console.log('[auth/callback] checking abc_profiles row', { userId: user.id })
-
-    const { data: profile, error: profileSelectError } = await supabase
-      .from('abc_profiles')
-      .select('id, onboarding_completed')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (profileSelectError) {
-      console.error('[auth/callback] profile select failed (possible RLS issue)', {
-        message: profileSelectError.message,
-        code: profileSelectError.code,
-        details: profileSelectError.details,
-        hint: profileSelectError.hint,
-      })
-      return authErrorRedirect(origin, AUTH_ERROR_CODES.profileFailed, profileSelectError.message)
-    }
-
-    console.log('[auth/callback] profile lookup result', {
-      profileExists: Boolean(profile),
-      onboardingCompleted: profile?.onboarding_completed ?? null,
-    })
-
-    const serviceClient = createServiceClient()
-
-    if (!profile) {
-      console.log('[auth/callback] creating abc_profiles via service role', {
-        userId: user.id,
-        googleLogin,
-        providerRefreshToken: summarizeToken(session?.provider_refresh_token),
-      })
-
-      const { error: insertError } = await serviceClient.from('abc_profiles').insert({
-        id: user.id,
-        email: accountEmail,
-        /*
-          A new profile carries no mailbox. Signing in with Google is not
-          permission to send mail as them, and the tokens a sign-in returns
-          cannot send anyway — the connector fills these in later, for whoever
-          actually authorizes a mailbox.
-        */
-        google_connected: false,
-        google_email: null,
-        google_refresh_token: null,
-        google_access_token: null,
-        onboarding_completed: false,
-      })
-
-      if (insertError) {
-        console.error('[auth/callback] profile insert failed', {
-          message: insertError.message,
-          code: insertError.code,
-          details: insertError.details,
-          hint: insertError.hint,
-        })
-
-        if (insertError.code === '23505') {
-          console.log('[auth/callback] profile already exists (race with trigger), continuing with token save')
-          console.log('[auth/callback] redirecting to onboarding after duplicate-profile race')
-          return redirectWithAuthCookies(`${origin}/onboarding`)
-        }
-
-        return authErrorRedirect(origin, AUTH_ERROR_CODES.profileFailed, insertError.message)
-      }
-
-      console.log('[auth/callback] profile created, redirecting to onboarding (new profile)')
-      return redirectWithAuthCookies(`${origin}/onboarding`)
-    }
-
     /*
       No token handling here at all.
 
@@ -222,11 +154,22 @@ export async function GET(request: NextRequest) {
       signed state and the live session before it writes anything. Keeping a
       token-writing branch in this route would be unreachable code in the one
       place where "whose credentials are these" must never be ambiguous.
-    */
 
-    const destination = profile.onboarding_completed ? safeNext : '/onboarding'
-    console.log('[auth/callback] redirecting to final destination', { destination })
-    return redirectWithAuthCookies(`${origin}${destination}`)
+      What remains — the profile a first sign-in needs, and where to land — is
+      shared with native sign-in, so the two can never treat an account
+      differently.
+    */
+    const outcome = await resolveSignInDestination({
+      supabase,
+      createService: createServiceClient,
+      user: { id: user.id, email: accountEmail },
+      next: safeNext,
+      googleLogin,
+      logPrefix: '[auth/callback]',
+    })
+
+    if (!outcome.ok) return authErrorRedirect(origin, outcome.code, outcome.detail)
+    return redirectWithAuthCookies(`${origin}${outcome.destination}`)
   } catch (err) {
     const message = formatSupabaseError(err)
     console.error('[auth/callback] unhandled error', err)

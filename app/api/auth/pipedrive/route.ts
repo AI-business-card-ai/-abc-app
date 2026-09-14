@@ -4,6 +4,7 @@ import { isTokenEncryptionConfigured } from '@/lib/crm/encryption'
 import { createOAuthState } from '@/lib/crm/oauth-state'
 import { proRequiredPath } from '@/lib/billing/pro-features'
 import { requirePro } from '@/lib/entitlements'
+import { refuseNativeConnect } from '@/lib/native/connect-gate'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getPipedriveAuthorizeUrl, getPipedriveConfig } from '@/lib/crm/pipedrive-oauth'
 
@@ -19,8 +20,14 @@ import { getPipedriveAuthorizeUrl, getPipedriveConfig } from '@/lib/crm/pipedriv
  * No scope parameter. Pipedrive reads an app's scopes from its own developer
  * portal settings, so there is nothing to request here — and nothing that could
  * silently disagree with the app the way a scope list can.
+ *
+ * Declined from the native app, where the callback could never complete; see
+ * lib/native/connect-gate.ts.
  */
 export async function GET(request: NextRequest) {
+  const nativeRefusal = refuseNativeConnect(request)
+  if (nativeRefusal) return nativeRefusal
+
   const supabase = createRouteHandlerClient()
   const {
     data: { user },

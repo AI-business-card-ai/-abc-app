@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createOAuthState } from '@/lib/crm/oauth-state'
 import { proRequiredPath } from '@/lib/billing/pro-features'
 import { requirePro } from '@/lib/entitlements'
+import { refuseNativeConnect } from '@/lib/native/connect-gate'
 import { createServiceClient } from '@/lib/supabase/service'
 import {
   GMAIL_CONNECT_PROVIDER,
@@ -21,8 +22,14 @@ import {
  *
  * Note what this route does not do — it never signs anybody in. The session it
  * reads must already exist, and it is left exactly as found.
+ *
+ * Declined from the native app, where the callback could never complete; see
+ * lib/native/connect-gate.ts.
  */
 export async function GET(request: NextRequest) {
+  const nativeRefusal = refuseNativeConnect(request)
+  if (nativeRefusal) return nativeRefusal
+
   const supabase = createRouteHandlerClient()
   const {
     data: { user },

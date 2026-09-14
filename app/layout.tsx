@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import AppShell from '@/components/layout/AppShell'
+import NativeShellBridge from '@/components/native/NativeShellBridge'
 
 // latin-ext keeps diacritics (Novák, Bureš) sharp
 const inter = Inter({
@@ -58,6 +59,8 @@ export default function RootLayout({
         <meta name="abc-build" content={process.env.NEXT_PUBLIC_BUILD_SHA || 'dev'} />
       </head>
       <body className="bg-abc-bg text-abc-text">
+        {/* Inert on the web and in the PWA; the iOS and Android apps' integrations. */}
+        <NativeShellBridge />
         <AppShell>{children}</AppShell>
       </body>
     </html>

@@ -6,6 +6,7 @@ import { IconCreditCard } from '@tabler/icons-react'
 import ProRequiredNote from '@/components/billing/ProRequiredNote'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import type { ProKey } from '@/lib/billing/catalog'
+import { NATIVE_PURCHASES_UNAVAILABLE_MESSAGE } from '@/lib/billing/commerce'
 import { PRO_SOURCE_LABELS, type ProFeature } from '@/lib/billing/pro-features'
 import type { BillingStatus } from '@/lib/billing/status'
 import { planSummary } from '@/lib/settings/plan-summary'
@@ -27,6 +28,11 @@ import type { ABCProfile } from '@/lib/types'
  * product that is actually configured to be bought, and names no price — the
  * checkout shows the real one. Otherwise it says plainly that Pro cannot be
  * bought yet.
+ *
+ * Inside the App Store and Google Play apps (`webCheckout` false) no web checkout,
+ * portal or pricing link is shown, and nothing points elsewhere to buy: the page
+ * reports the plan and says purchases are not available in the app. See
+ * lib/billing/commerce.ts.
  */
 
 export type ProProductOption = { key: ProKey; available: boolean }
@@ -60,11 +66,14 @@ export default function BillingSettingsView({
   pro,
   proProducts,
   requiredFeature,
+  webCheckout = true,
 }: {
   profile: Partial<ABCProfile>
   pro: BillingStatus['pro']
   proProducts: ProProductOption[]
   requiredFeature: ProFeature | null
+  /** False inside the store apps, where the web checkout is not offered. */
+  webCheckout?: boolean
 }) {
   const [portalLoading, setPortalLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -124,7 +133,11 @@ export default function BillingSettingsView({
         <p className="mt-2 text-[13px] text-abc-secondary">{usageLine}</p>
 
         <div className="mt-3.5">
-          {paid && profile.stripe_customer_id ? (
+          {!webCheckout ? (
+            paid || exempt ? null : (
+              <p className="text-[13px] text-abc-secondary">{NATIVE_PURCHASES_UNAVAILABLE_MESSAGE}</p>
+            )
+          ) : paid && profile.stripe_customer_id ? (
             <button
               type="button"
               onClick={() => void openBillingPortal()}
@@ -172,7 +185,9 @@ export default function BillingSettingsView({
           </div>
         ) : null}
 
-        {pro.active ? null : buyable.length > 0 ? (
+        {pro.active ? null : !webCheckout ? (
+          <p className="mt-3 text-[13px] text-abc-secondary">{NATIVE_PURCHASES_UNAVAILABLE_MESSAGE}</p>
+        ) : buyable.length > 0 ? (
           <div className="mt-3.5 flex flex-wrap gap-2">
             {buyable.map((product) => (
               <button

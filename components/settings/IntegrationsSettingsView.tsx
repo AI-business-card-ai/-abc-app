@@ -50,7 +50,14 @@ const STATUS_COLOR: Record<CrmStatusLabel, string> = {
 
 type ConnectionMap = Record<string, CrmConnectionView>
 
-export default function IntegrationsSettingsView({ pro }: { pro: boolean }) {
+export default function IntegrationsSettingsView({
+  pro,
+  nativeApp = false,
+}: {
+  pro: boolean
+  /** Inside the store apps, where a new connection cannot be completed yet (lib/native/connect-gate.ts). */
+  nativeApp?: boolean
+}) {
   const [connections, setConnections] = useState<ConnectionMap>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -109,6 +116,13 @@ export default function IntegrationsSettingsView({ pro }: { pro: boolean }) {
         </div>
       )}
 
+      {nativeApp ? (
+        <p className="mt-4 rounded-card border border-abc-border bg-abc-card p-4 text-[13px] leading-[1.55] text-abc-secondary">
+          Connecting a CRM or Gmail isn’t available in the app yet. Connect at abccard.io in a browser —
+          connections made there work here too, and you can still disconnect here.
+        </p>
+      ) : null}
+
       {error ? (
         <p className="mt-4 text-[12.5px]" style={{ color: 'var(--abc-overdue)' }} role="alert">
           {error}
@@ -135,9 +149,9 @@ export default function IntegrationsSettingsView({ pro }: { pro: boolean }) {
                 </span>
               </div>
 
-              {loading || (!pro && !connected) ? null : (
+              {loading || (!pro && !connected) || (nativeApp && !connected) ? null : (
                 <div className="mt-3.5 flex flex-wrap gap-2">
-                  {pro ? (
+                  {nativeApp ? null : pro ? (
                     <a
                       href={provider.connectPath}
                       className="inline-flex h-[44px] items-center justify-center rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong abc-focus-ring"

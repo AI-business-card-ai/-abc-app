@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ABC Card</title>
+<!--
+  Capacitor requires a local web directory with an index page. The shell loads
+  ABC from its origin (capacitor.config.ts), so this page is only reached if that
+  configuration is missing; it then sends the app to ABC itself.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #0a0a0b; color: #a8a29e; }
+  body { display: flex; align-items: center; justify-content: center; font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+</style>
+</head>
+<body>
+<p>Opening ABC Card…</p>
+<script src="native-origin.js"></script>
+<script>
+  if (window.ABC_NATIVE_ORIGIN) window.location.replace(window.ABC_NATIVE_ORIGIN + '/home')
+</script>
+</body>
+</html>

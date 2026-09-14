@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the app may hand to other apps through its FileProvider, and nothing
+  broader:
+    - the cache, where lib/native/downloads.ts writes vCards, CSVs, QR images and
+      Wallet passes before the system share sheet takes them;
+    - the app's own external Pictures folder, where the WebView's photo capture
+      (Capacitor's BridgeWebChromeClient) writes the picture it hands back to a
+      file input.
+  The template exposed the whole of external storage; ABC needs neither that nor
+  any storage permission.
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="abc_files" path="." />
+    <external-files-path name="captured_photos" path="Pictures/" />
+</paths>

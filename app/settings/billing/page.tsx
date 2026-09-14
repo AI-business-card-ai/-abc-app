@@ -1,7 +1,10 @@
+import { headers } from 'next/headers'
 import BillingSettingsView from '@/components/settings/BillingSettingsView'
 import { PRO_KEYS, type ProKey } from '@/lib/billing/catalog'
+import { webCheckoutAvailable } from '@/lib/billing/commerce'
 import { isProFeature } from '@/lib/billing/pro-features'
 import { readBillingStatus } from '@/lib/billing/status'
+import { nativePlatformFromHeaders } from '@/lib/native/runtime'
 import { loadSettingsProfile } from '@/lib/settings/load-profile'
 import { createServerComponentClient } from '@/lib/supabase-server'
 import { createServiceClient } from '@/lib/supabase/service'
@@ -16,6 +19,9 @@ export const metadata = {
  * ABC Pro state comes from the verified session, through the same reader
  * /api/billing/status uses. `?pro=required&feature=…` is where a Pro action
  * sends a Free account; it only chooses which sentence to show, never grants.
+ *
+ * Whether the web checkout is offered is decided here, on the server, so the
+ * store apps never render a purchase button even for a moment.
  */
 export default async function BillingSettingsPage({
   searchParams,
@@ -45,6 +51,7 @@ export default async function BillingSettingsPage({
       pro={status.pro}
       proProducts={proProducts}
       requiredFeature={requiredFeature}
+      webCheckout={webCheckoutAvailable(nativePlatformFromHeaders(headers()))}
     />
   )
 }

@@ -1,5 +1,7 @@
+import { headers } from 'next/headers'
 import IntegrationsSettingsView from '@/components/settings/IntegrationsSettingsView'
 import { resolveProEntitlement } from '@/lib/entitlements'
+import { nativePlatformFromHeaders } from '@/lib/native/runtime'
 import { createServerComponentClient } from '@/lib/supabase-server'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -17,7 +19,9 @@ export const metadata = {
  *
  * Whether the owner is Pro is a different fact, resolved here from the verified
  * session so the screen can say honestly that connecting is ABC Pro. The routes
- * enforce it either way.
+ * enforce it either way. So is whether this is the native app, where a new
+ * connection cannot be completed yet and the screen says so instead of offering
+ * a button that would fail.
  */
 export default async function IntegrationsSettingsPage() {
   const {
@@ -26,5 +30,5 @@ export default async function IntegrationsSettingsPage() {
   if (!user) return null
 
   const { pro } = await resolveProEntitlement(createServiceClient(), user)
-  return <IntegrationsSettingsView pro={pro} />
+  return <IntegrationsSettingsView pro={pro} nativeApp={nativePlatformFromHeaders(headers()) !== null} />
 }

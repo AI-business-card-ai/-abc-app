@@ -1,6 +1,8 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { webCheckoutAvailable } from '@/lib/billing/commerce'
+import { nativePlatformFromHeaders } from '@/lib/native/runtime'
 
   const ONBOARDING_EXEMPT = [
     '/onboarding',
@@ -28,6 +30,20 @@ function withCookieDefaults(options: CookieOptions = {}): CookieOptions {
 }
 
 export async function middleware(req: NextRequest) {
+  /*
+    The store apps do not offer the web checkout (lib/billing/commerce.ts), and
+    the pricing pages are nothing but that checkout and its return screens. The
+    app is taken to Plan & Billing instead, which reports the plan and says
+    purchases are not available in the app.
+  */
+  const { pathname: requestedPath } = req.nextUrl
+  if (
+    (requestedPath === '/pricing' || requestedPath.startsWith('/pricing/')) &&
+    !webCheckoutAvailable(nativePlatformFromHeaders(req.headers))
+  ) {
+    return NextResponse.redirect(new URL('/settings/billing', req.url))
+  }
+
   let response = NextResponse.next({ request: req })
 
   const supabase = createServerClient(

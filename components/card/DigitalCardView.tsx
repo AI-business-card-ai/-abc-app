@@ -28,6 +28,7 @@ import CardHero from '@/components/card/CardHero'
 import ShowcaseGallery from '@/components/card/ShowcaseGallery'
 import { isSocialVisible } from '@/lib/card/public-data'
 import { whatsappMeUrl } from '@/lib/card/social'
+import { openDownload } from '@/lib/native/open-download'
 import { getCardThemeTokens, glassTokens } from '@/lib/card/theme'
 
 type Props = {
@@ -210,7 +211,8 @@ export default function DigitalCardView({
       onSaveContact()
       return
     }
-    window.location.href = `/api/card/vcard/${encodeURIComponent(card.slug)}`
+    // The browser saves the vCard; inside the native app it goes to the system share sheet.
+    openDownload(`/api/card/vcard/${encodeURIComponent(card.slug)}`)
   }
 
   /** Native share where the browser has it, clipboard everywhere else. */

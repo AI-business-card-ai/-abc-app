@@ -37,3 +37,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# native shell (Capacitor): signing material and machine-local files never enter git.
+# Build outputs and IDE state are ignored by the .gitignore files inside ios/ and android/.
+*.jks
+*.keystore
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
+keystore.properties
+/android/local.properties
