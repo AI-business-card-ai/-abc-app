@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { getStripePriceId, getPlanFromPriceId, type PaidPlan } from '@/lib/stripe-prices'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
@@ -51,7 +52,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Checkout failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('stripe/checkout', error, 'Checkout could not be started. Try again.')
   }
 }

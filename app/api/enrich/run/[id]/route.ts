@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { runContactEnrichment, type EnrichmentOptions } from '@/lib/enrichment'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 /**
  * Runs the enrichment pipeline for one contact, synchronously.
@@ -54,8 +55,7 @@ export async function POST(
     })
     return NextResponse.json({ success: true })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Enrichment failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('enrich/run/[id]', err, 'Enrichment failed. Try again.')
   }
 }
 

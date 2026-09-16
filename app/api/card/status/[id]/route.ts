@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 export async function GET(
   _req: NextRequest,
@@ -42,7 +43,6 @@ export async function GET(
       role: data.role,
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Status check failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('card/status/[id]', err, 'Could not check this contact. Try again.')
   }
 }

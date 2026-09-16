@@ -7,6 +7,7 @@ import {
   type PipelineStage,
 } from '@/lib/crm-engine'
 import type { PipelineStageId } from '@/lib/types'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 type UpdateBody = {
   contactId?: string
@@ -113,7 +114,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, contact: updated })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Update failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('contact/update', err, 'Could not update this contact. Try again.')
   }
 }

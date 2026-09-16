@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { getAiNextStep } from '@/lib/pipeline-ai'
 import type { ScannedContact } from '@/lib/types'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -71,7 +72,7 @@ export async function GET(_req: NextRequest) {
       .limit(50)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverErrorResponse('pipeline/insights', error, 'Could not load insights. Try again.')
     }
 
     const rows = (contacts || []) as ScannedContact[]
@@ -121,8 +122,7 @@ Contacts: ${JSON.stringify(summary)}`,
       source: 'ai',
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Insights failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('pipeline/insights', err, 'Could not load insights. Try again.')
   }
 }
 

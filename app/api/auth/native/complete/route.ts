@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       refresh_token: exchanged.refreshToken,
     })
     if (error || !data.user) {
-      return refuse(AUTH_ERROR_CODES.sessionFailed, 400, error?.message ?? 'no user after setting the session')
+      return refuse(AUTH_ERROR_CODES.sessionFailed, 400, error ? `setSession failed (${error.status ?? 'unknown'})` : 'no user after setting the session')
     }
 
     const user = data.user
@@ -101,6 +101,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ redirect: outcome.destination }, { headers: NO_STORE })
   } catch (err) {
-    return refuse(AUTH_ERROR_CODES.unexpected, 500, err instanceof Error ? err.message : 'unexpected failure')
+    return refuse(AUTH_ERROR_CODES.unexpected, 500, `unexpected failure (${err instanceof Error ? err.constructor.name : 'unknown'})`)
   }
 }

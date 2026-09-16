@@ -14,7 +14,8 @@ import Button from '@/components/ui/abc/Button'
 import { createClientComponent } from '@/lib/supabase'
 import { compressImageForScan } from '@/lib/image-compress'
 import { hapticMedium, hapticSuccess } from '@/lib/hooks/useHaptic'
-import { formatScanErrorForUser } from '@/lib/scan-card-validation'
+import { userFacingRequestError } from '@/lib/network-error'
+import { SCAN_NOT_COMPLETED_ERROR, formatScanErrorForUser } from '@/lib/scan-card-validation'
 import { candidateToFields, emptyCandidate, toCandidate, type CandidateInput } from '@/lib/scan/candidate'
 import { hintForMode, kindForMode, qrEnabledForMode, sourceForMode, type CaptureMode } from '@/lib/scan/modes'
 import type { CaptureOrigin, CaptureProvenance } from '@/lib/scan/provenance'
@@ -131,7 +132,15 @@ export default function ScanClient({ topPadding = true }: { topPadding?: boolean
         form.append('source', sourceForMode(mode))
 
         const res = await fetch('/api/card/scan', { method: 'POST', body: form })
-        const data = await res.json()
+        /*
+          A reply that is not JSON — a gateway timeout, a proxy's error page —
+          says nothing about the card. Parsing it threw the browser's own words
+          (Safari: "The string did not match the expected pattern."), which
+          were then shown as an unreadable card. Presentation only: what the
+          server charged, or did not, is unchanged.
+        */
+        const data = await res.json().catch(() => null)
+        if (!data) throw new Error(SCAN_NOT_COMPLETED_ERROR)
 
         if (res.status === 403 && data.error === 'SCAN_LIMIT_REACHED') {
           setBlocked(true)
@@ -274,7 +283,7 @@ export default function ScanClient({ topPadding = true }: { topPadding?: boolean
         hapticSuccess()
         router.push(`/contacts/${contactId}`)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not add this meeting.')
+        setError(userFacingRequestError(err, 'Could not add this meeting.'))
       } finally {
         setSaving(false)
       }
@@ -307,7 +316,7 @@ export default function ScanClient({ topPadding = true }: { topPadding?: boolean
             fields: candidateToFields(fields),
           }),
         })
-        const identityData = await identityRes.json()
+        const identityData = await identityRes.json().catch(() => ({}))
         if (!identityRes.ok || !identityData.success) {
           throw new Error(identityData.error || 'Could not save this contact.')
         }
@@ -359,7 +368,8 @@ export default function ScanClient({ topPadding = true }: { topPadding?: boolean
         hapticSuccess()
         setStage('saved')
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not save this contact.')
+        // A lost connection in plain words, never the browser's "Load failed".
+        setError(userFacingRequestError(err, 'Could not save this contact.'))
       } finally {
         setSaving(false)
       }

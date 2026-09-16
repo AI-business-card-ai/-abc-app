@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { ensureMandatoryCompanyFields } from '@/lib/company-field-estimator'
 import type { ScannedContact } from '@/lib/types'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,12 +42,11 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (updateError || !updated) {
-      return NextResponse.json({ error: updateError?.message || 'Update failed' }, { status: 500 })
+      return serverErrorResponse('contact/fill-crm-fields', updateError, 'Could not fill the CRM fields. Try again.')
     }
 
     return NextResponse.json({ success: true, contact: updated })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to fill CRM fields'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('contact/fill-crm-fields', err, 'Could not fill the CRM fields. Try again.')
   }
 }

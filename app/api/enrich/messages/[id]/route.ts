@@ -7,6 +7,7 @@ import { requirePro } from '@/lib/entitlements'
 import { buildMeetingContext } from '@/lib/contact-enrichment-ui'
 import { isLinkedInDataTrusted, stripUntrustedLinkedInFields } from '@/lib/linkedin-identity'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 export async function POST(
   _req: NextRequest,
@@ -78,8 +79,7 @@ export async function POST(
 
     return NextResponse.json({ success: true, contact: updated })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Message regeneration failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('enrich/messages/[id]', err, 'Could not regenerate the messages. Try again.')
   }
 }
 

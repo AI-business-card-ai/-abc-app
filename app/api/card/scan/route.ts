@@ -12,6 +12,7 @@ import { chargeAcceptedCards, resolveScanEntitlement } from '@/lib/scan/entitlem
 import { ledgerKeys, singleScanDigest } from '@/lib/billing/ledger'
 import {
   SCAN_CARD_UNREADABLE_ERROR,
+  SCAN_NOT_COMPLETED_ERROR,
   hasUsableCardData,
   isTechnicalScanReadError,
   sanitizeCardExtract,
@@ -249,11 +250,19 @@ export async function POST(req: NextRequest) {
       return unreadableCardResponse(502)
     }
 
-    const message = err instanceof Error ? err.message : JSON.stringify(err)
+    const message = err instanceof Error ? err.message : ''
     if (isTechnicalScanReadError(message)) {
       return unreadableCardResponse()
     }
 
-    return NextResponse.json({ success: false, error: message }, { status: 500 })
+    /*
+      Not a verdict on the card: something on the server failed. The browser
+      is told so in words of ours, never in whatever the thrown error said —
+      that could quote a row, a provider or a configuration name.
+    */
+    return NextResponse.json(
+      { success: false, error: SCAN_NOT_COMPLETED_ERROR },
+      { status: 500 }
+    )
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { serverErrorResponse } from '@/lib/api/errors'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import type { CrmStatus } from '@/lib/crm'
 
@@ -16,7 +17,7 @@ export async function GET() {
     .eq('user_id', user.id)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return serverErrorResponse('crm/stats', error, 'Could not load CRM stats. Try again.')
   }
 
   const rows = contacts ?? []

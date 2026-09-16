@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { onMessageSent, type MessageChannel } from '@/lib/crm-engine'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,7 +52,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, contact })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to log message'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('contact/message-sent', err, 'Could not log the message. Try again.')
   }
 }

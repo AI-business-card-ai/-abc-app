@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { runContactEnrichment } from '@/lib/enrichment'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 /** Refresh intelligence / research — delegates to central enrichment pipeline. */
 export async function POST(req: NextRequest) {
@@ -41,9 +42,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, contact: refreshed })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Intelligence research failed'
-    console.error('Enrich queue error:', err)
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('enrich/queue', err, 'Intelligence research failed. Try again.')
   }
 }
 

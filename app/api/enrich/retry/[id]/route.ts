@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase'
 import { runContactEnrichment, triggerBackgroundEnrichment } from '@/lib/enrichment'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 export async function POST(
   req: NextRequest,
@@ -37,7 +38,6 @@ export async function POST(
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Retry failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('enrich/retry/[id]', err, 'Retry failed. Try again.')
   }
 }

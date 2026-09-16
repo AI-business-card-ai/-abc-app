@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServerSupabase } from '@/lib/supabase'
 import { requirePro } from '@/lib/entitlements'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 /**
  * Schedules the three-step follow-up sequence for one contact.
@@ -110,7 +111,6 @@ export async function POST(req: NextRequest) {
     if (error) throw error
     return NextResponse.json({ success: true, sequences: data })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('card/followup', err)
   }
 }

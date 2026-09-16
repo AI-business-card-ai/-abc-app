@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverErrorResponse } from '@/lib/api/errors'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 
 export async function GET(req: NextRequest) {
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
     .limit(50)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return serverErrorResponse('crm/activities', error, 'Could not load the activity history. Try again.')
   }
 
   return NextResponse.json({ activities: data ?? [] })

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverErrorResponse } from '@/lib/api/errors'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { requirePro } from '@/lib/entitlements'
 import { createServiceClient } from '@/lib/supabase/service'
@@ -58,13 +59,21 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const message = err instanceof Error ? err.message : 'Failed to send email'
-    console.error('send-gmail error:', err)
-
+    /*
+      Two failures are ours and worth saying as they are: the contact has no
+      address, or the address is not one Gmail will accept. Anything else — a
+      token refresh Google refused, a database error, missing configuration —
+      is worded by whoever threw it, so the browser gets one sentence and the
+      log gets the kind.
+    */
+    const message = err instanceof Error ? err.message : ''
     if (message === 'Contact email not found') {
       return NextResponse.json({ error: message }, { status: 404 })
     }
+    if (message === 'Invalid recipient address') {
+      return NextResponse.json({ error: 'That email address is not valid. Check it and try again.' }, { status: 400 })
+    }
 
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('send-gmail', err, 'The email could not be sent. Try again.')
   }
 }

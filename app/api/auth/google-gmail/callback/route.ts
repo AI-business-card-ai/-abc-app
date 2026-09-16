@@ -132,6 +132,7 @@ export async function GET(request: NextRequest) {
     url.searchParams.set('gmail', 'connected')
     return NextResponse.redirect(url)
   } catch (err) {
-    return failed(request, returnTo, err instanceof Error ? err.message : 'token exchange failed')
+    // The kind only: Google's wording can carry request detail, and a log keeps it.
+    return failed(request, returnTo, `token exchange failed (${err instanceof Error ? err.constructor.name : 'unknown'})`)
   }
 }

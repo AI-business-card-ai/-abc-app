@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { getPlanFromPriceId, type PaidPlan } from '@/lib/stripe-prices'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
@@ -49,7 +50,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ plan })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to load session'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('stripe/session', error, 'Could not load this checkout. Try again.')
   }
 }

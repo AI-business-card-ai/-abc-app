@@ -1297,7 +1297,9 @@ async function run() {
   const fingerprint = (rel: string) => crypto.createHash('sha256').update(read(rel).replace(/\r\n/g, '\n')).digest('hex')
   // Pinned at the approved release. A deliberate Single Card change updates these on purpose.
   check('I31a CameraStage.tsx unchanged', fingerprint('components/scan/CameraStage.tsx'), 'd5749dc37fe65cfc824e3df7b3ebf4ed6287fcfa453acee0182d403281b82179')
-  check('I31b ScanClient.tsx unchanged', fingerprint('components/scan/ScanClient.tsx'), '5c411531b2f10008601c4af26fac397ace6c9ef784df7ed01d1727d3841a83e9')
+  // Updated deliberately by the error-surface task: error presentation only (a non-JSON
+  // reply and a lost connection worded plainly); no camera or immersive change — I30a holds.
+  check('I31b ScanClient.tsx unchanged', fingerprint('components/scan/ScanClient.tsx'), '5f6ed6a1eb67e93aac745836543b7406c443638d0d8ec5f445545bcc884e3a90')
   check('I31c the shared camera hook unchanged', fingerprint('lib/scan/useCamera.ts'), '8abb68903680a757855c7233e13f830926c0a4f09d83524aafe3086466480006')
 
   // 32. The shutter uses the existing multi-card image pipeline.

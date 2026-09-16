@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServiceClient } from '@/lib/supabase/service'
 import { runContactEnrichment } from '@/lib/enrichment'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 /**
  * Legacy alias — same central enrichment pipeline as /api/enrich/queue.
@@ -66,8 +67,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, contact: data })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('card/enrich', err)
   }
 }
 

@@ -57,6 +57,12 @@ export function hasUsableCardData(extracted: CardExtract): boolean {
   return Boolean(extracted.name || extracted.company || extracted.email)
 }
 
+/**
+ * The server, or the path to it, failed while reading a photo. Not about the
+ * card, so it is never mapped to the unreadable-card sentence.
+ */
+export const SCAN_NOT_COMPLETED_ERROR = 'The scan could not be completed. Try again.'
+
 export function isTechnicalScanReadError(message: string): boolean {
   const lower = message.toLowerCase()
   return (

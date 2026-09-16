@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { createServerSupabase } from '@/lib/supabase'
 import { triggerBackgroundEnrichment } from '@/lib/enrichment'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 /**
  * Queue Phase 2 enrichment (returns immediately).
@@ -63,8 +64,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, queued: true, contactId })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Enrichment failed'
-    console.error('[card/scan/enrich]', err)
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('card/scan/enrich', err, 'Enrichment failed. Try again.')
   }
 }

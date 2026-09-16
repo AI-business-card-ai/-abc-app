@@ -17,6 +17,7 @@ import {
   type EncounterRow,
 } from '@/lib/encounters'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 function normalizeChannels(channels: unknown): OutreachChannel[] {
   if (!Array.isArray(channels) || channels.length === 0) return [...ALL_OUTREACH_CHANNELS]
@@ -327,7 +328,6 @@ export async function POST(req: NextRequest) {
     */
     return NextResponse.json({ success: true, contact, encounter, projectionStale })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to save context'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('card/context', err, 'Could not save the meeting context. Try again.')
   }
 }

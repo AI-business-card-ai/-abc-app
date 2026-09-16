@@ -13,6 +13,7 @@ import { createEncounter } from '@/lib/encounters'
 import { findExistingContactMatches } from '@/lib/contacts/duplicate-match'
 import { sanitizeCardExtract, type CardExtract } from '@/lib/scan-card-validation'
 import { splitName } from '@/lib/data-model'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 /**
  * The one place a scan becomes a contact.
@@ -260,7 +261,6 @@ export async function POST(req: NextRequest) {
     */
     return NextResponse.json({ success: true, outcome: 'created', contact: data, encounter })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Could not save this contact.'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('scan/contact', err, 'Could not save this contact.')
   }
 }

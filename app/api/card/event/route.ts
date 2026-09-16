@@ -7,6 +7,7 @@ import { calculateLeadScore } from '@/lib/crm'
 import { contactHasEventTag } from '@/lib/event-tag'
 import { normalizeEventText } from '@/lib/event-normalizer'
 import type { ABCProfile, ScannedContact } from '@/lib/types'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 async function recalculateContactScore(contact: ScannedContact, userId: string) {
   const supabase = createRouteHandlerClient()
@@ -106,7 +107,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, contact })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to save event'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('card/event', err, 'Could not save the event. Try again.')
   }
 }

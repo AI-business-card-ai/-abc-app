@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { triggerBackgroundEnrichment, type EnrichmentOptions } from '@/lib/enrichment'
 import { LINKEDIN_FIELDS_TO_CLEAR } from '@/lib/linkedin-identity'
 import type { ScannedContact } from '@/lib/types'
+import { serverErrorResponse } from '@/lib/api/errors'
 
 function linkedinClearPayload(status: 'rejected' | null) {
   const payload: Record<string, null | string> = {
@@ -105,7 +106,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, contact: updated as ScannedContact })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'LinkedIn action failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverErrorResponse('contact/linkedin', err, 'The LinkedIn action failed. Try again.')
   }
 }
