@@ -6,9 +6,27 @@ import DesktopSidebar from '@/components/layout/DesktopSidebar'
 import MobileNav from '@/components/layout/MobileNav'
 import { CLEARS_MOBILE_NAV, SAFE_LEFT, SAFE_RIGHT } from '@/lib/ui/layout'
 
-/** Routes that render without any app chrome. */
-const BARE_PATHS = [
+/**
+ * Public, signed-out surfaces: no app chrome, full width.
+ *
+ * Each of these renders its own complete page. Falling through to the
+ * authenticated shell showed a visitor who had never signed in the product's
+ * sidebar — Scan, Contacts, Follow-ups — wrapped around a legal page or a
+ * marketing page, and stacked a second header on the ones that carry the
+ * public header. `/account-deletion` belongs here for the same reason: the
+ * stores link to it, it must work signed out, and it is a standalone page.
+ */
+const PUBLIC_PATHS = [
   '/',
+  '/privacy',
+  '/terms',
+  '/account-deletion',
+  '/pricing/success',
+  '/pricing/cancel',
+]
+
+/** Auth and first-run screens: no app chrome, and a narrow centred column. */
+const BARE_PATHS = [
   '/login',
   '/register',
   '/forgot-password',
@@ -25,13 +43,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isPublicCard) return <>{children}</>
 
+  if (PUBLIC_PATHS.includes(pathname)) return <>{children}</>
+
   if (BARE_PATHS.includes(pathname)) {
-    const isLanding = pathname === '/'
     return (
       <div className="flex min-h-screen justify-center bg-abc-bg">
         <div
           className={`relative min-h-screen w-full ${
-            isLanding ? '' : pathname === '/onboarding' ? 'max-w-[600px]' : 'max-w-[430px]'
+            pathname === '/onboarding' ? 'max-w-[600px]' : 'max-w-[430px]'
           }`}
         >
           {children}

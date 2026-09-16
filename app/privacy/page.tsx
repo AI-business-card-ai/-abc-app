@@ -1,14 +1,12 @@
+import PublicDoc, { type DocClause } from '@/components/landing/PublicDoc'
+
 export const metadata = { title: 'Privacy Policy — ABC', description: 'How ABC AI Business Card handles your data.' }
 
-export default function PrivacyPage() {
-  return (
-    <div style={{ background: '#0f0f0f', minHeight: '100vh', padding: '0 0 60px' }}>
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '32px 24px' }}>
-        <a href="/" style={{ display: 'inline-block', marginBottom: 32, fontSize: 20, fontWeight: 900, background: 'linear-gradient(90deg,#f0197d,#00d4d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ABC</a>
-        <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 900, marginBottom: 8 }}>Privacy Policy</h1>
-        <p style={{ color: '#666', fontSize: 13, marginBottom: 40 }}>Effective date: August 8, 2026</p>
-
-        {[
+/*
+  Clause text, effective date and metadata are carried over verbatim from the
+  release candidate. This file only decides how the document is presented.
+*/
+const CLAUSES: DocClause[] = [
           { h: '1. Who we are', t: 'ABC — AI Business Card is operated by [LEGAL ENTITY TO BE ADDED — company registration pending]. Contact: support@abccard.io. Service available at abccard.io.' },
           { h: '2. What we collect', t: 'Account info (name, email, and a profile photo if you add one) from email sign-up or from Google or Apple sign-in. Profile data you enter (job title, company, goals). Business card data extracted via AI when you scan a card. Contact context (where you met, notes, follow-up preferences). Payment info processed by Stripe — we never store card details. Basic usage data for service operation.' },
           { h: '3. How we use your data', t: 'To provide core features: scanning, keeping your contacts and meeting notes, generating message drafts. AI-generated messages are always reviewed by you before sending — nothing is ever sent automatically. To manage your subscription and process payments. To send transactional emails (billing, account notifications). To improve service reliability and quality. We never sell your data or your contacts\' data.' },
@@ -21,17 +19,16 @@ export default function PrivacyPage() {
           { h: '10. Children', t: 'ABC is not intended for anyone under 16. We do not knowingly collect data from minors.' },
           { h: '11. Changes', t: 'We may update this policy and will post changes here with an updated date. Material changes will be announced in the app or by email.' },
           { h: '12. Contact', t: 'support@abccard.io' },
-        ].map(({ h, t }) => (
-          <div key={h} style={{ marginBottom: 32 }}>
-            <h2 style={{ color: '#ffffff', fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{h}</h2>
-            <p style={{ color: '#9ca3af', fontSize: 14, lineHeight: 1.7 }}>{t}</p>
-          </div>
-        ))}
+        ]
 
-        <div style={{ borderTop: '1px solid #2a2a2a', paddingTop: 24, marginTop: 40 }}>
-          <a href="/terms" style={{ color: '#666', fontSize: 13 }}>Terms of Service →</a>
-        </div>
-      </div>
-    </div>
+export default function PrivacyPage() {
+  return (
+    <PublicDoc
+      title="Privacy Policy"
+      effective="August 8, 2026"
+      clauses={CLAUSES}
+      otherHref="/terms"
+      otherLabel="Terms of Service"
+    />
   )
 }

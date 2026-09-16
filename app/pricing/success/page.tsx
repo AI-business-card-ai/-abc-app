@@ -1,23 +1,30 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
 import { getScanLimitForPlan } from '@/lib/scan-limits'
 import { PLAN_LABELS, type PaidPlan } from '@/lib/stripe-prices'
+import PublicNotice from '@/components/landing/PublicNotice'
 
-const COLORS = {
-  bg: '#0f0f0f',
-  cyan: '#00d4d4',
-  pink: '#f0197d',
-  text: '#ffffff',
-  muted: '#999999',
-}
-
+/**
+ * Where Stripe returns after a successful payment.
+ *
+ * The plan-resolution logic is unchanged: the checkout session is the primary
+ * source, and the profile row is the fallback for when the webhook has landed
+ * but the session lookup has not answered.
+ *
+ * Only the presentation moved onto the public system. It used to paint a
+ * pink-to-cyan button on `#0f0f0f` in `system-ui`, so the product visibly
+ * changed brand at the exact moment somebody had just paid for it.
+ *
+ * The allowance is described as lifetime, which is what `scan-limits` actually
+ * enforces — the old copy said "you can scan up to N contacts", which reads as
+ * a monthly figure and set the wrong expectation on day one.
+ */
 function SuccessContent() {
   const searchParams = useSearchParams()
-  const supabase = createClientComponent()
+  const [supabase] = useState(() => createClientComponent())
   const [plan, setPlan] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -26,7 +33,9 @@ function SuccessContent() {
     const sessionId = searchParams.get('session_id')
 
     ;(async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!active) return
 
       if (!user) {
@@ -46,7 +55,7 @@ function SuccessContent() {
             }
           }
         } catch {
-          // fall through to profile
+          // fall through to the profile row
         }
       }
 
@@ -72,71 +81,29 @@ function SuccessContent() {
   const scanLimit = getScanLimitForPlan(planKey)
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: COLORS.bg,
-        color: COLORS.text,
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px 20px',
-      }}
+    <PublicNotice
+      eyebrow="Payment received"
+      title="You're on ABC Pro."
+      actions={[
+        { href: '/scan', label: 'Start scanning', variant: 'gold' },
+        { href: '/contacts', label: 'View contacts' },
+      ]}
     >
-      <div style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
-        <p style={{ fontSize: 48, margin: '0 0 16px' }}>✓</p>
-        <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 12px' }}>
-          Payment successful!
-        </h1>
-        {loading ? (
-          <p style={{ color: COLORS.muted, marginBottom: 32 }}>Activating your plan…</p>
-        ) : (
-          <p style={{ color: COLORS.muted, marginBottom: 8, fontSize: 16 }}>
-            Your <strong style={{ color: COLORS.cyan }}>{planLabel}</strong> plan is now active.
+      {loading ? (
+        <p className="pub-notice-body">Activating your plan…</p>
+      ) : (
+        <>
+          <p className="pub-notice-body">
+            Your <strong>{planLabel}</strong> plan is active, with{' '}
+            <strong>{scanLimit.toLocaleString('en-GB')}</strong> lifetime scans.
           </p>
-        )}
-        {!loading && (
-          <p style={{ color: COLORS.muted, marginBottom: 32, fontSize: 14 }}>
-            You can scan up to <strong style={{ color: COLORS.text }}>{scanLimit}</strong> contacts.
+          <p className="pub-notice-note">
+            Everything after the meeting is now yours: meeting context, follow-up drafted from what
+            you discussed, and export to your CRM.
           </p>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Link
-            href="/scan"
-            style={{
-              display: 'block',
-              padding: '14px 20px',
-              borderRadius: 12,
-              fontWeight: 700,
-              fontSize: 15,
-              textDecoration: 'none',
-              background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
-              color: '#ffffff',
-            }}
-          >
-            Start scanning
-          </Link>
-          <Link
-            href="/contacts"
-            style={{
-              display: 'block',
-              padding: '14px 20px',
-              borderRadius: 12,
-              fontWeight: 600,
-              fontSize: 14,
-              textDecoration: 'none',
-              background: '#1a1a1a',
-              border: '1px solid #2a2a2a',
-              color: COLORS.cyan,
-            }}
-          >
-            View contacts
-          </Link>
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    </PublicNotice>
   )
 }
 
@@ -144,18 +111,9 @@ export default function PricingSuccessPage() {
   return (
     <Suspense
       fallback={
-        <div
-          style={{
-            minHeight: '100vh',
-            background: '#0f0f0f',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          Loading…
-        </div>
+        <PublicNotice eyebrow="Payment received" title="You're on ABC Pro." actions={[]}>
+          <p className="pub-notice-body">Activating your plan…</p>
+        </PublicNotice>
       }
     >
       <SuccessContent />

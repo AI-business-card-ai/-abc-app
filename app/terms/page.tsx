@@ -1,14 +1,12 @@
+import PublicDoc, { type DocClause } from '@/components/landing/PublicDoc'
+
 export const metadata = { title: 'Terms of Service — ABC', description: 'Terms governing use of ABC AI Business Card.' }
 
-export default function TermsPage() {
-  return (
-    <div style={{ background: '#0f0f0f', minHeight: '100vh', padding: '0 0 60px' }}>
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '32px 24px' }}>
-        <a href="/" style={{ display: 'inline-block', marginBottom: 32, fontSize: 20, fontWeight: 900, background: 'linear-gradient(90deg,#f0197d,#00d4d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ABC</a>
-        <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 900, marginBottom: 8 }}>Terms of Service</h1>
-        <p style={{ color: '#666', fontSize: 13, marginBottom: 40 }}>Effective date: August 8, 2026</p>
-
-        {[
+/*
+  Clause text, effective date and metadata are carried over verbatim from the
+  release candidate. This file only decides how the document is presented.
+*/
+const CLAUSES: DocClause[] = [
           { h: '1. The service', t: 'ABC — AI Business Card ("ABC", "we") lets you scan business cards, keep contacts and meeting notes, and generate suggested follow-up messages. All AI-generated messages are drafts — you review and approve every message before it is sent. Nothing is ever sent automatically.' },
           { h: '2. Operator', t: 'ABC is operated by [LEGAL ENTITY TO BE ADDED — company registration pending]. Contact: support@abccard.io.' },
           { h: '3. Your account', t: 'You must be at least 16 years old and provide accurate information. You are responsible for all activity under your account. Sign-in is via Google OAuth.' },
@@ -22,17 +20,16 @@ export default function TermsPage() {
           { h: '11. Liability', t: 'The service is provided "as is". To the maximum extent permitted by law, our total liability is limited to amounts you paid us in the preceding 12 months. We are not liable for indirect or consequential damages.' },
           { h: '12. Governing law', t: 'These Terms are governed by Czech law. Disputes are resolved by Czech courts unless mandatory consumer protection rules provide otherwise.' },
           { h: '13. Contact', t: 'support@abccard.io' },
-        ].map(({ h, t }) => (
-          <div key={h} style={{ marginBottom: 32 }}>
-            <h2 style={{ color: '#ffffff', fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{h}</h2>
-            <p style={{ color: '#9ca3af', fontSize: 14, lineHeight: 1.7 }}>{t}</p>
-          </div>
-        ))}
+        ]
 
-        <div style={{ borderTop: '1px solid #2a2a2a', paddingTop: 24, marginTop: 40 }}>
-          <a href="/privacy" style={{ color: '#666', fontSize: 13 }}>Privacy Policy →</a>
-        </div>
-      </div>
-    </div>
+export default function TermsPage() {
+  return (
+    <PublicDoc
+      title="Terms of Service"
+      effective="August 8, 2026"
+      clauses={CLAUSES}
+      otherHref="/privacy"
+      otherLabel="Privacy Policy"
+    />
   )
 }

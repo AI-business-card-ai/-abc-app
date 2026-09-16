@@ -1,70 +1,28 @@
-'use client'
+import PublicNotice from '@/components/landing/PublicNotice'
 
-import Link from 'next/link'
+export const metadata = { title: 'Checkout cancelled — ABC' }
 
-const COLORS = {
-  bg: '#0f0f0f',
-  cyan: '#00d4d4',
-  text: '#ffffff',
-  muted: '#999999',
-}
-
+/**
+ * Stripe returns here when someone backs out of checkout.
+ *
+ * No longer a client component: there was nothing interactive on it, only two
+ * links. Rendering it on the server makes it a static page and removes the
+ * bundle it used to carry.
+ */
 export default function PricingCancelPage() {
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: COLORS.bg,
-        color: COLORS.text,
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px 20px',
-      }}
+    <PublicNotice
+      eyebrow="Checkout"
+      title="No problem."
+      actions={[
+        { href: '/pricing', label: 'Back to plans', variant: 'gold' },
+        { href: '/', label: 'Return to ABC' },
+      ]}
     >
-      <div style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 12px' }}>
-          No problem
-        </h1>
-        <p style={{ color: COLORS.muted, marginBottom: 32, fontSize: 16 }}>
-          You can upgrade anytime.
-        </p>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Link
-            href="/pricing"
-            style={{
-              display: 'block',
-              padding: '14px 20px',
-              borderRadius: 12,
-              fontWeight: 700,
-              fontSize: 15,
-              textDecoration: 'none',
-              background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
-              color: '#ffffff',
-            }}
-          >
-            Back to plans
-          </Link>
-          <Link
-            href="/scan"
-            style={{
-              display: 'block',
-              padding: '14px 20px',
-              borderRadius: 12,
-              fontWeight: 600,
-              fontSize: 14,
-              textDecoration: 'none',
-              background: '#1a1a1a',
-              border: '1px solid #2a2a2a',
-              color: COLORS.cyan,
-            }}
-          >
-            Continue scanning
-          </Link>
-        </div>
-      </div>
-    </div>
+      <p className="pub-notice-body">
+        Nothing was charged. Your ABC Card and everything on it stay exactly as they are — you can
+        upgrade whenever the workflow starts saving you real time.
+      </p>
+    </PublicNotice>
   )
 }
