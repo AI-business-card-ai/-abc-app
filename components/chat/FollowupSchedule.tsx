@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { createClientComponent } from '@/lib/supabase'
 import type { FollowupSequence } from '@/lib/types'
+import { userFacingRequestError } from '@/lib/network-error'
 
 const CHANNEL_META: Record<'linkedin' | 'email' | 'whatsapp', { label: string; color: string }> = {
   linkedin: { label: 'LinkedIn', color: '#0077B5' },
@@ -38,7 +39,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
       if (updateError) throw new Error(updateError.message)
       onSequenceUpdated(data as FollowupSequence)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Send failed.')
+      setError(userFacingRequestError(err, 'Send failed.'))
     } finally {
       setSendingId(null)
     }

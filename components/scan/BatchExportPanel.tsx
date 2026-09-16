@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { IconAlertTriangle, IconCheck, IconCloudUpload } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import { SectionLabel } from '@/components/ui/abc/Bits'
+import { userFacingRequestError } from '@/lib/network-error'
 
 /**
  * Push a whole batch into the CRM the owner has connected.
@@ -92,7 +93,7 @@ export default function BatchExportPanel({
       setRows((data.results as ExportRow[]) || [])
       setExported(typeof data.exported === 'number' ? data.exported : 0)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not push this batch.')
+      setError(userFacingRequestError(err, 'Could not push this batch.'))
     } finally {
       setBusy(false)
     }

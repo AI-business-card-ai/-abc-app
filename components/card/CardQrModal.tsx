@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { IconCheck, IconCopy, IconDownload, IconX } from '@tabler/icons-react'
 import CardQrImage, { cardPublicUrl, cardQrSrc } from '@/components/card/CardQrImage'
+import { SAFE_LEFT, SAFE_RIGHT } from '@/lib/ui/layout'
 
 type Props = {
   slug: string
@@ -90,7 +91,9 @@ export default function CardQrModal({ slug, open, onClose, name, company }: Prop
       aria-modal="true"
       aria-label="Your card QR code"
       className="fixed inset-0 z-[210] flex flex-col"
-      style={{ background: '#000000' }}
+      // Sideways, the notch sits over one edge: keep the close button and the
+      // code clear of it. Zero upright.
+      style={{ background: '#000000', paddingLeft: SAFE_LEFT, paddingRight: SAFE_RIGHT }}
     >
       <header
         className="flex shrink-0 items-center justify-between px-4"

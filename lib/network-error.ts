@@ -27,8 +27,21 @@ export function isNetworkFailure(message: string): boolean {
   return NETWORK_FAILURE_MESSAGES.includes(normalized)
 }
 
-/** A caught error, worded for the screen: a lost connection in plain words, anything else as it was. */
+export const SESSION_ENDED_MESSAGE = 'Your session has ended. Sign in again to continue.'
+
+/**
+ * A caught error, worded for the screen: a lost connection in plain words, a
+ * lapsed session in plain words, a reply that could not be parsed as the
+ * fallback, anything else as it was.
+ *
+ * The SyntaxError case is `await res.json()` on something that is not JSON — a
+ * gateway timeout or a proxy's error page — whose browser wording ("Unexpected
+ * token '<'", "The string did not match the expected pattern.") means nothing
+ * to the person reading it. "Unauthorized" is what the API routes answer once a
+ * session has expired, which on its own reads like a permission problem.
+ */
 export function userFacingRequestError(err: unknown, fallback: string): string {
-  if (!(err instanceof Error)) return fallback
+  if (!(err instanceof Error) || err instanceof SyntaxError) return fallback
+  if (err.message.trim() === 'Unauthorized') return SESSION_ENDED_MESSAGE
   return isNetworkFailure(err.message) ? NETWORK_FAILURE_MESSAGE : err.message
 }

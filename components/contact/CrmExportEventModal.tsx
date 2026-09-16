@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { ScannedContact } from '@/lib/types'
+import { userFacingRequestError } from '@/lib/network-error'
 
 type ExportTarget = 'salesforce' | 'hubspot'
 
@@ -49,7 +50,7 @@ export default function CrmExportEventModal({ open, target, contact, onClose, on
       setValue('')
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save')
+      setError(userFacingRequestError(err, 'Failed to save'))
     } finally {
       setSaving(false)
     }

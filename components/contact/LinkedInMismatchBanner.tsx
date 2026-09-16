@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { ScannedContact } from '@/lib/types'
 import { shouldShowLinkedInMismatchWarning } from '@/lib/linkedin-identity'
+import { userFacingRequestError } from '@/lib/network-error'
 
 type Props = {
   contact: ScannedContact
@@ -34,7 +35,7 @@ export default function LinkedInMismatchBanner({ contact, onUpdated, compact }: 
       if (!res.ok) throw new Error(json.error || 'Action failed')
       if (json.contact) onUpdated?.(json.contact as ScannedContact)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action failed')
+      setError(userFacingRequestError(err, 'Action failed'))
     } finally {
       setBusy(false)
     }

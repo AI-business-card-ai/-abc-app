@@ -14,6 +14,7 @@ import {
   openWhatsAppComposer,
 } from '@/lib/outreach-composers'
 import type { ScannedContact } from '@/lib/types'
+import { userFacingRequestError } from '@/lib/network-error'
 
 const CARD = { background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px' } as const
 
@@ -265,7 +266,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
       return true
     } catch (e) {
       console.error(e)
-      showToast(e instanceof Error ? e.message : 'Email send failed')
+      showToast(userFacingRequestError(e, 'Email send failed'))
       return false
     } finally {
       setSendingGmail(false)
@@ -376,7 +377,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
       if (json.contact) onContactUpdate(json.contact as ScannedContact)
       showToast('Messages regenerated')
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Regeneration failed')
+      showToast(userFacingRequestError(err, 'Regeneration failed'))
     } finally {
       setRegenerating(false)
     }

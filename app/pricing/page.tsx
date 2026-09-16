@@ -7,6 +7,7 @@ import { createClientComponent } from '@/lib/supabase'
 import { getScanLimitForPlan } from '@/lib/scan-limits'
 import { PLAN_LABELS, PLAN_PRICES_USD, type PaidPlan } from '@/lib/stripe-prices'
 import type { ABCProfile } from '@/lib/types'
+import { userFacingRequestError } from '@/lib/network-error'
 
 const COLORS = {
   bg: '#0f0f0f',
@@ -147,7 +148,7 @@ function PricingContent() {
       }
       window.location.href = data.url
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Checkout failed')
+      setError(userFacingRequestError(err, 'Checkout failed'))
       setLoadingPlan(null)
     }
   }

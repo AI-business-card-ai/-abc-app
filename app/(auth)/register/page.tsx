@@ -9,6 +9,7 @@ import { createClientComponent } from '@/lib/supabase'
 import AuthOrDivider from '@/components/auth/AuthOrDivider'
 import AppleSignInButton from '@/components/auth/AppleSignInButton'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
+import { userFacingRequestError } from '@/lib/network-error'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -62,7 +63,7 @@ export default function RegisterPage() {
         setInfo('Account created. Check your email to confirm, then sign in.')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed.')
+      setError(userFacingRequestError(err, 'Registration failed.'))
     } finally {
       setLoading(false)
     }

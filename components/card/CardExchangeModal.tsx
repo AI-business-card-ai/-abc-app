@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { userFacingRequestError } from '@/lib/network-error'
 
 type Props = {
   ownerName: string
@@ -85,7 +86,7 @@ export default function CardExchangeModal({ ownerName, cardSlug, open, onClose }
       if (!res.ok || !data.ok) throw new Error('That did not send. Try again.')
       setSuccess(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'That did not send. Try again.')
+      setError(userFacingRequestError(err, 'That did not send. Try again.'))
     } finally {
       setSubmitting(false)
     }

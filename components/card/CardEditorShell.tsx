@@ -229,8 +229,17 @@ export default function CardEditorShell() {
       void (async () => {
         try {
           const res = await fetch(`/api/card/slug-check?slug=${encodeURIComponent(slug)}`)
-          const json = (await res.json()) as { available?: boolean }
-          if (!res.ok || json.available === false) {
+          const json = (await res.json().catch(() => ({}))) as { available?: boolean }
+          /*
+            A check that failed says nothing about the address. Treating it as
+            taken used to block publishing with a false message whenever the
+            server hiccuped; unknown leaves the button free, and the unique
+            index still refuses a real clash when the card is saved.
+          */
+          if (!res.ok) {
+            setSlugStatus('idle')
+            setSlugMessage(null)
+          } else if (json.available === false) {
             setSlugStatus('bad')
             setSlugMessage('That address is already taken.')
           } else {

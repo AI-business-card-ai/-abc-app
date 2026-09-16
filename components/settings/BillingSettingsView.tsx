@@ -11,6 +11,7 @@ import { PRO_SOURCE_LABELS, type ProFeature } from '@/lib/billing/pro-features'
 import type { BillingStatus } from '@/lib/billing/status'
 import { planSummary } from '@/lib/settings/plan-summary'
 import type { ABCProfile } from '@/lib/types'
+import { userFacingRequestError } from '@/lib/network-error'
 
 /**
  * Plan & Billing.
@@ -103,7 +104,7 @@ export default function BillingSettingsView({
       if (!res.ok || !data.url) throw new Error(data.error || 'Could not open the billing portal.')
       window.location.href = data.url
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not open the billing portal.')
+      setError(userFacingRequestError(err, 'Could not open the billing portal.'))
       setPortalLoading(false)
     }
   }
@@ -121,7 +122,7 @@ export default function BillingSettingsView({
       if (!res.ok || !data.url) throw new Error(data.error || 'Could not start checkout.')
       window.location.href = data.url
     } catch (err) {
-      setProError(err instanceof Error ? err.message : 'Could not start checkout.')
+      setProError(userFacingRequestError(err, 'Could not start checkout.'))
       setCheckoutKey(null)
     }
   }

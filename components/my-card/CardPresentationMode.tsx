@@ -6,7 +6,7 @@ import CardQrImage from '@/components/card/CardQrImage'
 import DigitalCardView from '@/components/card/DigitalCardView'
 import InertContent from '@/components/ui/InertContent'
 import type { DigitalCardData } from '@/lib/card/types'
-import { SAFE_TOP } from '@/lib/ui/layout'
+import { SAFE_LEFT, SAFE_RIGHT, SAFE_TOP } from '@/lib/ui/layout'
 
 /**
  * Hold-it-up mode for the finished card.
@@ -90,6 +90,9 @@ export default function CardPresentationMode({
       aria-modal="true"
       aria-label="Your card, full screen"
       className="fixed inset-0 z-[200] flex flex-col bg-abc-bg"
+      // Turned sideways to show somebody, the notch sits over one edge; the
+      // close button and the card stay clear of it. Zero upright.
+      style={{ paddingLeft: SAFE_LEFT, paddingRight: SAFE_RIGHT }}
     >
       <div
         className="flex items-center justify-end px-4 pb-2"

@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error('[card/slug-check] failed:', error)
-      return NextResponse.json({ available: false, slug, reason: 'Kontrola selhala.' }, { status: 500 })
+      return NextResponse.json({ available: false, slug, reason: 'Could not check this address.' }, { status: 500 })
     }
 
     const takenByOther = Boolean(data && data.id !== user?.id)
