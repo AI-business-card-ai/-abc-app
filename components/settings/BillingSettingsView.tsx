@@ -50,6 +50,17 @@ function formatDate(value: string | null): string | null {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+/**
+ * A Pro subscription Stripe can still charge — the same states that stop an
+ * account from being deleted (account_deletion_blocker). Its owner needs the
+ * portal to cancel it, and the plan section above only offers the portal for a
+ * legacy paid plan.
+ */
+function subscriptionStillBills(pro: BillingStatus['pro']): boolean {
+  if (pro.productKey !== 'pro_monthly' && pro.productKey !== 'pro_annual') return false
+  return pro.status !== null && pro.status !== 'canceled' && pro.status !== 'expired'
+}
+
 function proLine(pro: BillingStatus['pro']): string {
   if (pro.viaFounder) return 'Included with founder access.'
   if (!pro.active) return 'Not active.'
@@ -178,6 +189,19 @@ export default function BillingSettingsView({
           Smart Follow-up, scheduled follow-ups, sending from Gmail and CRM sync. Smart Scan credits are
           separate.
         </p>
+
+        {webCheckout && profile.stripe_customer_id && subscriptionStillBills(pro) ? (
+          <div className="mt-3.5">
+            <button
+              type="button"
+              onClick={() => void openBillingPortal()}
+              disabled={portalLoading}
+              className="inline-flex h-[44px] items-center justify-center rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong disabled:opacity-50 abc-focus-ring"
+            >
+              {portalLoading ? 'Opening…' : 'Manage subscription'}
+            </button>
+          </div>
+        ) : null}
 
         {requiredFeature && !pro.active ? (
           <div className="mt-3">

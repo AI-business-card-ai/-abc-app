@@ -18,6 +18,10 @@ import { nativePlatformFromHeaders } from '@/lib/native/runtime'
     '/profile',
     '/pricing',
     '/offline',
+    // Deleting an account has to work for one that never finished onboarding
+    // too: nobody should have to fill in a profile in order to remove it.
+    '/settings/account/delete',
+    '/account-deletion',
   ]
 
 function withCookieDefaults(options: CookieOptions = {}): CookieOptions {

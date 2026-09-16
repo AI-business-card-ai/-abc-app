@@ -13,6 +13,7 @@
     "test:events": "tsx scripts/test-events.ts",
     "test:billing": "tsx scripts/test-billing.ts",
     "test:contact-delete": "tsx scripts/test-contact-delete.ts",
+    "test:account-deletion": "tsx scripts/test-account-deletion.ts",
     "test:pro": "tsx scripts/test-pro-entitlements.ts",
     "test:security": "tsx scripts/test-security-hardening.ts",
     "test:email": "tsx scripts/test-email-templates.ts",

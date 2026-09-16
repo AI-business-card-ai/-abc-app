@@ -670,10 +670,27 @@ async function main() {
   const accountDeletionExists = sourceFiles.some((f) => /auth\.admin\.deleteUser\(/.test(code(f)))
   check(
     'N66 the handoff records what stands between this foundation and the stores',
-    ['PROVISIONAL', 'NOT STORE ASSET READY', 'Account deletion — MISSING', 'Team ID', 'SHA-256', 'In-App Purchase', 'Play Billing', '3.1.3(b)', 'NATIVE_AUTH_SECRET', '/auth/native/return'].filter((phrase) => !readme.includes(phrase)),
+    ['PROVISIONAL', 'NOT STORE ASSET READY', 'Account deletion — IMPLEMENTED (migration not applied)', 'Team ID', 'SHA-256', 'In-App Purchase', 'Play Billing', '3.1.3(b)', 'NATIVE_AUTH_SECRET', '/auth/native/return'].filter((phrase) => !readme.includes(phrase)),
     []
   )
-  check('N67 account deletion: still absent in code, and still recorded as a blocker', [accountDeletionExists, readme.includes('Account deletion — MISSING')], [false, true])
+  /*
+    This pin used to assert that account deletion was absent and recorded as a
+    blocker. It now exists (lib/account/delete.ts, covered by
+    npm run test:account-deletion), so the pin asserts the other side: deletion is
+    in code, reachable in the app, the handoff no longer calls it missing, and it
+    still names what production needs before it counts.
+  */
+  check(
+    'N67 account deletion: present in code, reachable from Settings, and recorded with its remaining owner steps',
+    [
+      accountDeletionExists,
+      sourceFiles.filter((f) => /auth\.admin\.deleteUser\(/.test(code(f))),
+      exists('app/settings/account/delete/page.tsx') && exists('app/account-deletion/page.tsx'),
+      readme.includes('Account deletion — MISSING'),
+      ['/settings/account/delete', '/account-deletion', '20260916120000_account_deletion.sql', 'active_subscription', 'real device'].filter((phrase) => !readme.includes(phrase)),
+    ],
+    [true, ['lib/account/delete.ts'], true, false, []]
+  )
   check(
     'N68 the icons are still Capacitor\'s placeholders, and the handoff says so',
     [exists('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png'), exists('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'), /Capacitor's default icon and splash/.test(readme)],

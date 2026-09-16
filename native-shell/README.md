@@ -206,26 +206,42 @@ Nothing is published yet, and nothing with placeholder values will be.
 Once verified, the sign-in return can hand back through the verified link instead of
 the custom scheme.
 
-## Account deletion — MISSING (store blocker)
+## Account deletion — IMPLEMENTED (migration not applied)
 
 Both stores require apps that create accounts to let people delete them in the app.
-ABC has no account deletion today, although the Terms say it does. It needs, at least:
+The code is in place; production still needs its migration and a device check.
 
-- An authenticated endpoint acting only on the session user, with explicit
-  confirmation (recent re-authentication or a typed confirmation) and rate limiting,
-  reachable from Settings in the web app and the apps, plus a public web page
-  describing the process (Google Play requires one).
-- Defined deletion of: the profile and public card (slug released, card media in
-  Storage), contacts, encounters, follow-up sequences, scan batches and items, card
-  views, CRM connections and mappings (tokens deleted and revoked with the provider
-  where possible), the Gmail grant.
-- Billing: active Stripe subscriptions cancelled (or deletion blocked until they are);
-  records the law requires kept; `scan_credit_ledger` history anonymised or retained
-  per a retention decision; no automatic refund of credits.
-- Supabase Auth user deleted last, through the service role, after the data.
-- A non-identifying audit record that a deletion happened.
-- A migration if foreign keys need new cascade rules — to be decided with the data
-  model, not improvised.
+- **In the app:** Settings → Profile & Account → Delete account
+  (`/settings/account/delete`). The same web screen serves the web app, the installed
+  PWA and both store apps, with no Pro, credit or native gate. A typed `DELETE`
+  confirms intent; the verified session decides whose account it is.
+- **Public page:** `/account-deletion` — the URL for the Google Play deletion form and
+  for support. Works signed out.
+- **Endpoint:** `POST /api/account/delete`, acting only on the session user. No rate
+  limiter: it can only ever delete the caller's own account, every step is
+  idempotent, and a second request for the same account waits on the same database
+  lock as the first.
+- **What happens:** `lib/account/delete.ts` runs `remove_account_data` (one
+  transaction: profile and public card, contacts, encounters, follow-up sequences,
+  activities, opportunities, scan batches and items, card links, events, views and
+  showcase, CRM connections and mappings, the Gmail tokens), then removes the owner's
+  folders in the `card-media` and legacy `avatars` buckets, then deletes the Supabase
+  Auth user last. A failure stops at that step and the owner can retry.
+- **Billing:** deletion is refused with `active_subscription` while a Pro or legacy
+  subscription can still charge; ABC has no server-side cancellation, so the owner
+  cancels in the Stripe portal first. No refund, reversal or Stripe call. Unused
+  credits end with the account.
+- **Kept:** `account_deletions`, one non-identifying row per deleted account with a
+  summary of credits, purchases (Checkout Session references) and Pro billing, and the
+  Stripe customer reference. Ledger and entitlement rows still leave through their own
+  cascade when the auth user is deleted. How long the record is kept is not decided.
+- **Not done, deliberately:** provider-side token revocation (Google, HubSpot,
+  Salesforce, Pipedrive) — none exists in ABC today, so tokens are deleted locally and
+  a provider outage cannot block deletion; Google Wallet objects are not expired.
+- **Owner steps:** apply `supabase/migrations/20260916120000_account_deletion.sql`;
+  decide the retention period for `account_deletions`; enter
+  `https://<canonical origin>/account-deletion` in Play Console; verify deletion on a
+  real device in both apps.
 
 ## Icons and splash — NOT STORE ASSET READY
 
@@ -258,13 +274,15 @@ scan mark is needed as:
 **Apple (owner-assisted):** confirm bundle ID; Apple Developer App ID with Associated
 Domains; Team ID; signing certificates and provisioning; App Store Connect record;
 final icon; privacy nutrition labels and privacy policy URL; the purchase decision
-above; account deletion; TestFlight build; real-device QA (sign-in, camera scanning,
-Multi-Card landscape, share, files, Wallet); review notes explaining sign-in and the
+above; the account deletion migration applied; TestFlight build; real-device QA (sign-in,
+camera scanning, Multi-Card landscape, share, files, Wallet, account deletion); review
+notes explaining sign-in and the
 native features.
 
 **Google (owner-assisted):** confirm package name; Play Console record; Play App Signing
 and the certificate SHA-256 for `assetlinks.json`; the purchase decision above; Data
-safety form; content rating and target audience; account deletion page; internal or
+safety form; content rating and target audience; the account deletion page URL
+(`/account-deletion`) in the Data deletion section; internal or
 closed testing as the developer account requires; real-device QA.
 
 ## Review risk

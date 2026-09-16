@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { IconChevronRight, IconLock, IconLogout, IconMail } from '@tabler/icons-react'
+import { IconChevronRight, IconLock, IconLogout, IconMail, IconTrash } from '@tabler/icons-react'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import Avatar from '@/components/ui/abc/Avatar'
 import { CARD_EDITOR_PATH } from '@/lib/settings/sections'
@@ -128,6 +128,30 @@ export default function ProfileSettingsView({
         <IconLogout size={17} stroke={1.8} />
         {loggingOut ? 'Signing out…' : 'Sign out'}
       </button>
+
+      {/*
+        Deleting the account belongs to the account, so it lives here — for every
+        plan, on the web and in the apps alike. The screen it opens explains what
+        goes and asks for confirmation; nothing is deleted from this link.
+      */}
+      <section className="mt-6 rounded-card border border-abc-border bg-abc-card p-4">
+        <div className="flex items-center gap-2.5">
+          <IconTrash size={18} stroke={1.7} style={{ color: 'var(--abc-overdue)' }} />
+          <span className="text-[15px] font-semibold text-abc-text">Delete account</span>
+        </div>
+        <p className="mt-2 text-[13px] leading-[1.5] text-abc-secondary">
+          Permanently delete your ABC account, your card and your contacts.
+        </p>
+        <div className="mt-3.5">
+          <Link
+            href="/settings/account/delete"
+            className="inline-flex h-[44px] items-center justify-center rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium transition-colors hover:border-abc-border-strong abc-focus-ring"
+            style={{ color: 'var(--abc-overdue)' }}
+          >
+            Delete account
+          </Link>
+        </div>
+      </section>
     </div>
   )
 }
