@@ -284,7 +284,21 @@ async function main() {
     [goodReturn.html.includes(`${NATIVE_AUTH_CALLBACK_URL}?code=0b2c7a14-4f5e-4d7a-9d3b-8a1e2c3d4e5f&amp;flow=`), goodReturn.headers.get('cache-control'), goodReturn.headers.get('referrer-policy')],
     [true, 'no-store', 'no-referrer']
   )
-  const forgedReturn = await returnPage(`flow=${encodeURIComponent(sealed.replace(/.$/, sealed.endsWith('A') ? 'B' : 'A'))}&code=0b2c7a14-4f5e-4d7a-9d3b-8a1e2c3d4e5f`)
+  /*
+    The forgery alters the first character of the auth tag, not the last. The
+    tag is 16 bytes in 22 base64url characters, so its last character carries
+    four padding bits: whenever the tag happened to end in 'A', swapping it for
+    'B' decoded to the very same bytes, the "forged" flow opened, and this check
+    failed on roughly one run in four without anything being wrong. The first
+    character is six significant bits, so changing it always changes the tag.
+  */
+  const forgedSealed = (() => {
+    const parts = sealed.split('.')
+    const tag = parts[parts.length - 1] ?? ''
+    parts[parts.length - 1] = (tag.startsWith('A') ? 'B' : 'A') + tag.slice(1)
+    return parts.join('.')
+  })()
+  const forgedReturn = await returnPage(`flow=${encodeURIComponent(forgedSealed)}&code=0b2c7a14-4f5e-4d7a-9d3b-8a1e2c3d4e5f`)
   const cancelledReturn = await returnPage(`flow=${encodeURIComponent(sealed)}&error=access_denied`)
   const injectedReturn = await returnPage(`flow=${encodeURIComponent(sealed)}&code=${encodeURIComponent('</script><script>alert(1)</script>')}`)
   check(
