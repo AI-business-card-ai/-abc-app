@@ -19,6 +19,7 @@
     "test:auth-links": "tsx scripts/test-auth-links.ts",
     "test:error-surface": "tsx scripts/test-error-surface.ts",
     "test:launch-ux": "tsx scripts/test-launch-ux.ts",
+    "test:privacy-readiness": "tsx scripts/test-privacy-readiness.ts",
     "test:email": "tsx scripts/test-email-templates.ts",
     "test:wallet": "tsx scripts/test-wallet.ts",
     "test:pwa": "tsx scripts/test-pwa.ts",
