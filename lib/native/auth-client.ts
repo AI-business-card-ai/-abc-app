@@ -78,7 +78,9 @@ export async function startNativeSignIn(
 }
 
 /** Finishes a sign-in the system browser handed back. */
-export async function handleNativeAuthLink(link: Exclude<NativeDeepLink, { kind: 'open-path' }>): Promise<void> {
+export async function handleNativeAuthLink(
+  link: Extract<NativeDeepLink, { kind: 'auth-callback' | 'auth-cancelled' | 'auth-failed' }>
+): Promise<void> {
   const pending = takePending()
   if (!pending) return
 

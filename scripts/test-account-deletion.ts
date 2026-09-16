@@ -96,6 +96,7 @@ const OWNER_TABLES = [
   'crm_object_mappings',
   'crm_opportunities',
   'followup_sequences',
+  'native_connector_attempts',
   'scan_batch_items',
   'scan_batches',
   'scan_credit_ledger',
@@ -401,6 +402,12 @@ async function seedAccount(db: PGlite, storage: FakeStorage, owner: string, tag:
   storage.put('card-media', `${owner}/showcase/a.jpg`)
   storage.put('avatars', `${owner}/avatar.png`)
 
+  // A native Gmail connection waiting to be claimed: encrypted tokens on the row.
+  await db.query(
+    "insert into public.native_connector_attempts (user_id, provider, state_hash, nonce_hash, handoff_hash, status, result_encrypted, expires_at) values ($1, 'google-gmail', $2, 'nonce-hash', 'handoff-hash', 'authorized', 'v1:iv:tag:native-result', now() + interval '10 minutes')",
+    [owner, `state-hash-${tag}`]
+  )
+
   return { email, contact, second, encounter, batch }
 }
 
@@ -594,16 +601,17 @@ async function run() {
   const retryRecord = async () => (await rowsOf<Record<string, unknown>>(db, 'select status, attempts, last_error_code, credit_summary from public.account_deletions where user_id = $1', [RETRY]))[0]
   check('R1 a storage failure stops before the auth user, and says which step', [retryFirst.value, harness.events.includes('auth.deleteUser')], [{ ok: false, code: 'deletion_incomplete', stage: 'storage' }, false])
   check(
-    'R2 by then the data step has committed: card, credentials and contacts are gone, the sign-in and the economic rows remain',
+    'R2 by then the data step has committed: card, credentials (including a native connection awaiting claim) and contacts are gone, the sign-in and the economic rows remain',
     [
       await loadPublishedCardBySlug(publicReader, 'retry-card'),
       await count(db, 'select count(*)::int as n from public.abc_profiles where id = $1', [RETRY]),
       await count(db, 'select count(*)::int as n from public.crm_connections where user_id = $1', [RETRY]),
+      await count(db, 'select count(*)::int as n from public.native_connector_attempts where user_id = $1', [RETRY]),
       await count(db, 'select count(*)::int as n from public.scanned_contacts where user_id = $1', [RETRY]),
       await count(db, 'select count(*)::int as n from auth.users where id = $1', [RETRY]),
       await count(db, 'select count(*)::int as n from public.scan_credit_ledger where user_id = $1', [RETRY]),
     ],
-    [null, 0, 0, 0, 1, 5]
+    [null, 0, 0, 0, 0, 1, 5]
   )
   const retryAfterFailure = await retryRecord()
   check('R3 the record says where it stopped, as a code', [retryAfterFailure?.status, retryAfterFailure?.attempts, retryAfterFailure?.last_error_code], ['data_removed', 1, 'storage_failed'])

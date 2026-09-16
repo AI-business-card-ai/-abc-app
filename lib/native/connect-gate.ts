@@ -2,27 +2,23 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { nativePlatformFromHeaders } from '@/lib/native/runtime'
 
 /**
- * Connecting Gmail or a CRM from inside the native app is declined, for now.
+ * The web connect routes decline the native app.
  *
- * Every connector proves two things at its callback before it stores a token: a
- * signed, single-use state cookie naming the ABC account that started the flow,
- * and a live ABC session belonging to that same account. Inside the app, the
- * provider's consent screen has to open in the system browser — Google refuses
- * embedded WebViews, and the WebView hands every non-ABC address to the system
- * anyway — and the callback then lands in that browser, which holds neither the
- * state cookie nor the session. Both proofs fail, correctly, and nothing is
- * connected.
+ * Every web connector proves two things at its callback before it stores a
+ * token: a signed, single-use state cookie naming the ABC account that started
+ * the flow, and a live ABC session belonging to that same account. Inside the
+ * app, the provider's consent screen has to open in the system browser — Google
+ * refuses embedded WebViews, and the WebView hands every non-ABC address to the
+ * system anyway — and the callback then lands in that browser, which holds
+ * neither. A web flow started from the app could never finish, so it is not
+ * started.
  *
- * Relaxing either proof would reopen the attack they exist to stop: somebody
- * starts a connection for their own account and gets another person to finish
- * it, attaching that person's mailbox or CRM to the wrong account. The native
- * design that keeps both properties — completion claimed back inside the app
- * with a device-held secret, as native sign-in does — is recorded in the store
- * shell handoff and not built yet.
- *
- * Until it is, the start route sends the app back to Integrations, which says
- * why. Connections made on the web keep working in the app: their tokens live
- * on the server.
+ * The app connects through its own flow instead (lib/connectors/native.ts):
+ * owner, provider and a device nonce bound server-side at the start, the result
+ * claimed back inside the app with that nonce and a handoff only the consenting
+ * device receives. The app's shell sends every Connect link there, so this
+ * refusal is reached only by a navigation that bypassed it; it returns the app
+ * to Integrations, which asks the owner to tap Connect again.
  */
 
 export const NATIVE_CONNECT_UNAVAILABLE_PATH = '/settings/integrations?native=connect-unavailable'

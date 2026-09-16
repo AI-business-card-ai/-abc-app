@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { nativeConnectorCallback } from '@/lib/connectors/native-callback'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { consumeOAuthState } from '@/lib/crm/oauth-state'
 import { saveCrmConnection } from '@/lib/crm/connections'
@@ -80,6 +81,14 @@ const STATE_STAGE: Record<string, Stage> = {
 }
 
 export async function GET(request: NextRequest) {
+  /*
+    A state minted for the app's own flow is finished by lib/connectors/native.ts
+    and handed back to the app; nothing below runs for it. Every other state takes
+    the web path exactly as before.
+  */
+  const native = await nativeConnectorCallback(request, 'salesforce')
+  if (native) return native
+
   try {
     const params = request.nextUrl.searchParams
     const code = params.get('code')

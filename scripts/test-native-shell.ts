@@ -425,10 +425,25 @@ async function main() {
     [307, `${ORIGIN}${NATIVE_CONNECT_UNAVAILABLE_PATH}`, null]
   )
   const integrations = code('components/settings/IntegrationsSettingsView.tsx')
+  /*
+    This pin used to assert that the app offered no Connect button and said
+    connecting was unavailable. The native flow now exists (lib/connectors/native.ts,
+    covered by npm run test:native-connectors), so the pin asserts the other side:
+    the same Connect link is offered to a Pro owner in the app, the shell turns it
+    into the native flow, the blanket refusal is gone, and a web route that
+    declines the app still leads somewhere that says what to do.
+  */
   check(
-    'N29 Integrations explains in the app and offers no connect button there',
-    [integrations.includes('{nativeApp ? null : pro ? ('), integrations.includes('isn’t available in the app yet'), code('app/settings/integrations/page.tsx').includes('nativeApp={nativePlatformFromHeaders(headers()) !== null}')],
-    [true, true, true]
+    'N29 Integrations offers Connect in the app too, the shell runs the native flow, and no screen says connecting is unavailable',
+    [
+      integrations.includes('{pro ? ('),
+      integrations.includes('isn’t available in the app yet'),
+      integrations.includes('{nativeApp && nativeConnectRetry ? ('),
+      code('app/settings/integrations/page.tsx').includes('nativeApp={nativePlatformFromHeaders(headers()) !== null}'),
+      code('app/settings/integrations/page.tsx').includes("nativeConnectRetry={searchParams?.native === 'connect-unavailable'}"),
+      code('lib/native/shell.ts').includes('nativeConnectorStartFromHref(anchor.href, origin)'),
+    ],
+    [true, false, true, true, true, true]
   )
 
   // ═══════════════════ SIGN-IN DESTINATION ═══════════════════

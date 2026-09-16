@@ -19,16 +19,26 @@ export const metadata = {
  *
  * Whether the owner is Pro is a different fact, resolved here from the verified
  * session so the screen can say honestly that connecting is ABC Pro. The routes
- * enforce it either way. So is whether this is the native app, where a new
- * connection cannot be completed yet and the screen says so instead of offering
- * a button that would fail.
+ * enforce it either way. So is whether this is the native app, where Connect
+ * runs the native flow, and whether the app was just sent back here by a web
+ * connect route it cannot finish (lib/native/connect-gate.ts).
  */
-export default async function IntegrationsSettingsPage() {
+export default async function IntegrationsSettingsPage({
+  searchParams,
+}: {
+  searchParams?: { native?: string }
+}) {
   const {
     data: { user },
   } = await createServerComponentClient().auth.getUser()
   if (!user) return null
 
   const { pro } = await resolveProEntitlement(createServiceClient(), user)
-  return <IntegrationsSettingsView pro={pro} nativeApp={nativePlatformFromHeaders(headers()) !== null} />
+  return (
+    <IntegrationsSettingsView
+      pro={pro}
+      nativeApp={nativePlatformFromHeaders(headers()) !== null}
+      nativeConnectRetry={searchParams?.native === 'connect-unavailable'}
+    />
+  )
 }

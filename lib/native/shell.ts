@@ -2,7 +2,9 @@ import { App } from '@capacitor/app'
 import { Browser } from '@capacitor/browser'
 import { Share } from '@capacitor/share'
 import { StatusBar, Style } from '@capacitor/status-bar'
+import { nativeConnectorStartFromHref } from '@/lib/connectors/native-shared'
 import { handleNativeAuthLink } from '@/lib/native/auth-client'
+import { handleNativeConnectLink, startNativeConnect } from '@/lib/native/connect-client'
 import { parseNativeDeepLink } from '@/lib/native/deep-link'
 import { nativeDownload, nativeSaveBlobUrl } from '@/lib/native/downloads'
 import { classifyNavigation } from '@/lib/native/navigation'
@@ -20,7 +22,9 @@ import { getNativePlatform } from '@/lib/native/runtime'
  * - Links and window.open follow lib/native/navigation.ts: ABC pages stay in the
  *   app, other sites open in the system browser, mail and phone go to the OS,
  *   files go to the share sheet.
- * - Deep links finish sign-ins and open verified ABC addresses.
+ * - A link to a Gmail or CRM connect route starts the app's own connection flow
+ *   (lib/connectors/native.ts) instead of the web one, which cannot finish here.
+ * - Deep links finish sign-ins and connections, and open verified ABC addresses.
  * - Android's back button walks the page history before leaving the app.
  *
  * What it deliberately does not do is reload — on resume, on reconnect, on
@@ -70,6 +74,10 @@ async function openDeepLink(raw: string) {
     if (`${window.location.pathname}${window.location.search}` !== link.path) window.location.assign(link.path)
     return
   }
+  if (link.kind === 'connect-callback' || link.kind === 'connect-ended') {
+    await handleNativeConnectLink(link)
+    return
+  }
   await handleNativeAuthLink(link)
 }
 
@@ -103,6 +111,13 @@ function routeLinksThroughPolicy(origin: string): () => void {
     if (download !== null && /^(blob|data):/i.test(anchor.href)) {
       event.preventDefault()
       void nativeSaveBlobUrl(anchor.href, download)
+      return
+    }
+
+    const connector = nativeConnectorStartFromHref(anchor.href, origin)
+    if (connector) {
+      event.preventDefault()
+      void startNativeConnect(connector.provider, connector.returnTo)
       return
     }
 
@@ -142,6 +157,11 @@ function routeWindowOpenThroughPolicy(origin: string): () => void {
   const original = window.open
   window.open = ((url?: string | URL) => {
     if (url === undefined || url === null || String(url) === '') return null
+    const connector = nativeConnectorStartFromHref(String(url), origin)
+    if (connector) {
+      void startNativeConnect(connector.provider, connector.returnTo)
+      return null
+    }
     const decision = classifyNavigation(String(url), origin)
     switch (decision.kind) {
       case 'external':

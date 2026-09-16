@@ -34,6 +34,10 @@ import {
  * CRM sync is ABC Pro. A Free account still sees every connection it has, and
  * can always disconnect one — connecting and syncing are what Pro adds, and the
  * server refuses them regardless of what this screen shows.
+ *
+ * In the store apps the same Connect link is shown. The app's shell recognises it
+ * and runs the native connection flow (lib/connectors/native.ts) through the
+ * system browser, so there is one button and one screen for both.
  */
 
 const STATUS_TEXT: Record<CrmStatusLabel, string> = {
@@ -53,10 +57,13 @@ type ConnectionMap = Record<string, CrmConnectionView>
 export default function IntegrationsSettingsView({
   pro,
   nativeApp = false,
+  nativeConnectRetry = false,
 }: {
   pro: boolean
-  /** Inside the store apps, where a new connection cannot be completed yet (lib/native/connect-gate.ts). */
+  /** Inside the store apps. */
   nativeApp?: boolean
+  /** The app reached a web connect route directly, which it cannot finish (lib/native/connect-gate.ts). */
+  nativeConnectRetry?: boolean
 }) {
   const [connections, setConnections] = useState<ConnectionMap>({})
   const [loading, setLoading] = useState(true)
@@ -116,10 +123,9 @@ export default function IntegrationsSettingsView({
         </div>
       )}
 
-      {nativeApp ? (
-        <p className="mt-4 rounded-card border border-abc-border bg-abc-card p-4 text-[13px] leading-[1.55] text-abc-secondary">
-          Connecting a CRM or Gmail isn’t available in the app yet. Connect at abccard.io in a browser —
-          connections made there work here too, and you can still disconnect here.
+      {nativeApp && nativeConnectRetry ? (
+        <p className="mt-4 rounded-card border border-abc-border bg-abc-card p-4 text-[13px] leading-[1.55] text-abc-secondary" role="status">
+          That connection didn’t start. Tap Connect again — it opens in your browser and returns here.
         </p>
       ) : null}
 
@@ -149,9 +155,9 @@ export default function IntegrationsSettingsView({
                 </span>
               </div>
 
-              {loading || (!pro && !connected) || (nativeApp && !connected) ? null : (
+              {loading || (!pro && !connected) ? null : (
                 <div className="mt-3.5 flex flex-wrap gap-2">
-                  {nativeApp ? null : pro ? (
+                  {pro ? (
                     <a
                       href={provider.connectPath}
                       className="inline-flex h-[44px] items-center justify-center rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong abc-focus-ring"

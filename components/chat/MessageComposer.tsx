@@ -7,6 +7,7 @@ import { useOutreachSendConfirm } from '@/lib/hooks/useOutreachSendConfirm'
 import SendConfirmDialog from '@/components/outreach/SendConfirmDialog'
 import { GOOGLE_RECONNECT_CODE } from '@/lib/google-gmail-auth'
 import { gmailReturnPath } from '@/lib/gmail-capability'
+import { isNativeApp } from '@/lib/native/runtime'
 import {
   openEmailComposer,
   openLinkedInComposer,
@@ -210,9 +211,24 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
     session, binds it into a signed state, and can only ever attach the mailbox
     to the account that started here. The return path is built from the contact
     id this component already holds, and is re-validated server side.
+
+    Inside the store apps the web connector cannot finish, so the app's own flow
+    runs instead (lib/connectors/native.ts): the system browser opens, and the
+    page is replaced when the connection comes back. The button is released as
+    soon as the browser is open, so closing it without connecting leaves nothing
+    spinning.
   */
   async function handleConnectGmail() {
     setConnectingGmail(true)
+    if (isNativeApp()) {
+      try {
+        const { startNativeConnect } = await import('@/lib/native/connect-client')
+        await startNativeConnect('google-gmail', gmailReturnPath(contact.id))
+      } finally {
+        setConnectingGmail(false)
+      }
+      return
+    }
     try {
       window.location.href = `/api/auth/google-gmail?returnTo=${encodeURIComponent(
         gmailReturnPath(contact.id)

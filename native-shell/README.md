@@ -131,30 +131,49 @@ nonce; Supabase codes are single use. Web sign-in is unchanged.
   apex form if the apex is canonical).
 - Real-device QA of both providers.
 
-## Gmail and CRM connectors — blocker in the apps
+## Gmail and CRM connectors — IMPLEMENTED (migration not applied)
 
-Every connector callback proves a signed single-use state cookie *and* a live ABC
-session for the same account. In the apps, consent must happen in the system
-browser, which holds neither, so both proofs correctly fail. Relaxing either would
-let somebody start a connection for their own account and have another person
-finish it. Until the native design is built, the four connect routes send the app
-back to Integrations (`lib/native/connect-gate.ts`), which explains; connections
-made on the web keep working in the app.
+Every web connector callback proves a signed single-use state cookie *and* a live
+ABC session for the same account. In the apps, consent happens in the system
+browser, which holds neither, so the apps use their own flow
+(`lib/connectors/native.ts`, table `native_connector_attempts`):
 
-**Design to build** (keeps every existing property):
-1. `POST /api/connectors/native/start` from the signed-in WebView: the server seals
-   owner, provider, nonce hash and (Salesforce) the PKCE verifier, and returns the
+1. **Start.** Connect links in the app are intercepted by the shell. From the
+   signed-in WebView, `POST /api/connectors/native/start` takes the owner from the
+   session, checks ABC Pro, and records an attempt binding owner, provider, the
+   SHA-256 of a nonce the app keeps, the SHA-256 of a signed opaque state
+   (`abcn.…`) and, for Salesforce, the PKCE verifier encrypted. It answers with the
    provider's authorize URL.
-2. Consent in the system browser; the provider returns to the ABC callback.
-3. The callback stores nothing. It validates the sealed state and hands code and
-   state back to the app.
-4. The app posts code, state and nonce from the WebView. The server requires the
-   live session user to equal the sealed owner and the nonce to match, then
-   exchanges the code (same `redirect_uri`) and stores the tokens. Provider codes
-   are single use; the state expires.
+2. **Callback.** The provider returns to the same registered callback as the web
+   flow; an `abcn.` state takes the native branch before any web check. One
+   statement moves the attempt from pending to exchanging (a replay finds
+   nothing), the code is exchanged with the web callbacks' own helpers, and the
+   result is stored AES-256-GCM encrypted with the SHA-256 of a fresh handoff
+   value. The browser hands back `io.abccard.app://connect/callback?attempt=…&handoff=…`
+   — no token, verifier, owner or nonce.
+3. **Claim.** The app posts attempt, handoff and nonce to
+   `POST /api/connectors/native/claim`. Pro is checked again; one statement
+   releases the result only to the session owner holding both values, marks it
+   claimed and wipes it; it is saved through `saveCrmConnection` /
+   `saveGoogleOAuthTokens` like a web connection.
 
-This moves each provider's token exchange out of its callback and needs tests per
-provider.
+The nonce makes an intercepted deep link useless to anybody but the app that
+started the attempt. The handoff reaches only the device that consented, so an
+attempt started on one account and consented to by somebody else cannot be
+collected. Attempts expire after ten minutes; expired rows are deleted when a new
+attempt starts; account deletion removes them with the other credentials.
+
+Differs from the earlier sketch here, which handed the provider code to the app and
+exchanged at the claim: exchanging at the callback keeps each provider's exchange
+beside the web callback's, and the handoff gives the same device binding the code
+would have.
+
+**Owner steps:** apply `supabase/migrations/20260917120000_native_connector_attempts.sql`
+(after `20260916120000_account_deletion.sql`); `CRM_TOKEN_ENCRYPTION_KEY` must be set
+(it also signs the native state and encrypts every native result until it is
+claimed); no provider console change — the redirect URIs are the existing ones;
+real-device QA of all four providers in both apps, including cancelling at the
+consent screen.
 
 ## Payments — owner decision required
 

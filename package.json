@@ -21,6 +21,7 @@
     "test:pwa": "tsx scripts/test-pwa.ts",
     "test:pwa-private-cache": "tsx scripts/test-pwa-private-cache-hotfix.ts",
     "test:native": "tsx scripts/test-native-shell.ts",
+    "test:native-connectors": "tsx scripts/test-native-connectors.ts",
     "native:prepare": "tsx scripts/native-prepare.ts",
     "native:sync": "npm run native:prepare && cap sync",
     "native:open:ios": "cap open ios",
