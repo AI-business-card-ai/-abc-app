@@ -16,6 +16,9 @@ reading, or a fact the repository cannot supply.
 Also relevant: `native-shell/README.md` (native build, signing, deep links),
 `docs/auth-email-links.md` (Supabase email templates).
 
+`npm run test:final-release-cleanup` pins the card-media listing policy, the removed enrichment and
+transcription providers, Gmail disconnect and Android Back.
+
 `npm run test:privacy-readiness` fails if the code stops matching the facts these drafts rely on
 (Gmail scope and send-only use, identity-only Google sign-in, native permissions, no analytics
 SDK, no stored scan photos, no automatic sending, Privacy text).

@@ -111,7 +111,6 @@ async function run() {
     { route: 'app/api/contact/deal-outcome/route', method: 'POST', req: () => json('https://www.abccard.io/api/contact/deal-outcome', { contactId: 'c' }), want: 'Could not update the deal outcome. Try again.' },
     { route: 'app/api/pipeline/update/route', method: 'POST', req: () => json('https://www.abccard.io/api/pipeline/update', { contactId: 'c' }), want: GENERIC_SERVER_ERROR },
     { route: 'app/api/pipeline/action/route', method: 'POST', req: () => json('https://www.abccard.io/api/pipeline/action', { contactId: 'c' }), want: GENERIC_SERVER_ERROR },
-    { route: 'app/api/enrich/queue/route', method: 'POST', req: () => json('https://www.abccard.io/api/enrich/queue', { contactId: 'c' }), want: 'Intelligence research failed. Try again.' },
     { route: 'app/api/card/followup/route', method: 'POST', req: () => json('https://www.abccard.io/api/card/followup', { contactId: 'c' }), want: GENERIC_SERVER_ERROR },
     { route: 'app/api/card/send/route', method: 'POST', req: () => json('https://www.abccard.io/api/card/send', { contactId: 'c' }), want: GENERIC_SERVER_ERROR },
     { route: 'app/api/scan/contact/route', method: 'POST', req: () => json('https://www.abccard.io/api/scan/contact', { fields: {} }), want: 'Could not save this contact.' },
@@ -159,7 +158,8 @@ async function run() {
     }
   }
   check('G1 no route or auth handler answers with an exception, provider or database message', offenders, [])
-  check('G2 the audit actually covered the routes', files.length > 80, true)
+  // 82 route files before #8B removed eight dead enrichment and transcription routes and added Gmail disconnect.
+  check('G2 the audit actually covered the routes', files.length > 70, true)
 
   // ═══════════════════ EXPECTED OUTCOMES KEEP THEIR CODES ═══════════════════
 

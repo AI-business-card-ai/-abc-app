@@ -54,17 +54,25 @@ const STATUS_COLOR: Record<CrmStatusLabel, string> = {
 
 type ConnectionMap = Record<string, CrmConnectionView>
 
+/** Connecting returns here; in the apps the shell turns this link into the native flow. */
+const GMAIL_CONNECT_PATH = `/api/auth/google-gmail?returnTo=${encodeURIComponent('/settings/integrations')}`
+const GMAIL_DISCONNECT_PATH = '/api/auth/google-gmail/disconnect'
+
 export default function IntegrationsSettingsView({
   pro,
   nativeApp = false,
   nativeConnectRetry = false,
+  gmail = { connected: false, mailbox: null },
 }: {
   pro: boolean
   /** Inside the store apps. */
   nativeApp?: boolean
   /** The app reached a web connect route directly, which it cannot finish (lib/native/connect-gate.ts). */
   nativeConnectRetry?: boolean
+  /** Whether a Gmail mailbox is connected (`google_connected`), and which. */
+  gmail?: { connected: boolean; mailbox: string | null }
 }) {
+  const [gmailState, setGmailState] = useState(gmail)
   const [connections, setConnections] = useState<ConnectionMap>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -92,6 +100,21 @@ export default function IntegrationsSettingsView({
   useEffect(() => {
     void load()
   }, [load])
+
+  async function disconnectGmail() {
+    setBusy('gmail')
+    setError(null)
+    try {
+      const res = await fetch(GMAIL_DISCONNECT_PATH, { method: 'DELETE' })
+      if (!res.ok) throw new Error('disconnect failed')
+      setGmailState({ connected: false, mailbox: null })
+    } catch (err) {
+      console.error('[settings/integrations] gmail disconnect failed:', err instanceof Error ? err.name : 'unknown')
+      setError('Could not disconnect Gmail. Try again.')
+    } finally {
+      setBusy(null)
+    }
+  }
 
   async function disconnect(providerId: string, providerName: string) {
     setBusy(providerId)
@@ -181,6 +204,51 @@ export default function IntegrationsSettingsView({
             </section>
           )
         })}
+
+        {/*
+          Gmail, beside the CRMs because it is the same kind of thing: a
+          connector the owner grants and can take back. Disconnect is offered to
+          everyone who has a mailbox connected, Pro or not; connecting is Pro.
+          Signing in with Google is not a connection and is not shown here.
+        */}
+        <section className="rounded-card border border-abc-border bg-abc-card p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[15px] font-semibold text-abc-text">Gmail</span>
+            <span
+              className="shrink-0 text-[12.5px] font-medium"
+              style={{ color: gmailState.connected ? STATUS_COLOR.connected : STATUS_COLOR.not_connected }}
+            >
+              {gmailState.connected ? STATUS_TEXT.connected : STATUS_TEXT.not_connected}
+            </span>
+          </div>
+          {gmailState.connected && gmailState.mailbox ? (
+            <p className="mt-1 break-all text-[13px] text-abc-secondary">Sending from {gmailState.mailbox}</p>
+          ) : null}
+
+          {!gmailState.connected && !pro ? null : (
+            <div className="mt-3.5 flex flex-wrap gap-2">
+              {!gmailState.connected && pro ? (
+                <a
+                  href={GMAIL_CONNECT_PATH}
+                  className="inline-flex h-[44px] items-center justify-center rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium text-abc-text transition-colors hover:border-abc-border-strong abc-focus-ring"
+                >
+                  Connect
+                </a>
+              ) : null}
+
+              {gmailState.connected ? (
+                <button
+                  type="button"
+                  onClick={() => void disconnectGmail()}
+                  disabled={busy === 'gmail'}
+                  className="inline-flex h-[44px] items-center justify-center rounded-btn border border-abc-border bg-transparent px-4 text-[14px] font-medium text-abc-secondary transition-colors hover:text-abc-text disabled:opacity-50 abc-focus-ring"
+                >
+                  {busy === 'gmail' ? 'Disconnecting…' : 'Disconnect'}
+                </button>
+              ) : null}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )

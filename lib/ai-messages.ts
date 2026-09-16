@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ABCProfile, ScannedContact } from './types'
-import type { EnrichedLinkedInProfile } from './enrichlayer'
+import type { EnrichedLinkedInProfile } from './linkedin-identity'
 import { hasDisplayValue } from './research'
 
 const anthropic = new Anthropic({

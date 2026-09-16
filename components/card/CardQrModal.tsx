@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { IconCheck, IconCopy, IconDownload, IconX } from '@tabler/icons-react'
 import CardQrImage, { cardPublicUrl, cardQrSrc } from '@/components/card/CardQrImage'
+import { useNativeBackHandler } from '@/lib/native/back-handlers'
 import { SAFE_LEFT, SAFE_RIGHT } from '@/lib/ui/layout'
 
 type Props = {
@@ -24,6 +25,9 @@ type Props = {
 export default function CardQrModal({ slug, open, onClose, name, company }: Props) {
   const [copied, setCopied] = useState(false)
   const closeRef = useRef<HTMLButtonElement>(null)
+
+  // Android Back closes the QR before it leaves the page underneath.
+  useNativeBackHandler(open, onClose)
 
   const cardUrl = cardPublicUrl(slug)
   const shareUrl = `${cardUrl}?src=qr`

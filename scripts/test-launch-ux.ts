@@ -87,7 +87,8 @@ check(
   edited: they cannot render. If one of them is ever imported again, W3 fails
   and it must be brought up to the same rule first.
 */
-const UNUSED = ['components/card/CardEditor.tsx', 'components/contact/EventTagPrompt.tsx', 'components/contacts/ContactCrmDetail.tsx', 'components/mobile/ScanContextSheet.tsx']
+// ContactCrmDetail and ScanContextSheet were here until #8B removed them outright.
+const UNUSED = ['components/card/CardEditor.tsx', 'components/contact/EventTagPrompt.tsx']
 const clientFiles = [...files('components', /\.tsx$/), ...files('app', /\.tsx$/)].filter((f) => read(f).startsWith("'use client'"))
 const raw = clientFiles
   .filter((f) => !UNUSED.includes(f))

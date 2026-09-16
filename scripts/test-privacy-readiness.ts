@@ -60,7 +60,7 @@ check(
   [['gmail.googleapis.com/gmail/v1/users/me/messages/send'], []]
 )
 check('G5 Google Contacts / People are never called', matching(/people\.googleapis\.com|contacts\/feeds|google\.com\/m8\/feeds|auth\/contacts/), [])
-check('G6 Gmail connect is started only from the message screen, never from sign-in', [matching(/\/api\/auth\/google-gmail(\?|['"`])/).filter((f) => !f.startsWith('app/api/') && !f.startsWith('lib/')), /google-gmail/.test(signIn)], [['components/chat/MessageComposer.tsx'], false])
+check('G6 Gmail connect is started only from the message screen or Settings → Integrations, never from sign-in', [matching(/\/api\/auth\/google-gmail(\?|['"`])/).filter((f) => !f.startsWith('app/api/') && !f.startsWith('lib/')).sort(), /google-gmail/.test(signIn)], [['components/chat/MessageComposer.tsx', 'components/settings/IntegrationsSettingsView.tsx'], false])
 
 // ═══════════════════ NOTHING SENT BY ITSELF, NOTHING TRACKED ═══════════════════
 

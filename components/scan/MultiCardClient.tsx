@@ -29,6 +29,7 @@ import {
   useOrientation,
 } from '@/lib/scan/useOrientation'
 import type { ContactCandidate } from '@/lib/scan/candidate'
+import { useNativeBackHandler } from '@/lib/native/back-handlers'
 import { ABOVE_MOBILE_NAV, MOBILE_NAV_HEIGHT, SAFE_TOP } from '@/lib/ui/layout'
 import {
   batchSaveCount,
@@ -162,6 +163,9 @@ export default function MultiCardClient() {
     canCapture: !blocked && remaining > 0,
     exited: immersiveExited,
   })
+
+  // Android Back does what the on-screen Back does: leave the full-screen camera.
+  useNativeBackHandler(immersive, () => setImmersiveExited(true))
 
   // Back opts out of the full-screen camera only until the next chance to use it.
   useEffect(() => {

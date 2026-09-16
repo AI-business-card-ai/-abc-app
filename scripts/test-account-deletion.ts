@@ -74,6 +74,8 @@ const ENVIRONMENT_ONLY = [
   '20260723160000_clean_legacy_usernames.sql',
   '20260810200000_enrichment_status_realtime.sql',
   '20260816120000_card_media_bucket_and_policies.sql',
+  // storage.objects again; its policies are exercised against a storage stub by test:final-release-cleanup.
+  '20260918120000_card_media_no_public_listing.sql',
 ]
 
 const OWNER = '11111111-1111-4111-8111-111111111111'

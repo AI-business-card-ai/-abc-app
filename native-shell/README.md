@@ -67,7 +67,9 @@ Everything below is loaded only inside the apps (`components/native/NativeShellB
 6. **File handoff** — vCard, CSV, QR image and Apple Wallet pass are fetched with
    the WebView's session, written to the app cache and handed to the system share
    sheet (`lib/native/downloads.ts`). A WebView saves no downloads by itself.
-7. **Android back button** — walks page history, then minimises the app.
+7. **Android back button** — closes a full-screen layer first (the presented card, its QR
+   code, the Multi-Card camera, each registered through `lib/native/back-handlers.ts`), then
+   walks page history, then minimises the app.
 8. **No reload on resume**, reconnect or anything else.
 9. **Status bar and safe areas** — light status-bar content over `#0a0a0b`. iOS:
    `contentInset: never`, the page's own `env(safe-area-inset-*)` handles the

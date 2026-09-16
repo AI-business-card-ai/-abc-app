@@ -9,7 +9,7 @@ export default function TermsPage() {
         <p style={{ color: '#666', fontSize: 13, marginBottom: 40 }}>Effective date: August 8, 2026</p>
 
         {[
-          { h: '1. The service', t: 'ABC — AI Business Card ("ABC", "we") lets you scan business cards, enrich contact data using AI, and generate suggested follow-up messages. All AI-generated messages are drafts — you review and approve every message before it is sent. Nothing is ever sent automatically.' },
+          { h: '1. The service', t: 'ABC — AI Business Card ("ABC", "we") lets you scan business cards, keep contacts and meeting notes, and generate suggested follow-up messages. All AI-generated messages are drafts — you review and approve every message before it is sent. Nothing is ever sent automatically.' },
           { h: '2. Operator', t: 'ABC is operated by [LEGAL ENTITY TO BE ADDED — company registration pending]. Contact: support@abccard.io.' },
           { h: '3. Your account', t: 'You must be at least 16 years old and provide accurate information. You are responsible for all activity under your account. Sign-in is via Google OAuth.' },
           { h: '4. Acceptable use', t: 'You agree not to: scan contacts without a lawful basis or send spam; circumvent scan limits or security measures; access other users\' data; reverse engineer or resell the service; upload unlawful or infringing content. You are solely responsible for complying with GDPR and anti-spam laws when contacting people.' },

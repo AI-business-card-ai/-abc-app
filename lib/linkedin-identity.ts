@@ -1,5 +1,25 @@
-import type { EnrichedLinkedInProfile } from '@/lib/enrichlayer'
 import type { ScannedContact } from '@/lib/types'
+
+/*
+  The shape of LinkedIn data already stored on a contact. These types used to
+  live beside the EnrichLayer client that fetched it; that client is gone, and
+  the stored columns are still read when drafting messages and checking that a
+  profile really belongs to the person on the card.
+*/
+export type LinkedInExperience = { title: string; company: string; duration: string }
+export type LinkedInEducation = { school: string; degree: string }
+export type LinkedInPost = { text: string; date: string }
+
+export type EnrichedLinkedInProfile = {
+  fullName: string
+  headline: string
+  summary: string
+  experiences: LinkedInExperience[]
+  education: LinkedInEducation[]
+  skills: string[]
+  recentPosts: LinkedInPost[]
+  languages: string[]
+}
 
 export type LinkedInMatchConfidence = 'high' | 'low'
 export type LinkedInMatchStatus = 'verified' | 'possible_mismatch' | 'rejected'

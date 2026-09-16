@@ -17,8 +17,9 @@
 >
 > **Native features:** camera scanning of business cards, badges and QR codes; share sheet for the
 > card link, vCard and QR image; saving the QR image to Photos; file handoff for CSV export and
-> Apple Wallet pass; system-browser sign-in and CRM/Gmail connection with return to the app; Android
-> back navigation; an offline page when the network is unavailable.
+> Apple Wallet pass; system-browser sign-in and CRM/Gmail connection with return to the app; the
+> Android Back button closes the full-screen card, QR code or camera before going back a page; an
+> offline page when the network is unavailable.
 >
 > **Purchases:** the app does not sell anything and does not link to external purchasing. Smart
 > Scan credits and ABC Pro bought on the web are recognised on the same account.
@@ -32,7 +33,8 @@
 > microphone or tracking.
 >
 > **Optional connections:** Gmail (send-only, separate consent), HubSpot, Salesforce, Pipedrive —
-> each sends only what the user explicitly sends or pushes.
+> each sends only what the user explicitly sends or pushes, and each can be disconnected in
+> Settings → Integrations.
 
 ## Known review risks
 

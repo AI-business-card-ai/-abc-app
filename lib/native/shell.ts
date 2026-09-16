@@ -4,6 +4,7 @@ import { Share } from '@capacitor/share'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { nativeConnectorStartFromHref } from '@/lib/connectors/native-shared'
 import { handleNativeAuthLink } from '@/lib/native/auth-client'
+import { runTopBackHandler } from '@/lib/native/back-handlers'
 import { handleNativeConnectLink, startNativeConnect } from '@/lib/native/connect-client'
 import { parseNativeDeepLink } from '@/lib/native/deep-link'
 import { nativeDownload, nativeSaveBlobUrl } from '@/lib/native/downloads'
@@ -25,7 +26,8 @@ import { getNativePlatform } from '@/lib/native/runtime'
  * - A link to a Gmail or CRM connect route starts the app's own connection flow
  *   (lib/connectors/native.ts) instead of the web one, which cannot finish here.
  * - Deep links finish sign-ins and connections, and open verified ABC addresses.
- * - Android's back button walks the page history before leaving the app.
+ * - Android's back button closes a full-screen layer first, then walks the page
+ *   history, then leaves the app.
  *
  * What it deliberately does not do is reload — on resume, on reconnect, on
  * anything. The WebView keeps the page across backgrounding: a half-captured
@@ -58,6 +60,9 @@ export async function startNativeShell(): Promise<() => void> {
 
   if (platform === 'android') {
     const back = await App.addListener('backButton', ({ canGoBack }) => {
+      // A full-screen layer on top — the presented card, its QR code, the
+      // Multi-Card camera — closes first (lib/native/back-handlers.ts).
+      if (runTopBackHandler()) return
       if (canGoBack) window.history.back()
       else void App.minimizeApp()
     })

@@ -36,7 +36,7 @@ reading of Play's definitions.
 | App activity | App interactions | **OWNER REVIEW** | — | Analytics | Public card views and link clicks, recorded about the owner's card |
 | Financial info | Purchase history | **OWNER REVIEW** | — | App functionality | Web purchases only; none in the app |
 | Messages | Emails | **OWNER REVIEW** | Optional | App functionality | Drafts and emails the owner sends through a connected Gmail; ABC does not read the inbox |
-| Location, Health, Audio, Files and docs, Calendar, Web browsing, Device IDs | — | No | — | — | No such permission or collection; voice-note transcription is not reachable from the UI |
+| Location, Health, Audio, Files and docs, Calendar, Web browsing, Device IDs | — | No | — | — | No such permission or collection; voice-note transcription has been removed from the code |
 
 ## Permissions to declare
 

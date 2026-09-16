@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import IntegrationsSettingsView from '@/components/settings/IntegrationsSettingsView'
 import { resolveProEntitlement } from '@/lib/entitlements'
+import { hasGmailGrant } from '@/lib/gmail-capability'
 import { nativePlatformFromHeaders } from '@/lib/native/runtime'
 import { createServerComponentClient } from '@/lib/supabase-server'
 import { createServiceClient } from '@/lib/supabase/service'
@@ -33,12 +34,22 @@ export default async function IntegrationsSettingsPage({
   } = await createServerComponentClient().auth.getUser()
   if (!user) return null
 
-  const { pro } = await resolveProEntitlement(createServiceClient(), user)
+  const supabase = createServerComponentClient()
+  const [{ pro }, { data: profile }] = await Promise.all([
+    resolveProEntitlement(createServiceClient(), user),
+    // The two Gmail columns the browser may read; the tokens are never granted to it.
+    supabase.from('abc_profiles').select('google_connected, google_email').eq('id', user.id).maybeSingle(),
+  ])
+
   return (
     <IntegrationsSettingsView
       pro={pro}
       nativeApp={nativePlatformFromHeaders(headers()) !== null}
       nativeConnectRetry={searchParams?.native === 'connect-unavailable'}
+      gmail={{
+        connected: hasGmailGrant(profile),
+        mailbox: typeof profile?.google_email === 'string' ? profile.google_email : null,
+      }}
     />
   )
 }

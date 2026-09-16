@@ -5,6 +5,7 @@ import { IconX } from '@tabler/icons-react'
 import CardQrImage from '@/components/card/CardQrImage'
 import DigitalCardView from '@/components/card/DigitalCardView'
 import InertContent from '@/components/ui/InertContent'
+import { useNativeBackHandler } from '@/lib/native/back-handlers'
 import type { DigitalCardData } from '@/lib/card/types'
 import { SAFE_LEFT, SAFE_RIGHT, SAFE_TOP } from '@/lib/ui/layout'
 
@@ -81,6 +82,9 @@ export default function CardPresentationMode({
       document.removeEventListener('keydown', onKey)
     }
   }, [open, covered, onClose])
+
+  // Android Back follows the same rule as Escape: this closes only while it is on top.
+  useNativeBackHandler(open && !covered, onClose)
 
   if (!open) return null
 
