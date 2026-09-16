@@ -16,6 +16,7 @@
     "test:account-deletion": "tsx scripts/test-account-deletion.ts",
     "test:pro": "tsx scripts/test-pro-entitlements.ts",
     "test:security": "tsx scripts/test-security-hardening.ts",
+    "test:auth-links": "tsx scripts/test-auth-links.ts",
     "test:email": "tsx scripts/test-email-templates.ts",
     "test:wallet": "tsx scripts/test-wallet.ts",
     "test:pwa": "tsx scripts/test-pwa.ts",

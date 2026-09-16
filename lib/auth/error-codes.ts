@@ -22,6 +22,8 @@ export const AUTH_ERROR_CODES = {
   profileFailed: 'oauth_profile_failed',
   tokenSaveFailed: 'oauth_token_save_failed',
   unexpected: 'oauth_unexpected',
+  /** An email link (/auth/confirm) that is malformed, expired or already used. */
+  emailLinkInvalid: 'email_link_invalid',
 } as const
 
 export type AuthErrorCode = (typeof AUTH_ERROR_CODES)[keyof typeof AUTH_ERROR_CODES]
@@ -49,6 +51,8 @@ export const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
   oauth_profile_failed: GENERIC_AUTH_ERROR,
   oauth_token_save_failed: GENERIC_AUTH_ERROR,
   oauth_unexpected: GENERIC_AUTH_ERROR,
+  email_link_invalid:
+    'That link is invalid, has expired or has already been used. Request a new one and open the newest email.',
 }
 
 export function authErrorMessage(reason: string | null | undefined): string {

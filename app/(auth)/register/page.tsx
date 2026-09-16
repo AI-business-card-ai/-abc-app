@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { getOAuthCallbackUrl } from '@/lib/auth/redirect'
 import { createClientComponent } from '@/lib/supabase'
 import AuthOrDivider from '@/components/auth/AuthOrDivider'
 import AppleSignInButton from '@/components/auth/AppleSignInButton'
@@ -29,7 +30,17 @@ export default function RegisterPage() {
       const { data, error: e2 } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: name } },
+        options: {
+          data: { full_name: name },
+          /*
+            Where the default confirmation link returns: the auth callback, which
+            exchanges its code and sends a new account to onboarding. Without it
+            the link fell back to the site root, where nothing exchanges a code.
+            Once the Supabase template points at /auth/confirm (token hash), this
+            is not used; see docs/auth-email-links.md.
+          */
+          emailRedirectTo: getOAuthCallbackUrl('/dashboard'),
+        },
       })
       if (e2) throw new Error(e2.message)
 
