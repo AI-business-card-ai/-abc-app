@@ -25,6 +25,13 @@ import { ingestEvent, type IngestStore } from '@/lib/event-intelligence/ingest'
 import { parseEventObjective, parseIntentProfile, parseList } from '@/lib/event-intelligence/intent'
 import { toCompany, toPresence } from '@/lib/event-intelligence/data'
 import {
+  buildMatchRows,
+  filterCounts,
+  locationLabel,
+  matchesFilter,
+  sourceFacts,
+} from '@/lib/event-intelligence/view'
+import {
   deterministicMatchEngine,
   ENGINE_VERSION,
   matchEvent,
@@ -46,6 +53,8 @@ import {
   type CompanyIntentProfile,
   type EventObjective,
   type MatchType,
+  type MeetingTarget,
+  type StoredMatch,
 } from '@/lib/event-intelligence/types'
 
 const ROOT = process.cwd()
@@ -1452,6 +1461,177 @@ async function run() {
   check(
     'M25 matches are written with the service role, never by the client',
     code('app/api/event-intelligence/match/route.ts').includes('createServiceClient'),
+    true
+  )
+
+  // ══════════ N. The match experience ══════════
+
+  check(
+    'N1 a hall and a stand read as one address',
+    locationLabel({ hall: '6', stand: 'B42' }),
+    'Hall 6 · Stand B42'
+  )
+  check(
+    'N2 a missing stand is said out loud, not left blank',
+    locationLabel({ hall: '7', stand: null }),
+    'Hall 7 · Stand not listed'
+  )
+  check(
+    'N3 a stand with no hall is the same problem the other way round',
+    locationLabel({ hall: null, stand: 'G02' }),
+    'Stand G02 · Hall not listed'
+  )
+  check(
+    'N4 neither is stated plainly rather than guessed from the other',
+    locationLabel({ hall: null, stand: null }),
+    'Location not listed'
+  )
+
+  const viewPresences = new Map(allPresences.map((p) => [p.id, p]))
+  const storedRows: StoredMatch[] = matched.slice(0, 4).map((m, index) => ({
+    ...m,
+    id: `match-${index}`,
+    userId: OWNER,
+    objectiveId: 'objective-1',
+    engineVersion: ENGINE_VERSION,
+    matchedAt: '2026-09-20T00:00:00.000Z',
+  }))
+
+  const savedTarget: MeetingTarget = {
+    id: 'target-1',
+    userId: OWNER,
+    matchId: 'match-1',
+    eventId: 'event-1',
+    presenceId: storedRows[1].presenceId,
+    status: 'saved',
+    priority: 1,
+    privateNote: 'Ask about housings',
+    scheduledFor: null,
+    metEncounterId: null,
+  }
+
+  const viewRows = buildMatchRows(storedRows, viewPresences, allCompanies, [savedTarget])
+
+  check('N5 every stored match becomes a row', viewRows.length, storedRows.length)
+  check('N6 rows are ordered strongest first', viewRows.map((r) => r.score), [...viewRows.map((r) => r.score)].sort((a, b) => b - a))
+  check(
+    'N7 a saved match is marked saved and carries its target',
+    viewRows.filter((r) => r.saved).map((r) => ({ target: r.targetId, priority: r.priority, status: r.status })),
+    [{ target: 'target-1', priority: 1, status: 'saved' }]
+  )
+  check(
+    'N8 the row shows one line of reasoning, not the whole analysis',
+    viewRows.every((r) => r.headline === null || !r.headline.includes('\n')),
+    true
+  )
+
+  check('N9 the filters count what they filter', filterCounts(viewRows).all, viewRows.length)
+  check(
+    'N10 each filter selects only its own kind',
+    (['customer', 'supplier', 'partner'] as MatchType[]).map((type) =>
+      viewRows.filter((r) => matchesFilter(r, type)).every((r) => r.matchType === type)
+    ),
+    [true, true, true]
+  )
+  check(
+    'N11 the saved filter selects only saved rows',
+    viewRows.filter((r) => matchesFilter(r, 'saved')).map((r) => r.targetId),
+    ['target-1']
+  )
+
+  /*
+    The separation this whole feature stands on: the facts panel is built only
+    from stored source values, so no sentence ABC wrote can appear in it.
+  */
+  const factPresence = allPresences.find((p) => nameOf(p.id).startsWith('NordWerk Robotics'))!
+  const factCompany = allCompanies.get(factPresence.companyId)
+  const facts = sourceFacts(factPresence, factCompany)
+  const sourceValues = new Set([
+    ...(factCompany?.categories ?? []),
+    ...factPresence.eventCategories,
+    ...factPresence.productsServices,
+    factCompany?.descriptionPublic,
+    factPresence.eventDescription,
+    factCompany?.country,
+    factCompany?.websiteDomain,
+  ])
+  check(
+    'N12 every value in the facts panel is a value the source actually stored',
+    facts.flatMap((f) => f.values).filter((v) => !sourceValues.has(v)),
+    []
+  )
+
+  const analysisPhrases = matched.flatMap((m) => m.reasons.map((r) => r.statement))
+  check(
+    'N13 and no sentence ABC wrote leaks into it',
+    facts.flatMap((f) => f.values).filter((v) => analysisPhrases.includes(v)),
+    []
+  )
+
+  const detail = code('components/event-intelligence/MatchDetailView.tsx')
+  check('N14 the detail names the listing and the analysis as two different things', detail.includes('From the listing') && detail.includes('ABC analysis'), true)
+  check(
+    'N15 the analysis section renders reasons with the evidence they rest on',
+    detail.includes('evidenceByField') && detail.includes('reason.statement'),
+    true
+  )
+  check(
+    'N16 the score is described as fit, never as a prediction',
+    // Claim wording, not the disclaimer. The screen is *required* to say "not a
+    // prediction that they will buy", so searching for "will buy" would fail on
+    // the very sentence that makes the number safe to show.
+    /win probability|probability of|likelihood of|chance of clos|conversion rate|close rate/i.test(detail),
+    false
+  )
+  check(
+    'N17 and it says so in words on the screen',
+    detail.includes('not a prediction that they will buy'),
+    true
+  )
+  check(
+    'N18 no conversation prose is fabricated — the deterministic engine writes none',
+    /Conversation starter|Questions to ask|I noticed your team/i.test(detail),
+    false
+  )
+  check(
+    'N19 the private note says it stays private',
+    detail.includes('Never sent anywhere'),
+    true
+  )
+  check(
+    'N20 provenance is shown, not hidden',
+    detail.includes('Source:') && detail.includes('fetched'),
+    true
+  )
+
+  const listView = code('components/event-intelligence/MatchList.tsx')
+  check('N21 the filter row scrolls rather than overflowing', listView.includes('abc-scroll-x'), true)
+  check('N22 rows and controls are full-height touch targets', listView.includes('min-h-[44px]') && listView.includes('h-11'), true)
+  for (const [label, src] of [
+    ['list', listView],
+    ['detail', detail],
+    ['event', code('components/event-intelligence/EventIntelligenceView.tsx')],
+    ['hub', code('components/event-intelligence/IntelligenceHub.tsx')],
+    ['setup', code('components/event-intelligence/SetupView.tsx')],
+  ] as const) {
+    // `max-w-` and `min-w-` are constraints, not fixed widths.
+    check(`N23 ${label} sets no fixed pixel width`, /(?<![a-z-])w-\[\d+px\]/.test(src), false)
+    // Truncation is asked of the screens where a name shares a row with
+    // something else. A page heading is allowed to wrap onto a second line;
+    // a name in a list row beside a score and a button is not.
+    if (label === 'list' || label === 'hub') {
+      check(`N24 ${label} truncates a long name rather than widening the row`, src.includes('truncate'), true)
+    }
+  }
+
+  check(
+    'N25 a target cannot be set to met through the API',
+    code('app/api/event-intelligence/targets/route.ts').includes("['saved', 'planned', 'skipped']"),
+    true
+  )
+  check(
+    'N26 the event and stand a target points at are derived, never taken from the client',
+    !/body\?\.(eventId|presenceId)/.test(code('app/api/event-intelligence/targets/route.ts')),
     true
   )
 

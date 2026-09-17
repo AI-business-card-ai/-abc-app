@@ -2,6 +2,9 @@ import Link from 'next/link'
 import { IconArrowLeft, IconMapPin, IconTargetArrow } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import { EmptyState, SectionLabel } from '@/components/ui/abc/Bits'
+import MatchList from '@/components/event-intelligence/MatchList'
+import RunMatching from '@/components/event-intelligence/RunMatching'
+import { buildMatchRows } from '@/lib/event-intelligence/view'
 import type {
   IntelCompany,
   IntelEvent,
@@ -14,10 +17,10 @@ import type {
  * One fair's Event Intelligence.
  *
  * The screen has an order of business, and it is the order of the product: say
- * what you are looking for, then look at what ABC found. Until the first is
- * answered the second is not shown as an empty table with filters over it —
- * there is nothing to filter, and a table of nothing is a worse answer than a
- * sentence explaining what is missing.
+ * what you are looking for, let ABC compare it against the listing, then decide
+ * who is worth walking to. Until the first is answered the rest is not shown as
+ * an empty table with filters over it — there is nothing to filter, and a table
+ * of nothing is a worse answer than a sentence saying what is missing.
  */
 
 export type EventIntelligenceViewProps = {
@@ -51,9 +54,20 @@ export default function EventIntelligenceView({
   hasProfile,
   hasObjective,
   matches,
+  targets,
+  presences,
+  companies,
 }: EventIntelligenceViewProps) {
   const dates = eventDates(event)
   const place = [event.venue, event.city, event.country].filter(Boolean).join(', ')
+
+  const rows = buildMatchRows(
+    matches,
+    new Map(presences.map((presence) => [presence.id, presence])),
+    new Map(companies.map((company) => [company.id, company])),
+    targets
+  )
+  const savedCount = rows.filter((row) => row.saved).length
 
   return (
     <div className="mx-auto w-full max-w-[900px] abc-page-top px-4 pb-16 sm:px-6 lg:px-8">
@@ -103,24 +117,46 @@ export default function EventIntelligenceView({
             action={<Button href={`/events/intelligence/${event.eventKey}/setup`}>Set this up</Button>}
           />
         </div>
-      ) : matches.length === 0 ? (
+      ) : rows.length === 0 ? (
         <div className="abc-surface mt-6">
           <EmptyState
             icon={IconTargetArrow}
-            title="Nothing has been matched yet."
-            description="ABC has your profile and your goals for this fair, but has not compared them against the exhibitor list."
-            action={
-              <Button href={`/events/intelligence/${event.eventKey}/setup`} variant="surface">
-                Review what you told ABC
-              </Button>
-            }
+            title="Ready to compare."
+            description={`ABC has your goals and ${exhibitorCount} exhibitors. Nothing has been matched against them yet.`}
+            action={<RunMatching eventKey={event.eventKey} />}
           />
         </div>
-      ) : null}
+      ) : (
+        <>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[13px] text-abc-secondary">
+              {rows.length} of {exhibitorCount} exhibitors are worth a look
+              {savedCount > 0 ? ` · ${savedCount} saved` : ''}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {savedCount > 0 ? (
+                <Button href={`/events/intelligence/${event.eventKey}/plan`} variant="surface">
+                  Your plan
+                </Button>
+              ) : null}
+              <Button href={`/events/intelligence/${event.eventKey}/setup`} variant="ghost">
+                Edit what you told ABC
+              </Button>
+            </div>
+          </div>
+
+          <MatchList rows={rows} eventKey={event.eventKey} />
+
+          <div className="mt-6">
+            <RunMatching eventKey={event.eventKey} again />
+          </div>
+        </>
+      )}
 
       <p className="mt-8 text-[12px] leading-[1.6] text-abc-muted">
         Exhibitor details come from the event listing ABC imported. Where a hall or stand is missing,
-        the listing did not give one.
+        the listing did not give one. ABC Match is how well a company fits what you said you want —
+        not a prediction that they will buy.
       </p>
     </div>
   )
