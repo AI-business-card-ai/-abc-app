@@ -108,6 +108,33 @@ export async function PATCH(request: Request) {
     patch.status = status
   }
 
+  /*
+    Linking a meeting that actually happened — the encounter bridge.
+
+    This accepts an encounter id and nothing else. It does not create an
+    encounter, it does not create a contact, and there is no path from here that
+    could: a target is a plan, an encounter is a thing that happened, and only
+    the scan, QR, exchange and manual paths make the second. Passing null
+    unlinks, which is what somebody does when they linked the wrong meeting.
+
+    Nothing here checks that the encounter belongs to the caller, and that is
+    deliberate rather than an oversight. The composite foreign key on
+    (met_encounter_id, user_id) makes the database refuse any encounter that is
+    not theirs, in this route and in every future one, including ones nobody has
+    written yet. A check here as well would be a second answer to the same
+    question, and the weaker of the two.
+  */
+  if (body?.metEncounterId !== undefined) {
+    const encounterId = body.metEncounterId
+    if (encounterId === null) {
+      patch.met_encounter_id = null
+    } else if (typeof encounterId === 'string' && encounterId.trim()) {
+      patch.met_encounter_id = encounterId.trim()
+    } else {
+      return NextResponse.json({ error: 'That is not a meeting ABC can link.' }, { status: 400 })
+    }
+  }
+
   if (body?.privateNote !== undefined) {
     const note = typeof body.privateNote === 'string' ? body.privateNote.trim() : ''
     if (note.length > 2000) {
@@ -129,6 +156,15 @@ export async function PATCH(request: Request) {
     if (!data) return NextResponse.json({ error: 'No such target.' }, { status: 404 })
     return NextResponse.json({ target: toTarget(data as Record<string, unknown>) })
   } catch (err) {
+    /*
+      A foreign key violation here has one cause worth naming: an encounter id
+      that is not this owner's. The database is the thing that refused it, and
+      the honest sentence is that ABC cannot find that meeting — which is also
+      all a prober learns.
+    */
+    if ((err as { code?: string })?.code === '23503') {
+      return NextResponse.json({ error: 'ABC cannot find that meeting.' }, { status: 400 })
+    }
     return serverErrorResponse('event-intelligence/targets', err)
   }
 }

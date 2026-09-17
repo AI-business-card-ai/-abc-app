@@ -1711,6 +1711,179 @@ async function run() {
     false
   )
 
+  // ══════════ P. The encounter bridge ══════════
+
+  /*
+    A fresh database, because section H deleted the owner's account to prove the
+    cascade. These are the two invariants the whole feature rests on, so they
+    run against real Postgres and the real constraints rather than against a
+    mock that would agree with whatever the code happened to do.
+  */
+  const { db: bdb } = await freshDatabase()
+  await seedAccount(bdb, OWNER, 'bridge-owner')
+  await seedAccount(bdb, OTHER, 'bridge-other')
+
+  const bEvent = (
+    await rowsOf<{ id: string }>(
+      bdb,
+      "insert into public.intel_events (event_key, name) values ('abc-industrial-future-expo', 'ABC Industrial Future Expo') returning id"
+    )
+  )[0].id
+  const bCompany = (
+    await rowsOf<{ id: string }>(
+      bdb,
+      "insert into public.intel_companies (display_name, name_normalized) values ('NordWerk Robotics', 'nordwerk robotics') returning id"
+    )
+  )[0].id
+  const bPresence = (
+    await rowsOf<{ id: string }>(
+      bdb,
+      "insert into public.intel_company_presences (event_id, company_id, hall, stand) values ($1, $2, '6', 'B42') returning id",
+      [bEvent, bCompany]
+    )
+  )[0].id
+
+  const bridgeIntel = await seedIntel(bdb, OWNER, bEvent, bPresence)
+  const ownerEnc = (await rowsOf<{ id: string }>(bdb, 'select id from public.contact_encounters where user_id = $1', [OWNER]))[0].id
+  const otherEnc = (await rowsOf<{ id: string }>(bdb, 'select id from public.contact_encounters where user_id = $1', [OTHER]))[0].id
+
+  const countOf = async (table: string, owner?: string) =>
+    (
+      await rowsOf<{ n: number }>(
+        bdb,
+        owner
+          ? `select count(*)::int as n from public.${table} where user_id = $1`
+          : `select count(*)::int as n from public.${table}`,
+        owner ? [owner] : []
+      )
+    )[0].n
+
+  const contactsBefore = await countOf('scanned_contacts')
+  const encountersBefore = await countOf('contact_encounters')
+
+  check(
+    'P1 a target nobody has linked is still only a target',
+    (
+      await rowsOf<{ status: string; met_encounter_id: string | null }>(
+        bdb,
+        'select status, met_encounter_id from public.intel_meeting_targets where id = $1',
+        [bridgeIntel.target]
+      )
+    )[0],
+    { status: 'saved', met_encounter_id: null }
+  )
+
+  check(
+    'P2 saving a target created no contact and no meeting (TARGET != ENCOUNTER)',
+    { contacts: await countOf('scanned_contacts'), encounters: await countOf('contact_encounters') },
+    { contacts: contactsBefore, encounters: encountersBefore }
+  )
+
+  check(
+    'P3 a meeting the owner really recorded can be linked',
+    (
+      await asRole(
+        bdb,
+        'authenticated',
+        'update public.intel_meeting_targets set met_encounter_id = $1 where id = $2 returning 1',
+        [ownerEnc, bridgeIntel.target],
+        OWNER
+      )
+    ).rows.length,
+    1
+  )
+
+  check(
+    'P4 and linking still creates no person and no meeting',
+    { contacts: await countOf('scanned_contacts'), encounters: await countOf('contact_encounters') },
+    { contacts: contactsBefore, encounters: encountersBefore }
+  )
+
+  check(
+    'P5 another account meeting cannot be linked, whatever a route does',
+    await refusal(
+      bdb,
+      'authenticated',
+      'update public.intel_meeting_targets set met_encounter_id = $1 where id = $2',
+      [otherEnc, bridgeIntel.target],
+      OWNER
+    ),
+    'foreign key'
+  )
+
+  /*
+    PERSON != ENCOUNTER, still. Meeting the same person at a second fair adds an
+    encounter to the contact they already are; it does not add a contact, and
+    nothing in this feature makes it one.
+  */
+  const existingContact = (
+    await rowsOf<{ contact_id: string }>(
+      bdb,
+      'select contact_id from public.contact_encounters where user_id = $1 limit 1',
+      [OWNER]
+    )
+  )[0].contact_id
+
+  await bdb.query(
+    "insert into public.contact_encounters (contact_id, user_id, event) values ($1, $2, 'A Second Fair 2027')",
+    [existingContact, OWNER]
+  )
+
+  check(
+    'P6 a second meeting with the same person is a second encounter, not a second contact',
+    { contacts: await countOf('scanned_contacts', OWNER), encounters: await countOf('contact_encounters', OWNER) },
+    { contacts: 1, encounters: 2 }
+  )
+
+  const featureSources = [
+    'app/api/event-intelligence/targets/route.ts',
+    'app/api/event-intelligence/match/route.ts',
+    'app/api/event-intelligence/profile/route.ts',
+    'app/api/event-intelligence/objective/route.ts',
+    'app/api/event-intelligence/import/route.ts',
+    'lib/event-intelligence/data.ts',
+    'lib/event-intelligence/ingest.ts',
+    'components/event-intelligence/MatchDetailView.tsx',
+  ]
+    .map((file) => code(file))
+    .join('\n')
+
+  check(
+    'P7 nothing in the feature writes to the relationship graph',
+    /from\('(scanned_contacts|contact_encounters|scan_batches|scan_batch_items)'\)[\s\S]{0,160}\.(insert|upsert|update|delete)\(/.test(
+      featureSources
+    ),
+    false
+  )
+
+  check(
+    'P8 it only ever reads it',
+    /from\('contact_encounters'\)[\s\S]{0,80}\.select\(/.test(code('lib/event-intelligence/data.ts')),
+    true
+  )
+
+  check(
+    'P9 a meeting is offered against the fair it names, by the workspace own rule',
+    code('lib/event-intelligence/data.ts').includes('eventKeyFromName') &&
+      code('lib/event-intelligence/data.ts').includes('eventDisplayName'),
+    true
+  )
+
+  check(
+    'P10 the detail screen can link a meeting and has no control that would create one',
+    code('components/event-intelligence/MatchDetailView.tsx').includes('metEncounterId') &&
+      !/create[^\n]{0,20}(encounter|meeting)|new meeting/i.test(
+        code('components/event-intelligence/MatchDetailView.tsx')
+      ),
+    true
+  )
+
+  check(
+    'P11 unlinking is possible, because somebody will link the wrong meeting',
+    code('app/api/event-intelligence/targets/route.ts').includes('patch.met_encounter_id = null'),
+    true
+  )
+
   // ── Report ──
 
   console.log(`\n  Event & Expo Intelligence — ${passed} passed, ${failures.length} failed\n`)

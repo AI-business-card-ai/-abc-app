@@ -1,6 +1,12 @@
 import { notFound, redirect } from 'next/navigation'
 import MatchDetailView from '@/components/event-intelligence/MatchDetailView'
-import { toCompany, toMatch, toPresence, loadTargets } from '@/lib/event-intelligence/data'
+import {
+  loadLinkableEncounters,
+  loadTargets,
+  toCompany,
+  toMatch,
+  toPresence,
+} from '@/lib/event-intelligence/data'
 import { eventIntelligenceContext } from '@/lib/event-intelligence/page-context'
 
 export const dynamic = 'force-dynamic'
@@ -61,7 +67,10 @@ export default async function MatchDetailPage({
     .limit(1)
     .maybeSingle()
 
-  const targets = await loadTargets(supabase, ownerId, event.id)
+  const [targets, encounters] = await Promise.all([
+    loadTargets(supabase, ownerId, event.id),
+    loadLinkableEncounters(supabase, ownerId, event.eventKey),
+  ])
 
   return (
     <MatchDetailView
@@ -70,6 +79,7 @@ export default async function MatchDetailPage({
       presence={presence}
       company={companyRow ? toCompany(companyRow as Record<string, unknown>) : undefined}
       target={targets.find((target) => target.matchId === match.id) ?? null}
+      encounters={encounters}
       source={
         sourceRow
           ? {

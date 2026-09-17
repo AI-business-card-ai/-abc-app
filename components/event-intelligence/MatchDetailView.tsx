@@ -16,6 +16,7 @@ import {
   sourceFacts,
 } from '@/lib/event-intelligence/view'
 import { displayTargetStatus } from '@/lib/event-intelligence/types'
+import type { LinkableEncounter } from '@/lib/event-intelligence/data'
 import type {
   IntelCompany,
   IntelEvent,
@@ -52,9 +53,11 @@ type Props = {
   company: IntelCompany | undefined
   target: MeetingTarget | null
   source: { provider: string; sourceUrl: string | null; fetchedAt: string } | null
+  /** Meetings this owner already recorded at this fair. Never created here. */
+  encounters: LinkableEncounter[]
 }
 
-export default function MatchDetailView({ event, match, presence, company, target, source }: Props) {
+export default function MatchDetailView({ event, match, presence, company, target, source, encounters }: Props) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState(target?.privateNote ?? '')
@@ -282,12 +285,82 @@ export default function MatchDetailView({ event, match, presence, company, targe
               ) : null}
             </label>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[12.5px] text-abc-muted">
+            {/*
+              The encounter bridge.
+
+              A target never becomes a meeting on its own, and this screen has
+              no button that would make one. It can only point at a meeting the
+              owner already recorded through the normal paths — scanning a card,
+              exchanging ABC, or saving a contact by hand — which is why the
+              list below is of things that already exist and is empty until one
+              does.
+            */}
+            <div>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-abc-muted">
+                Did you meet them?
+              </p>
+
+              {target.metEncounterId ? (
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <span className="text-[13.5px] text-abc-text">
+                    Linked to a meeting you recorded.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => patch({ metEncounterId: null })}
+                    disabled={busy}
+                    className="min-h-[44px] text-[13px] font-medium text-abc-secondary transition-colors hover:text-abc-text disabled:opacity-45 abc-focus-ring"
+                  >
+                    Unlink
+                  </button>
+                </div>
+              ) : encounters.length === 0 ? (
+                <p className="mt-1.5 text-[12.5px] leading-[1.55] text-abc-muted">
+                  Nothing recorded at {event.name} yet. Scan their card or save the contact when you
+                  meet them, and the meeting will be offered here.
+                </p>
+              ) : (
+                <>
+                  <p className="mt-1.5 text-[12.5px] leading-[1.55] text-abc-muted">
+                    Pick the meeting you recorded with them. ABC will not create one for you.
+                  </p>
+                  <ul className="mt-2 flex flex-col gap-2">
+                    {encounters.map((encounter) => (
+                      <li key={encounter.id}>
+                        <button
+                          type="button"
+                          onClick={() => patch({ metEncounterId: encounter.id })}
+                          disabled={busy}
+                          className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-btn border border-abc-border px-3 py-2 text-left transition-colors duration-200 ease-abc hover:border-abc-border-strong disabled:opacity-45 abc-focus-ring"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-[13.5px] font-medium text-abc-text">
+                              {encounter.personName ?? 'Unnamed contact'}
+                              {encounter.company ? ` · ${encounter.company}` : ''}
+                            </span>
+                            {encounter.metAt ? (
+                              <span className="block text-[12px] text-abc-muted">
+                                {new Date(encounter.metAt).toLocaleDateString(undefined, {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="shrink-0 text-[12.5px] text-abc-secondary">Link</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              <p className="mt-2 text-[12px] text-abc-muted">
                 {status === 'met'
-                  ? 'Marked met — you recorded a meeting with them.'
-                  : `Status: ${status}`}
-              </span>
+                  ? 'Marked met, because a real meeting is linked.'
+                  : `Status: ${status}.`}
+              </p>
             </div>
 
             <div className="flex flex-wrap gap-2">

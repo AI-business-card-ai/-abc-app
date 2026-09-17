@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServerComponentClient } from '@/lib/supabase-server'
+import { eventDisplayName, eventKeyFromName } from '@/lib/events/workspace'
 import type {
   CompanyIntentProfile,
   EventObjective,
@@ -361,6 +362,90 @@ export async function loadIntelEventSummaries(
       hasObjective: Boolean(objectiveId),
       matches: objectiveId ? matchCounts.get(objectiveId) ?? 0 : 0,
       targets: targetCounts.get(event.id) ?? 0,
+    }
+  })
+}
+
+/**
+ * Meetings this owner has already recorded at this fair.
+ *
+ * The bridge between the two halves of ABC, and it goes one way only: this
+ * finds encounters that already exist so the owner can point a target at one.
+ * Nothing here creates an encounter, and nothing here creates a contact. A
+ * target is a plan; an encounter is a thing that happened; only the scan, QR,
+ * exchange and manual paths make the second, exactly as they did before this
+ * feature existed.
+ *
+ * Which encounters belong to this fair is decided by the same rule the Event
+ * Workspace already uses — the event text people actually type, slugged — so
+ * an encounter saved as "ABC Industrial Future Expo 2026" is offered against
+ * the imported event of that name without anything having been migrated or
+ * back-filled to connect them.
+ */
+export type LinkableEncounter = {
+  id: string
+  contactId: string
+  personName: string | null
+  company: string | null
+  metAt: string | null
+  event: string | null
+}
+
+export async function loadLinkableEncounters(
+  supabase: Client,
+  ownerId: string,
+  eventKey: string
+): Promise<LinkableEncounter[]> {
+  const { data, error } = await supabase
+    .from('contact_encounters')
+    .select('id, contact_id, met_at, event, event_normalized')
+    .eq('user_id', ownerId)
+    .order('met_at', { ascending: false })
+    .limit(500)
+
+  if (error) {
+    console.error('[event-intelligence] encounter query failed:', error.code ?? 'unknown')
+    return []
+  }
+
+  const rows = ((data ?? []) as Row[]).filter((row) => {
+    const name = eventDisplayName({
+      event: str(row.event),
+      eventNormalized: str(row.event_normalized),
+    })
+    return name ? eventKeyFromName(name) === eventKey : false
+  })
+
+  if (rows.length === 0) return []
+
+  const contactIds = Array.from(new Set(rows.map((row) => String(row.contact_id))))
+  const people = new Map<string, { name: string | null; company: string | null }>()
+
+  for (let i = 0; i < contactIds.length; i += 200) {
+    const { data: contacts, error: contactError } = await supabase
+      .from('scanned_contacts')
+      .select('id, name, company')
+      .eq('user_id', ownerId)
+      .in('id', contactIds.slice(i, i + 200))
+
+    if (contactError) {
+      console.error('[event-intelligence] contact query failed:', contactError.code ?? 'unknown')
+      continue
+    }
+    for (const row of (contacts ?? []) as Row[]) {
+      people.set(String(row.id), { name: str(row.name), company: str(row.company) })
+    }
+  }
+
+  return rows.map((row) => {
+    const person = people.get(String(row.contact_id))
+    return {
+      id: String(row.id),
+      contactId: String(row.contact_id),
+      personName: person?.name ?? null,
+      company: person?.company ?? null,
+      metAt: str(row.met_at),
+      event: str(row.event) ?? str(row.event_normalized),
     }
   })
 }
