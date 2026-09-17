@@ -23,6 +23,14 @@ import {
 } from '@/lib/event-intelligence/fixtures/abc-industrial-future-expo'
 import { ingestEvent, type IngestStore } from '@/lib/event-intelligence/ingest'
 import { parseEventObjective, parseIntentProfile, parseList } from '@/lib/event-intelligence/intent'
+import { toCompany, toPresence } from '@/lib/event-intelligence/data'
+import {
+  deterministicMatchEngine,
+  ENGINE_VERSION,
+  matchEvent,
+  MIN_SCORE,
+  WEAK_SCORE,
+} from '@/lib/event-intelligence/scoring'
 import { DEMO_EVENT_REF, JsonFixtureProvider } from '@/lib/event-intelligence/providers/json-fixture'
 import {
   contentHash,
@@ -33,7 +41,12 @@ import {
   terms,
   termsOfAll,
 } from '@/lib/event-intelligence/normalize'
-import { displayTargetStatus } from '@/lib/event-intelligence/types'
+import {
+  displayTargetStatus,
+  type CompanyIntentProfile,
+  type EventObjective,
+  type MatchType,
+} from '@/lib/event-intelligence/types'
 
 const ROOT = process.cwd()
 let passed = 0
@@ -66,6 +79,10 @@ const MIGRATION = 'supabase/migrations/20260919120000_event_expo_intelligence.sq
  * however many commits the feature branch grows.
  */
 const BASE_REF = 'origin/release-final-blocker-fixes'
+
+/** The presence columns, spelled once. */
+const PRESENCE_SQL =
+  'id, event_id, company_id, exhibitor_display_name, hall, stand, event_categories, event_description, products_services, listing_url, status, first_seen_at, last_seen_at'
 
 /*
   The same pinned set the account-deletion suite keeps, for the same reasons:
@@ -1144,14 +1161,298 @@ async function run() {
     []
   )
 
+  /*
+    Two routes hold the service role, and both have a reason that is about
+    authority rather than convenience: 'import' writes shared reference data
+    that belongs to no account, and 'match' writes scores, which are ABC's
+    conclusion and must not be forgeable by the account they are about. Any
+    third route appearing here is a finding.
+  */
   check(
-    'L10 the service role is used only where the data belongs to nobody',
+    'L10 the service role is held only by the two routes whose writes are not the owner to make',
     fs
       .readdirSync(path.join(ROOT, 'app/api/event-intelligence'), { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .filter((entry) => code(`app/api/event-intelligence/${entry.name}/route.ts`).includes('createServiceClient'))
       .map((entry) => entry.name),
-    ['import']
+    ['import', 'match']
+  )
+
+  // ══════════ M. Matching ══════════
+
+  /*
+    A synthetic owner to match the synthetic fair against: a precision machining
+    company that sells machined aluminium parts, needs bearings and coating, and
+    would like to talk to design offices. Chosen so the three directions have to
+    behave differently — if the engine collapsed them into one relevance number,
+    several checks below would agree with each other and all of them would fail.
+  */
+  const DEMO_PROFILE: CompanyIntentProfile = {
+    id: 'profile-1',
+    userId: OWNER,
+    companyName: 'Nordfeld Precision',
+    whatWeDo: 'We manufacture precision CNC-machined aluminium parts.',
+    whatWeSell: ['CNC aluminium components', 'Machined housings', 'Prototype production'],
+    whatWeBuy: ['Special bearings'],
+    whoWeWantToMeet: 'Manufacturers of industrial robots, electric motors and automation systems',
+    targetIndustries: ['Robotics', 'Electric motors', 'Automation'],
+    targetCompanyTypes: ['Machine builders'],
+    capabilities: ['CNC machining', 'Aluminium housings'],
+    technologies: [],
+    materials: ['Aluminium'],
+    certifications: [],
+    geographies: ['DE'],
+  }
+
+  const DEMO_OBJECTIVE: EventObjective = {
+    id: 'objective-1',
+    userId: OWNER,
+    eventId: 'event-1',
+    profileId: 'profile-1',
+    goals: null,
+    sellFocus: [],
+    buyFocus: ['Anodising', 'Surface coating'],
+    partnerFocus: ['Engineering design', 'Prototyping'],
+    priorityIndustries: [],
+    priorityGeographies: [],
+    notes: null,
+  }
+
+  // The real graph, as ingestion left it in section J.
+  const presenceRows = await rowsOf(idb, `select ${PRESENCE_SQL} from public.intel_company_presences order by id`)
+  const companyRows = await rowsOf(idb, 'select id, display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of from public.intel_companies')
+  const allPresences = presenceRows.map(toPresence)
+  const allCompanies = new Map(companyRows.map((row) => [String(row.id), toCompany(row)]))
+  const nameOf = (presenceId: string) => {
+    const presence = allPresences.find((p) => p.id === presenceId)
+    return presence ? allCompanies.get(presence.companyId)?.displayName ?? '?' : '?'
+  }
+
+  const matched = matchEvent(DEMO_PROFILE, DEMO_OBJECTIVE, allPresences, allCompanies)
+  // Names are matched loosely because a company keeps whatever the listing
+  // called it — 'Helios Motion Systems GmbH', not the tidy form.
+  const byCompany = (name: string, type: MatchType) =>
+    matched.find((m) => nameOf(m.presenceId).startsWith(name) && m.matchType === type)
+
+  check(
+    'M1 the three directions produce different companies, not one list relabelled',
+    (['customer', 'supplier', 'partner'] as MatchType[]).map(
+      (type) => matched.filter((m) => m.matchType === type).length > 0
+    ),
+    [true, true, true]
+  )
+
+  check(
+    'M2 a motor manufacturer that lists machined housings is a customer, not a supplier',
+    { customer: Boolean(byCompany('Helios Motion Systems', 'customer')), supplier: Boolean(byCompany('Helios Motion Systems', 'supplier')) },
+    { customer: true, supplier: false }
+  )
+
+  check(
+    'M3 a bearing maker is a supplier, because they sell what the owner said they buy',
+    Boolean(byCompany('Vector Bearing Technologies', 'supplier')),
+    true
+  )
+
+  check(
+    'M4 a design office the owner wanted to talk to is a partner',
+    Boolean(byCompany('Meridian Engineering Design', 'partner')),
+    true
+  )
+
+  for (const irrelevant of ['Gastro Expo Catering', 'Industrie Verlag Publishing', 'Brightline Staffing', 'Solaris Facility Services']) {
+    check(
+      `M5 ${irrelevant} produces no match at all — a non-match is an answer`,
+      matched.filter((m) => nameOf(m.presenceId).startsWith(irrelevant)).length,
+      0
+    )
+  }
+
+  const again = matchEvent(DEMO_PROFILE, DEMO_OBJECTIVE, allPresences, allCompanies)
+  check('M6 the same inputs produce byte-identical output, every time', JSON.stringify(again), JSON.stringify(matched))
+
+  check(
+    'M7 every reason cites evidence — no claim reaches the screen unsupported',
+    matched.flatMap((m) => m.reasons.filter((r) => r.evidenceIndex.length === 0)),
+    []
+  )
+
+  check(
+    'M8 every cited evidence index points at real evidence',
+    matched.flatMap((m) =>
+      m.reasons.flatMap((r) => r.evidenceIndex.filter((i) => !m.evidence[i]))
+    ),
+    []
+  )
+
+  check(
+    'M9 evidence quotes the listing verbatim rather than paraphrasing it',
+    matched.every((m) =>
+      m.evidence.every((e) => {
+        const presence = allPresences.find((p) => p.id === m.presenceId)!
+        const company = allCompanies.get(presence.companyId)!
+        const sourceValues = [
+          ...company.categories,
+          ...presence.eventCategories,
+          ...presence.productsServices,
+          company.descriptionPublic,
+          presence.eventDescription,
+          company.country,
+        ].filter(Boolean)
+        return sourceValues.includes(e.value)
+      })
+    ),
+    true
+  )
+
+  check('M10 no score falls outside 0–100', matched.filter((m) => m.score < 0 || m.score > 100), [])
+  check(`M11 nothing below the ${MIN_SCORE} threshold is shown at all`, matched.filter((m) => m.score < MIN_SCORE), [])
+  check('M12 the list is ordered strongest first', matched.map((m) => m.score), [...matched.map((m) => m.score)].sort((a, b) => b - a))
+
+  const weakOnes = matched.filter((m) => m.score <= WEAK_SCORE)
+  check(
+    'M13 a thin match is flagged as thin rather than presented like a strong one',
+    weakOnes.every((m) => m.warnings.includes('weak_signal')),
+    true
+  )
+  check('M14 and a strong one is not', matched.filter((m) => m.score > WEAK_SCORE).every((m) => !m.warnings.includes('weak_signal')), true)
+
+  const noStand = matched.find((m) => nameOf(m.presenceId).startsWith('Pallas Handling Systems'))
+  check(
+    'M15 a missing stand is reported as missing, not filled in',
+    noStand ? { hall: noStand.warnings.includes('no_hall'), stand: noStand.warnings.includes('no_stand') } : 'no match',
+    { hall: false, stand: true }
+  )
+
+  /*
+    Certus lists neither hall nor stand. It does not match this owner at all —
+    testing services are not something they said they buy — so it is scored
+    against an owner who *did* ask for testing, which is the only honest way to
+    look at what its warnings say.
+  */
+  const certus = allPresences.find((p) => nameOf(p.id).startsWith('Certus Test Laboratories'))!
+  const certusMatch = deterministicMatchEngine.score({
+    profile: { ...DEMO_PROFILE, whatWeBuy: ['Materials testing', 'Certification'] },
+    objective: { ...DEMO_OBJECTIVE, buyFocus: [] },
+    candidate: { presence: certus, company: allCompanies.get(certus.companyId)! },
+  })
+  check(
+    'M16 neither hall nor stand is reported as two separate absences',
+    certusMatch.length > 0
+      ? [certusMatch[0].warnings.includes('no_hall'), certusMatch[0].warnings.includes('no_stand')]
+      : 'no match',
+    [true, true]
+  )
+  check(
+    'M16a an owner who never asked for testing is not sent to a testing lab',
+    matched.filter((m) => nameOf(m.presenceId).startsWith('Certus Test Laboratories')).length,
+    0
+  )
+
+  const withdrawnPresence = allPresences.find((p) => p.status === 'withdrawn')
+  check(
+    'M17 a withdrawn exhibitor is never suggested — the source already retracted them',
+    matched.filter((m) => m.presenceId === withdrawnPresence?.id).length,
+    0
+  )
+
+  /*
+    Geography alone must not make a match. Being in the same country as somebody
+    is a coincidence of address, and a list built on it would be the exhibitor
+    directory sorted by nationality.
+  */
+  const geographyOnly = matchEvent(
+    { ...DEMO_PROFILE, whatWeDo: 'Zzzqq', whatWeSell: [], whatWeBuy: [], whoWeWantToMeet: null, targetIndustries: [], targetCompanyTypes: [], capabilities: [], materials: [], geographies: ['DE'] },
+    { ...DEMO_OBJECTIVE, buyFocus: [], partnerFocus: [] },
+    allPresences,
+    allCompanies
+  )
+  check('M18 a shared country on its own is not a reason to meet anybody', geographyOnly, [])
+
+  /*
+    The sparse listing. Solaris states almost nothing, so even a profile written
+    to match its one word must be told the reasoning had nothing to work from.
+  */
+  const sparse = allPresences.find((p) => nameOf(p.id).startsWith('Solaris Facility Services'))!
+  const sparseMatch = deterministicMatchEngine.score({
+    profile: { ...DEMO_PROFILE, whatWeBuy: ['Facility services'], targetIndustries: [] },
+    objective: { ...DEMO_OBJECTIVE, buyFocus: [] },
+    candidate: { presence: sparse, company: allCompanies.get(sparse.companyId)! },
+  })
+  check(
+    'M19 a listing with nothing in it is flagged sparse if it is shown at all',
+    sparseMatch.every((m) => m.warnings.includes('sparse_listing')),
+    true
+  )
+
+  check(
+    'M20 an owner who said nothing gets nothing rather than the whole directory',
+    matchEvent(
+      { ...DEMO_PROFILE, whatWeDo: null, whatWeSell: [], whatWeBuy: [], whoWeWantToMeet: null, targetIndustries: [], targetCompanyTypes: [], capabilities: [], materials: [], technologies: [], geographies: [] },
+      { ...DEMO_OBJECTIVE, buyFocus: [], partnerFocus: [], priorityIndustries: [], priorityGeographies: [], goals: null },
+      allPresences,
+      allCompanies
+    ),
+    []
+  )
+
+  /*
+    The ranking itself, pinned. These are the numbers a reader of the match list
+    will see, and they are the whole product: a motor manufacturer that lists
+    machined housings should beat a bearing distributor the owner never asked
+    about, and a catering company should not appear at all. If a weight changes,
+    this is where it becomes visible rather than in somebody's trade-fair week.
+  */
+  check(
+    'M26 the strongest match is the motor manufacturer whose listing names what the owner makes',
+    matched.slice(0, 1).map((m) => [nameOf(m.presenceId), m.matchType, m.score]),
+    [['Helios Motion Systems GmbH', 'customer', 80]]
+  )
+
+  check(
+    'M27 the best supplier is the one selling exactly what the owner said they buy',
+    matched
+      .filter((m) => m.matchType === 'supplier')
+      .slice(0, 2)
+      .map((m) => [nameOf(m.presenceId), m.score]),
+    [
+      ['Ferrite Surface Coatings', 58],
+      ['Vector Bearing Technologies', 50],
+    ]
+  )
+
+  check(
+    'M28 an owner who named no partnership interest is offered no partners',
+    matchEvent({ ...DEMO_PROFILE }, { ...DEMO_OBJECTIVE, partnerFocus: [] }, allPresences, allCompanies).filter(
+      (m) => m.matchType === 'partner'
+    ),
+    []
+  )
+
+  check(
+    'M29 no reason leads with geography — where a company is registered is not why to meet them',
+    matched.filter((m) => m.reasons[0]?.signal === 'geography'),
+    []
+  )
+
+  check(
+    'M21 matching reads the listing and the owner intent, and nothing else',
+    /scanned_contacts|contact_encounters|scan_batch|crm_|followup/i.test(code('lib/event-intelligence/scoring.ts')),
+    false
+  )
+  check('M22 the engine is pure — no clock, no randomness, no network', /Date\.now|new Date|Math\.random|fetch\(/.test(code('lib/event-intelligence/scoring.ts')), false)
+  check('M23 the score is versioned so a result can be reproduced later', ENGINE_VERSION, 'deterministic-v1')
+
+  check(
+    'M24 re-running matching cannot delete a target somebody saved',
+    code('app/api/event-intelligence/match/route.ts').includes('protectedIds') &&
+      code('app/api/event-intelligence/match/route.ts').includes('intel_meeting_targets'),
+    true
+  )
+  check(
+    'M25 matches are written with the service role, never by the client',
+    code('app/api/event-intelligence/match/route.ts').includes('createServiceClient'),
+    true
   )
 
   // ── Report ──
