@@ -31,6 +31,7 @@ import {
   matchesFilter,
   sourceFacts,
 } from '@/lib/event-intelligence/view'
+import { buildPlan, planSummary } from '@/lib/event-intelligence/plan'
 import {
   deterministicMatchEngine,
   ENGINE_VERSION,
@@ -1633,6 +1634,81 @@ async function run() {
     'N26 the event and stand a target points at are derived, never taken from the client',
     !/body\?\.(eventId|presenceId)/.test(code('app/api/event-intelligence/targets/route.ts')),
     true
+  )
+
+  // ══════════ O. The plan ══════════
+
+  const planPresences = new Map(allPresences.map((p) => [p.id, p]))
+  const planMatches = new Map(storedRows.map((m) => [m.id, m]))
+
+  const planTargets: MeetingTarget[] = [
+    { ...savedTarget, id: 't-a', matchId: 'match-0', presenceId: storedRows[0].presenceId, priority: 2, privateNote: null },
+    { ...savedTarget, id: 't-b', matchId: 'match-1', presenceId: storedRows[1].presenceId, priority: 1, privateNote: 'Ask about housings' },
+    { ...savedTarget, id: 't-c', matchId: 'match-2', presenceId: storedRows[2].presenceId, priority: 1, privateNote: null },
+    { ...savedTarget, id: 't-d', matchId: 'match-3', presenceId: storedRows[3].presenceId, priority: 3, privateNote: null, status: 'skipped' },
+  ]
+
+  const plan = buildPlan(planTargets, planPresences, allCompanies, planMatches)
+
+  check(
+    'O1 the plan is grouped by the priority the owner set, most important first',
+    plan.map((group) => [group.priority, group.entries.length]),
+    [[1, 2], [2, 1], [3, 1]]
+  )
+  check('O2 a priority nobody used is not an empty heading', plan.filter((g) => g.entries.length === 0), [])
+  check(
+    'O3 every entry says where to go, including when the listing does not know',
+    plan.flatMap((g) => g.entries).filter((e) => !e.location),
+    []
+  )
+  check(
+    'O4 each entry carries the kind of opportunity and the score it came from',
+    plan.flatMap((g) => g.entries).filter((e) => e.matchTypeLabel === null || e.score === null),
+    []
+  )
+  check(
+    'O5 the private note travels with the plan',
+    plan.flatMap((g) => g.entries).find((e) => e.targetId === 't-b')?.privateNote,
+    'Ask about housings'
+  )
+
+  const summary = planSummary(plan)
+  check('O6 the summary counts what is left to do, not what was skipped', { total: summary.total, remaining: summary.remaining }, { total: 4, remaining: 3 })
+
+  /*
+    Hall ordering. A plain string sort puts Hall 10 before Hall 2, which reads
+    as a mistake to somebody standing in front of Hall 2.
+  */
+  const hallTargets: MeetingTarget[] = ['10', '2', null, 'West'].map((hall, index) => ({
+    ...savedTarget,
+    id: `h-${index}`,
+    matchId: `hm-${index}`,
+    presenceId: `hp-${index}`,
+    priority: 1,
+  }))
+  const hallPresences = new Map(
+    (['10', '2', null, 'West'] as (string | null)[]).map((hall, index) => [
+      `hp-${index}`,
+      { ...allPresences[0], id: `hp-${index}`, companyId: 'hc', hall, stand: 'A1' },
+    ])
+  )
+  const hallCompanies = new Map([['hc', { ...allCompanies.values().next().value!, id: 'hc', displayName: 'Hall Test' }]])
+  const hallPlan = buildPlan(hallTargets, hallPresences, hallCompanies, new Map())
+  check(
+    'O7 halls sort as numbers, with named and missing halls after them',
+    hallPlan[0].entries.map((e) => e.hall),
+    ['2', '10', 'West', null]
+  )
+
+  const planView = code('components/event-intelligence/PlanView.tsx')
+  check('O8 the plan promises no route and no schedule', /optimi[sz]ed route|fastest route|itinerary|we will schedule/i.test(planView), false)
+  check('O9 and says so on the screen', planView.includes('not'), true)
+  check('O10 the plan is a column of cards, not a table forced onto a phone', /<table|<thead|<tbody/i.test(planView), false)
+  check('O11 the plan sets no fixed pixel width', /(?<![a-z-])w-\[\d+px\]/.test(planView), false)
+  check(
+    'O12 there is no event_plans table — the plan is derived from targets',
+    /intel_event_plans|event_plans/.test(code(MIGRATION)),
+    false
   )
 
   // ── Report ──
