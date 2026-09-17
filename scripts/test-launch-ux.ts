@@ -108,7 +108,8 @@ check(
   [
     ['app/(auth)/login/page.tsx', "userFacingRequestError(err, 'Sign in failed.')"],
     ['app/(auth)/register/page.tsx', "userFacingRequestError(err, 'Registration failed.')"],
-    ['app/pricing/page.tsx', "userFacingRequestError(err, 'Checkout failed')"],
+    // The legacy /pricing checkout request is retired (release blocker B1); the current checkout request lives in Plan & Billing.
+    ['components/settings/BillingSettingsView.tsx', "userFacingRequestError(err, 'Could not start checkout.')"],
     ['components/settings/BillingSettingsView.tsx', "userFacingRequestError(err, 'Could not open the billing portal.')"],
     ['components/chat/MessageComposer.tsx', "userFacingRequestError(e, 'Email send failed')"],
     ['components/scan/BatchExportPanel.tsx', "userFacingRequestError(err, 'Could not push this batch.')"],

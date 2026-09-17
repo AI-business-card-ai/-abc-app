@@ -144,7 +144,7 @@ export default function ScanClient({ topPadding = true }: { topPadding?: boolean
 
         if (res.status === 403 && data.error === 'SCAN_LIMIT_REACHED') {
           setBlocked(true)
-          setError('You have used every scan on your plan. Upgrade to keep scanning.')
+          setError('You have used every scan on your plan. See Settings → Plan & Billing.')
           setStage('capture')
           return
         }

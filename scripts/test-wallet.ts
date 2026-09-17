@@ -5,7 +5,7 @@
  *
  * There is no test framework here, and this deliberately does not introduce
  * one: the repository's existing convention is a standalone TypeScript file
- * executed by `tsx` (see `scripts/setup-stripe.ts`), and a second toolchain
+ * executed by `tsx` (see `scripts/native-prepare.ts`), and a second toolchain
  * added for one feature is a cost every future contributor pays.
  *
  * Two kinds of assertion, mixed on purpose:

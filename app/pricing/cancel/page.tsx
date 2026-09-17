@@ -1,28 +1,12 @@
-import PublicNotice from '@/components/landing/PublicNotice'
-
-export const metadata = { title: 'Checkout cancelled — ABC' }
+import { redirect } from 'next/navigation'
 
 /**
- * Stripe returns here when someone backs out of checkout.
+ * The cancel screen of the retired legacy plan checkout.
  *
- * No longer a client component: there was nothing interactive on it, only two
- * links. Rendering it on the server makes it a static page and removes the
- * bundle it used to carry.
+ * Its "Back to plans" led to the legacy plan catalog. Current checkouts cancel
+ * back to Plan & Billing (lib/billing/checkout.ts); anything that still lands
+ * here goes there as well.
  */
 export default function PricingCancelPage() {
-  return (
-    <PublicNotice
-      eyebrow="Checkout"
-      title="No problem."
-      actions={[
-        { href: '/pricing', label: 'Back to plans', variant: 'gold' },
-        { href: '/', label: 'Return to ABC' },
-      ]}
-    >
-      <p className="pub-notice-body">
-        Nothing was charged. Your ABC Card and everything on it stay exactly as they are — you can
-        upgrade whenever the workflow starts saving you real time.
-      </p>
-    </PublicNotice>
-  )
+  redirect('/settings/billing')
 }

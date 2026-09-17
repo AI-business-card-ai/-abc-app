@@ -1,12 +1,17 @@
-export type PaidPlan = 'starter' | 'growth' | 'pro' | 'team'
+/**
+ * The legacy Starter / Growth / Pro / Team plans — retired as products.
+ *
+ * Nothing sells them any more (app/api/stripe/checkout refuses), and their USD
+ * price list and checkout price lookup are gone. What remains is what existing
+ * customers still need:
+ *  - the plan names, so Plan & Billing can say which legacy plan an account is on;
+ *  - the price-ID mapping, so the webhook can still recognise a legacy
+ *    subscription (lib/billing/webhook.ts).
+ *
+ * Current products live in lib/billing/catalog.ts.
+ */
 
-/** Display / expected monthly prices in USD (must match Stripe Dashboard). */
-export const PLAN_PRICES_USD: Record<PaidPlan, number> = {
-  starter: 29,
-  growth: 49,
-  pro: 89,
-  team: 199,
-}
+export type PaidPlan = 'starter' | 'growth' | 'pro' | 'team'
 
 export const PLAN_LABELS: Record<PaidPlan, string> = {
   starter: 'Starter',
@@ -20,14 +25,6 @@ export const STRIPE_PRICE_IDS: Record<PaidPlan, string | undefined> = {
   growth: process.env.STRIPE_PRICE_GROWTH,
   pro: process.env.STRIPE_PRICE_PRO,
   team: process.env.STRIPE_PRICE_TEAM,
-}
-
-export function getStripePriceId(plan: PaidPlan): string {
-  const priceId = STRIPE_PRICE_IDS[plan]
-  if (!priceId) {
-    throw new Error(`Missing Stripe price ID for plan: ${plan}`)
-  }
-  return priceId
 }
 
 export function getPlanFromPriceId(priceId: string): PaidPlan | null {

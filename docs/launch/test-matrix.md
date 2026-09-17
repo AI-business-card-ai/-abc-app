@@ -1,6 +1,7 @@
 # ABC final release test matrix
 
-**Release candidate:** `landing-cinematic-system` @ `bd7199281aa3936352c53e0b6d4cc98b9fd3b3ed`.
+**Release candidate:** `landing-cinematic-system` @ `bd7199281aa3936352c53e0b6d4cc98b9fd3b3ed`, plus the code
+blocker fixes on `release-final-blocker-fixes` (from `launch-owner-runbook` @ `6bc90dd`).
 
 Levels:
 
@@ -33,12 +34,12 @@ nothing that needs a real provider or device is claimed as automated.
 | 13 | Contact delete | Delete a contact saved from a batch; batch history remains | `test:contact-delete`, rehearsal F9 | ● | ● | ● | — |
 | 14 | Account delete | Refused while a subscription bills; otherwise removes data, media folders, auth user; `/account-deletion` signed out | `test:account-deletion`, rehearsal F6/F10 | ● | ● | ● | — |
 | 15 | Smart Follow-up | Draft generated; regenerate; nothing sent automatically | `test:error-surface`, `test:pro` | — | ● | ● | ● |
-| 16 | Gmail | Connect (Messages and Settings → Integrations), send, disconnect, reconnect; web and apps | `test:final-release-cleanup` (C1–C18), `test:native-connectors` | — | ● | ● (Android blocked by B0) | ● (verified app) |
-| 17 | HubSpot | Connect, push contact + meeting, disconnect, cancel at consent | `test:native-connectors` | — | ● | ● (Android blocked by B0) | ● |
-| 18 | Salesforce | Same, with PKCE | `test:native-connectors` | — | ● | ● (Android blocked by B0) | ● |
-| 19 | Pipedrive | Same | `test:native-connectors` | — | ● | ● (Android blocked by B0) | ● |
+| 16 | Gmail | Connect (Messages and Settings → Integrations), send, disconnect, reconnect; web and apps | `test:final-release-cleanup` (C1–C18), `test:native-connectors`, `test:release-blockers` (B0) | — | ● | ● (Android: first real-device check) | ● (verified app) |
+| 17 | HubSpot | Connect, push contact + meeting, disconnect, cancel at consent | `test:native-connectors`, `test:release-blockers` (B0) | — | ● | ● (Android: first real-device check) | ● |
+| 18 | Salesforce | Same, with PKCE | `test:native-connectors`, `test:release-blockers` (B0) | — | ● | ● (Android: first real-device check) | ● |
+| 19 | Pipedrive | Same | `test:native-connectors`, `test:release-blockers` (B0) | — | ● | ● (Android: first real-device check) | ● |
 | 20 | Event Workspace | Meetings grouped by event; filters; person opens contact | `test:events` | ● | ● | ● | — |
-| 21 | Scan credit purchase | Pack checkout grants the configured credits once (**no purchase UI yet — B1**) | `test:billing` (webhook, catalog) | — | ● | — | ● |
+| 21 | Scan credit purchase | Pack checkout grants the configured credits once (**no purchase control yet — B6, after owner decisions**) | `test:billing` (webhook, catalog) | — | ● | — | ● |
 | 22 | Credit consumption | One accepted card = 1 credit; removed/failed = 0; retry never double-charges; never negative | `test:billing`, `test:multi-card`, rehearsal F2–F4 | — | ● (`SMART_SCAN_LEDGER=on`) | ● | ● |
 | 23 | Pro entitlement | Pro Monthly / Annual / Event Pass unlock Smart Follow-up, sequences, Gmail, CRM | `test:pro`, `test:billing` | — | ● | ● | ● |
 | 24 | Expiry | Event Pass ends after its days; cancelled subscription ends at period end; features lock | `test:pro` | — | ● | — | ● |
@@ -46,8 +47,9 @@ nothing that needs a real provider or device is claimed as automated.
 | 26 | Google Wallet | Save link adds the card on Android; origin/logo host after the origin decision | `test:wallet` | — | ● | ● | ● (publishing access) |
 | 27 | PWA | Install; no private data cached; offline page; update without reload loops | `test:pwa`, `test:pwa-private-cache` | ● | ● | ● | — |
 | 28 | Native iOS | TestFlight build loads the canonical origin; sign-in round trip; no purchase UI | `test:native` | — | — | ● | ● (review) |
-| 29 | Native Android | Internal build; same; custom-scheme sign-in; connector hand-back after B0 | `test:native` | — | — | ● | ● (review) |
-| 30 | Deep links | `io.abccard.app://auth/callback` and `…/connect/callback` open the app; bad links ignored | `test:native`, `test:native-connectors` | — | — | ● | — |
+| 29 | Native Android | Internal build; same; custom-scheme sign-in; connector hand-back through `connect/callback` | `test:native`, `test:release-blockers` | — | — | ● | ● (review) |
+| 30 | Deep links | `io.abccard.app://auth/callback` and `…/connect/callback` open the app; any other path or scheme does not; bad links ignored | `test:native`, `test:native-connectors`, `test:release-blockers` (B0) | — | — | ● | — |
+| 30b | Pricing and Plan & Billing | `/pricing`: free card, packs €8 / €17 / €28 with no counts, ABC Pro with "Pricing coming soon", no Starter/Growth/Team, no purchase; Plan & Billing: no Upgrade button, configured Pro only; legacy checkout 410 | `test:release-blockers` (B1, B1a) | ● | ● | ● | — |
 | 31 | Camera permissions | Prompt text matches `Info.plist`; denial handled; Android camera optional | `test:privacy-readiness` (N1, N2) | — | — | ● | — |
 | 32 | Share / files | Share card link; vCard, CSV, QR image and `.pkpass` handed to the share sheet; QR saved to Photos | `test:native` | ● (web share) | — | ● | — |
 | 33 | Android back | Closes presented card / QR / Multi-Card camera first, then history, then minimises | `test:final-release-cleanup` (D1–D7) | — | — | ● | — |
@@ -59,7 +61,8 @@ nothing that needs a real provider or device is claimed as automated.
 
 ## Automated suites — state on the release candidate
 
-Run on a clean checkout of `bd71992` (Windows worktree, 2026-09-17):
+Run on `release-final-blocker-fixes` (Windows worktree, 2026-09-17). Identical to the pristine
+`bd71992` baseline except the new `test:release-blockers`:
 
 | Suite | Result | Notes |
 | --- | --- | --- |
@@ -78,6 +81,7 @@ Run on a clean checkout of `bd71992` (Windows worktree, 2026-09-17):
 | `test:privacy-readiness` | 21/21 | |
 | `test:pro` | 107/107 | |
 | `test:pwa` | 130 passed | |
+| `test:release-blockers` | 29/29 | B0 Android returns, B1 pricing, B1a legacy checkout, obsolete Stripe script |
 | `test:pwa-private-cache` | 71 passed, 1 group skipped | skipped group is a historical hotfix scope pin |
 | `test:security` | 31/31 | |
 | `test:wallet` | 200/200 | |

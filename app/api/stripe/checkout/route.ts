@@ -1,57 +1,31 @@
-import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
-import { createRouteHandlerClient } from '@/lib/supabase-route'
-import { getStripePriceId, getPlanFromPriceId, type PaidPlan } from '@/lib/stripe-prices'
-import { serverErrorResponse } from '@/lib/api/errors'
+import { NextResponse } from 'next/server'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+/**
+ * Retired: checkout for the legacy Starter, Growth, Pro and Team subscriptions.
+ *
+ * Those plans are not part of what ABC sells. This route used to create a
+ * monthly USD Stripe subscription for any of them — including Growth, which the
+ * profile plan constraint no longer accepts, so the webhook could not record a
+ * Growth purchase after the customer had paid. It now creates nothing, calls
+ * nothing and reads nothing: every request gets the same controlled answer.
+ *
+ * Kept as a route rather than deleted so an old page or a stale client gets a
+ * clear refusal instead of a 404 that looks like an outage.
+ *
+ * What is NOT retired, because existing customers depend on it:
+ *  - the webhook's handling of legacy subscriptions (lib/billing/webhook.ts) —
+ *    completion, and cancellation back to Free;
+ *  - the billing portal (app/api/stripe/portal) — legacy subscribers cancel there;
+ *  - the legacy plan labels and price-ID mapping (lib/stripe-prices.ts).
+ *
+ * Current purchases go through /api/billing/checkout and lib/billing/catalog.ts.
+ */
 
-const PAID_PLANS = new Set<PaidPlan>(['starter', 'growth', 'pro', 'team'])
+export const dynamic = 'force-dynamic'
 
-export async function POST(req: NextRequest) {
-  try {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return NextResponse.json({ error: 'Stripe is not configured' }, { status: 500 })
-    }
-
-    const { plan } = (await req.json()) as { plan?: string }
-    if (!plan || !PAID_PLANS.has(plan as PaidPlan)) {
-      return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
-    }
-
-    const supabase = createRouteHandlerClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const paidPlan = plan as PaidPlan
-    const priceId = getStripePriceId(paidPlan)
-
-    if (!getPlanFromPriceId(priceId)) {
-      return NextResponse.json({ error: 'Price ID does not map to a known plan' }, { status: 500 })
-    }
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
-
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${appUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/pricing/cancel`,
-      customer_email: user.email,
-      metadata: {
-        userId: user.id,
-        plan: paidPlan,
-      },
-    })
-
-    return NextResponse.json({ url: session.url })
-  } catch (error) {
-    return serverErrorResponse('stripe/checkout', error, 'Checkout could not be started. Try again.')
-  }
+export async function POST() {
+  return NextResponse.json(
+    { error: 'This plan is no longer offered.', code: 'legacy_plans_retired' },
+    { status: 410, headers: { 'Cache-Control': 'no-store' } }
+  )
 }

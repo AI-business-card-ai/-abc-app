@@ -15,14 +15,16 @@ import { CLEARS_MOBILE_NAV, SAFE_LEFT, SAFE_RIGHT } from '@/lib/ui/layout'
  * marketing page, and stacked a second header on the ones that carry the
  * public header. `/account-deletion` belongs here for the same reason: the
  * stores link to it, it must work signed out, and it is a standalone page.
+ * `/pricing` is the public pricing chapter with the public header and footer.
+ * (`/pricing/success` and `/pricing/cancel` redirect on the server and never
+ * render here.)
  */
 const PUBLIC_PATHS = [
   '/',
   '/privacy',
   '/terms',
   '/account-deletion',
-  '/pricing/success',
-  '/pricing/cancel',
+  '/pricing',
 ]
 
 /** Auth and first-run screens: no app chrome, and a narrow centred column. */

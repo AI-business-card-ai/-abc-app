@@ -182,10 +182,9 @@ consent screen.
 - **Web and PWA:** Stripe, unchanged.
 - **Apps:** no web checkout, billing portal or pricing page. Plan & Billing reports
   the plan and says purchases are not available in the app; `/api/billing/checkout`
-  refuses app requests; `/pricing` redirects to Plan & Billing. The legacy
-  `/api/stripe/checkout` and `/api/stripe/portal` routes are called only from those
-  withheld screens and are left untouched until the legacy pricing flow is replaced,
-  when they should get the same refusal. Nothing points elsewhere to buy
+  refuses app requests; `/pricing` redirects to Plan & Billing. The legacy plan checkout
+  (`/api/stripe/checkout`) is retired and answers 410 everywhere; the billing portal
+  (`/api/stripe/portal`) is called only from Plan & Billing, which hides it in the apps. Nothing points elsewhere to buy
   (`lib/billing/commerce.ts`).
 - **Seam:** `lib/billing/native-store.ts` — store product mappings empty, server
   verification not implemented, grants nothing. A future verified store purchase

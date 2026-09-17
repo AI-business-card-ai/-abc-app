@@ -16,10 +16,16 @@ import { userFacingRequestError } from '@/lib/network-error'
 /**
  * Plan & Billing.
  *
- * What plan you are on, how much of it you have used, and the one button that
- * changes either — Stripe's own portal for a paying account, the pricing page
- * for a free one. ABC does not reimplement subscription management; it opens
- * the portal that already exists.
+ * What plan you are on, how much of it you have used, and Stripe's own portal
+ * for an account that still has a legacy subscription. ABC does not reimplement
+ * subscription management; it opens the portal that already exists.
+ *
+ * A free account is no longer sent to buy anything from here. The "Upgrade"
+ * button used to open the legacy Starter / Growth / Pro / Team catalog, which is
+ * retired. Smart Scan Packs have no purchase control yet (their credit counts
+ * are not decided, and credits only count once the ledger is switched on), so
+ * the page says so and links to the public pricing page, which explains the
+ * current model and sells nothing.
  *
  * The plan figures come from `planSummary` so that this page and the settings
  * hub cannot describe the same plan differently.
@@ -159,12 +165,12 @@ export default function BillingSettingsView({
               {portalLoading ? 'Opening…' : 'Manage subscription'}
             </button>
           ) : exempt ? null : (
-            <Link
-              href="/pricing"
-              className="inline-flex h-[44px] items-center justify-center rounded-btn bg-abc-gold px-4 text-[14px] font-semibold text-[#1a1205] transition-[filter] hover:brightness-[1.06] abc-focus-ring"
-            >
-              Upgrade
-            </Link>
+            <p className="text-[13px] leading-[1.5] text-abc-secondary">
+              Smart Scan Packs can’t be bought here yet.{' '}
+              <Link href="/pricing" className="font-medium text-abc-gold-accent abc-focus-ring">
+                How pricing works
+              </Link>
+            </p>
           )}
         </div>
 

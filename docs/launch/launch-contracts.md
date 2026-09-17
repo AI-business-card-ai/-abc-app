@@ -1,7 +1,8 @@
 # ABC launch contracts — facts from the code
 
 **Status:** written from the combined release candidate `landing-cinematic-system` @
-`bd7199281aa3936352c53e0b6d4cc98b9fd3b3ed` on 2026-09-17. Nothing here has been
+`bd7199281aa3936352c53e0b6d4cc98b9fd3b3ed` on 2026-09-17, and reconciled with the code blocker
+fixes on `release-final-blocker-fixes` (from `launch-owner-runbook` @ `6bc90dd`). Nothing here has been
 configured, submitted or deployed. Values in `<angle brackets>` are owner decisions or
 console values the repository cannot know. **No secret values appear in this document.**
 
@@ -101,7 +102,7 @@ be stored as PEM or base64 of the PEM.
 | `STRIPE_PRICE_PRO_MONTHLY` | Pro Monthly subscription. |
 | `STRIPE_PRICE_PRO_ANNUAL` | Pro Annual subscription. |
 | `SMART_SCAN_LEDGER` | `on` switches scan allowance from legacy plan counters to the credit ledger (`lib/billing/ledger.ts`); anything else = legacy. On first read with the ledger on, remaining legacy allowance is carried over once as an opening balance (`lib/scan/entitlement.ts`). |
-| `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_GROWTH`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_TEAM` | **Legacy** `/pricing` subscriptions (`lib/stripe-prices.ts`). See blocker B1. |
+| `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_GROWTH`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_TEAM` | **Legacy** subscriptions. No longer sold — the legacy checkout is retired. Still read by `lib/stripe-prices.ts` so the webhook recognises an existing legacy subscription; keep them while legacy subscribers exist. |
 
 ### Required for the native apps
 
@@ -153,7 +154,8 @@ providers.
 | Native connector callbacks | same four callbacks as above | `lib/connectors/native.ts` (an `abcn.` state takes the native branch) | No extra provider entry |
 | Stripe webhook | `<origin>/api/stripe/webhook` | `app/api/stripe/webhook/route.ts` | Stripe → Developers → Webhooks |
 | Stripe checkout return (Pro, Scan Packs) | `<origin>/settings/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}` / `?checkout=cancelled` | `lib/billing/checkout.ts` | Set per session by code; nothing to register |
-| Stripe checkout return (legacy plans) | `<origin>/pricing/success?session_id={CHECKOUT_SESSION_ID}` / `<origin>/pricing/cancel` | `app/api/stripe/checkout/route.ts` | Set per session by code |
+| Legacy plan checkout (retired) | `POST <origin>/api/stripe/checkout` and `GET <origin>/api/stripe/session` answer 410 `legacy_plans_retired`; `<origin>/pricing/success` and `<origin>/pricing/cancel` redirect to `<origin>/settings/billing` | `app/api/stripe/checkout`, `app/api/stripe/session`, `app/pricing/success`, `app/pricing/cancel` | Nothing to register |
+| Pricing (public) | `<origin>/pricing` — the current model (free card, Smart Scan Packs, ABC Pro); no purchase; in the store apps it redirects to Plan & Billing | `app/pricing/page.tsx`, `middleware.ts` | Store listings may link it only if store rules allow price display |
 | Account deletion (public) | `<origin>/account-deletion` | `app/account-deletion/page.tsx` | Google Play → Data safety → Delete account URL; App Store review notes |
 | Privacy | `<origin>/privacy` | `app/privacy/page.tsx` | App Store Connect, Play Console, Google OAuth consent screen |
 | Terms | `<origin>/terms` | `app/terms/page.tsx` | Google OAuth consent screen; store listings |
@@ -220,7 +222,7 @@ Provisional ID `io.abccard.app` (not changed by this task). Current references:
 | `android/app/build.gradle` | `namespace`, `applicationId` |
 | `android/app/src/main/java/io/abccard/app/MainActivity.java` | Java package (and directory) |
 | `android/app/src/main/res/values/strings.xml` | `package_name`, `custom_url_scheme` |
-| `android/app/src/main/AndroidManifest.xml` | custom-scheme intent filter (via `custom_url_scheme`) |
+| `android/app/src/main/AndroidManifest.xml` | two custom-scheme intent filters (via `custom_url_scheme`): `auth/callback` and `connect/callback` |
 | `lib/native/deep-link.ts` | `io.abccard.app://auth/callback`, `io.abccard.app://connect/callback` |
 | `scripts/test-native-shell.ts`, `scripts/test-native-connectors.ts` | assertions |
 | `native-shell/README.md`, `docs/store/*` | documentation |
@@ -258,7 +260,12 @@ Provisional ID `io.abccard.app` (not changed by this task). Current references:
 
 Code changes are **not** made by this audit. Each item needs an owner decision first.
 
-**B0 — Android cannot receive the native connector hand-back (code change needed).**
+**B0 — CLOSED in code on `release-final-blocker-fixes` (from `launch-owner-runbook` @ `6bc90dd`).** An exact intent filter for
+`io.abccard.app://connect/callback` (host `connect`, path `/callback`, its own filter) was added
+beside the sign-in filter; `npm run test:release-blockers` pins both filters, rejects every
+other path and scheme, and checks the parser and one-time claim protections are unchanged.
+**Remaining: OWNER REAL-DEVICE QA** of Gmail, HubSpot, Salesforce and Pipedrive in the Android app.
+The original finding, for the record:
 Connecting Gmail, HubSpot, Salesforce or Pipedrive in the store apps ends with the browser
 opening `io.abccard.app://connect/callback?attempt=…&handoff=…` (`lib/native/deep-link.ts`,
 `lib/native/handback-page.ts`). The only custom-scheme intent filter in
@@ -271,7 +278,13 @@ app and the connection cannot be claimed. iOS registers the whole scheme
 (`CFBundleURLSchemes`) and is not affected. Static finding: confirm on an Android device;
 the fix is an additional intent filter for host `connect`, path `/callback` (not made here).
 
-**B1 — The in-app upgrade path sells the legacy plans (owner decision, then code).**
+**B1 — CLOSED in code on `release-final-blocker-fixes` (from `launch-owner-runbook` @ `6bc90dd`).** `/pricing` now renders the landing
+page's current pricing chapter (free card; Smart Scan Packs €8 / €17 / €28, one-time, credits never
+expire, no scan counts; ABC Pro Event Pass / Monthly / Annual with "Pricing coming soon") and
+offers no purchase. Plan & Billing no longer has an Upgrade button: a free web account reads
+"Smart Scan Packs can’t be bought here yet" with a link to how pricing works; configured ABC Pro
+products are still offered there. The scan-limit messages no longer say "Upgrade".
+`scripts/setup-stripe.ts` and its npm script are removed. The original finding, for the record:
 Settings → Plan & Billing → **Upgrade** links to `/pricing` (`components/settings/BillingSettingsView.tsx`),
 which sells monthly USD subscriptions Starter $29, Growth $49, Pro $89, Team $199
 (`lib/stripe-prices.ts`, `app/pricing/page.tsx`) with lifetime scan caps, and lists
@@ -280,9 +293,13 @@ features the product does not have: "Priority enrichment" (enrichment was remove
 available). This contradicts the locked commercial model (free card, Smart Scan Packs,
 ABC Pro) shown on the landing page. There is also no in-app purchase UI for Smart Scan
 Packs (the catalog and `/api/billing/checkout` support them; nothing calls them).
-`scripts/setup-stripe.ts` creates obsolete products ("Unlimited scans") — **do not run it.**
+`scripts/setup-stripe.ts` created obsolete products ("Unlimited scans") — now removed.
 
-**B1a — A legacy Growth purchase cannot be recorded (verify in production).** The last
+**B1a — CLOSED in code on `release-final-blocker-fixes` (from `launch-owner-runbook` @ `6bc90dd`).** Growth was not added back to the schema.
+Instead no legacy checkout can be created: `/api/stripe/checkout` answers 410 for every legacy
+plan without calling Stripe. The only residual exposure is a legacy Checkout Session opened
+before the deploy and completed afterwards; P6 still shows whether production could record it.
+The original finding, for the record: The last
 migration that sets `abc_profiles_plan_check` (`20260712160000_internal_test_plan.sql`)
 allows `free, starter, pro, team, INTERNAL_TEST` — no `growth`. Replaying the repository
 migrations locally, `update abc_profiles set plan = 'growth'` is rejected (23514), so the
@@ -299,12 +316,19 @@ August 8, 2026 effective date.
 but honour web-bought Pro and credits (`lib/billing/commerce.ts`); Apple guideline
 3.1.3(b) risk is documented in `native-shell/README.md`.
 
-**B4 — Native icons and splash are Capacitor defaults** (`native-shell/README.md`) — not
-store-ready; needs the approved brand assets.
+**B4 — FINAL BRAND ASSETS REQUIRED.** Native icons and splash are Capacitor defaults
+(`native-shell/README.md`) — not store-ready; no code fix until the approved assets exist.
 
-**B5 — Hard-coded privileged e-mail addresses (owner confirmation).** `lib/scan-limits.ts`
-grants unmetered scanning to the founder address and to one additional personal address
-(`SCAN_LIMIT_EXEMPT_EMAILS`). Confirm the second address is still intended before launch.
+**B5 — OWNER REVIEW — UNLIMITED SCAN EXCEPTION.** `lib/scan-limits.ts`, constant
+`SCAN_LIMIT_EXEMPT_EMAILS`, grants unmetered scanning to the founder address and to one
+additional personal address. Not changed; confirm the second entry is intended before launch.
+
+**B6 — Smart Scan Pack purchase control (follow-up, after owner decisions).** Nothing in the
+app can buy a pack yet. `/api/billing/checkout` already sells a pack once its price ID and
+credit count are configured, but it does not check `SMART_SCAN_LEDGER`: with the ledger off,
+purchased credits would not count toward scanning. Build the purchase control together with the
+ledger rollout, after the pack quantities and charge timing are decided; until then do not
+configure pack price IDs in production.
 
 Not blockers, but decisions the code is waiting on: canonical origin (§3), final app ID
 (§4), Smart Scan pack quantities and Pro prices/duration (billing env above), whether to

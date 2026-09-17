@@ -4,7 +4,7 @@
  * Run with `npm run test:multi-card` from the repository root.
  *
  * No test framework, deliberately: the repository's convention is a standalone
- * TypeScript file executed by `tsx` (see `scripts/setup-stripe.ts`), and a
+ * TypeScript file executed by `tsx` (see `scripts/native-prepare.ts`), and a
  * second toolchain added for one feature is a cost every future contributor
  * pays.
  *
@@ -1299,7 +1299,10 @@ async function run() {
   check('I31a CameraStage.tsx unchanged', fingerprint('components/scan/CameraStage.tsx'), 'd5749dc37fe65cfc824e3df7b3ebf4ed6287fcfa453acee0182d403281b82179')
   // Updated deliberately by the error-surface task: error presentation only (a non-JSON
   // reply and a lost connection worded plainly); no camera or immersive change — I30a holds.
-  check('I31b ScanClient.tsx unchanged', fingerprint('components/scan/ScanClient.tsx'), '5f6ed6a1eb67e93aac745836543b7406c443638d0d8ec5f445545bcc884e3a90')
+  // Updated deliberately again by the release blocker fixes: one sentence, where the scan limit
+  // used to say "Upgrade to keep scanning" and the legacy plan catalog it pointed at is retired.
+  // Text only; no camera, immersive or flow change — I30a still holds.
+  check('I31b ScanClient.tsx unchanged', fingerprint('components/scan/ScanClient.tsx'), 'dbd3b1321b54c885c4903979d800b40c6396248b53a9e62644ba9281a610b222')
   check('I31c the shared camera hook unchanged', fingerprint('lib/scan/useCamera.ts'), '8abb68903680a757855c7233e13f830926c0a4f09d83524aafe3086466480006')
 
   // 32. The shutter uses the existing multi-card image pipeline.

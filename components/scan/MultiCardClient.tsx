@@ -376,7 +376,7 @@ export default function MultiCardClient() {
 
         if (res.status === 403 && data.error === 'SCAN_LIMIT_REACHED') {
           setBlocked(true)
-          setError('You have used every scan on your plan. Upgrade to keep scanning.')
+          setError('You have used every scan on your plan. See Settings → Plan & Billing.')
           setStage(items.length > 0 ? 'review' : 'capture')
           return
         }
@@ -388,7 +388,7 @@ export default function MultiCardClient() {
         setBatch(data.batch as ScanBatch)
         if (data.cappedByPlan) {
           setNotice(
-            `Your plan covered ${data.added} of the cards in that photo. Upgrade to capture the rest.`
+            `Your plan covered ${data.added} of the cards in that photo. See Settings → Plan & Billing.`
           )
         }
         hapticSuccess()

@@ -42,6 +42,22 @@
                 <data android:scheme="@string/custom_url_scheme" android:host="auth" android:path="/callback" />
             </intent-filter>
 
+            <!--
+              A finished Gmail or CRM connection returns here:
+              io.abccard.app://connect/callback (lib/connectors/native.ts). Its own
+              filter rather than a second <data> in the one above: <data> elements in
+              one filter combine, and a separate filter keeps each return exact. The
+              app still trusts nothing from the link itself — lib/native/deep-link.ts
+              checks its shape, and the claim needs the nonce this device kept and a
+              signed-in owner.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="@string/custom_url_scheme" android:host="connect" android:path="/callback" />
+            </intent-filter>
+
         </activity>
 
         <provider

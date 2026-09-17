@@ -1,7 +1,8 @@
 # ABC final release checklist
 
 **Release candidate:** `landing-cinematic-system` @ `bd7199281aa3936352c53e0b6d4cc98b9fd3b3ed`
-(contains `berlin-final-release-cleanup` @ `8f9f2a1` and `landing-rc-sync` @ `145550a`).
+(contains `berlin-final-release-cleanup` @ `8f9f2a1` and `landing-rc-sync` @ `145550a`), plus the code
+blocker fixes on `release-final-blocker-fixes` (from `launch-owner-runbook` @ `6bc90dd`).
 **As of:** 2026-09-17. A box is ticked only for work verified in the repository. **No external
 action has been done** — every console, device and store box is open.
 
@@ -34,15 +35,17 @@ Verified present in the combined release candidate:
 - [x] No enrichment marketing on the landing page
 - [x] Local migration rehearsal passes (`node scripts/rehearse-migrations.mjs`, 33/33)
 - [x] Typecheck, lint, production build, `git diff --check`
+- [x] **B0** Android intent filter for `io.abccard.app://connect/callback` (`test:release-blockers`; device QA still open below)
+- [x] **B1** Legacy `/pricing` catalog retired: `/pricing` shows the current model, no Upgrade button, legacy checkout answers 410 (`test:release-blockers`)
+- [x] **B1a** No reachable legacy Growth (or other legacy) checkout (`test:release-blockers`)
+- [x] Obsolete `scripts/setup-stripe.ts` removed
 
-Open code blockers (need a decision, then a development task):
+Open code follow-ups (need a decision, then a development task):
 
-- [ ] **B0** Android intent filter for `io.abccard.app://connect/callback` (native connectors on Android)
-- [ ] **B1** In-app upgrade path still sells legacy plans with non-existent features; no Scan Pack purchase UI
-- [ ] **B1a** Legacy Growth plan cannot be recorded against the repository schema (check production with P6)
+- [ ] **B6** Smart Scan Pack purchase control, gated with the `SMART_SCAN_LEDGER` rollout
 - [ ] Canonical-origin constants, if the owner's choice requires them (launch-contracts §3)
 - [ ] `.well-known` AASA / assetlinks publication (optional for launch)
-- [ ] Native icons and splash (Capacitor defaults today)
+- [ ] Native icons and splash (Capacitor defaults today) — FINAL BRAND ASSETS REQUIRED
 
 ## OWNER DECISION
 
@@ -56,10 +59,10 @@ Open code blockers (need a decision, then a development task):
 - [ ] Event Pass duration
 - [ ] IAP / Play Billing strategy
 - [ ] Grandfathering of legacy subscribers
-- [ ] Fate of the legacy `/pricing` page
+- [ ] When to build the Smart Scan Pack purchase control
 - [ ] Legal entity, Privacy/Terms effective date, Terms §3/§5/§6 corrections
 - [ ] `account_deletions` retention period; "within 30 days" wording; refund policy
-- [ ] Second unmetered e-mail in `lib/scan-limits.ts`
+- [ ] OWNER REVIEW — unlimited scan exception (`lib/scan-limits.ts`, `SCAN_LIMIT_EXEMPT_EMAILS`)
 - [ ] Final brand assets
 - [ ] Store availability wording
 - [ ] When to set `SMART_SCAN_LEDGER=on`
@@ -105,7 +108,7 @@ Stripe
 - [ ] Test-mode products and prices; env set on staging
 - [ ] Test-mode webhook with the four events
 - [ ] Customer portal allows cancellation
-- [ ] Legacy prices handled per decision
+- [ ] Legacy prices archived in Stripe; legacy price env kept while legacy subscribers exist
 - [ ] Live-mode products, prices, webhook; env set on production
 
 Apple
@@ -168,7 +171,8 @@ Email
 - [ ] Data safety (`docs/store/google-play-data-safety.md`) with no OWNER REVIEW left
 - [ ] Data deletion URL `<origin>/account-deletion`
 - [ ] Content rating and target audience
-- [ ] B0 fixed and native connectors verified on Android
+- [x] B0 fixed in code (Android connector return intent filter)
+- [ ] Native connectors (Gmail, HubSpot, Salesforce, Pipedrive) verified on a real Android device
 - [ ] Internal/closed testing build passes `REAL DEVICE` rows on Android
 - [ ] Submitted for review
 

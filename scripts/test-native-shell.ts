@@ -562,13 +562,14 @@ async function main() {
   const pricing = await Promise.all(['/pricing', '/pricing/success?session_id=cs_x'].map((p) => middleware(new NextRequest(`${ORIGIN}${p}`, { headers: { 'user-agent': ANDROID_UA } }))))
   check('N47 the pricing pages send the app to Plan & Billing', pricing.map((res) => [res.status, res.headers.get('location')]), [[307, `${ORIGIN}/settings/billing`], [307, `${ORIGIN}/settings/billing`]])
   check(
-    'N48 the legacy pricing checkout and the billing portal are called only from screens the app never shows',
+    // The legacy plan checkout is retired (release blocker B1): no screen calls it at all any more.
+    'N48 the retired legacy pricing checkout is called from nowhere, and the billing portal only from Plan & Billing, which hides it in the app',
     [
       sourceFiles.filter((f) => code(f).includes("'/api/stripe/checkout'")),
       sourceFiles.filter((f) => code(f).includes("'/api/stripe/portal'")),
       code('middleware.ts').includes("(requestedPath === '/pricing' || requestedPath.startsWith('/pricing/'))"),
     ],
-    [['app/pricing/page.tsx'], ['components/settings/BillingSettingsView.tsx'], true]
+    [[], ['components/settings/BillingSettingsView.tsx'], true]
   )
   const billingView = code('components/settings/BillingSettingsView.tsx')
   check(
@@ -577,9 +578,9 @@ async function main() {
     [true, true, true, false]
   )
   check(
-    'N50 the web checkout itself is unchanged',
-    [billingView.includes("fetch('/api/billing/checkout'"), billingView.includes("fetch('/api/stripe/portal'"), code('app/pricing/page.tsx').includes("fetch('/api/stripe/checkout'"), code('app/api/billing/checkout/route.ts').includes('createCheckoutSession(')],
-    [true, true, true, true]
+    'N50 the current web checkout is unchanged; the legacy one creates no Stripe session',
+    [billingView.includes("fetch('/api/billing/checkout'"), billingView.includes("fetch('/api/stripe/portal'"), /checkout\.sessions\.create|api\/stripe\/checkout/.test(code('app/pricing/page.tsx') + code('app/api/stripe/checkout/route.ts')), code('app/api/billing/checkout/route.ts').includes('createCheckoutSession(')],
+    [true, true, false, true]
   )
   const storeClaim = await store.verifyStorePurchase({ platform: 'app_store', storeProductId: 'anything', purchaseToken: 'anything' })
   check(

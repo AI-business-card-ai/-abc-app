@@ -3,7 +3,7 @@
 **For:** David (product owner). **Written from:** `landing-cinematic-system` @
 `bd7199281aa3936352c53e0b6d4cc98b9fd3b3ed`, the combined release candidate (core release
 candidate `berlin-final-release-cleanup` @ `8f9f2a1` plus the landing and cinematic landing
-commits). **Status:** nothing in this runbook has been done yet. No secrets are written here;
+commits), plus the code blocker fixes on `release-final-blocker-fixes` (from `launch-owner-runbook` @ `6bc90dd`). **Status:** nothing in this runbook has been done yet. No secrets are written here;
 every `<value>` is entered by you in the named console.
 
 Companion documents:
@@ -60,8 +60,8 @@ configuration then follows it.
 | A.8 | **Event Pass duration** (days) | Grant length | `PRO_EVENT_PASS_DAYS` |
 | A.9 | **IAP / Play Billing strategy** — in-app purchase, or another arrangement | Apple 3.1.3(b) review risk (`native-shell/README.md`) | Code and store products |
 | A.10 | **Grandfathering** of legacy Starter/Growth/Pro/Team subscribers and their lifetime scan caps | Legacy plans still exist in the database and Stripe | Stripe and data migration plan |
-| A.11 | **Legacy `/pricing` page** — retire, replace with Scan Packs + Pro, or keep | Blocker B1: it sells legacy plans and lists features that do not exist | Code change |
-| A.12 | **Commission code follow-ups** (not owner console work): B0 Android connector intent filter; B1 billing path per A.3–A.11; origin constants if A.1 needs them (launch-contracts §3) | Release blockers | Development task |
+| A.11 | **Smart Scan Pack purchase control** — when to build it, together with the `SMART_SCAN_LEDGER` rollout (the legacy `/pricing` catalog is already retired in code) | No pack can be bought in the app; pack checkout is not gated on the ledger (launch-contracts B6) | Code change after A.3 and A.4 |
+| A.12 | **Commission code follow-ups** (not owner console work): the Scan Pack purchase control per A.11; origin constants if A.1 needs them (launch-contracts §3). B0, B1 and B1a are closed in code. | Remaining code work | Development task |
 | A.13 | Legal: legal entity, Privacy/Terms effective date, Terms §3/§5/§6 corrections, `account_deletions` retention period, "within 30 days" wording, refund policy | Store submission and legal accuracy | Legal pages |
 | A.14 | Second hard-coded unmetered e-mail in `lib/scan-limits.ts` — keep or remove | Privileged access | Code change if removed |
 | A.15 | Final brand assets — app icon, splash, store graphics | Store submission | `native-shell/README.md` → Icons |
@@ -175,7 +175,8 @@ configuration then follows it.
 - **EXPECT:** P1 all `false`; P3 tables present and `card-media` public; P4 `0`; P5 no rows.
 - **VERIFY:** save the outputs. If P4 is not `0`, decide on the cleanup statement first. If P2
   shows an incomplete history, **do not use `supabase db push`**.
-- **P6** tells you whether a legacy Growth subscription could be recorded (blocker B1a).
+- **P6** tells you whether a legacy Growth subscription could be recorded. No new legacy checkout
+  can be created (B1a closed); this only matters for a legacy session opened before the deploy.
 - **P7** is the `avatars` bucket policy audit — confirm nothing lets `anon` list or write
   `avatars`.
 
@@ -277,8 +278,9 @@ connector are separate consents in the product.
 
 ## E. Stripe
 
-Legacy note: `scripts/setup-stripe.ts` creates obsolete products ("Unlimited scans") —
-**do not run it.** The live catalog is `lib/billing/catalog.ts`.
+The obsolete `scripts/setup-stripe.ts` (legacy Starter/Growth/Pro/Team products) has been removed —
+**do not recreate those products.** The live catalog is `lib/billing/catalog.ts`; create its
+products by hand in the Dashboard once the prices are decided.
 
 ### E.1 Products and prices (test mode first)
 
@@ -295,14 +297,19 @@ Legacy note: `scripts/setup-stripe.ts` creates obsolete products ("Unlimited sca
 - **EXPECT:** `GET /api/billing/status` shows each configured product `available: true`; a pack
   with no credit count stays unavailable (by design).
 - **VERIFY:** Settings → Plan & Billing lists the Pro options. Scan Packs have **no purchase
-  button in the app yet** (blocker B1) — test them only after the code follow-up.
+  button in the app yet** (A.11) — do not configure pack price IDs in production until that
+  control and the ledger rollout exist.
 
-### E.2 Legacy plans (decision A.10/A.11)
+### E.2 Legacy plans (decision A.10)
 
 - **WHERE:** Stripe → Product catalog (existing Starter/Growth/Pro/Team prices).
-- **ENTER:** per your decision — archive the prices if `/pricing` is retired; keep
-  `STRIPE_PRICE_STARTER/GROWTH/PRO/TEAM` only while legacy subscribers exist.
-- **VERIFY:** run P6 (C.4) before any legacy Growth sale.
+- **ENTER:** ABC no longer creates legacy checkouts (`/api/stripe/checkout` answers 410). Archive the
+  legacy prices in Stripe so nothing else can reuse them; keep
+  `STRIPE_PRICE_STARTER/GROWTH/PRO/TEAM` in Vercel while legacy subscribers exist (the webhook uses
+  them to recognise those subscriptions); handle existing subscribers per A.10.
+- **VERIFY:** `/pricing` shows no Starter, Growth or Team; Settings → Plan & Billing shows no Upgrade
+  button. Run P6 (C.4) only to know whether a legacy session opened before the deploy could still be
+  recorded.
 
 ### E.3 Webhook
 
@@ -313,7 +320,7 @@ Legacy note: `scripts/setup-stripe.ts` creates obsolete products ("Unlimited sca
 - **ENTER in Vercel:** `STRIPE_WEBHOOK_SECRET` = the endpoint's signing secret (`whsec_…`).
 - **EXPECT:** deliveries answer 200.
 - **VERIFY:** a test purchase of Pro Monthly creates one `billing_entitlements` row; resending
-  the same event shows `duplicate` handling (no second grant); a pack purchase (after B1 fix)
+  the same event shows `duplicate` handling (no second grant); a pack purchase (once A.11 is built)
   grants exactly the configured credits once.
 
 ### E.4 Customer portal
@@ -483,8 +490,8 @@ Legacy note: `scripts/setup-stripe.ts` creates obsolete products ("Unlimited sca
 - **ENTER:** `/.well-known/assetlinks.json` with `package_name` (A.2) and the SHA-256 from
   G.7, plus an `android:autoVerify="true"` intent filter for `<origin>/auth/native/return`.
   Needs a code change.
-- **VERIFY:** only after publication. The custom scheme works without it for sign-in — **but
-  see blocker B0: the connector hand-back needs its own intent filter first.**
+- **VERIFY:** only after publication. The custom scheme works without it, for sign-in and for the
+  connector hand-back (both have their own intent filter).
 
 ### G.9 Testing track
 
@@ -540,7 +547,8 @@ installed PWA, internal-testing app).
 | Google login | web, PWA and both apps; the app returns to itself after the system browser |
 | Apple login | same |
 | Email confirmation / password recovery | the C.2 tests, including opening links on another device |
-| Gmail | connect, send, disconnect, reconnect — web and both apps (**Android app blocked by B0 until fixed**) |
+| Gmail | connect, send, disconnect, reconnect — web and both apps (**Android connector return fixed in code; first real-device check**) |
+| Pricing and Plan & Billing | `/pricing` shows the free card, packs €8 / €17 / €28 without counts and ABC Pro without prices; no Starter, Growth or Team anywhere; Plan & Billing has no Upgrade button; in the apps `/pricing` opens Plan & Billing |
 | HubSpot, Salesforce, Pipedrive | connect, push a contact and meeting, disconnect; cancel at the consent screen returns cleanly |
 | Camera | permission prompt wording; scanning a card, badge and QR code |
 | Smart Scan | single scan saves a contact and meeting; credit/limit shown correctly |
@@ -567,7 +575,7 @@ installed PWA, internal-testing app).
 | J.4 | Production backup | Supabase → Backups | a restore point exists |
 | J.5 | Production pre-flight and migrations (C.4, C.5) | Supabase production | post-checks match |
 | J.6 | Deploy the application | Vercel production (merge/promote per your process) | the deployment shows the release SHA (`NEXT_PUBLIC_BUILD_SHA`) |
-| J.7 | Smoke test | production | sign in (Google, Apple, email); scan a card; public card and QR; exchange form; Gmail send; one CRM push; wallet add; `/privacy`, `/terms`, `/account-deletion` |
+| J.7 | Smoke test | production | sign in (Google, Apple, email); scan a card; public card and QR; exchange form; Gmail send; one CRM push; wallet add; `/pricing`, `/privacy`, `/terms`, `/account-deletion` |
 | J.8 | Stripe live (E.6) | Stripe live | one purchase + refund |
 | J.9 | Store submissions | App Store Connect, Play Console | TestFlight/internal build approved for review; all OWNER REVIEW answers resolved |
 | J.10 | Post-release checks (first 48 hours) | Vercel logs, Supabase logs, Stripe webhook deliveries, Resend | no 5xx spike; webhooks 200; emails delivered; no `native_auth_unavailable` or `app_origin_not_configured` in logs |

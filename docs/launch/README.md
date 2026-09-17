@@ -24,6 +24,8 @@ Verified with `git fetch origin --prune`, `git merge-base --is-ancestor` and `gi
 | `origin/berlin-final-release-cleanup` (core release candidate) | `8f9f2a15cb27fef86f7139a16aad4952f78e3f1f` |
 | `origin/landing-rc-sync` | `145550a3e38cf865c924e6198f646ad01b73af46` |
 | `origin/landing-cinematic-system` (**combined release candidate**) | `bd7199281aa3936352c53e0b6d4cc98b9fd3b3ed` |
+| `origin/launch-owner-runbook` (release candidate + these documents) | `6bc90dd259a12c8c14d372f4120d314be780d6a4` |
+| `release-final-blocker-fixes` (runbook branch + code blocker fixes B0, B1, B1a) | this branch |
 
 - `origin/main` (`14751d5`) is the second parent of the merge `c3371ae`; from that merge the
   history is linear, with no further merges, through `8f9f2a1` → `145550a` → `bd71992`.
