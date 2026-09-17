@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { IconCalendarEvent, IconChevronRight } from '@tabler/icons-react'
+import { IconCalendarEvent, IconChevronRight, IconTargetArrow } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import { EmptyState, SectionLabel } from '@/components/ui/abc/Bits'
 import type { EventSummary } from '@/lib/events/workspace'
@@ -31,7 +31,18 @@ function metRange(summary: EventSummary): string | null {
   return `${first} – ${last}`
 }
 
-export default function EventsListView({ events }: { events: EventSummary[] }) {
+export default function EventsListView({
+  events,
+  /*
+    Whether Event Intelligence exists for this deployment. Decided on the
+    server; false renders nothing at all, so the feature leaves no trace in the
+    markup of a build that does not have it.
+  */
+  intelligence = false,
+}: {
+  events: EventSummary[]
+  intelligence?: boolean
+}) {
   return (
     <div className="mx-auto w-full max-w-[900px] abc-page-top px-4 pb-10 sm:px-6 lg:px-8">
       <header>
@@ -43,6 +54,29 @@ export default function EventsListView({ events }: { events: EventSummary[] }) {
           Every fair you have met somebody at, and what is still open.
         </p>
       </header>
+
+      {intelligence ? (
+        <Link
+          href="/events/intelligence"
+          className="abc-surface mt-5 flex items-center gap-3 p-4 transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring sm:p-5"
+        >
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-abc-border bg-abc-raised"
+            aria-hidden="true"
+          >
+            <IconTargetArrow size={18} stroke={1.7} style={{ color: 'var(--text-muted)' }} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-semibold text-abc-text">
+              Event Intelligence
+            </span>
+            <span className="mt-0.5 block text-[12.5px] leading-[1.5] text-abc-secondary">
+              Before the fair: which exhibitors are worth meeting, and where they are.
+            </span>
+          </span>
+          <IconChevronRight size={18} stroke={1.8} aria-hidden="true" className="shrink-0 text-abc-muted" />
+        </Link>
+      ) : null}
 
       {events.length === 0 ? (
         <div className="abc-surface mt-6">

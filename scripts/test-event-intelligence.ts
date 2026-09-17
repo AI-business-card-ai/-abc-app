@@ -22,6 +22,7 @@ import {
   FIXTURE_EXHIBITORS,
 } from '@/lib/event-intelligence/fixtures/abc-industrial-future-expo'
 import { ingestEvent, type IngestStore } from '@/lib/event-intelligence/ingest'
+import { parseEventObjective, parseIntentProfile, parseList } from '@/lib/event-intelligence/intent'
 import { DEMO_EVENT_REF, JsonFixtureProvider } from '@/lib/event-intelligence/providers/json-fixture'
 import {
   contentHash,
@@ -1022,6 +1023,135 @@ async function run() {
     'J19 no personal data is ingested — the provider contract has no field for it',
     /\b(email|phone|firstName|lastName|contactName|linkedin)\b/i.test(code('lib/event-intelligence/provider.ts')),
     false
+  )
+
+  // ══════════ K. What the owner typed ══════════
+
+  check('K1 a list may be typed with new lines, commas or semicolons', parseList('Bearings\nSeals, Gaskets; Springs'), [
+    'Bearings',
+    'Seals',
+    'Gaskets',
+    'Springs',
+  ])
+  check('K2 pasted bullets lose their bullet', parseList('- Bearings\n• Seals\n* Springs'), ['Bearings', 'Seals', 'Springs'])
+  check('K3 duplicates and blanks drop out, order is kept', parseList('Bearings,,bearings, Seals'), ['Bearings', 'Seals'])
+
+  const minimal = parseIntentProfile({ whatWeDo: 'We machine aluminium parts.' })
+  check('K4 one answer is enough to get started', minimal.ok && minimal.value.whatWeDo, 'We machine aluminium parts.')
+
+  const sellOnly = parseIntentProfile({ whatWeSell: 'CNC aluminium components' })
+  check('K5 what you sell alone is enough too', sellOnly.ok, true)
+
+  const empty = parseIntentProfile({ companyName: 'Nordfeld Precision' })
+  check(
+    'K6 a profile with nothing to match on is refused, and says why',
+    empty.ok === false && empty.error.includes('does, sells or needs'),
+    true
+  )
+
+  const tooMany = parseIntentProfile({
+    whatWeDo: 'Machining',
+    whatWeSell: Array.from({ length: 41 }, (_, i) => `Part ${i}`).join('\n'),
+  })
+  check('K7 an over-long list is refused rather than silently truncated', tooMany.ok === false && /too many entries/.test(tooMany.error), true)
+
+  const longItem = parseIntentProfile({ whatWeDo: 'Machining', whatWeSell: 'x'.repeat(121) })
+  check('K8 an over-long entry is refused rather than cut in half', longItem.ok === false && /over 120 characters/.test(longItem.error), true)
+
+  const blankObjective = parseEventObjective({})
+  check(
+    'K9 an empty objective is a real answer — use the general profile for this fair',
+    blankObjective.ok && blankObjective.value.goals,
+    null
+  )
+
+  const objective = parseEventObjective({ sellFocus: 'Housings\nPrototypes', goals: '  Find customers  ' })
+  check('K10 an objective keeps what was written, trimmed', objective.ok && { goals: objective.value.goals, sell: objective.value.sellFocus }, {
+    goals: 'Find customers',
+    sell: ['Housings', 'Prototypes'],
+  })
+
+  // ══════════ L. The feature is off, and honestly so ══════════
+
+  const guard = code('lib/event-intelligence/route-guard.ts')
+  check('L1 routes check the flag before the session, so a disabled build cannot be probed', guard.indexOf('eventIntelligenceEnabled') < guard.indexOf('auth.getUser'), true)
+  check('L2 a disabled route answers 404, not 403 — the address is not a thing', /status: 404/.test(guard) && !/status: 403/.test(guard), true)
+  check(
+    'L3 the owner id comes from the session, never from the request body',
+    /user\.id/.test(guard) && !/body\.(userId|user_id|ownerId)/.test(guard),
+    true
+  )
+
+  const intelRoutes = fs
+    .readdirSync(path.join(ROOT, 'app/api/event-intelligence'), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => `app/api/event-intelligence/${entry.name}/route.ts`)
+
+  check('L4 there is at least one API route to check', intelRoutes.length > 0, true)
+  check(
+    'L5 every Event Intelligence API route goes through the guard',
+    intelRoutes.filter((route) => !code(route).includes('requireEventIntelligence')),
+    []
+  )
+
+  const intelPages = ['app/events/intelligence/page.tsx']
+  for (const dir of fs.readdirSync(path.join(ROOT, 'app/events/intelligence'), { withFileTypes: true })) {
+    if (!dir.isDirectory()) continue
+    const walk = (relative: string) => {
+      for (const entry of fs.readdirSync(path.join(ROOT, relative), { withFileTypes: true })) {
+        if (entry.isDirectory()) walk(`${relative}/${entry.name}`)
+        else if (entry.name === 'page.tsx') intelPages.push(`${relative}/${entry.name}`)
+      }
+    }
+    walk(`app/events/intelligence/${dir.name}`)
+  }
+
+  check(
+    'L6 every Event Intelligence page is gated by the flag and answers notFound when it is off',
+    intelPages.filter((page) => {
+      const source = code(page)
+      const gated =
+        source.includes('eventIntelligenceContext') || source.includes('eventIntelligenceEnabled')
+      return !(gated && source.includes('notFound()'))
+    }),
+    []
+  )
+
+  check(
+    'L7 the entry point on /events renders nothing when the feature is off',
+    code('components/events/EventsListView.tsx').includes('{intelligence ? (') &&
+      code('app/events/page.tsx').includes('intelligence={eventIntelligenceEnabled()}'),
+    true
+  )
+
+  check(
+    'L8 no client component reads the flag — it is a server decision',
+    fs
+      .readdirSync(path.join(ROOT, 'components/event-intelligence'))
+      .filter((file) => {
+        const source = code(`components/event-intelligence/${file}`)
+        return source.includes("'use client'") && source.includes('ABC_EVENT_INTELLIGENCE')
+      }),
+    []
+  )
+
+  check(
+    'L9 nothing in the feature imports the AI client — V1 is deterministic',
+    fs
+      .readdirSync(path.join(ROOT, 'lib/event-intelligence'), { recursive: true } as { recursive: true })
+      .filter((entry): entry is string => typeof entry === 'string' && entry.endsWith('.ts'))
+      .filter((file) => /@\/lib\/claude|@anthropic-ai/.test(code(`lib/event-intelligence/${file}`))),
+    []
+  )
+
+  check(
+    'L10 the service role is used only where the data belongs to nobody',
+    fs
+      .readdirSync(path.join(ROOT, 'app/api/event-intelligence'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .filter((entry) => code(`app/api/event-intelligence/${entry.name}/route.ts`).includes('createServiceClient'))
+      .map((entry) => entry.name),
+    ['import']
   )
 
   // ── Report ──
