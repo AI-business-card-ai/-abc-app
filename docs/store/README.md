@@ -14,7 +14,9 @@ reading, or a fact the repository cannot supply.
 | [app-review-notes.md](app-review-notes.md) | Reviewer notes, demo account, review risks |
 
 Also relevant: `native-shell/README.md` (native build, signing, deep links),
-`docs/auth-email-links.md` (Supabase email templates).
+`docs/auth-email-links.md` (Supabase email templates), [`docs/launch`](../launch/README.md)
+(owner launch runbook, release checklist, test matrix, environment and callback contracts,
+migration rehearsal).
 
 `npm run test:final-release-cleanup` pins the card-media listing policy, the removed enrichment and
 transcription providers, Gmail disconnect and Android Back.
