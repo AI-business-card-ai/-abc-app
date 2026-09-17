@@ -8,7 +8,8 @@ import {
   IconShare2,
   IconWorld,
 } from '@tabler/icons-react'
-import Reveal from '@/components/landing/Reveal'
+import Chapter from '@/components/landing/cinema/Chapter'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 
 const PublicQrCode = dynamic(() => import('@/components/landing/PublicQrCode'), {
   ssr: false,
@@ -50,26 +51,33 @@ const NOTES = [
 
 export default function CardSection() {
   return (
-    <section id="card" className="pub-section pub-section--raised">
+    <Chapter
+      id="card"
+      className="pub-section pub-section--raised"
+      labelledBy="card-title"
+      glow={{ x: '68%', y: '48%' }}
+    >
       <div className="pub-container">
         <div className="pub-split pub-split--card">
-          <Reveal className="pub-split-copy">
+          <div className="pub-split-copy">
             <p className="pub-eyebrow">Free ABC Card</p>
-            <h2 className="pub-h2">A professional identity people actually keep.</h2>
+            <CinematicHeadline id="card-title" className="pub-h2">
+              A professional identity people actually keep.
+            </CinematicHeadline>
             <p className="pub-lead">
               One permanent link and one QR code. Show it on your phone, put it in your signature,
               print it on a badge. Whoever opens it gets you — and can hand their details straight
               back.
             </p>
 
-            <ul className="pub-notes">
+            <ul className="pub-notes cine-rise">
               {NOTES.map((note) => (
                 <li key={note}>{note}</li>
               ))}
             </ul>
-          </Reveal>
+          </div>
 
-          <Reveal className="pub-split-media" delay={80}>
+          <div className="pub-split-media cine-media">
             {/*
               Two planes. The card is the object; the QR sits in front of it,
               overlapping the lower-left corner and casting onto the surface
@@ -145,9 +153,9 @@ export default function CardSection() {
                 <p className="pub-profile-qr-url">abccard.io/u/martin</p>
               </div>
             </div>
-          </Reveal>
+          </div>
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }

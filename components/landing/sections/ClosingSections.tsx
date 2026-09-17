@@ -6,6 +6,8 @@ import {
   IconUsers,
 } from '@tabler/icons-react'
 import Reveal from '@/components/landing/Reveal'
+import Chapter from '@/components/landing/cinema/Chapter'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 
 /**
  * The closing chapters: who this is for, the questions that stop people, and
@@ -45,24 +47,26 @@ const CONTEXTS = [
 
 export function AudienceSection() {
   return (
-    <section className="pub-section pub-section--light" aria-labelledby="audience-title">
+    /*
+      Dark now. The page's one light chapter is the closing call to action, so
+      the lights come on once, at the end, rather than halfway down.
+    */
+    <Chapter className="pub-section" labelledBy="audience-title" glow={{ x: '50%', y: '60%' }}>
       <div className="pub-container">
-        <Reveal>
-          <div className="pub-head-center">
-            <p className="pub-eyebrow">Who it is for</p>
-            <h2 className="pub-h2" id="audience-title">
-              For people whose business happens in person.
-            </h2>
-            <p className="pub-lead">
-              Founders, sales directors, business development and commercial teams — anyone whose
-              pipeline starts with meeting someone and shaking their hand.
-            </p>
-          </div>
-        </Reveal>
+        <div className="pub-head-center">
+          <p className="pub-eyebrow">Who it is for</p>
+          <CinematicHeadline id="audience-title" className="pub-h2">
+            For people whose business happens in person.
+          </CinematicHeadline>
+          <p className="pub-lead">
+            Founders, sales directors, business development and commercial teams — anyone whose
+            pipeline starts with meeting someone and shaking their hand.
+          </p>
+        </div>
 
-        <div className="pub-grid pub-grid--4">
+        <div className="pub-grid pub-grid--4 cine-facts">
           {CONTEXTS.map(({ Icon, title, body }, i) => (
-            <Reveal key={title} className="pub-card" delay={i * 60}>
+            <Reveal key={title} className="pub-card" delay={i * 70}>
               <span className="pub-card-icon" aria-hidden="true">
                 <Icon size={17} stroke={1.7} />
               </span>
@@ -72,7 +76,7 @@ export function AudienceSection() {
           ))}
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }
 
@@ -115,18 +119,16 @@ const FAQ = [
 
 export function FaqSection() {
   return (
-    <section className="pub-section" aria-labelledby="faq-title">
+    <Chapter className="pub-section" labelledBy="faq-title">
       <div className="pub-container">
-        <Reveal>
-          <div className="pub-head-center">
-            <p className="pub-eyebrow">Questions</p>
-            <h2 className="pub-h2" id="faq-title">
-              Before you start.
-            </h2>
-          </div>
-        </Reveal>
+        <div className="pub-head-center">
+          <p className="pub-eyebrow">Questions</p>
+          <CinematicHeadline id="faq-title" className="pub-h2">
+            Before you start.
+          </CinematicHeadline>
+        </div>
 
-        <Reveal>
+        <Reveal delay={120}>
           {/*
             Native <details>. It is keyboard-operable, findable by the
             browser's own in-page search, and works with no JavaScript at all —
@@ -145,7 +147,7 @@ export function FaqSection() {
           </div>
         </Reveal>
       </div>
-    </section>
+    </Chapter>
   )
 }
 
@@ -153,31 +155,32 @@ export function FaqSection() {
 
 export function FinalCtaSection() {
   return (
-    <section className="pub-section pub-section--raised" aria-labelledby="final-cta-title">
+    /*
+      The one light chapter on the page: after a long dark composition, the
+      close opens up — warm ivory, graphite type, the same headline light in
+      its bronze variant, and a graphite primary instead of gold.
+    */
+    <Chapter className="pub-section cine-final" labelledBy="final-cta-title">
       <div className="pub-container">
-        <Reveal>
-          <div className="pub-head-center">
-            <h2 className="pub-h2" id="final-cta-title">
-              Never lose a valuable connection again.
-            </h2>
-            <p className="pub-lead">
-              Start with your ABC Card — it is free. The next person you meet gets a card worth
-              keeping, and a follow-up worth reading.
-            </p>
-            <div className="pub-actions pub-actions-center">
-              <Link href="/register" className="pub-btn pub-btn-gold">
-                Create your free ABC Card
-              </Link>
-              <Link href="/#pricing" className="pub-btn pub-btn-surface">
-                See pricing
-              </Link>
-            </div>
-            <p className="pub-body" style={{ marginTop: 18 }}>
-              Free to create. No credit card required.
-            </p>
+        <div className="pub-head-center">
+          <CinematicHeadline id="final-cta-title" className="pub-h2" tone="light">
+            Never lose a valuable connection again.
+          </CinematicHeadline>
+          <p className="pub-lead">
+            Start with your ABC Card — it is free. The next person you meet gets a card worth
+            keeping, and a follow-up worth reading.
+          </p>
+          <div className="pub-actions pub-actions-center cine-rise">
+            <Link href="/register" className="pub-btn cine-btn-graphite">
+              Create your free ABC Card
+            </Link>
+            <Link href="/#pricing" className="pub-btn cine-btn-outline">
+              See pricing
+            </Link>
           </div>
-        </Reveal>
+          <p className="pub-body cine-rise cine-final-note">Free to create. No credit card required.</p>
+        </div>
       </div>
-    </section>
+    </Chapter>
   )
 }

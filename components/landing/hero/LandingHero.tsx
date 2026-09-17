@@ -1,5 +1,6 @@
 import Button from '@/components/ui/abc/Button'
 import HeroProductStory from '@/components/landing/hero/HeroProductStory'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 
 /**
  * The public landing hero.
@@ -21,11 +22,10 @@ import HeroProductStory from '@/components/landing/hero/HeroProductStory'
  * runs behind it. See HeroProductStory for why that ordering is the honest
  * one rather than only the pretty one.
  *
- * No hooks here on purpose. The page above is a client component, so this
- * subtree is client-rendered whatever it does — but with no state, no effects
- * and no measurement it costs a render and nothing else, and every part of it
- * is in the first HTML. The entrance is CSS, so the buttons work before any
- * JavaScript has run.
+ * No hooks here on purpose, and every part of it is in the first HTML. The
+ * entrance is CSS, so the buttons work before any JavaScript has run. The
+ * headline's light is the one piece of script, and it only ever changes the
+ * colour of text that is already painted — the LCP element never waits on it.
  */
 export default function LandingHero() {
   return (
@@ -40,7 +40,9 @@ export default function LandingHero() {
 
       <div className="lh-grid">
         <div className="lh-copy">
-          <h1 className="lh-h1">From handshake to CRM in seconds.</h1>
+          <CinematicHeadline as="h1" variant="hero" className="lh-h1">
+            From handshake to CRM in seconds.
+          </CinematicHeadline>
 
           {/*
             The support line carries what the headline compresses: ABC keeps

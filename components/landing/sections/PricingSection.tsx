@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { IconCheck, IconInfinity, IconScan } from '@tabler/icons-react'
 import Reveal from '@/components/landing/Reveal'
+import Chapter from '@/components/landing/cinema/Chapter'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 import {
   PRICE_TBC,
   PRO_ACCESS,
@@ -59,19 +61,24 @@ const PRO_INCLUDES = [
 
 export default function PricingSection() {
   return (
-    <section id="pricing" className="pub-section">
+    <Chapter
+      id="pricing"
+      className="pub-section cine-pricing"
+      labelledBy="pricing-title"
+      glow={{ x: '50%', y: '62%' }}
+    >
       <div className="pub-container">
-        <Reveal>
-          <div className="pub-head-center">
-            <p className="pub-eyebrow">Pricing</p>
-            <h2 className="pub-h2">Your card is free. Pay when ABC does the work.</h2>
-            <p className="pub-lead">
-              Being findable costs us nothing, so it costs you nothing. Reading a business card costs
-              real processing, so you buy scans when you need them. The follow-up and CRM workflow is
-              ABC Pro — for one event, a month or a year.
-            </p>
-          </div>
-        </Reveal>
+        <div className="pub-head-center">
+          <p className="pub-eyebrow">Pricing</p>
+          <CinematicHeadline id="pricing-title" className="pub-h2">
+            Your card is free. Pay when ABC does the work.
+          </CinematicHeadline>
+          <p className="pub-lead">
+            Being findable costs us nothing, so it costs you nothing. Reading a business card costs
+            real processing, so you buy scans when you need them. The follow-up and CRM workflow is
+            ABC Pro — for one event, a month or a year.
+          </p>
+        </div>
 
         {/* ---------- 1. Free ---------- */}
         <Reveal>
@@ -103,7 +110,7 @@ export default function PricingSection() {
         </Reveal>
 
         {/* ---------- 2. Smart Scan packs ---------- */}
-        <Reveal>
+        <Reveal delay={80}>
           <div className="pub-packs">
             <div className="pub-packs-copy">
               <p className="pub-plan-name">Smart Scan</p>
@@ -137,7 +144,7 @@ export default function PricingSection() {
         </Reveal>
 
         {/* ---------- 3. Pro ---------- */}
-        <Reveal>
+        <Reveal delay={160}>
           <div className="pub-pro">
             <div className="pub-pro-head">
               <p className="pub-plan-name">ABC Pro</p>
@@ -173,8 +180,7 @@ export default function PricingSection() {
             </p>
           </div>
         </Reveal>
-
       </div>
-    </section>
+    </Chapter>
   )
 }

@@ -1,5 +1,6 @@
 import { IconArrowsExchange, IconSend } from '@tabler/icons-react'
-import Reveal from '@/components/landing/Reveal'
+import Chapter from '@/components/landing/cinema/Chapter'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 
 /**
  * The reciprocal half of the card, and the reason it spreads.
@@ -10,25 +11,32 @@ import Reveal from '@/components/landing/Reveal'
  * back, and it arrives as a contact rather than as an email you have to
  * retype.
  *
- * This is on the free card and is not plan-gated, which is why it sits above
- * the Pro sections and carries no Pro label. The form shown is the real one:
- * four fields, headed "Send your details to Martin".
+ * This is on the free card and is not plan-gated, which is why it carries no
+ * Pro label. The form shown is the real one: four fields, headed "Send your
+ * details to Martin".
  */
 export default function ExchangeSection() {
   return (
-    <section id="exchange" className="pub-section pub-section--raised">
+    <Chapter
+      id="exchange"
+      className="pub-section pub-section--raised"
+      labelledBy="exchange-title"
+      glow={{ x: '72%', y: '50%' }}
+    >
       <div className="pub-container">
         <div className="pub-split">
-          <Reveal className="pub-split-copy">
+          <div className="pub-split-copy">
             <p className="pub-eyebrow">Exchange</p>
-            <h2 className="pub-h2">They get your card. You get their details.</h2>
+            <CinematicHeadline id="exchange-title" className="pub-h2">
+              They get your card. You get their details.
+            </CinematicHeadline>
             <p className="pub-lead">
               An exchange only counts if it goes both ways. Anyone who opens your ABC Card can send
               their details straight back to you — no app, no account, no sign-up on their side.
               You get a contact, not a business card in a jacket pocket.
             </p>
 
-            <ul className="pub-list">
+            <ul className="pub-list cine-rise">
               <li className="pub-list-item">
                 <span className="pub-list-icon" aria-hidden="true">
                   <IconArrowsExchange size={16} stroke={1.7} />
@@ -54,9 +62,9 @@ export default function ExchangeSection() {
                 </div>
               </li>
             </ul>
-          </Reveal>
+          </div>
 
-          <Reveal className="pub-split-media" delay={80}>
+          <div className="pub-split-media cine-media">
             <div className="pub-panel">
               <p className="pub-panel-tag">Reverse exchange · included free</p>
 
@@ -74,9 +82,9 @@ export default function ExchangeSection() {
                 </span>
               </div>
             </div>
-          </Reveal>
+          </div>
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }

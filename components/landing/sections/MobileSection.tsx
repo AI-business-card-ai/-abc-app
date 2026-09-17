@@ -1,5 +1,7 @@
 import { IconCamera, IconDeviceMobile, IconDevices } from '@tabler/icons-react'
 import Reveal from '@/components/landing/Reveal'
+import Chapter from '@/components/landing/cinema/Chapter'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 
 /**
  * How ABC runs on a phone, stated as narrowly as the product supports.
@@ -38,20 +40,18 @@ const FACTS = [
 
 export default function MobileSection() {
   return (
-    <section className="pub-section pub-section--tight" aria-labelledby="mobile-title">
+    <Chapter className="pub-section pub-section--tight" labelledBy="mobile-title">
       <div className="pub-container">
-        <Reveal>
-          <div className="pub-head-center">
-            <p className="pub-eyebrow">On your phone</p>
-            <h2 className="pub-h2" id="mobile-title">
-              Built for the hall, not the desk.
-            </h2>
-          </div>
-        </Reveal>
+        <div className="pub-head-center">
+          <p className="pub-eyebrow">On your phone</p>
+          <CinematicHeadline id="mobile-title" className="pub-h2">
+            Built for the hall, not the desk.
+          </CinematicHeadline>
+        </div>
 
-        <div className="pub-grid pub-grid--3">
+        <div className="pub-grid pub-grid--3 cine-facts">
           {FACTS.map(({ Icon, title, body }, i) => (
-            <Reveal key={title} className="pub-card" delay={i * 60}>
+            <Reveal key={title} className="pub-card" delay={i * 70}>
               <span className="pub-card-icon" aria-hidden="true">
                 <Icon size={17} stroke={1.7} />
               </span>
@@ -61,6 +61,6 @@ export default function MobileSection() {
           ))}
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }

@@ -14,7 +14,8 @@ import {
   IconTargetArrow,
   IconUserPlus,
 } from '@tabler/icons-react'
-import Reveal from '@/components/landing/Reveal'
+import Chapter from '@/components/landing/cinema/Chapter'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 
 /**
  * The four chapters after the card: capture, remember, follow up, CRM.
@@ -24,6 +25,11 @@ import Reveal from '@/components/landing/Reveal'
  * sides down the page so the eye has somewhere to go, but the copy always
  * precedes its panel in the DOM, so a phone and a screen reader both get the
  * claim before the illustration of it.
+ *
+ * Composition alternates too: capture and CRM open their visual onto a
+ * full-bleed stage that runs to the edge of the page, remember and follow-up
+ * hold theirs inside the measure. Four identical text-left, screen-right rows
+ * would read as a feature list rather than a sequence.
  *
  * Everything named exists in the release candidate. The meeting fields are the
  * contact screen's own labels, Multi-Card review is the batch scan flow with its
@@ -47,18 +53,25 @@ const BATCH = [
 
 export function CaptureSection() {
   return (
-    <section id="capture" className="pub-section">
+    <Chapter
+      id="capture"
+      className="pub-section"
+      labelledBy="capture-title"
+      glow={{ x: '74%', y: '50%' }}
+    >
       <div className="pub-container">
-        <div className="pub-split">
-          <Reveal className="pub-split-copy">
+        <div className="pub-split cine-bleed">
+          <div className="pub-split-copy">
             <p className="pub-eyebrow">Smart Scan</p>
-            <h2 className="pub-h2">One card, or the whole stack.</h2>
+            <CinematicHeadline id="capture-title" className="pub-h2">
+              One card, or the whole stack.
+            </CinematicHeadline>
             <p className="pub-lead">
               Scan the card you were handed and ABC turns it into a contact and a meeting — while
               you are still standing there, not typed up in a hotel room three days later.
             </p>
 
-            <ul className="pub-list">
+            <ul className="pub-list cine-rise">
               <li className="pub-list-item">
                 <span className="pub-list-icon" aria-hidden="true">
                   <IconScan size={16} stroke={1.7} />
@@ -96,9 +109,9 @@ export function CaptureSection() {
                 </div>
               </li>
             </ul>
-          </Reveal>
+          </div>
 
-          <Reveal className="pub-split-media" delay={80}>
+          <div className="pub-split-media cine-media cine-stage">
             <div className="pub-panel">
               <p className="pub-panel-tag">Multi-Card review</p>
               <div className="pub-scan">
@@ -144,10 +157,10 @@ export function CaptureSection() {
                 </ul>
               </div>
             </div>
-          </Reveal>
+          </div>
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }
 
@@ -162,19 +175,26 @@ const MEETING = [
 
 export function RememberSection() {
   return (
-    <section id="remember" className="pub-section pub-section--raised">
+    <Chapter
+      id="remember"
+      className="pub-section pub-section--raised"
+      labelledBy="remember-title"
+      glow={{ x: '28%', y: '50%' }}
+    >
       <div className="pub-container">
         <div className="pub-split pub-split--flip">
-          <Reveal className="pub-split-copy">
+          <div className="pub-split-copy">
             <p className="pub-eyebrow">Remember</p>
-            <h2 className="pub-h2">Remember the meeting, not just the contact.</h2>
+            <CinematicHeadline id="remember-title" className="pub-h2">
+              Remember the meeting, not just the contact.
+            </CinematicHeadline>
             <p className="pub-lead">
               Anyone can store a phone number. What decides whether a meeting turns into business is
               whether you still know, three weeks later, where you met, what you actually talked
               about, and what you promised to do next. ABC keeps that with the person.
             </p>
 
-            <ul className="pub-list">
+            <ul className="pub-list cine-rise">
               <li className="pub-list-item">
                 <span className="pub-list-icon" aria-hidden="true">
                   <IconMessage size={16} stroke={1.7} />
@@ -200,9 +220,9 @@ export function RememberSection() {
                 </div>
               </li>
             </ul>
-          </Reveal>
+          </div>
 
-          <Reveal className="pub-split-media" delay={80}>
+          <div className="pub-split-media cine-media">
             <div className="pub-panel">
               <p className="pub-panel-tag">Meeting context</p>
 
@@ -235,10 +255,10 @@ export function RememberSection() {
                 </p>
               </div>
             </div>
-          </Reveal>
+          </div>
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }
 
@@ -253,12 +273,19 @@ const CHANNELS = [
 
 export function FollowUpSection() {
   return (
-    <section id="followup" className="pub-section">
+    <Chapter
+      id="followup"
+      className="pub-section"
+      labelledBy="followup-title"
+      glow={{ x: '72%', y: '46%' }}
+    >
       <div className="pub-container">
         <div className="pub-split">
-          <Reveal className="pub-split-copy">
+          <div className="pub-split-copy">
             <p className="pub-eyebrow">Follow up</p>
-            <h2 className="pub-h2">Context is what makes a follow-up land.</h2>
+            <CinematicHeadline id="followup-title" className="pub-h2">
+              Context is what makes a follow-up land.
+            </CinematicHeadline>
             <p className="pub-lead">
               ABC drafts from the meeting you actually had — the event, the topic, the next step you
               agreed — so the message reads like it came from the person who was standing there.
@@ -266,7 +293,7 @@ export function FollowUpSection() {
               text ready.
             </p>
 
-            <ul className="pub-list">
+            <ul className="pub-list cine-rise">
               <li className="pub-list-item">
                 <span className="pub-list-icon" aria-hidden="true">
                   <IconMessage size={16} stroke={1.7} />
@@ -292,9 +319,9 @@ export function FollowUpSection() {
                 </div>
               </li>
             </ul>
-          </Reveal>
+          </div>
 
-          <Reveal className="pub-split-media" delay={80}>
+          <div className="pub-split-media cine-media">
             <div className="pub-panel">
               <p className="pub-panel-tag">Smart Follow-up · ABC Pro</p>
 
@@ -336,10 +363,10 @@ export function FollowUpSection() {
                 </div>
               </div>
             </div>
-          </Reveal>
+          </div>
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }
 
@@ -350,19 +377,26 @@ const DESTINATIONS = ['HubSpot', 'Salesforce', 'Pipedrive']
 
 export function CrmSection() {
   return (
-    <section id="crm" className="pub-section pub-section--raised">
+    <Chapter
+      id="crm"
+      className="pub-section pub-section--raised"
+      labelledBy="crm-title"
+      glow={{ x: '26%', y: '50%' }}
+    >
       <div className="pub-container">
-        <div className="pub-split pub-split--flip">
-          <Reveal className="pub-split-copy">
+        <div className="pub-split pub-split--flip cine-bleed cine-bleed--left">
+          <div className="pub-split-copy">
             <p className="pub-eyebrow">CRM</p>
-            <h2 className="pub-h2">The meeting should not die on the way to your CRM.</h2>
+            <CinematicHeadline id="crm-title" className="pub-h2">
+              The meeting should not die on the way to your CRM.
+            </CinematicHeadline>
             <p className="pub-lead">
               When the relationship is worth tracking, push it across. The person, their company,
               the meeting you recorded and the follow-up task all land as proper records — not one
               contact row with an empty notes field.
             </p>
 
-            <ul className="pub-list">
+            <ul className="pub-list cine-rise">
               <li className="pub-list-item">
                 <span className="pub-list-icon" aria-hidden="true">
                   <IconCloudUpload size={16} stroke={1.7} />
@@ -388,9 +422,9 @@ export function CrmSection() {
                 </div>
               </li>
             </ul>
-          </Reveal>
+          </div>
 
-          <Reveal className="pub-split-media" delay={80}>
+          <div className="pub-split-media cine-media cine-stage">
             <div className="pub-panel">
               <p className="pub-panel-tag">CRM sync · ABC Pro</p>
 
@@ -417,9 +451,9 @@ export function CrmSection() {
                 <p className="pub-crm-note">Pushed to HubSpot · 5 records</p>
               </div>
             </div>
-          </Reveal>
+          </div>
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }

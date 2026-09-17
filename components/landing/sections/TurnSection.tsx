@@ -1,4 +1,5 @@
-import Reveal from '@/components/landing/Reveal'
+import Chapter from '@/components/landing/cinema/Chapter'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 
 /**
  * The pivot, and the most important sentence on the page after the headline.
@@ -14,30 +15,29 @@ import Reveal from '@/components/landing/Reveal'
  * continues out of the bottom into Smart Scan. Same restraint, but the geometry
  * carries the handoff rather than announcing a break in it.
  *
- * The supporting line was three clauses about what happens over three weeks.
- * At this size, next to a sentence that short, explanation is the wrong
- * register — the moment wants to breathe.
+ * The sentence takes the headline light like any chapter title, but stays a
+ * paragraph: it is a line in the argument, not a section of the document.
  */
 export default function TurnSection() {
   return (
-    <section className="pub-turn-section" aria-label="From your card to what happens next">
+    <Chapter className="pub-turn-section" label="From your card to what happens next">
       <div className="pub-container">
         <div className="pub-turn">
           {/* The line the eye follows out of the card chapter and into capture. */}
           <span className="pub-turn-thread pub-turn-thread--in" aria-hidden="true" />
 
-          <Reveal>
-            <p className="pub-turn-line">Your card is just the beginning.</p>
-            <p className="pub-turn-sub">
-              Your card gets you introduced. ABC handles what happens next.
-            </p>
-          </Reveal>
+          <CinematicHeadline as="p" className="pub-turn-line">
+            Your card is just the beginning.
+          </CinematicHeadline>
+          <p className="pub-turn-sub cine-rise">
+            Your card gets you introduced. ABC handles what happens next.
+          </p>
 
           <span className="pub-turn-thread pub-turn-thread--out" aria-hidden="true">
             <span className="pub-turn-node" />
           </span>
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }

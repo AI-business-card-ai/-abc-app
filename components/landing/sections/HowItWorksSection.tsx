@@ -5,7 +5,9 @@ import {
   IconMessage,
   IconScan,
 } from '@tabler/icons-react'
-import Reveal from '@/components/landing/Reveal'
+import Chapter from '@/components/landing/cinema/Chapter'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
+import PanelGroup, { type Panel } from '@/components/landing/cinema/PanelGroup'
 
 /**
  * The problem, and the five steps ABC takes against it.
@@ -19,6 +21,10 @@ import Reveal from '@/components/landing/Reveal'
  * Placed after the opening chapters rather than straight under the hero so the
  * approved opening sequence — hero, card, turn — stays intact, and so the
  * steps arrive at the moment the page promises "what happens next".
+ *
+ * The steps are expanding panels rather than five equal tiles: one stage of the
+ * lifecycle leads at a time, and every other stage stays fully readable beside
+ * it. Each stage then gets its own chapter further down.
  */
 
 const STEPS = [
@@ -49,39 +55,43 @@ const STEPS = [
   },
 ]
 
+const PANELS: Panel[] = STEPS.map(({ Icon, name, body }, i) => ({
+  key: name,
+  title: name,
+  lead: (
+    <>
+      <span className="cine-step-num">{String(i + 1).padStart(2, '0')}</span>
+      <span className="cine-step-icon">
+        <Icon size={18} stroke={1.7} />
+      </span>
+    </>
+  ),
+  body: <p className="pub-body">{body}</p>,
+}))
+
 export default function HowItWorksSection() {
   return (
-    <section id="how-it-works" className="pub-section pub-section--raised" aria-labelledby="how-title">
+    <Chapter
+      id="how-it-works"
+      className="pub-section pub-section--raised"
+      labelledBy="how-title"
+      glow={{ x: '50%', y: '70%' }}
+    >
       <div className="pub-container">
-        <Reveal>
-          <div className="pub-head-center">
-            <p className="pub-eyebrow">How ABC works</p>
-            <h2 className="pub-h2" id="how-title">
-              A saved contact isn&apos;t a relationship.
-            </h2>
-            <p className="pub-lead">
-              A card, a QR code or a LinkedIn connection keeps a name. It loses where you met, what
-              you talked about, why the person matters and what you said you would do next. ABC
-              keeps all of it.
-            </p>
-          </div>
-        </Reveal>
+        <div className="pub-head-center">
+          <p className="pub-eyebrow">How ABC works</p>
+          <CinematicHeadline id="how-title" className="pub-h2">
+            {"A saved contact isn't a relationship."}
+          </CinematicHeadline>
+          <p className="pub-lead">
+            A card, a QR code or a LinkedIn connection keeps a name. It loses where you met, what
+            you talked about, why the person matters and what you said you would do next. ABC
+            keeps all of it.
+          </p>
+        </div>
 
-        <ol className="pub-steps">
-          {STEPS.map(({ Icon, name, body }, i) => (
-            <Reveal as="li" key={name} className="pub-step" delay={i * 60}>
-              <span className="pub-step-num" aria-hidden="true">
-                {String(i + 1).padStart(2, '0')}
-              </span>
-              <span className="pub-step-icon" aria-hidden="true">
-                <Icon size={18} stroke={1.7} />
-              </span>
-              <h3 className="pub-h3">{name}</h3>
-              <p className="pub-body">{body}</p>
-            </Reveal>
-          ))}
-        </ol>
+        <PanelGroup panels={PANELS} ordered className="cine-steps" label="How ABC works, in five steps" />
       </div>
-    </section>
+    </Chapter>
   )
 }

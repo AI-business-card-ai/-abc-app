@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { IconLock, IconMailForward, IconTrash, IconUserCheck } from '@tabler/icons-react'
-import Reveal from '@/components/landing/Reveal'
+import Chapter from '@/components/landing/cinema/Chapter'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
+import PanelGroup, { type Panel } from '@/components/landing/cinema/PanelGroup'
 
 /**
  * What ABC does with an account, a mailbox and a contact list.
@@ -21,6 +23,11 @@ import Reveal from '@/components/landing/Reveal'
  *
  * No absolutes beyond those. In particular nothing here claims data is never
  * retained: the deletion page is explicit that some records may be kept.
+ *
+ * Expanding panels, because these are four distinct controls a reviewer reads
+ * one at a time. Every panel's full text is always rendered and readable; the
+ * active one is only brought forward. The policy links stay outside the panels
+ * as plain links, where nobody has to interact with anything to find them.
  */
 
 const POINTS = [
@@ -50,48 +57,50 @@ const POINTS = [
   },
 ]
 
+const PANELS: Panel[] = POINTS.map(({ Icon, title, body }) => ({
+  key: title,
+  title,
+  lead: (
+    <span className="cine-step-icon">
+      <Icon size={18} stroke={1.7} />
+    </span>
+  ),
+  body: <p className="pub-body">{body}</p>,
+}))
+
 export default function TrustSection() {
   return (
-    <section id="trust" className="pub-section pub-section--raised" aria-labelledby="trust-title">
+    <Chapter
+      id="trust"
+      className="pub-section pub-section--raised"
+      labelledBy="trust-title"
+      glow={{ x: '50%', y: '66%' }}
+    >
       <div className="pub-container">
-        <Reveal>
-          <div className="pub-head-center">
-            <p className="pub-eyebrow">Your data</p>
-            <h2 className="pub-h2" id="trust-title">
-              You stay in control of what ABC can touch.
-            </h2>
-          </div>
-        </Reveal>
-
-        <div className="pub-grid pub-grid--4">
-          {POINTS.map(({ Icon, title, body }, i) => (
-            <Reveal key={title} className="pub-card" delay={i * 60}>
-              <span className="pub-card-icon" aria-hidden="true">
-                <Icon size={17} stroke={1.7} />
-              </span>
-              <h3 className="pub-h3">{title}</h3>
-              <p className="pub-body">{body}</p>
-            </Reveal>
-          ))}
+        <div className="pub-head-center">
+          <p className="pub-eyebrow">Your data</p>
+          <CinematicHeadline id="trust-title" className="pub-h2">
+            You stay in control of what ABC can touch.
+          </CinematicHeadline>
         </div>
 
-        <Reveal>
-          <p className="pub-trust-links">
-            <Link href="/privacy" className="pub-link">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="pub-link">
-              Terms of Service
-            </Link>
-            <Link href="/account-deletion" className="pub-link">
-              Account deletion
-            </Link>
-            <a href="mailto:support@abccard.io" className="pub-link">
-              support@abccard.io
-            </a>
-          </p>
-        </Reveal>
+        <PanelGroup panels={PANELS} className="cine-trust" label="How ABC handles your account and data" />
+
+        <p className="pub-trust-links cine-rise">
+          <Link href="/privacy" className="pub-link">
+            Privacy Policy
+          </Link>
+          <Link href="/terms" className="pub-link">
+            Terms of Service
+          </Link>
+          <Link href="/account-deletion" className="pub-link">
+            Account deletion
+          </Link>
+          <a href="mailto:support@abccard.io" className="pub-link">
+            support@abccard.io
+          </a>
+        </p>
       </div>
-    </section>
+    </Chapter>
   )
 }

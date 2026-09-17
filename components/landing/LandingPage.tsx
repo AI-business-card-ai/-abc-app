@@ -69,7 +69,15 @@ export default function LandingPage() {
   }, [router, supabase])
 
   return (
-    <div className="pub-root" aria-busy={redirecting || undefined}>
+    <div className="pub-root cine" aria-busy={redirecting || undefined}>
+      {/* Without JavaScript nothing would ever mark a chapter as seen. */}
+      <noscript>
+        <style>
+          {
+            '.cine .cine-chapter :is(.pub-eyebrow,.cine-h,.pub-lead,.cine-rise,.cine-item,.cine-media){opacity:1!important;transform:none!important}'
+          }
+        </style>
+      </noscript>
       <PublicHeader />
 
       <main>
@@ -84,10 +92,15 @@ export default function LandingPage() {
         <EventWorkspaceSection />
         <ExchangeSection />
         <MobileSection />
-        <ComingNextSection />
         <AudienceSection />
         <PricingSection />
         <TrustSection />
+        {/*
+          The one unbuilt capability sits after trust, not among the shipping
+          chapters, so it reads as what comes next rather than as part of what
+          a visitor can use today.
+        */}
+        <ComingNextSection />
         <FaqSection />
         <FinalCtaSection />
       </main>

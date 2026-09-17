@@ -1,5 +1,6 @@
 import { IconCalendarEvent, IconCheck, IconChevronRight } from '@tabler/icons-react'
-import Reveal from '@/components/landing/Reveal'
+import Chapter from '@/components/landing/cinema/Chapter'
+import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 
 /**
  * Event workspaces — shipping in the release candidate (app/events).
@@ -10,6 +11,11 @@ import Reveal from '@/components/landing/Reveal'
  * there is no event-local copy of them — which is the Person ≠ Encounter rule
  * made visible: meeting Martin at a second fair adds a row to that fair, not a
  * second Martin.
+ *
+ * Composed differently from the chapters above it: the copy leads across the
+ * top and the workspace opens underneath at full measure, on its own stage,
+ * because an event is the one screen where the width is the point — the list
+ * of events and the people inside one of them, side by side.
  *
  * The rows are interface demonstration, not results. No figure here is a claim
  * about what any customer achieved.
@@ -40,28 +46,37 @@ const MEETINGS = [
 
 export default function EventWorkspaceSection() {
   return (
-    <section id="events" className="pub-section">
+    <Chapter
+      id="events"
+      className="pub-section"
+      labelledBy="events-title"
+      glow={{ x: '50%', y: '72%' }}
+    >
       <div className="pub-container">
-        <div className="pub-split">
-          <Reveal className="pub-split-copy">
-            <p className="pub-eyebrow">Event workspace</p>
-            <h2 className="pub-h2">Every event keeps its own people.</h2>
-            <p className="pub-lead">
-              Open an event and see who you met there, what you talked about, what you promised and
-              whether it reached your CRM. The forty people from one fair do not dissolve into a list
-              with everyone you met at the next.
-            </p>
+        <div className="cine-stack">
+          <div className="cine-stack-head">
+            <div>
+              <p className="pub-eyebrow">Event workspace</p>
+              <CinematicHeadline id="events-title" className="pub-h2">
+                Every event keeps its own people.
+              </CinematicHeadline>
+              <p className="pub-lead">
+                Open an event and see who you met there, what you talked about, what you promised
+                and whether it reached your CRM. The forty people from one fair do not dissolve into
+                a list with everyone you met at the next.
+              </p>
+            </div>
 
-            <ul className="pub-notes">
+            <ul className="pub-notes cine-rise">
               <li>Filter an event by what is already in your CRM and what still is not.</li>
               <li>
                 Each person stays one contact. Meet them again at another event and that meeting
                 appears there too — their history stays in one place.
               </li>
             </ul>
-          </Reveal>
+          </div>
 
-          <Reveal className="pub-split-media" delay={80}>
+          <div className="cine-media cine-stage cine-stage--wide">
             <div className="pub-panel">
               <p className="pub-panel-tag">Events</p>
 
@@ -113,9 +128,9 @@ export default function EventWorkspaceSection() {
                 </div>
               </div>
             </div>
-          </Reveal>
+          </div>
         </div>
       </div>
-    </section>
+    </Chapter>
   )
 }
