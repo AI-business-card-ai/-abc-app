@@ -15,7 +15,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
 
+import { eventKeyFromName } from '@/lib/events/workspace'
 import { eventIntelligenceEnabled, EVENT_INTELLIGENCE_FLAG } from '@/lib/event-intelligence/flag'
+import {
+  FIXTURE_EVENT,
+  FIXTURE_EXHIBITORS,
+} from '@/lib/event-intelligence/fixtures/abc-industrial-future-expo'
+import { ingestEvent, type IngestStore } from '@/lib/event-intelligence/ingest'
+import { DEMO_EVENT_REF, JsonFixtureProvider } from '@/lib/event-intelligence/providers/json-fixture'
 import {
   contentHash,
   normalizeCompanyName,
@@ -238,6 +245,175 @@ async function seedIntel(db: PGlite, owner: string, eventId: string, presenceId:
   )[0].id
 
   return { profile, objective, match, target }
+}
+
+/**
+ * The ingest store over PGlite.
+ *
+ * A second implementation of `IngestStore`, so the orchestration in
+ * `ingest.ts` — resolution order, idempotency, provenance, withdrawal — is
+ * driven against a real Postgres with the real constraints, indexes and
+ * privileges from the migration. What it proves is the shared logic; the
+ * Supabase store is the same statements through a different client.
+ */
+function pgliteIngestStore(db: PGlite): IngestStore {
+  const one = async <T>(sql: string, params: unknown[] = []): Promise<T | null> => {
+    const rows = await rowsOf<T>(db, sql, params)
+    return rows[0] ?? null
+  }
+
+  return {
+    async upsertEvent(input) {
+      const row = await one<{ id: string }>(
+        `insert into public.intel_events (event_key, name, edition_year, organizer, venue, city, country, starts_on, ends_on, website_url)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         on conflict (event_key) do update set
+           name = excluded.name, edition_year = excluded.edition_year, organizer = excluded.organizer,
+           venue = excluded.venue, city = excluded.city, country = excluded.country,
+           starts_on = excluded.starts_on, ends_on = excluded.ends_on, website_url = excluded.website_url,
+           updated_at = now()
+         returning id`,
+        [
+          input.eventKey, input.name, input.editionYear, input.organizer, input.venue,
+          input.city, input.country, input.startsOn, input.endsOn, input.websiteUrl,
+        ]
+      )
+      return { id: row!.id }
+    },
+
+    async findCompanyByDomain(domain) {
+      return one<{ id: string }>('select id from public.intel_companies where website_domain = $1', [domain])
+    },
+
+    async findCompanyBySourceRecord(provider, providerRecordId) {
+      return one<{ id: string }>(
+        `select p.company_id as id
+           from public.intel_source_records s
+           join public.intel_company_presences p on p.id = s.entity_id
+          where s.provider = $1 and s.provider_record_id = $2 and s.entity_type = 'presence'`,
+        [provider, providerRecordId]
+      )
+    },
+
+    async findCompaniesByName(nameNormalized) {
+      const rows = await rowsOf<{ id: string; country: string | null; website_domain: string | null }>(
+        db,
+        'select id, country, website_domain from public.intel_companies where name_normalized = $1 order by created_at, id',
+        [nameNormalized]
+      )
+      return rows.map((r) => ({ id: r.id, country: r.country, websiteDomain: r.website_domain }))
+    },
+
+    async insertCompany(input) {
+      const row = await one<{ id: string }>(
+        `insert into public.intel_companies (display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of)
+         values ($1,$2,$3,$4,$5,$6,$7) returning id`,
+        [
+          input.displayName, input.nameNormalized, input.websiteDomain, input.country,
+          input.descriptionPublic, input.categories, input.mergeCandidateOf,
+        ]
+      )
+      return { id: row!.id }
+    },
+
+    async updateCompany(id, input) {
+      // Gaps are filled, knowledge is not erased: a source that omits a field
+      // has not said the fact stopped being true.
+      await db.query(
+        `update public.intel_companies set
+           display_name = $2,
+           name_normalized = $3,
+           website_domain = coalesce($4, website_domain),
+           country = coalesce($5, country),
+           description_public = coalesce($6, description_public),
+           categories = case when cardinality($7::text[]) > 0 then $7::text[] else categories end,
+           merge_candidate_of = coalesce($8, merge_candidate_of),
+           updated_at = now()
+         where id = $1`,
+        [
+          id, input.displayName, input.nameNormalized, input.websiteDomain, input.country,
+          input.descriptionPublic, input.categories, input.mergeCandidateOf,
+        ]
+      )
+    },
+
+    async upsertPresence(input, options) {
+      const existing = await one<{ id: string }>(
+        'select id from public.intel_company_presences where event_id = $1 and company_id = $2',
+        [input.eventId, input.companyId]
+      )
+
+      if (existing) {
+        if (options.touchOnly) {
+          await db.query(
+            "update public.intel_company_presences set last_seen_at = $2, status = 'listed' where id = $1",
+            [existing.id, input.lastSeenAt]
+          )
+        } else {
+          await db.query(
+            `update public.intel_company_presences set
+               exhibitor_display_name = $2, hall = $3, stand = $4, event_categories = $5,
+               event_description = $6, products_services = $7, listing_url = $8,
+               status = 'listed', last_seen_at = $9, updated_at = now()
+             where id = $1`,
+            [
+              existing.id, input.exhibitorDisplayName, input.hall, input.stand, input.eventCategories,
+              input.eventDescription, input.productsServices, input.listingUrl, input.lastSeenAt,
+            ]
+          )
+        }
+        return { id: existing.id, created: false }
+      }
+
+      const row = await one<{ id: string }>(
+        `insert into public.intel_company_presences
+           (event_id, company_id, exhibitor_display_name, hall, stand, event_categories, event_description, products_services, listing_url, first_seen_at, last_seen_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) returning id`,
+        [
+          input.eventId, input.companyId, input.exhibitorDisplayName, input.hall, input.stand,
+          input.eventCategories, input.eventDescription, input.productsServices, input.listingUrl,
+          input.lastSeenAt,
+        ]
+      )
+      return { id: row!.id, created: true }
+    },
+
+    async markMissingPresencesWithdrawn(eventId, seenPresenceIds) {
+      const rows = await rowsOf<{ id: string }>(
+        db,
+        `update public.intel_company_presences
+            set status = 'withdrawn', updated_at = now()
+          where event_id = $1 and status = 'listed' and not (id = any($2::uuid[]))
+          returning id`,
+        [eventId, seenPresenceIds]
+      )
+      return rows.length
+    },
+
+    async findSourceRecord(provider, providerRecordId, payloadVersion) {
+      const row = await one<{ content_hash: string; entity_id: string }>(
+        'select content_hash, entity_id from public.intel_source_records where provider = $1 and provider_record_id = $2 and payload_version = $3',
+        [provider, providerRecordId, payloadVersion]
+      )
+      return row ? { contentHash: row.content_hash, entityId: row.entity_id } : null
+    },
+
+    async recordSource(input) {
+      await db.query(
+        `insert into public.intel_source_records
+           (provider, provider_record_id, payload_version, source_url, entity_type, entity_id, content_hash, fetched_at, source_updated_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         on conflict (provider, provider_record_id, payload_version) do update set
+           source_url = excluded.source_url, entity_type = excluded.entity_type, entity_id = excluded.entity_id,
+           content_hash = excluded.content_hash, fetched_at = excluded.fetched_at,
+           source_updated_at = excluded.source_updated_at`,
+        [
+          input.provider, input.providerRecordId, input.payloadVersion, input.sourceUrl,
+          input.entityType, input.entityId, input.contentHash, input.fetchedAt, input.sourceUpdatedAt,
+        ]
+      )
+    },
+  }
 }
 
 // ─────────────────────────── RUN ───────────────────────────
@@ -645,6 +821,207 @@ async function run() {
     'I5 the feature migration is not part of the release it branched from',
     git('ls-tree', '--name-only', BASE_REF, '--', MIGRATION),
     ''
+  )
+
+  // ══════════ J. Ingestion ══════════
+
+  const { db: idb } = await freshDatabase()
+  const store = pgliteIngestStore(idb)
+  const provider = new JsonFixtureProvider()
+  let clock = 0
+  const tick = () => new Date(Date.UTC(2026, 8, 20, 0, 0, clock++)).toISOString()
+
+  const first = await ingestEvent(provider, DEMO_EVENT_REF, store, tick)
+
+  check(
+    'J1 the synthetic fair imports, and its key is the one the Event Workspace would derive',
+    { key: first.eventKey, seen: first.exhibitorsSeen },
+    { key: eventKeyFromName(FIXTURE_EVENT.name), seen: FIXTURE_EXHIBITORS.length }
+  )
+
+  check(
+    'J2 21 listings become 19 companies — two duplicates resolved, the lookalike kept apart',
+    { created: first.companiesCreated, matched: first.companiesMatched },
+    { created: 19, matched: 2 }
+  )
+
+  const nordwerk = await rowsOf<{ n: number }>(
+    idb,
+    "select count(*)::int as n from public.intel_companies where website_domain = 'nordwerk-robotics.invalid'"
+  )
+  check('J3 the same company listed twice under different names is one company', nordwerk[0].n, 1)
+
+  const nordwerkPresences = await rowsOf<{ n: number }>(
+    idb,
+    `select count(*)::int as n from public.intel_company_presences p
+       join public.intel_companies c on c.id = p.company_id
+      where c.website_domain = 'nordwerk-robotics.invalid'`
+  )
+  check('J4 and it stands in one place, not two', nordwerkPresences[0].n, 1)
+
+  const vector = await rowsOf<{ country: string | null; merge_candidate_of: string | null }>(
+    idb,
+    "select country, merge_candidate_of from public.intel_companies where name_normalized = 'vector bearing technologies' order by country"
+  )
+  check(
+    'J5 same name, different country, no domain: kept apart and flagged, never merged',
+    { rows: vector.length, countries: vector.map((r) => r.country), flagged: vector.filter((r) => r.merge_candidate_of).length },
+    { rows: 2, countries: ['DE', 'US'], flagged: 1 }
+  )
+
+  const atlas = await rowsOf<{ n: number }>(
+    idb,
+    "select count(*)::int as n from public.intel_companies where name_normalized = 'atlas automation'"
+  )
+  check('J6 same name, same country, neither with a domain: merged into one', atlas[0].n, 1)
+
+  const missing = await rowsOf<{ display: string; hall: string | null; stand: string | null }>(
+    idb,
+    `select coalesce(p.exhibitor_display_name, c.display_name) as display, p.hall, p.stand
+       from public.intel_company_presences p join public.intel_companies c on c.id = p.company_id
+      where p.hall is null or p.stand is null order by display`
+  )
+  check(
+    'J7 a hall or stand the source did not give is stored as missing, not invented',
+    missing,
+    [
+      { display: 'Certus Test Laboratories', hall: null, stand: null },
+      { display: 'Pallas Handling Systems', hall: '7', stand: null },
+    ]
+  )
+
+  // count(distinct p.id), because a presence that two listings merged into has
+  // two source records and a plain count(*) would report the join, not the rows.
+  const provenance = await rowsOf<{ n: number; without: number }>(
+    idb,
+    `select count(distinct p.id)::int as n,
+            count(distinct p.id) filter (where s.id is null)::int as without
+       from public.intel_company_presences p
+       left join public.intel_source_records s on s.entity_id = p.id and s.entity_type = 'presence'`
+  )
+  check('J8 every presence is traceable to at least one source record', { presences: provenance[0].n, without: provenance[0].without }, { presences: 19, without: 0 })
+
+  const eventSource = await rowsOf<{ provider: string; source_url: string; fetched_at: string }>(
+    idb,
+    "select provider, source_url, fetched_at::text from public.intel_source_records where entity_type = 'event'"
+  )
+  check(
+    'J9 the event carries its provider, its source URL and when it was fetched',
+    { provider: eventSource[0].provider, url: eventSource[0].source_url, fetched: Boolean(eventSource[0].fetched_at) },
+    { provider: 'fixture:abc-industrial-future-expo', url: FIXTURE_EVENT.sourceUrl, fetched: true }
+  )
+
+  // ── Re-import: nothing may change ──
+
+  const beforeRerun = await rowsOf<{ snapshot: string }>(
+    idb,
+    `select md5(string_agg(t.row_text, '|' order by t.row_text)) as snapshot from (
+       select concat_ws(':', id::text, event_id::text, company_id::text, hall, stand, event_description, status, updated_at::text) as row_text
+         from public.intel_company_presences
+     ) t`
+  )
+
+  const second = await ingestEvent(provider, DEMO_EVENT_REF, store, tick)
+
+  const afterRerun = await rowsOf<{ snapshot: string }>(
+    idb,
+    `select md5(string_agg(t.row_text, '|' order by t.row_text)) as snapshot from (
+       select concat_ws(':', id::text, event_id::text, company_id::text, hall, stand, event_description, status, updated_at::text) as row_text
+         from public.intel_company_presences
+     ) t`
+  )
+
+  check(
+    'J10 importing the same data again creates nothing and updates nothing',
+    {
+      companiesCreated: second.companiesCreated,
+      presencesCreated: second.presencesCreated,
+      presencesUpdated: second.presencesUpdated,
+      presencesUnchanged: second.presencesUnchanged,
+      withdrawn: second.presencesWithdrawn,
+    },
+    { companiesCreated: 0, presencesCreated: 0, presencesUpdated: 0, presencesUnchanged: 21, withdrawn: 0 }
+  )
+  check('J11 and no row was rewritten', afterRerun[0].snapshot, beforeRerun[0].snapshot)
+
+  const totals = await rowsOf<{ companies: number; presences: number; sources: number }>(
+    idb,
+    `select (select count(*) from public.intel_companies)::int as companies,
+            (select count(*) from public.intel_company_presences)::int as presences,
+            (select count(*) from public.intel_source_records)::int as sources`
+  )
+  // 22 source records: one per listing, plus one for the event itself.
+  check('J12 a second import duplicates no company, presence or source record', totals[0], {
+    companies: 19,
+    presences: 19,
+    sources: 22,
+  })
+
+  // ── Refresh: a changed stand, and one exhibitor gone ──
+
+  const movedStand = FIXTURE_EXHIBITORS.map((e) =>
+    e.providerRecordId === 'exh-001' ? { ...e, stand: 'B48', sourceUpdatedAt: '2026-10-01T09:00:00.000Z' } : e
+  ).filter((e) => e.providerRecordId !== 'exh-030')
+
+  const third = await ingestEvent(
+    new JsonFixtureProvider({ event: FIXTURE_EVENT, exhibitors: movedStand }),
+    DEMO_EVENT_REF,
+    store,
+    tick
+  )
+
+  check(
+    'J13 a refresh updates only what changed and withdraws what is gone',
+    { updated: third.presencesUpdated, unchanged: third.presencesUnchanged, withdrawn: third.presencesWithdrawn, created: third.presencesCreated },
+    { updated: 1, unchanged: 19, withdrawn: 1, created: 0 }
+  )
+
+  const nordwerkStand = await rowsOf<{ stand: string }>(
+    idb,
+    `select p.stand from public.intel_company_presences p join public.intel_companies c on c.id = p.company_id
+      where c.website_domain = 'nordwerk-robotics.invalid'`
+  )
+  check('J14 the moved stand is the new one', nordwerkStand[0].stand, 'B48')
+
+  const withdrawn = await rowsOf<{ display_name: string; n: number }>(
+    idb,
+    `select c.display_name, count(*)::int as n from public.intel_company_presences p
+       join public.intel_companies c on c.id = p.company_id
+      where p.status = 'withdrawn' group by c.display_name`
+  )
+  check(
+    'J15 a withdrawn exhibitor is marked, not deleted — a saved target must not dangle',
+    withdrawn,
+    [{ display_name: 'Gastro Expo Catering', n: 1 }]
+  )
+
+  // ── The seam holds ──
+
+  const ingestSource = code('lib/event-intelligence/ingest.ts')
+  check(
+    'J16 core ingestion knows nothing about any named provider',
+    /apify|scrape|crawler|puppeteer|actor/i.test(ingestSource),
+    false
+  )
+  check(
+    'J17 no Apify dependency was added',
+    Object.keys({
+      ...(JSON.parse(read('package.json')).dependencies ?? {}),
+      ...(JSON.parse(read('package.json')).devDependencies ?? {}),
+    }).filter((name) => /apify/i.test(name)),
+    []
+  )
+  check(
+    'J18 the fixture reaches for no network and no credential',
+    /fetch\(|https?:\/\/(?!example\.invalid)|process\.env/.test(
+      code('lib/event-intelligence/providers/json-fixture.ts')
+    ),
+    false
+  )
+  check(
+    'J19 no personal data is ingested — the provider contract has no field for it',
+    /\b(email|phone|firstName|lastName|contactName|linkedin)\b/i.test(code('lib/event-intelligence/provider.ts')),
+    false
   )
 
   // ── Report ──
