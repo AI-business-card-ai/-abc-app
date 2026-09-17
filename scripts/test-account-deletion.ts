@@ -98,6 +98,15 @@ const OWNER_TABLES = [
   'crm_object_mappings',
   'crm_opportunities',
   'followup_sequences',
+  // Event & Expo Intelligence. These are removed by cascade rather than by a
+  // DELETE in remove_account_data: every one of them hangs off the owner's
+  // abc_profiles row, which the function already deletes last. They are seeded
+  // in full below, so A2 proves the cascade actually reaches them rather than
+  // passing over four empty tables.
+  'intel_company_profiles',
+  'intel_event_objectives',
+  'intel_matches',
+  'intel_meeting_targets',
   'native_connector_attempts',
   'scan_batch_items',
   'scan_batches',
@@ -409,6 +418,23 @@ async function seedAccount(db: PGlite, storage: FakeStorage, owner: string, tag:
     "insert into public.native_connector_attempts (user_id, provider, state_hash, nonce_hash, handoff_hash, status, result_encrypted, expires_at) values ($1, 'google-gmail', $2, 'nonce-hash', 'handoff-hash', 'authorized', 'v1:iv:tag:native-result', now() + interval '10 minutes')",
     [owner, `state-hash-${tag}`]
   )
+
+  /*
+    Event & Expo Intelligence: the owner's intent, their objective for one fair,
+    a match ABC produced and a target they saved off it — with a private note,
+    which is the part that must not survive them.
+
+    The fair, the company and its stand are shared reference data describing a
+    real event rather than this account, so they are inserted once and are
+    expected to still be there afterwards; only the four owner rows go.
+  */
+  const intelEvent = (await rowsOf<{ id: string }>(db, "insert into public.intel_events (event_key, name) values ('abc-industrial-future-expo', 'ABC Industrial Future Expo') on conflict (event_key) do update set name = excluded.name returning id"))[0].id
+  const intelCompany = (await rowsOf<{ id: string }>(db, "insert into public.intel_companies (display_name, name_normalized, website_domain) values ('NordWerk Robotics', 'nordwerk robotics', 'nordwerk.test') on conflict (website_domain) where website_domain is not null do update set display_name = excluded.display_name returning id"))[0].id
+  const intelPresence = (await rowsOf<{ id: string }>(db, "insert into public.intel_company_presences (event_id, company_id, hall, stand) values ($1, $2, '6', 'B42') on conflict (event_id, company_id) do update set hall = excluded.hall returning id", [intelEvent, intelCompany]))[0].id
+  const intelProfile = (await rowsOf<{ id: string }>(db, "insert into public.intel_company_profiles (user_id, company_name, what_we_do) values ($1, $2, 'Precision CNC aluminium parts') returning id", [owner, `Company ${tag}`]))[0].id
+  const intelObjective = (await rowsOf<{ id: string }>(db, "insert into public.intel_event_objectives (user_id, event_id, profile_id, goals) values ($1, $2, $3, 'Find robotics manufacturers') returning id", [owner, intelEvent, intelProfile]))[0].id
+  const intelMatch = (await rowsOf<{ id: string }>(db, "insert into public.intel_matches (user_id, objective_id, presence_id, match_type, score, engine_version) values ($1, $2, $3, 'customer', 88, 'deterministic-v1') returning id", [owner, intelObjective, intelPresence]))[0].id
+  await db.query("insert into public.intel_meeting_targets (user_id, match_id, event_id, presence_id, priority, private_note, met_encounter_id) values ($1, $2, $3, $4, 1, $5, $6)", [owner, intelMatch, intelEvent, intelPresence, `Ask ${tag} about housings`, encounter])
 
   return { email, contact, second, encounter, batch }
 }

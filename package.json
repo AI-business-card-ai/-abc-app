@@ -30,7 +30,8 @@
     "native:prepare": "tsx scripts/native-prepare.ts",
     "native:sync": "npm run native:prepare && cap sync",
     "native:open:ios": "cap open ios",
-    "native:open:android": "cap open android"
+    "native:open:android": "cap open android",
+    "test:event-intelligence": "tsx scripts/test-event-intelligence.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
