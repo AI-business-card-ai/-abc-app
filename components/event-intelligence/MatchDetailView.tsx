@@ -13,6 +13,7 @@ import {
   evidenceByField,
   hasLocation,
   locationLabel,
+  sourceDisplayName,
   sourceFacts,
 } from '@/lib/event-intelligence/view'
 import { displayTargetStatus } from '@/lib/event-intelligence/types'
@@ -111,7 +112,7 @@ export default function MatchDetailView({ event, match, presence, company, targe
     <div className="mx-auto w-full max-w-[760px] abc-page-top px-4 pb-16 sm:px-6 lg:px-8">
       <Link
         href={`/events/intelligence/${event.eventKey}`}
-        className="inline-flex items-center gap-1.5 text-[13px] text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+        className="-my-3 inline-flex min-h-[44px] items-center gap-1.5 text-[13px] text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
       >
         <IconArrowLeft size={16} stroke={1.8} aria-hidden="true" />
         {event.name}
@@ -380,7 +381,7 @@ export default function MatchDetailView({ event, match, presence, company, targe
         <p className="text-[12px] leading-[1.6] text-abc-muted">
           {source ? (
             <>
-              Source: {source.provider}
+              Source: {sourceDisplayName(source.provider)}
               {source.sourceUrl ? ` · ${source.sourceUrl}` : ''} · fetched{' '}
               {new Date(source.fetchedAt).toLocaleDateString(undefined, {
                 day: 'numeric',

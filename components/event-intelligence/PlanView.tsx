@@ -24,7 +24,7 @@ export default function PlanView({ event, plan }: { event: IntelEvent; plan: Pla
     <div className="mx-auto w-full max-w-[900px] abc-page-top px-4 pb-16 sm:px-6 lg:px-8">
       <Link
         href={`/events/intelligence/${event.eventKey}`}
-        className="inline-flex items-center gap-1.5 text-[13px] text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+        className="-my-3 inline-flex min-h-[44px] items-center gap-1.5 text-[13px] text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
       >
         <IconArrowLeft size={16} stroke={1.8} aria-hidden="true" />
         {event.name}

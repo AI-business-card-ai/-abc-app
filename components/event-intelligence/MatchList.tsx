@@ -24,9 +24,17 @@ import {
  * the event workspace, and every row is a full-height touch target.
  */
 
+/*
+  Three directions, three weights of the one palette ABC has. The app is gold
+  and neutrals by design, so the types are told apart by strength rather than by
+  a new hue: gold for customers, full-strength text for suppliers, secondary
+  text for partners. The words are still the primary signal — colour only
+  helps a list be scanned — but two types in the same gold were not telling a
+  reader anything at a glance.
+*/
 const TYPE_TINT: Record<MatchRow['matchType'], string> = {
-  customer: 'var(--abc-chip-text)',
-  supplier: 'var(--accent-turquoise)',
+  customer: 'var(--abc-gold)',
+  supplier: 'var(--text-primary)',
   partner: 'var(--text-secondary)',
 }
 
@@ -151,7 +159,7 @@ export default function MatchList({
                     disabled={busy === row.matchId}
                     aria-pressed={row.saved}
                     aria-label={row.saved ? `Remove ${row.companyName} from your plan` : `Save ${row.companyName} to your plan`}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-btn border border-abc-border transition-colors duration-200 ease-abc hover:border-abc-border-strong disabled:opacity-45 abc-focus-ring"
+                    className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-btn border border-abc-border transition-colors duration-200 ease-abc hover:border-abc-border-strong disabled:opacity-45 abc-focus-ring"
                   >
                     {row.saved ? (
                       <IconBookmarkFilled size={18} style={{ color: 'var(--abc-gold)' }} aria-hidden="true" />
@@ -162,7 +170,7 @@ export default function MatchList({
                   <Link
                     href={`/events/intelligence/${eventKey}/m/${row.matchId}`}
                     aria-label={`Why ABC suggests ${row.companyName}`}
-                    className="inline-flex h-8 w-11 items-center justify-center text-abc-muted transition-colors hover:text-abc-text abc-focus-ring"
+                    className="touch-target inline-flex h-11 w-11 items-center justify-center text-abc-muted transition-colors hover:text-abc-text abc-focus-ring"
                   >
                     <IconChevronRight size={18} stroke={1.8} aria-hidden="true" />
                   </Link>

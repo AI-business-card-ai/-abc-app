@@ -29,6 +29,7 @@ import {
   filterCounts,
   locationLabel,
   matchesFilter,
+  sourceDisplayName,
   sourceFacts,
 } from '@/lib/event-intelligence/view'
 import { buildPlan, planSummary } from '@/lib/event-intelligence/plan'
@@ -1188,6 +1189,14 @@ async function run() {
     ['import', 'match']
   )
 
+  check(
+    'L11 no route reads an owner id from the request — ownership comes from the session',
+    intelRoutes.filter((route) =>
+      /body\??\.(userId|user_id|ownerId|owner_id)|searchParams\.get\(['"](userId|user_id|ownerId|owner_id)/.test(code(route))
+    ),
+    []
+  )
+
   // ══════════ M. Matching ══════════
 
   /*
@@ -1882,6 +1891,81 @@ async function run() {
     'P11 unlinking is possible, because somebody will link the wrong meeting',
     code('app/api/event-intelligence/targets/route.ts').includes('patch.met_encounter_id = null'),
     true
+  )
+
+  // ══════════ Q. Found in responsive QA, pinned so they stay fixed ══════════
+
+  check(
+    'Q1 a source is named for the reader, never by its provider id',
+    [sourceDisplayName('fixture:abc-industrial-future-expo'), sourceDisplayName('apify:some-actor'), sourceDisplayName('csv')],
+    ['Synthetic demo data', 'Event directory', 'Event directory']
+  )
+  check(
+    'Q2 the detail screen never prints the raw provider id',
+    /Source: \{source\.provider\}/.test(code('components/event-intelligence/MatchDetailView.tsx')) ||
+      !code('components/event-intelligence/MatchDetailView.tsx').includes('sourceDisplayName(source.provider)'),
+    false
+  )
+  check(
+    'Q3 no screen names a scraping vendor',
+    ['MatchDetailView', 'MatchList', 'EventIntelligenceView', 'IntelligenceHub', 'PlanView', 'SetupView', 'ImportDemoData', 'RunMatching']
+      .filter((file) => /apify|scrap|crawl/i.test(code(`components/event-intelligence/${file}.tsx`))),
+    []
+  )
+
+  /*
+    The app's root font size is 14px on phones, so a rem-based `h-11` renders
+    at 38.5px, not 44. Measured at 390px wide; the codebase's answer is the
+    px-based `touch-target` utility, and icon-only controls must carry it.
+  */
+  check(
+    'Q4 icon-only controls in the list use the px-based touch target',
+    (code('components/event-intelligence/MatchList.tsx').match(/touch-target inline-flex h-11 w-11/g) ?? []).length,
+    2
+  )
+  check(
+    'Q5 back links are full-height targets on every screen',
+    ['EventIntelligenceView', 'MatchDetailView', 'PlanView', 'SetupView'].filter(
+      (file) => !code(`components/event-intelligence/${file}.tsx`).includes('inline-flex min-h-[44px] items-center gap-1.5')
+    ),
+    []
+  )
+  check(
+    'Q6 customer and supplier are not drawn in the same colour',
+    (() => {
+      const source = code('components/event-intelligence/MatchList.tsx')
+      const tint = (type: string) => source.match(new RegExp(`${type}: '([^']+)'`))?.[1]
+      return new Set([tint('customer'), tint('supplier'), tint('partner')]).size
+    })(),
+    3
+  )
+
+  // ══════════ R. The handoff documents ══════════
+
+  const apifyDoc = read('docs/event-intelligence/apify-provider.md')
+  check('R1 the provider contract says plainly that nothing is connected', /not built, not connected, not chosen/i.test(apifyDoc), true)
+  check(
+    'R2 it covers every concern the owner asked for',
+    ['Idempotency', 'Pagination', 'Retry', 'Rate limiting', 'Refresh', 'provenance', 'Credentials', 'terms'].filter(
+      (topic) => !new RegExp(topic, 'i').test(apifyDoc)
+    ),
+    []
+  )
+  const handoff = read('docs/event-intelligence/landing-handoff.md')
+  check(
+    'R3 the landing handoff has all five sections',
+    ['What is actually implemented', 'What is prototype only', 'Still future', 'Safe public copy', 'Unsafe claims'].filter(
+      (heading) => !handoff.includes(heading)
+    ),
+    []
+  )
+  check('R4 and it tells the landing to keep saying Coming next', handoff.includes('Coming next'), true)
+  check(
+    'R5 no landing file was touched on this branch',
+    git('diff', '--name-only', BASE_REF, '--', 'components/landing', 'app/page.tsx', 'lib/landing')
+      .split(/\r?\n/)
+      .filter(Boolean),
+    []
   )
 
   // ── Report ──

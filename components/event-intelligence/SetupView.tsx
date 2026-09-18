@@ -138,7 +138,7 @@ export default function SetupView({ event, profile, objective }: Props) {
     <div className="mx-auto w-full max-w-[720px] abc-page-top px-4 pb-16 sm:px-6 lg:px-8">
       <Link
         href={`/events/intelligence/${event.eventKey}`}
-        className="inline-flex items-center gap-1.5 text-[13px] text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+        className="-my-3 inline-flex min-h-[44px] items-center gap-1.5 text-[13px] text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
       >
         <IconArrowLeft size={16} stroke={1.8} aria-hidden="true" />
         {event.name}
@@ -212,7 +212,7 @@ export default function SetupView({ event, profile, objective }: Props) {
           <button
             type="button"
             onClick={() => setShowMore((open) => !open)}
-            className="text-[13px] font-medium text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+            className="touch-target inline-flex items-center text-[13px] font-medium text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
           >
             {showMore ? 'Hide extra detail' : 'Add more detail (optional)'}
           </button>

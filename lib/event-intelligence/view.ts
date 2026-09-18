@@ -176,6 +176,21 @@ export function sourceFacts(presence: IntelPresence, company: IntelCompany | und
   return facts
 }
 
+/**
+ * How a source is named to the person reading the screen.
+ *
+ * The stored provider id is ABC's bookkeeping — `fixture:…` today, and one day
+ * perhaps `apify:<actor>` or `csv`. It is never printed. Which infrastructure
+ * fetched a listing is not a product fact, and naming a scraping vendor on a
+ * customer's screen would describe ABC as something it has chosen not to be.
+ * The reader is told what kind of source it was, which is the thing they need
+ * to judge it: an event's own directory, or ABC's invented demo data.
+ */
+export function sourceDisplayName(providerId: string): string {
+  if (providerId.startsWith('fixture:')) return 'Synthetic demo data'
+  return 'Event directory'
+}
+
 /** What the warnings mean, in words a reader can act on. */
 export const WARNING_LABEL: Record<MatchWarning, string> = {
   no_hall: 'The listing does not give a hall.',

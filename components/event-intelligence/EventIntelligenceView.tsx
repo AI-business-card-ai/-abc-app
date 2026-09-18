@@ -73,7 +73,7 @@ export default function EventIntelligenceView({
     <div className="mx-auto w-full max-w-[900px] abc-page-top px-4 pb-16 sm:px-6 lg:px-8">
       <Link
         href="/events/intelligence"
-        className="inline-flex items-center gap-1.5 text-[13px] text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+        className="-my-3 inline-flex min-h-[44px] items-center gap-1.5 text-[13px] text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
       >
         <IconArrowLeft size={16} stroke={1.8} aria-hidden="true" />
         Event Intelligence
@@ -86,9 +86,8 @@ export default function EventIntelligenceView({
         </h1>
 
         {dates || place ? (
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-abc-secondary">
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-abc-secondary">
             {dates ? <span>{dates}</span> : null}
-            {dates && place ? <span aria-hidden="true">·</span> : null}
             {place ? (
               <span className="inline-flex items-center gap-1">
                 <IconMapPin size={14} stroke={1.7} aria-hidden="true" />
