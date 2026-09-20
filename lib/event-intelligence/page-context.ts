@@ -1,6 +1,7 @@
 import { createServerComponentClient } from '@/lib/supabase-server'
 import { currentOwnerId, loadEventByKey } from '@/lib/event-intelligence/data'
 import { eventIntelligenceEnabled } from '@/lib/event-intelligence/flag'
+import { isReservedEventKey } from '@/lib/event-intelligence/event-identity'
 import type { IntelEvent } from '@/lib/event-intelligence/types'
 
 /**
@@ -22,6 +23,14 @@ export type ContextResult = { kind: 'ok'; context: EventIntelligenceContext } | 
 
 export async function eventIntelligenceContext(eventKey: string): Promise<ContextResult> {
   if (!eventIntelligenceEnabled()) return { kind: 'absent' }
+
+  /*
+    A reserved segment is a screen, not a fair. Static routes already win over
+    the dynamic one, so this changes no URL — it makes the reservation explicit,
+    so an event that somehow acquired the key `import` is answered as absent
+    here rather than half-resolving behind a page that is not about it.
+  */
+  if (isReservedEventKey(eventKey)) return { kind: 'absent' }
 
   const supabase = createServerComponentClient()
   const ownerId = await currentOwnerId(supabase)

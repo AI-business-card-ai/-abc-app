@@ -1,4 +1,4 @@
-import { eventKeyFromName } from '@/lib/events/workspace'
+import { eventEditionKey } from '@/lib/event-intelligence/event-identity'
 import {
   contentHash,
   normalizeCompanyName,
@@ -117,9 +117,19 @@ export interface IngestStore {
 export function normalizeEvent(event: ProviderEvent): EventUpsert {
   const name = sourceText(event.name) ?? event.name.trim()
   return {
-    // The same function the Event Workspace uses for its URLs, so a fair
-    // imported here and a fair typed at a stand land on one address.
-    eventKey: eventKeyFromName(name),
+    /*
+      The same address space the Event Workspace uses for its URLs, so a fair
+      imported here and a fair typed at a stand land on one key — but derived
+      per *edition*, not per name.
+
+      Using `eventKeyFromName` alone here was a real defect, and the kind that
+      loses data quietly: "Ambiente" imported for 2026 and again for 2027 both
+      keyed to `ambiente`, so the second import upserted onto the first
+      edition's row and one year of stands replaced the other. Nothing errored.
+      The event edition key appends the year when the name does not already
+      carry it, and leaves names that do — such as the fixture's — untouched.
+    */
+    eventKey: eventEditionKey(name, typeof event.editionYear === 'number' ? event.editionYear : null),
     name,
     editionYear: typeof event.editionYear === 'number' ? event.editionYear : null,
     organizer: sourceText(event.organizer),
