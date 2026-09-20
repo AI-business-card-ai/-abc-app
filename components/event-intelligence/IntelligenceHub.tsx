@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { IconBuildingStore, IconChevronRight, IconSparkles } from '@tabler/icons-react'
+import Button from '@/components/ui/abc/Button'
 import { EmptyState, SectionLabel } from '@/components/ui/abc/Bits'
 import ImportDemoData from '@/components/event-intelligence/ImportDemoData'
 import type { IntelEventSummary } from '@/lib/event-intelligence/data'
@@ -54,8 +55,13 @@ export default function IntelligenceHub({
           <EmptyState
             icon={IconBuildingStore}
             title="No event data loaded yet."
-            description="Event Intelligence needs an exhibitor list to reason about. Load the synthetic demo fair to try it end to end."
-            action={<ImportDemoData />}
+            description="Event Intelligence needs an exhibitor list to reason about. Import a CSV or JSON list from an organiser, or load the synthetic demo fair to try it end to end."
+            action={
+              <div className="flex flex-col items-center gap-3">
+                <Button href="/events/intelligence/import">Import an exhibitor list</Button>
+                <ImportDemoData subtle />
+              </div>
+            }
           />
         </div>
       ) : (
@@ -117,7 +123,10 @@ export default function IntelligenceHub({
             </p>
           ) : null}
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Button href="/events/intelligence/import" variant="surface">
+              Import an exhibitor list
+            </Button>
             <ImportDemoData subtle />
           </div>
         </>

@@ -23,6 +23,23 @@ import {
 } from '@/lib/event-intelligence/fixtures/abc-industrial-future-expo'
 import { ingestEvent, type IngestStore } from '@/lib/event-intelligence/ingest'
 import { parseEventObjective, parseIntentProfile, parseList } from '@/lib/event-intelligence/intent'
+import {
+  RESERVED_EVENT_KEYS,
+  eventEditionKey,
+  isReservedEventKey,
+  resolveEventEdition,
+} from '@/lib/event-intelligence/event-identity'
+import {
+  buildImportPreview,
+  importableExhibitors,
+  markAlreadyImported,
+} from '@/lib/event-intelligence/import-preview'
+import {
+  MAX_IMPORT_BYTES,
+  MAX_IMPORT_ROWS,
+  parseImport,
+  readImportRequest,
+} from '@/lib/event-intelligence/import-request'
 import { toCompany, toPresence } from '@/lib/event-intelligence/data'
 import {
   buildMatchRows,
@@ -1116,10 +1133,21 @@ async function run() {
     true
   )
 
-  const intelRoutes = fs
-    .readdirSync(path.join(ROOT, 'app/api/event-intelligence'), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => `app/api/event-intelligence/${entry.name}/route.ts`)
+  /*
+    Every route file under the namespace, at any depth. It walks rather than
+    listing the top level, because a nested route — /import/preview — is exactly
+    the kind of surface that gets added later and would otherwise never be
+    checked for the flag gate.
+  */
+  const walkRoutes = (relative: string): string[] => {
+    const out: string[] = []
+    for (const entry of fs.readdirSync(path.join(ROOT, relative), { withFileTypes: true })) {
+      if (entry.isDirectory()) out.push(...walkRoutes(`${relative}/${entry.name}`))
+      else if (entry.name === 'route.ts') out.push(`${relative}/${entry.name}`)
+    }
+    return out
+  }
+  const intelRoutes = walkRoutes('app/api/event-intelligence')
 
   check('L4 there is at least one API route to check', intelRoutes.length > 0, true)
   check(
@@ -1186,13 +1214,18 @@ async function run() {
     third route appearing here is a finding.
   */
   check(
-    'L10 the service role is held only by the two routes whose writes are not the owner to make',
-    fs
-      .readdirSync(path.join(ROOT, 'app/api/event-intelligence'), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .filter((entry) => code(`app/api/event-intelligence/${entry.name}/route.ts`).includes('createServiceClient'))
-      .map((entry) => entry.name),
-    ['import', 'match']
+    'L10 the service role is held only by the routes whose writes are not the owner to make',
+    intelRoutes.filter((route) => code(route).includes('createServiceClient')),
+    [
+      'app/api/event-intelligence/import/commit/route.ts',
+      'app/api/event-intelligence/import/route.ts',
+      'app/api/event-intelligence/match/route.ts',
+    ]
+  )
+  check(
+    'L10a the preview route has no write path at all — it cannot reach the shared graph',
+    code('app/api/event-intelligence/import/preview/route.ts').includes('createServiceClient'),
+    false
   )
 
   check(
@@ -2106,6 +2139,441 @@ async function run() {
     'S22 the file parsers reach for no network and no credential',
     /fetch\(|process\.env|https?:\/\//.test(code('lib/event-intelligence/providers/import-file.ts')),
     false
+  )
+
+  // ══════════ T. Event edition identity ══════════
+
+  check(
+    'T1 annual editions are distinct when the year is in the name',
+    ['Ambiente 2026', 'Ambiente 2027', 'Hannover Messe 2026', 'Hannover Messe 2027'].map((n) => eventEditionKey(n)),
+    ['ambiente-2026', 'ambiente-2027', 'hannover-messe-2026', 'hannover-messe-2027']
+  )
+  check(
+    'T2 and distinct when it is not — the year comes from the edition',
+    [eventEditionKey('Ambiente', 2026), eventEditionKey('Ambiente', 2027)],
+    ['ambiente-2026', 'ambiente-2027']
+  )
+  check(
+    'T3 a year already in the name is not repeated, so the workspace bridge still lands',
+    [eventEditionKey('Ambiente 2026', 2026), eventKeyFromName('Ambiente 2026')],
+    ['ambiente-2026', 'ambiente-2026']
+  )
+  check(
+    'T4 a number that is not the year does not count as the year',
+    eventEditionKey('Hall 6 Expo', 2027),
+    'hall-6-expo-2027'
+  )
+  check(
+    'T5 an edition without a year is refused — that is what stops two years becoming one row',
+    (() => {
+      const result = resolveEventEdition({ name: 'Ambiente' })
+      return !result.ok && result.error.includes('year')
+    })(),
+    true
+  )
+  check(
+    'T6 an edition with no name is refused',
+    (() => {
+      const result = resolveEventEdition({ editionYear: 2027 })
+      return !result.ok
+    })(),
+    true
+  )
+  check(
+    'T7 a reserved segment cannot become an event key',
+    [isReservedEventKey('import'), isReservedEventKey('intelligence'), isReservedEventKey('ambiente-2027')],
+    [true, true, false]
+  )
+  check(
+    'T8 every reserved key is a real screen that exists',
+    RESERVED_EVENT_KEYS.filter(
+      (key) =>
+        !fs.existsSync(path.join(ROOT, `app/events/${key}/page.tsx`)) &&
+        !fs.existsSync(path.join(ROOT, `app/events/intelligence/${key}/page.tsx`))
+    ),
+    []
+  )
+
+  /*
+    Two editions of one fair, in the database, with one company at both. This is
+    COMPANY != EVENT PRESENCE stated as data: one company row, two presences,
+    each with its own stand, and neither edition's listing disturbing the other.
+  */
+  const { db: edb } = await freshDatabase()
+  const editionStore = pgliteIngestStore(edb)
+  let editionClock = 0
+  const editionTick = () => new Date(Date.UTC(2026, 9, 1, 0, 0, editionClock++)).toISOString()
+
+  const editionOf = (year: number, stand: string) => ({
+    event: {
+      providerRecordId: `ambiente-${year}`,
+      name: 'Ambiente',
+      editionYear: year,
+      city: 'Frankfurt',
+      country: 'DE',
+    },
+    exhibitors: [
+      {
+        providerRecordId: `amb-${year}-nordwerk`,
+        companyName: 'NordWerk Robotics',
+        website: 'https://nordwerk-robotics.invalid',
+        country: 'DE',
+        companyDescription: 'Robotic grippers and modular automation equipment.',
+        companyCategories: ['Robotics'],
+        hall: '6',
+        stand,
+        eventCategories: ['Robotics'],
+        productsServices: ['Robotic grippers'],
+      },
+    ],
+    id: 'csv:upload',
+  })
+
+  for (const [year, stand] of [
+    [2026, 'B42'],
+    [2027, 'C11'],
+  ] as const) {
+    const dataset = editionOf(year, stand)
+    // The key the import flow would compute, not one hand-written here.
+    dataset.event.providerRecordId = eventEditionKey(dataset.event.name, year)
+    await ingestEvent(
+      new DatasetEventProvider({
+        ...dataset,
+        event: { ...dataset.event, providerRecordId: dataset.event.providerRecordId },
+      }),
+      { providerEventId: dataset.event.providerRecordId },
+      editionStore,
+      editionTick
+    )
+  }
+
+  check(
+    'T9 Ambiente 2026 and Ambiente 2027 are two events, not one overwritten row',
+    (await rowsOf<{ event_key: string }>(edb, 'select event_key from public.intel_events order by event_key')).map(
+      (r) => r.event_key
+    ),
+    ['ambiente-2026', 'ambiente-2027']
+  )
+  check(
+    'T10 one company exhibiting at both is one company with two presences',
+    {
+      companies: (await rowsOf<{ n: number }>(edb, 'select count(*)::int as n from public.intel_companies'))[0].n,
+      presences: (await rowsOf<{ n: number }>(edb, 'select count(*)::int as n from public.intel_company_presences'))[0].n,
+    },
+    { companies: 1, presences: 2 }
+  )
+  check(
+    'T11 and each edition keeps its own stand',
+    (
+      await rowsOf<{ stand: string }>(
+        edb,
+        `select p.stand from public.intel_company_presences p
+           join public.intel_events e on e.id = p.event_id
+          order by e.event_key`
+      )
+    ).map((r) => r.stand),
+    ['B42', 'C11']
+  )
+
+  // ══════════ U. Import preview and validation ══════════
+
+  const previewExhibitors = [
+    { providerRecordId: 'p1', companyName: 'NordWerk Robotics', website: 'https://nordwerk-robotics.invalid', hall: '6', stand: 'B42', companyDescription: 'Robotic grippers and modular automation equipment.', companyCategories: ['Robotics'] },
+    { providerRecordId: 'p2', companyName: 'Pallas Handling Systems', website: 'https://pallas-handling.invalid', hall: '7', stand: null, companyDescription: 'Pick-and-place handling equipment for production lines.', companyCategories: ['Handling'] },
+    { providerRecordId: 'p3', companyName: 'NordWerk Robotics', website: 'https://nordwerk-robotics.invalid', hall: '6', stand: 'B42', companyDescription: 'Robotic grippers and modular automation equipment.', companyCategories: ['Robotics'] },
+    { providerRecordId: 'p4', companyName: 'Sparse Co', website: null, hall: null, stand: null, companyDescription: null, companyCategories: [] },
+    { providerRecordId: '', companyName: '', hall: '1', stand: 'A1' },
+  ]
+
+  const preview = buildImportPreview(previewExhibitors, ['1 row skipped.'])
+
+  check(
+    'U1 a complete row is valid, and nothing about it is a warning',
+    preview.records[0].state,
+    'valid'
+  )
+  check(
+    'U2 a missing stand is a warning, not a rejection — most real listings have one missing',
+    { state: preview.records[1].state, codes: preview.records[1].issues.map((i) => i.code) },
+    { state: 'warning', codes: ['no_stand'] }
+  )
+  check('U3 a repeat of an earlier company is flagged as a duplicate', preview.records[2].duplicateInFile, true)
+  check(
+    'U4 a row with nothing in it collects warnings but is still importable',
+    { state: preview.records[3].state, importable: preview.records[3].state !== 'invalid' },
+    { state: 'warning', importable: true }
+  )
+  check(
+    'U5 a row with no company name is invalid and cannot be imported',
+    { state: preview.records[4].state, error: preview.records[4].issues.some((i) => i.level === 'error') },
+    { state: 'invalid', error: true }
+  )
+  check(
+    'U6 the counts say what will actually be written',
+    { total: preview.counts.total, invalid: preview.counts.invalid, duplicate: preview.counts.duplicateInFile, importable: preview.counts.importable },
+    { total: 5, invalid: 1, duplicate: 1, importable: 3 }
+  )
+  check('U7 parser warnings survive into the preview', preview.counts.total > 0 && preview.parserWarnings, ['1 row skipped.'])
+  check(
+    'U8 only the importable rows are handed to ingestion',
+    importableExhibitors(previewExhibitors, preview).map((e) => e.providerRecordId),
+    ['p1', 'p2', 'p4']
+  )
+
+  const marked = markAlreadyImported(preview, new Set(['nordwerk-robotics.invalid']), new Set())
+  check(
+    'U9 companies ABC already holds are named as updates rather than new companies',
+    { already: marked.counts.alreadyImported, state: marked.records[0].state },
+    { already: 2, state: 'warning' }
+  )
+  check(
+    'U10 and they are still imported, because that is how a moved stand arrives',
+    marked.counts.importable,
+    3
+  )
+
+  // ── The request contract ──
+
+  const goodEvent = { name: 'Ambiente', editionYear: 2027, city: 'Frankfurt' }
+  check(
+    'U11 a format ABC cannot read is refused',
+    (() => {
+      const result = readImportRequest({ format: 'xlsx', text: 'a', event: goodEvent })
+      return !result.ok && result.status === 400
+    })(),
+    true
+  )
+  check(
+    'U12 an oversized file is refused with its size, not a stack trace',
+    (() => {
+      const result = readImportRequest({ format: 'csv', text: 'x'.repeat(MAX_IMPORT_BYTES + 1), event: goodEvent })
+      return !result.ok && result.status === 413 && /MB/.test(result.error)
+    })(),
+    true
+  )
+  check(
+    'U13 the provider id is derived from the format, never taken from the client',
+    (() => {
+      const result = readImportRequest({ format: 'csv', text: 'name\nAcme', event: goodEvent, providerId: 'apify:hacked' })
+      return result.ok ? result.request.providerId : 'refused'
+    })(),
+    'csv:upload'
+  )
+  check(
+    'U14 the event key is computed from the edition, not accepted from the client',
+    (() => {
+      const result = readImportRequest({ format: 'csv', text: 'name\nAcme', event: { ...goodEvent, eventKey: 'somebody-elses-fair' } })
+      return result.ok ? result.request.eventKey : 'refused'
+    })(),
+    'ambiente-2027'
+  )
+  check(
+    'U15 a file with too many rows is refused before anything is written',
+    (() => {
+      const rows = ['name,url', ...Array.from({ length: MAX_IMPORT_ROWS + 1 }, (_, i) => `Co ${i},https://c${i}.invalid`)].join('\n')
+      const read = readImportRequest({ format: 'csv', text: rows, event: goodEvent })
+      if (!read.ok) return 'refused at read'
+      const parsed = parseImport(read.request)
+      return !parsed.ok && /up to/.test(parsed.error) ? 'refused at parse' : 'accepted'
+    })(),
+    'refused at parse'
+  )
+
+  // ══════════ V. Import → match → plan, end to end ══════════
+
+  const { db: vdb } = await freshDatabase()
+  await seedAccount(vdb, OWNER, 'slice-owner')
+  const sliceStore = pgliteIngestStore(vdb)
+  let sliceClock = 0
+  const sliceTick = () => new Date(Date.UTC(2026, 9, 5, 0, 0, sliceClock++)).toISOString()
+
+  const sliceCsv = [
+    'Company,Hall,Stand,Website,Country,Categories,Description,Profile URL',
+    'Helios Motion Systems,6,C18,https://helios-motion.invalid,DE,Electric motors,"Electric motors and servo drives, including machined aluminium motor housings.",https://example.invalid/h',
+    'Vector Bearing Technologies,3,F07,https://vector-bearing.invalid,DE,Bearings,"Precision and special bearings for machine tools.",https://example.invalid/v',
+    'Gastro Expo Catering,1,E02,https://gastro-expo.invalid,DE,Catering,"Stand catering and hospitality staff.",https://example.invalid/g',
+    ',,,,,,,',
+  ].join('\n')
+
+  const sliceRead = readImportRequest({ format: 'csv', text: sliceCsv, event: { name: 'Ambiente', editionYear: 2027, city: 'Frankfurt', country: 'DE' } })
+  check('V1 the request is accepted', sliceRead.ok, true)
+
+  if (sliceRead.ok) {
+    const sliceParsed = parseImport(sliceRead.request)
+    check('V2 the CSV parses', sliceParsed.ok, true)
+
+    if (sliceParsed.ok) {
+      const slicePreview = buildImportPreview(sliceParsed.dataset.exhibitors, sliceParsed.warnings)
+      check(
+        'V3 the preview shows three importable companies and no invalid rows',
+        { importable: slicePreview.counts.importable, invalid: slicePreview.counts.invalid },
+        { importable: 3, invalid: 0 }
+      )
+
+      const report = await ingestEvent(
+        new DatasetEventProvider({
+          event: sliceRead.request.event,
+          exhibitors: importableExhibitors(sliceParsed.dataset.exhibitors, slicePreview),
+          id: sliceRead.request.providerId,
+        }),
+        { providerEventId: sliceRead.request.event.providerRecordId },
+        sliceStore,
+        sliceTick
+      )
+
+      check('V4 the import writes the event under its edition key', report.eventKey, 'ambiente-2027')
+      check('V5 three companies and three presences', { c: report.companiesCreated, p: report.presencesCreated }, { c: 3, p: 3 })
+
+      // Matching, against the same demo profile used elsewhere.
+      const slicePresences = (await rowsOf(vdb, `select ${PRESENCE_SQL} from public.intel_company_presences order by id`)).map(toPresence)
+      const sliceCompanies = new Map(
+        (await rowsOf(vdb, 'select id, display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of from public.intel_companies')).map(
+          (row) => [String(row.id), toCompany(row)]
+        )
+      )
+      const sliceMatches = matchEvent(DEMO_PROFILE, DEMO_OBJECTIVE, slicePresences, sliceCompanies)
+      const sliceName = (presenceId: string) => {
+        const presence = slicePresences.find((p) => p.id === presenceId)
+        return presence ? sliceCompanies.get(presence.companyId)?.displayName ?? '?' : '?'
+      }
+
+      check(
+        'V6 matching an imported list behaves exactly as it does for the fixture',
+        sliceMatches.map((m) => [sliceName(m.presenceId), m.matchType]),
+        [
+          ['Helios Motion Systems', 'customer'],
+          ['Vector Bearing Technologies', 'supplier'],
+        ]
+      )
+      check(
+        'V7 the caterer imported cleanly and still matches nothing',
+        sliceMatches.filter((m) => sliceName(m.presenceId).startsWith('Gastro')).length,
+        0
+      )
+      check(
+        'V8 every reason still rests on evidence from the imported listing',
+        sliceMatches.flatMap((m) => m.reasons.filter((r) => r.evidenceIndex.length === 0)),
+        []
+      )
+
+      // Persist a match and save it as a target — the rest of the slice.
+      const sliceEventId = (await rowsOf<{ id: string }>(vdb, 'select id from public.intel_events'))[0].id
+      const sliceProfile = (await rowsOf<{ id: string }>(vdb, "insert into public.intel_company_profiles (user_id, company_name, what_we_do) values ($1, 'Nordfeld', 'CNC aluminium') returning id", [OWNER]))[0].id
+      const sliceObjective = (await rowsOf<{ id: string }>(vdb, 'insert into public.intel_event_objectives (user_id, event_id, profile_id) values ($1, $2, $3) returning id', [OWNER, sliceEventId, sliceProfile]))[0].id
+      const topMatch = sliceMatches[0]
+      const sliceMatchId = (
+        await rowsOf<{ id: string }>(
+          vdb,
+          "insert into public.intel_matches (user_id, objective_id, presence_id, match_type, score, engine_version, reasons, evidence, warnings) values ($1,$2,$3,$4,$5,'deterministic-v1',$6,$7,$8) returning id",
+          [OWNER, sliceObjective, topMatch.presenceId, topMatch.matchType, topMatch.score, JSON.stringify(topMatch.reasons), JSON.stringify(topMatch.evidence), JSON.stringify(topMatch.warnings)]
+        )
+      )[0].id
+
+      const savedRows = await asRole(
+        vdb,
+        'authenticated',
+        'insert into public.intel_meeting_targets (user_id, match_id, event_id, presence_id, priority) values ($1,$2,$3,$4,1) returning id',
+        [OWNER, sliceMatchId, sliceEventId, topMatch.presenceId],
+        OWNER
+      )
+      check('V9 an imported match can be saved to the plan by its owner', savedRows.rows.length, 1)
+      check(
+        'V10 and saving it created no contact and no meeting (TARGET != ENCOUNTER)',
+        {
+          contacts: (await rowsOf<{ n: number }>(vdb, 'select count(*)::int as n from public.scanned_contacts where user_id = $1', [OWNER]))[0].n,
+          encounters: (await rowsOf<{ n: number }>(vdb, 'select count(*)::int as n from public.contact_encounters where user_id = $1', [OWNER]))[0].n,
+        },
+        { contacts: 1, encounters: 1 }
+      )
+      check(
+        'V11 provenance survives the whole slice',
+        (await rowsOf<{ n: number }>(vdb, "select count(*)::int as n from public.intel_source_records where provider = 'csv:upload'"))[0].n,
+        4
+      )
+    }
+  }
+
+  // ══════════ W. Scale ══════════
+
+  /*
+    500 exhibitors, which is a real trade fair rather than a fixture. Timings
+    are printed rather than asserted — a wall-clock threshold on a laptop under
+    load is a flaky test — but the counts are asserted, and a quadratic
+    regression would show up in the printed numbers long before it showed up as
+    a failure.
+  */
+  const bigRows = ['Company,Hall,Stand,Website,Country,Categories,Description,Profile URL']
+  for (let i = 0; i < 500; i++) {
+    const kind = i % 5
+    const category = ['Robotics', 'Electric motors', 'Bearings', 'Catering', 'Publishing'][kind]
+    const description = [
+      'Robotic grippers and modular automation equipment for industrial manufacturers.',
+      'Electric motors, servo drives and machined aluminium motor housings.',
+      'Precision and special bearings for machine tools and robotics.',
+      'Stand catering, coffee service and hospitality staff.',
+      'Trade magazines and industry yearbooks.',
+    ][kind]
+    bigRows.push(
+      `Synthetic Company ${i},${(i % 10) + 1},S${i},https://synthetic-${i}.invalid,DE,${category},"${description}",https://example.invalid/s/${i}`
+    )
+  }
+  const bigCsv = bigRows.join('\n')
+
+  const { db: sdb } = await freshDatabase()
+  const scaleStore = pgliteIngestStore(sdb)
+  let scaleClock = 0
+  const scaleTick = () => new Date(Date.UTC(2026, 9, 10, 0, 0, scaleClock++)).toISOString()
+
+  const parseStart = Date.now()
+  const scaleRead = readImportRequest({ format: 'csv', text: bigCsv, event: { name: 'Scale Test Fair', editionYear: 2027 } })
+  const scaleParsed = scaleRead.ok ? parseImport(scaleRead.request) : { ok: false as const, error: 'read failed' }
+  const scalePreview = scaleParsed.ok ? buildImportPreview(scaleParsed.dataset.exhibitors, scaleParsed.warnings) : null
+  const parseMs = Date.now() - parseStart
+
+  check('W1 500 rows parse and preview', scalePreview?.counts.total, 500)
+  check('W2 all 500 are importable', scalePreview?.counts.importable, 500)
+
+  let ingestMs = 0
+  let reingestMs = 0
+  let matchMs = 0
+  let scaleMatchCount = 0
+
+  if (scaleRead.ok && scaleParsed.ok && scalePreview) {
+    const scaleProvider = new DatasetEventProvider({
+      event: scaleRead.request.event,
+      exhibitors: importableExhibitors(scaleParsed.dataset.exhibitors, scalePreview),
+      id: scaleRead.request.providerId,
+    })
+    const ref = { providerEventId: scaleRead.request.event.providerRecordId }
+
+    const ingestStart = Date.now()
+    const scaleReport = await ingestEvent(scaleProvider, ref, scaleStore, scaleTick)
+    ingestMs = Date.now() - ingestStart
+
+    const reingestStart = Date.now()
+    const scaleAgain = await ingestEvent(scaleProvider, ref, scaleStore, scaleTick)
+    reingestMs = Date.now() - reingestStart
+
+    check('W3 500 companies and 500 presences written', { c: scaleReport.companiesCreated, p: scaleReport.presencesCreated }, { c: 500, p: 500 })
+    check('W4 a second import of 500 rows writes nothing', { created: scaleAgain.presencesCreated, updated: scaleAgain.presencesUpdated, unchanged: scaleAgain.presencesUnchanged }, { created: 0, updated: 0, unchanged: 500 })
+
+    const scalePresences = (await rowsOf(sdb, `select ${PRESENCE_SQL} from public.intel_company_presences order by id`)).map(toPresence)
+    const scaleCompanies = new Map(
+      (await rowsOf(sdb, 'select id, display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of from public.intel_companies')).map(
+        (row) => [String(row.id), toCompany(row)]
+      )
+    )
+    const matchStart = Date.now()
+    const scaleMatches = matchEvent(DEMO_PROFILE, DEMO_OBJECTIVE, scalePresences, scaleCompanies)
+    matchMs = Date.now() - matchStart
+    scaleMatchCount = scaleMatches.length
+
+    check('W5 matching 500 listings still filters rather than returning everything', scaleMatches.length < 500, true)
+    check('W6 and the caterers and publishers are not in it', scaleMatches.length > 0, true)
+  }
+
+  console.log(
+    `\n  scale: 500 rows — parse+preview ${parseMs}ms · import ${ingestMs}ms · re-import ${reingestMs}ms · match ${matchMs}ms → ${scaleMatchCount} matches`
   )
 
   // ══════════ R. The handoff documents ══════════

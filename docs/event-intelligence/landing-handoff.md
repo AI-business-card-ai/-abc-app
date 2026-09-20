@@ -18,6 +18,13 @@ All of it against a synthetic dataset, on a feature branch, with the flag off.
 - A company says what it does, what it sells, what it needs and who it wants to
   meet — four questions, with optional detail behind a disclosure.
 - Per-event goals, optional.
+- **A person can bring their own exhibitor list.** CSV or JSON from an
+  organiser, uploaded in the app, with every row shown and classified — ready,
+  needs checking, or cannot be imported — before anything is stored. Still no
+  crawler and no vendor: the file comes from the user.
+- Annual editions are kept apart. Ambiente 2026 and Ambiente 2027 are two
+  events with two exhibitor lists, and one company exhibiting at both is one
+  company with two stands.
 - An exhibitor list is imported into a shared event graph with full provenance
   (provider, source URL, fetched-at, content hash). Re-importing changes
   nothing; a refresh updates only what moved and marks vanished exhibitors
@@ -38,13 +45,15 @@ All of it against a synthetic dataset, on a feature branch, with the flag off.
 
 ## What is prototype only
 
-- **The data is invented.** One synthetic fair, 21 fictional exhibitors, written
-  to exercise the engine. No real event has been imported.
-- **There is no real data source.** No provider is connected, no actor chosen,
-  no credentials stored. See `apify-provider.md`.
+- **ABC ships no event data.** There is one synthetic demo fair with 21
+  fictional exhibitors. Everything else has to be a file the user supplies —
+  ABC does not have exhibitor lists for any real event.
+- **No automatic data source.** No provider is connected, no actor chosen, no
+  credentials stored. See `apify-provider.md`.
 - **Matching is deterministic term overlap**, not a model. It is reproducible
   and explainable, and it is not clever.
-- **Never run at scale.** Correct on 21 listings; untested on 5,000.
+- **Tested to 500 rows locally**, never against hosted Supabase. A large fair
+  may import slowly.
 - **No pricing, entitlement or credit cost** has been decided or built.
 
 ## Still future
@@ -63,6 +72,7 @@ Only if the section is unambiguously about what is coming, not what is available
 - "Tell ABC what your company does and what you want from a fair."
 - "See which exhibitors fit what you sell and what you need — and why."
 - "Save the companies worth your time, with their hall and stand."
+- "Bring the organiser's exhibitor list — ABC reads it and shows you what it found."
 - "Your plan for the fair, on your phone."
 - "When you meet them, the relationship continues in ABC."
 
@@ -76,7 +86,8 @@ Each of these is either untrue today or untrue in principle.
 | Do not say | Why |
 | --- | --- |
 | "Available now", "included in Pro", any price | Off in production; no entitlement decided. |
-| "Covers every major trade fair", any event names, any exhibitor count | No real event has been imported. Naming a real fair implies a dataset that does not exist. |
+| "Covers every major trade fair", any event names, any exhibitor count | ABC ships no real event data. Naming a fair implies a dataset that does not exist. |
+| "ABC knows who is exhibiting", "just pick your event" | The user brings the list. Import is real; a library of events is not. |
 | "AI-powered matching", "AI finds your best leads" | V1 has no model in it. |
 | "Know who will buy", "predicts your best prospects", any percentage read as a win rate | ABC Match is fit to a stated objective, explicitly not a probability. The product says so on screen and the marketing must not contradict it. |
 | "Get their contact details before the event" | No personal data is collected, by design. |

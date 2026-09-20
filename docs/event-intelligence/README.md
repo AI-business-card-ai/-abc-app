@@ -175,10 +175,66 @@ Then sign in and open **Events → Event Intelligence**:
 6. At the fair, scan a card as usual; the match detail then offers that meeting
    for linking.
 
-### Other data sources
+### Importing a real exhibitor list
 
-CSV and JSON go through the same ingestion. There is no upload UI yet, so today
-this is a script or a REPL:
+**Events → Event Intelligence → Import an exhibitor list**, or
+`/events/intelligence/import`. Four steps on one screen, and nothing is written
+until the last of them.
+
+1. **Which event.** An edition ABC already knows, or a new one. A new edition
+   needs a name and a **year**; everything else is optional. See §9 for why the
+   year is not negotiable.
+2. **The file.** CSV or JSON, up to 4 MB and 10,000 rows. The extension picks
+   the format; it can be overridden.
+3. **What ABC found.** Every row classified before anything is stored:
+   **Ready** (complete), **Check** (importable but thin — a missing stand is the
+   normal case in a real listing, not an error), or **Cannot import** (no company
+   name, or nothing to identify it by). Rows ABC already holds for this event are
+   named as updates rather than new companies, and rows repeating a company from
+   earlier in the same file are collapsed. Warnings never block; invalid rows
+   never enter the graph.
+4. **Imported**, then straight on to matching — not a dead-end success screen.
+
+`POST /api/event-intelligence/import/preview` has no write path at all: it
+creates no service client, so nothing in it can reach the shared graph.
+`.../import/commit` re-parses and re-validates the file rather than trusting a
+preview the browser sends back, because a round trip through a client is a place
+where rows could be edited.
+
+Nothing about the file is kept. It is parsed, counted and discarded; what
+persists is the exhibitor list and its provenance.
+
+### Accepted CSV
+
+Quoted fields, commas and new lines inside quotes, doubled quotes, CRLF, a UTF-8
+BOM from Excel, and `;` as a delimiter (which German and Czech Excel writes by
+default). Headers are matched by alias, ignoring case, spaces and underscores:
+
+| Field | Accepted headers |
+| --- | --- |
+| company | `company`, `company name`, `name`, `exhibitor`, `aussteller` |
+| hall / stand | `hall`, `halle` / `stand`, `booth`, `stand no` |
+| website | `website`, `url`, `homepage` |
+| categories | `categories`, `industry`, `product groups`, `branche` |
+| description | `description`, `about`, `beschreibung` |
+| listing | `profile url`, `listing url`, `link` |
+| id | `id`, `exhibitor id`, `reference` |
+
+Only the company column is required. A multi-value cell separated by `;` or `|`
+becomes a list — quote the cell if the separator is also the delimiter.
+
+**A row with no id, listing URL or website is skipped, with a warning saying
+so.** Falling back to the row number would make a re-import of a re-ordered
+export resolve every exhibitor to the wrong company.
+
+### Accepted JSON
+
+`{ "exhibitors": [...] }`, or a bare array. Keys follow the provider type, with
+aliases (`name`, `company`, `booth`, `products`, `description`). Every value goes
+through the same cleaners as the CSV path, and unrecognised entries are dropped
+rather than passed through.
+
+### Without the UI
 
 ```ts
 import { parseCsvDataset, DatasetEventProvider } from '@/lib/event-intelligence/providers/import-file'
@@ -187,31 +243,59 @@ import { supabaseIngestStore } from '@/lib/event-intelligence/store/supabase-ing
 import { createServiceClient } from '@/lib/supabase/service'
 
 const result = parseCsvDataset(csvText, {
-  providerRecordId: 'medica-2026',
-  name: 'MEDICA 2026',           // the event is supplied, never guessed from the file
-  city: 'Düsseldorf',
+  providerRecordId: 'ambiente-2027',
+  name: 'Ambiente',
+  editionYear: 2027,          // the year is what keeps editions apart
+  city: 'Frankfurt',
 }, 'csv:organiser-export')
 
 if (result.ok) {
   await ingestEvent(
     new DatasetEventProvider(result.dataset),
-    { providerEventId: 'medica-2026' },
+    { providerEventId: 'ambiente-2027' },
     supabaseIngestStore(createServiceClient()),
   )
 }
 ```
 
-The CSV reader handles quoted fields, embedded commas and new lines, doubled
-quotes, CRLF, an Excel BOM, and semicolon delimiters. Headers are matched by
-alias (`company` / `exhibitor` / `name`, `booth` / `stand`, …). A row with no
-id, listing URL or website is **skipped with a warning** rather than numbered by
-position — a re-import of a re-ordered export would otherwise attach every
-exhibitor to the wrong company.
+## 8. Event edition identity
 
-## 8. Tests
+`intel_events.event_key` is the identity, derived rather than stored as typed.
+Editions are distinct when the year is in the name — and, since
+`eventEditionKey()`, when it is not:
+
+| Entered | Key |
+| --- | --- |
+| "Ambiente 2026" | `ambiente-2026` |
+| "Ambiente 2027" | `ambiente-2027` |
+| "Ambiente" + year 2026 | `ambiente-2026` |
+| "Ambiente" + year 2027 | `ambiente-2027` |
+
+The hazard this closes was real and silent. Before it, "Ambiente" entered twice
+without a year both keyed to `ambiente`; because ingestion upserts on the key,
+the second import adopted the first edition's row — two years of exhibitors
+merged, last year's stands still attached, and no error anywhere. Tests T9–T11
+hold the two editions apart in a real database, with one company exhibiting at
+both kept as **one company with two presences**, each with its own stand.
+
+A year already in the name is not repeated, so the Event Workspace bridge still
+lands: an encounter somebody typed as "Ambiente 2027" keys to the same string.
+
+**Series vs edition.** ABC models the edition. "Ambiente" as a lasting series
+with a 2026 and a 2027 is a real future concept and not one V1 needs — every
+question this feature answers is about one edition. `edition_year` plus a
+distinct key means a series can be added later by grouping rows that already
+exist, which is the cheap direction to have left it in.
+
+**Reserved keys.** `intelligence` and `import` are screens under
+`/events/intelligence`, so no fair can hold those keys. The list is
+`RESERVED_EVENT_KEYS`; pages refuse to resolve an event under any of them, and a
+test asserts each reserved word is a screen that actually exists.
+
+## 9. Tests
 
 ```bash
-npm run test:event-intelligence     # 229 checks
+npm run test:event-intelligence     # 273 checks, including a 500-row scale pass
 npm run test:account-deletion       # proves the cascade reaches the new tables
 npm run typecheck && npm run lint && npm run build
 ```
@@ -224,16 +308,23 @@ non-idempotent refresh, auto-created encounter, uncertain merge, leaked notes,
 lost provenance, forged score, writable `'met'`) were each applied, each caught,
 and each reverted.
 
-## 9. What is not built
+## 10. What is not built
 
-- **No real data source.** No provider is connected; no actor chosen. See
-  `apify-provider.md` for what connecting one would require, and §1 of it for the
-  decisions that are the owner's rather than an engineer's.
-- **No upload UI** for CSV/JSON — parsers and ingestion exist, the screen does not.
+- **No real data source is connected.** A person can now bring their own CSV or
+  JSON, which is the realistic first source; no crawler, API or vendor is wired
+  up. See `apify-provider.md` for what connecting one would require, and §1 of
+  it for the decisions that are the owner's rather than an engineer's.
 - **No AI-written prose.** No conversation opener, discovery questions or
   suggested next step; the deterministic engine cannot write them without
   asserting something nobody told it, and fabricating them would break the one
   rule this feature is built around. The interface for a later adapter exists.
 - **No pricing or entitlement.** Not decided, not built.
 - **No route optimisation, scheduling, outreach or contact discovery**, by design.
-- **Never run at scale.** Correct on 21 listings; untested on 5,000.
+- **Scale is measured, not assumed.** 500 synthetic rows, in PGlite on a laptop:
+  parse and preview 15 ms, import 1.9 s, re-import 1.0 s, matching 32 ms. Import
+  is the slow part and is linear — roughly four statements per row, issued a row
+  at a time. It has **never been run against hosted Supabase**, where each of
+  those statements is a network round trip, so a 500-row import there will be
+  slower and would likely want batching before a fair of several thousand is
+  offered. The preview renders the first 50 rows with a "Show all" control, so
+  the screen does not lay out 500 cards nobody asked for.
