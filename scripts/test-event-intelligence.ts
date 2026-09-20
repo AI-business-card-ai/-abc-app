@@ -42,6 +42,12 @@ import {
 } from '@/lib/event-intelligence/scoring'
 import { DEMO_EVENT_REF, JsonFixtureProvider } from '@/lib/event-intelligence/providers/json-fixture'
 import {
+  DatasetEventProvider,
+  parseCsvDataset,
+  parseCsvRows,
+  parseJsonDataset,
+} from '@/lib/event-intelligence/providers/import-file'
+import {
   contentHash,
   normalizeCompanyName,
   normalizeDomain,
@@ -1938,6 +1944,168 @@ async function run() {
       return new Set([tint('customer'), tint('supplier'), tint('partner')]).size
     })(),
     3
+  )
+
+  // ══════════ S. Event data from a file (CSV / JSON) ══════════
+
+  check(
+    'S1 quoted fields, embedded commas and doubled quotes survive',
+    parseCsvRows('name,note\n"Acme, Inc.","He said ""yes"""'),
+    [
+      ['name', 'note'],
+      ['Acme, Inc.', 'He said "yes"'],
+    ]
+  )
+  check(
+    'S2 a new line inside quotes is part of the field, not a new row',
+    parseCsvRows('name,note\n"Acme","line one\nline two"').length,
+    2
+  )
+  check('S3 CRLF from Windows does not leave a stray carriage return', parseCsvRows('a,b\r\n1,2')[1], ['1', '2'])
+  check(
+    'S4 Excel UTF-8 BOM does not corrupt the first header',
+    parseCsvRows('﻿name,hall')[0][0],
+    'name'
+  )
+  check(
+    'S5 a semicolon export is read as a semicolon export',
+    parseCsvRows('name;hall;stand\nNordWerk;6;B42')[1],
+    ['NordWerk', '6', 'B42']
+  )
+  check('S6 blank lines are not records', parseCsvRows('a,b\n\n1,2\n\n').length, 2)
+
+  const csv = [
+    'Exhibitor Name;Hall;Stand No;Website;Country;Product Groups;Description;Profile URL',
+    // The multi-value cell is quoted, because the separator inside it is also
+    // the delimiter — which is how Excel writes it, and exactly what a parser
+    // that does not honour quotes gets wrong.
+    'NordWerk Robotics;6;B42;https://nordwerk-robotics.invalid;DE;"Robotics; Automation";Robotic grippers and modular automation.;https://example.invalid/e/1',
+    'Pallas Handling Systems;7;;https://pallas-handling.invalid;DE;Handling technology;Pick-and-place units.;https://example.invalid/e/2',
+    ';;;;;;;',
+    'No Identity Ltd;4;A1;;DE;Misc;Nothing to identify them by.;',
+  ].join('\n')
+
+  const csvResult = parseCsvDataset(csv, FIXTURE_EVENT, 'csv:organiser-export')
+
+  check('S7 a semicolon export with aliased headers parses', csvResult.ok, true)
+  if (csvResult.ok) {
+    check('S8 two identifiable exhibitors, the blank row ignored', csvResult.dataset.exhibitors.length, 2)
+    check(
+      'S9 a missing stand stays missing rather than becoming an empty string',
+      csvResult.dataset.exhibitors.map((e) => [e.companyName, e.hall, e.stand]),
+      [
+        ['NordWerk Robotics', '6', 'B42'],
+        ['Pallas Handling Systems', '7', null],
+      ]
+    )
+    check(
+      'S10 a multi-value cell splits into a list',
+      csvResult.dataset.exhibitors[0].eventCategories,
+      ['Robotics', 'Automation']
+    )
+    check(
+      'S11 a row with nothing stable to identify it is refused, not numbered',
+      csvResult.warnings.some((w) => w.includes('no id, listing URL or website')),
+      true
+    )
+    check(
+      'S12 identity comes from the listing URL when there is no id column',
+      csvResult.dataset.exhibitors[0].providerRecordId,
+      'https://example.invalid/e/1'
+    )
+  }
+
+  check(
+    'S13 a file with no company-name column says which columns it wanted',
+    (() => {
+      const bad = parseCsvDataset('hall,stand\n6,B42', FIXTURE_EVENT)
+      return !bad.ok && bad.error.includes('company')
+    })(),
+    true
+  )
+  check(
+    'S14 an empty file is refused with a sentence, not a crash',
+    (() => {
+      const empty = parseCsvDataset('', FIXTURE_EVENT)
+      return !empty.ok && empty.error.length > 0
+    })(),
+    true
+  )
+
+  check(
+    'S15 malformed JSON is refused with a sentence',
+    (() => {
+      const bad = parseJsonDataset('{oops', FIXTURE_EVENT)
+      return !bad.ok && bad.error.includes('not valid JSON')
+    })(),
+    true
+  )
+  const jsonResult = parseJsonDataset(
+    JSON.stringify({
+      exhibitors: [
+        { id: 'x1', name: 'Vector Bearing Technologies', booth: 'F07', hall: '3', products: ['Special bearings'] },
+        { name: 'No Id Here' },
+        'not an object',
+      ],
+    }),
+    FIXTURE_EVENT,
+    'json:upload'
+  )
+  check('S16 a JSON document is read through the same cleaners', jsonResult.ok, true)
+  if (jsonResult.ok) {
+    check(
+      'S17 aliases are accepted and junk entries dropped',
+      jsonResult.dataset.exhibitors.map((e) => [e.companyName, e.stand, e.productsServices]),
+      [['Vector Bearing Technologies', 'F07', ['Special bearings']]]
+    )
+  }
+
+  /*
+    The point of the seam: a CSV import goes through the same ingestion, with
+    the same dedup, provenance and idempotency, and ABC's core is not told which
+    kind of file it came from.
+  */
+  const { db: cdb } = await freshDatabase()
+  const csvStore = pgliteIngestStore(cdb)
+  let csvClock = 0
+  const csvTick = () => new Date(Date.UTC(2026, 8, 25, 0, 0, csvClock++)).toISOString()
+
+  if (csvResult.ok) {
+    const csvProvider = new DatasetEventProvider(csvResult.dataset)
+    const firstRun = await ingestEvent(csvProvider, { providerEventId: FIXTURE_EVENT.providerRecordId }, csvStore, csvTick)
+    const secondRun = await ingestEvent(csvProvider, { providerEventId: FIXTURE_EVENT.providerRecordId }, csvStore, csvTick)
+
+    check(
+      'S18 a CSV import runs through the same ingestion as any other source',
+      { companies: firstRun.companiesCreated, presences: firstRun.presencesCreated },
+      { companies: 2, presences: 2 }
+    )
+    check(
+      'S19 and re-importing the same file changes nothing',
+      { created: secondRun.presencesCreated, updated: secondRun.presencesUpdated, unchanged: secondRun.presencesUnchanged },
+      { created: 0, updated: 0, unchanged: 2 }
+    )
+    check(
+      'S20 provenance records the file, not a vendor',
+      (
+        await rowsOf<{ provider: string }>(
+          cdb,
+          "select distinct provider from public.intel_source_records where entity_type = 'presence'"
+        )
+      ).map((r) => r.provider),
+      ['csv:organiser-export']
+    )
+    check(
+      'S21 and the reader is told it came from a directory, not from a file format',
+      sourceDisplayName('csv:organiser-export'),
+      'Event directory'
+    )
+  }
+
+  check(
+    'S22 the file parsers reach for no network and no credential',
+    /fetch\(|process\.env|https?:\/\//.test(code('lib/event-intelligence/providers/import-file.ts')),
+    false
   )
 
   // ══════════ R. The handoff documents ══════════
