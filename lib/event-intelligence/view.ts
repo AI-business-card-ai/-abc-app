@@ -66,6 +66,18 @@ export type MatchRow = {
   headline: string | null
   location: string
   hasLocation: boolean
+  hall: string | null
+  stand: string | null
+  /** What the listing filed them under, for filtering and search. */
+  categories: string[]
+  /**
+   * Name, categories and products, folded once.
+   *
+   * Precomputed because search runs on every keystroke over every row: doing
+   * the lowercasing per keystroke turns a 500-row list into 500 string
+   * allocations per character typed.
+   */
+  searchText: string
   withdrawn: boolean
   weak: boolean
   warnings: MatchWarning[]
@@ -90,15 +102,22 @@ export function buildMatchRows(
     const company = companies.get(presence.companyId)
     const target = targetByMatch.get(match.id) ?? null
 
+    const companyName = presence.exhibitorDisplayName ?? company?.displayName ?? 'Unnamed exhibitor'
+    const categories = [...new Set([...(company?.categories ?? []), ...presence.eventCategories])]
+
     rows.push({
       matchId: match.id,
       presenceId: match.presenceId,
-      companyName: presence.exhibitorDisplayName ?? company?.displayName ?? 'Unnamed exhibitor',
+      companyName,
       matchType: match.matchType,
       score: match.score,
       headline: match.reasons[0]?.statement ?? null,
       location: locationLabel(presence),
       hasLocation: hasLocation(presence),
+      hall: presence.hall,
+      stand: presence.stand,
+      categories,
+      searchText: [companyName, ...categories, ...presence.productsServices].join(' ').toLowerCase(),
       withdrawn: presence.status === 'withdrawn',
       weak: match.warnings.includes('weak_signal'),
       warnings: match.warnings,

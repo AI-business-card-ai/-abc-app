@@ -5,6 +5,7 @@ import { EmptyState, SectionLabel } from '@/components/ui/abc/Bits'
 import MatchList from '@/components/event-intelligence/MatchList'
 import RunMatching from '@/components/event-intelligence/RunMatching'
 import { buildMatchRows } from '@/lib/event-intelligence/view'
+import { MATCH_PAYLOAD_LIMIT } from '@/lib/event-intelligence/match-query'
 import type {
   IntelCompany,
   IntelEvent,
@@ -61,13 +62,25 @@ export default function EventIntelligenceView({
   const dates = eventDates(event)
   const place = [event.venue, event.city, event.country].filter(Boolean).join(', ')
 
-  const rows = buildMatchRows(
+  const allRows = buildMatchRows(
     matches,
     new Map(presences.map((presence) => [presence.id, presence])),
     new Map(companies.map((company) => [company.id, company])),
     targets
   )
-  const savedCount = rows.filter((row) => row.saved).length
+
+  /*
+    Only the strongest go to the browser. A row is small, but a fair with three
+    thousand matches is close to a megabyte of JSON on a phone before anything
+    renders. The list is already ordered by relevance, so the cap keeps the part
+    worth reading — and anything the owner saved comes too, whatever it scored,
+    because a plan that silently dropped an entry would be worse than a long
+    list. The screen says how many of how many it is showing.
+  */
+  const capped = allRows.slice(0, MATCH_PAYLOAD_LIMIT)
+  const savedBeyondCap = allRows.slice(MATCH_PAYLOAD_LIMIT).filter((row) => row.saved)
+  const rows = savedBeyondCap.length > 0 ? [...capped, ...savedBeyondCap] : capped
+  const savedCount = allRows.filter((row) => row.saved).length
 
   return (
     <div className="mx-auto w-full max-w-[900px] abc-page-top px-4 pb-16 sm:px-6 lg:px-8">
@@ -116,7 +129,7 @@ export default function EventIntelligenceView({
             action={<Button href={`/events/intelligence/${event.eventKey}/setup`}>Set this up</Button>}
           />
         </div>
-      ) : rows.length === 0 ? (
+      ) : allRows.length === 0 ? (
         <div className="abc-surface mt-6">
           <EmptyState
             icon={IconTargetArrow}
@@ -129,7 +142,7 @@ export default function EventIntelligenceView({
         <>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <p className="text-[13px] text-abc-secondary">
-              {rows.length} of {exhibitorCount} exhibitors are worth a look
+              {allRows.length} of {exhibitorCount} exhibitors are worth a look
               {savedCount > 0 ? ` · ${savedCount} saved` : ''}
             </p>
             <div className="flex flex-wrap items-center gap-2">
@@ -144,7 +157,7 @@ export default function EventIntelligenceView({
             </div>
           </div>
 
-          <MatchList rows={rows} eventKey={event.eventKey} />
+          <MatchList rows={rows} eventKey={event.eventKey} totalMatches={allRows.length} />
 
           <div className="mt-6">
             <RunMatching eventKey={event.eventKey} again />

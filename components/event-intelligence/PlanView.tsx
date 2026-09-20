@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { IconArrowLeft, IconMapPin, IconTargetArrow } from '@tabler/icons-react'
+import { IconArrowLeft, IconTargetArrow } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import { EmptyState, SectionLabel } from '@/components/ui/abc/Bits'
-import { STATUS_LABEL } from '@/lib/event-intelligence/view'
+import PlanBoard from '@/components/event-intelligence/PlanBoard'
 import { planSummary, type PlanGroup } from '@/lib/event-intelligence/plan'
 import type { IntelEvent } from '@/lib/event-intelligence/types'
 
@@ -14,8 +14,9 @@ import type { IntelEvent } from '@/lib/event-intelligence/types'
  * a hall, one hand free — so the layout is the same on every width and simply
  * has more room on a large one.
  *
- * Server-rendered: nothing here changes without a page load, and the actions
- * that do change something live on the match detail.
+ * Server-rendered shell around one client island: the header and the closing
+ * note never change, and the searching, filtering and removing that do live in
+ * PlanBoard.
  */
 export default function PlanView({ event, plan }: { event: IntelEvent; plan: PlanGroup[] }) {
   const summary = planSummary(plan)
@@ -54,68 +55,7 @@ export default function PlanView({ event, plan }: { event: IntelEvent; plan: Pla
         </div>
       ) : (
         <>
-          {plan.map((group) => (
-            <section key={group.priority} className="mt-6">
-              <SectionLabel>
-                {group.label} · {group.entries.length}
-              </SectionLabel>
-
-              <ul className="mt-3 flex flex-col gap-3">
-                {group.entries.map((entry) => (
-                  <li key={entry.targetId}>
-                    <Link
-                      href={`/events/intelligence/${event.eventKey}/m/${entry.matchId}`}
-                      className="abc-surface flex flex-col gap-1.5 p-4 transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring sm:p-5"
-                    >
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        {entry.matchTypeLabel ? (
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-abc-secondary">
-                            {entry.matchTypeLabel}
-                          </span>
-                        ) : null}
-                        {entry.score !== null ? (
-                          <span className="text-[11px] font-semibold text-abc-muted">
-                            ABC Match {entry.score}
-                          </span>
-                        ) : null}
-                        <span
-                          className="text-[11px] font-semibold"
-                          style={{
-                            color: entry.status === 'met' ? 'var(--accent-turquoise)' : 'var(--text-muted)',
-                          }}
-                        >
-                          {STATUS_LABEL[entry.status]}
-                        </span>
-                        {entry.withdrawn ? (
-                          <span className="text-[11px]" style={{ color: 'var(--abc-overdue)' }}>
-                            no longer listed
-                          </span>
-                        ) : null}
-                      </span>
-
-                      <span className="block truncate text-[16px] font-semibold text-abc-text">
-                        {entry.companyName}
-                      </span>
-
-                      <span
-                        className="flex items-center gap-1 text-[12.5px]"
-                        style={{ color: entry.hasLocation ? 'var(--text-secondary)' : 'var(--text-muted)' }}
-                      >
-                        <IconMapPin size={13} stroke={1.7} aria-hidden="true" />
-                        {entry.location}
-                      </span>
-
-                      {entry.privateNote ? (
-                        <span className="mt-0.5 block text-[13px] leading-[1.55] text-abc-secondary">
-                          {entry.privateNote}
-                        </span>
-                      ) : null}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
+          <PlanBoard groups={plan} eventKey={event.eventKey} />
 
           <p className="mt-8 text-[12px] leading-[1.6] text-abc-muted">
             Grouped by the priority you set, then by hall so nearby stands sit together. This is not

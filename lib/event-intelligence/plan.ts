@@ -1,4 +1,5 @@
 import { MATCH_TYPE_LABEL, locationLabel, hasLocation } from '@/lib/event-intelligence/view'
+import { hallOrder } from '@/lib/event-intelligence/match-query'
 import { displayTargetStatus } from '@/lib/event-intelligence/types'
 import type {
   IntelCompany,
@@ -45,6 +46,8 @@ export type PlanEntry = {
   priority: 1 | 2 | 3
   privateNote: string | null
   scheduledFor: string | null
+  /** Company name and the owner's own note, folded once, for search. */
+  searchText: string
 }
 
 export type PlanGroup = {
@@ -57,18 +60,6 @@ export const PRIORITY_HEADING: Record<1 | 2 | 3, string> = {
   1: 'Must meet',
   2: 'Worth meeting',
   3: 'If there is time',
-}
-
-/**
- * Halls sort naturally: 2 before 10, and a named hall after a numbered one.
- *
- * A plain string sort put Hall 10 before Hall 2, which reads as a mistake to
- * anybody holding the phone in front of Hall 2.
- */
-function hallOrder(hall: string | null): [number, string] {
-  if (!hall) return [Number.MAX_SAFE_INTEGER, '']
-  const numeric = /^\d+$/.test(hall.trim()) ? Number(hall.trim()) : null
-  return numeric === null ? [Number.MAX_SAFE_INTEGER - 1, hall.toLowerCase()] : [numeric, '']
 }
 
 export function buildPlan(
@@ -100,6 +91,13 @@ export function buildPlan(
       priority: target.priority,
       privateNote: target.privateNote,
       scheduledFor: target.scheduledFor,
+      searchText: [
+        presence?.exhibitorDisplayName ?? company?.displayName ?? '',
+        target.privateNote ?? '',
+        ...(presence?.eventCategories ?? []),
+      ]
+        .join(' ')
+        .toLowerCase(),
     })
   }
 
@@ -139,5 +137,93 @@ export function planSummary(groups: PlanGroup[]): PlanSummary {
     met: all.filter((entry) => entry.status === 'met').length,
     remaining: all.filter((entry) => entry.status !== 'met' && entry.status !== 'skipped').length,
     withoutLocation: all.filter((entry) => !entry.hasLocation).length,
+  }
+}
+
+// ── Finding one target in a plan of two hundred ──────────────────
+
+export type PlanSort = 'priority' | 'hall' | 'name' | 'relevance'
+
+export const PLAN_SORT_LABEL: Record<PlanSort, string> = {
+  priority: 'Priority',
+  hall: 'Hall and stand',
+  name: 'Company name',
+  relevance: 'Most relevant',
+}
+
+export type PlanQuery = {
+  search: string
+  type: 'all' | MatchType
+  hall: string | null
+  sort: PlanSort
+}
+
+export const EMPTY_PLAN_QUERY: PlanQuery = { search: '', type: 'all', hall: null, sort: 'priority' }
+
+export function isDefaultPlanQuery(query: PlanQuery): boolean {
+  return query.search.trim() === '' && query.type === 'all' && query.hall === null
+}
+
+export function planEntries(groups: PlanGroup[]): PlanEntry[] {
+  return groups.flatMap((group) => group.entries)
+}
+
+export function planHalls(groups: PlanGroup[]): string[] {
+  const halls = [...new Set(planEntries(groups).map((e) => e.hall).filter((h): h is string => Boolean(h)))]
+  return halls.sort((a, b) => {
+    const [aNum, aText] = hallOrder(a)
+    const [bNum, bText] = hallOrder(b)
+    return aNum - bNum || aText.localeCompare(bText)
+  })
+}
+
+export function matchesPlanQuery(entry: PlanEntry, query: PlanQuery): boolean {
+  if (query.type !== 'all' && entry.matchType !== query.type) return false
+  if (query.hall !== null && entry.hall !== query.hall) return false
+  const terms = query.search.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  return terms.every((term) => entry.searchText.includes(term))
+}
+
+/**
+ * The plan, filtered and re-sorted, still grouped by priority.
+ *
+ * Priority stays the grouping whatever the sort, because it is the owner's own
+ * judgement about who matters and the screen should not hide it. The sort
+ * decides the order *within* each group — down one hall, or by name when
+ * somebody is looking for a company rather than walking.
+ */
+export function applyPlanQuery(groups: PlanGroup[], query: PlanQuery): PlanGroup[] {
+  const order = (a: PlanEntry, b: PlanEntry): number => {
+    // Met and skipped sink below what is still to do, in every sort.
+    const rank = (entry: PlanEntry) => (entry.status === 'skipped' ? 2 : entry.status === 'met' ? 1 : 0)
+    if (rank(a) !== rank(b)) return rank(a) - rank(b)
+
+    if (query.sort === 'name') return a.companyName.localeCompare(b.companyName)
+    if (query.sort === 'relevance') {
+      return (b.score ?? -1) - (a.score ?? -1) || a.companyName.localeCompare(b.companyName)
+    }
+
+    const [aNum, aText] = hallOrder(a.hall)
+    const [bNum, bText] = hallOrder(b.hall)
+    if (aNum !== bNum) return aNum - bNum
+    if (aText !== bText) return aText.localeCompare(bText)
+    return a.companyName.localeCompare(b.companyName)
+  }
+
+  return groups
+    .map((group) => ({
+      ...group,
+      entries: group.entries.filter((entry) => matchesPlanQuery(entry, query)).sort(order),
+    }))
+    .filter((group) => group.entries.length > 0)
+}
+
+export function planTypeCounts(groups: PlanGroup[], query: PlanQuery): Record<'all' | MatchType, number> {
+  const scoped = planEntries(groups).filter((entry) => matchesPlanQuery(entry, { ...query, type: 'all' }))
+  return {
+    all: scoped.length,
+    customer: scoped.filter((e) => e.matchType === 'customer').length,
+    supplier: scoped.filter((e) => e.matchType === 'supplier').length,
+    partner: scoped.filter((e) => e.matchType === 'partner').length,
   }
 }

@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
-  CompanyUpsert,
+  CompanyRecord,
   EventUpsert,
   IngestStore,
-  PresenceUpsert,
+  PresenceRecord,
   SourceRecordUpsert,
 } from '@/lib/event-intelligence/ingest'
 
@@ -12,26 +12,107 @@ import type {
  *
  * Every table it writes has no owner column and no write grant outside
  * `service_role`, so passing an ordinary request client here would fail at the
- * database rather than quietly write somebody's session into shared data. That
- * is deliberate: the guarantee lives in the migration's privileges, and this
- * file is only the shape of the statements.
+ * database rather than quietly write somebody's session into shared data. The
+ * guarantee lives in the migration's privileges; this file is only the shape of
+ * the statements.
+ *
+ * Batched throughout. Each method issues one statement per chunk, and nothing
+ * here loops a row at a time — against hosted Postgres every statement is a
+ * network round trip, and a 2,000-stand fair imported one row at a time is
+ * ~16,000 of them.
  *
  * No `user_id` appears anywhere below, because none of these rows have one.
  */
 
 type Row = Record<string, unknown>
 
+/**
+ * How many rows go in one statement.
+ *
+ * PostgREST takes a large array happily; the ceiling in practice is the URL for
+ * reads (`in.(…)` is a query string) and the body for writes. 500 keeps a
+ * domain list well inside a safe URL length while still turning 5,000 rows into
+ * ten statements rather than five thousand.
+ */
+const CHUNK = 500
+
+function chunked<T>(values: T[], size = CHUNK): T[][] {
+  if (values.length === 0) return []
+  const out: T[][] = []
+  for (let i = 0; i < values.length; i += size) out.push(values.slice(i, i + size))
+  return out
+}
+
 const str = (value: unknown): string | null => {
   const text = typeof value === 'string' ? value.trim() : ''
   return text || null
 }
+
+const list = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []
 
 function fail(scope: string, error: { code?: string } | null): never {
   // Codes, never messages: a Postgres message can quote a row.
   throw new Error(`event-intelligence ingest: ${scope} failed (${error?.code ?? 'unknown'})`)
 }
 
+const COMPANY_COLUMNS =
+  'id, display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of'
+
+function toCompanyRecord(row: Row): CompanyRecord {
+  return {
+    id: String(row.id),
+    displayName: String(row.display_name ?? ''),
+    nameNormalized: String(row.name_normalized ?? ''),
+    websiteDomain: str(row.website_domain),
+    country: str(row.country),
+    descriptionPublic: str(row.description_public),
+    categories: list(row.categories),
+    mergeCandidateOf: str(row.merge_candidate_of),
+  }
+}
+
+const companyRow = (company: CompanyRecord): Row => ({
+  id: company.id,
+  display_name: company.displayName,
+  name_normalized: company.nameNormalized,
+  website_domain: company.websiteDomain,
+  country: company.country,
+  description_public: company.descriptionPublic,
+  categories: company.categories,
+  merge_candidate_of: company.mergeCandidateOf,
+  updated_at: new Date().toISOString(),
+})
+
+const presenceRow = (presence: PresenceRecord): Row => ({
+  id: presence.id,
+  event_id: presence.eventId,
+  company_id: presence.companyId,
+  exhibitor_display_name: presence.exhibitorDisplayName,
+  hall: presence.hall,
+  stand: presence.stand,
+  event_categories: presence.eventCategories,
+  event_description: presence.eventDescription,
+  products_services: presence.productsServices,
+  listing_url: presence.listingUrl,
+  status: 'listed',
+  last_seen_at: presence.lastSeenAt,
+})
+
 export function supabaseIngestStore(supabase: SupabaseClient): IngestStore {
+  async function companiesWhere(
+    column: string,
+    values: string[]
+  ): Promise<CompanyRecord[]> {
+    const out: CompanyRecord[] = []
+    for (const batch of chunked(values)) {
+      const { data, error } = await supabase.from('intel_companies').select(COMPANY_COLUMNS).in(column, batch)
+      if (error) fail(`findCompaniesBy(${column})`, error)
+      for (const row of (data ?? []) as Row[]) out.push(toCompanyRecord(row))
+    }
+    return out
+  }
+
   return {
     async upsertEvent(input: EventUpsert) {
       const { data, error } = await supabase
@@ -59,214 +140,154 @@ export function supabaseIngestStore(supabase: SupabaseClient): IngestStore {
       return { id: String((data as Row).id) }
     },
 
-    async findCompanyByDomain(domain: string) {
-      const { data, error } = await supabase
-        .from('intel_companies')
-        .select('id')
-        .eq('website_domain', domain)
-        .maybeSingle()
+    findCompaniesByDomains: (domains) => companiesWhere('website_domain', domains),
+    findCompaniesByNames: (names) => companiesWhere('name_normalized', names),
+    findCompaniesByIds: (ids) => companiesWhere('id', ids),
 
-      if (error) fail('findCompanyByDomain', error)
-      return data ? { id: String((data as Row).id) } : null
-    },
-
-    async findCompanyBySourceRecord(provider: string, providerRecordId: string) {
+    async findPresencesForEvent(eventId: string) {
       /*
-        A presence source record points at a presence, and the presence names the
-        company. Going through the presence rather than storing a second company
-        record keeps one row per provider record, which is what makes the unique
-        key on (provider, provider_record_id, payload_version) meaningful.
+        Paged rather than one unbounded select: PostgREST caps a response at
+        1,000 rows, and a large fair has more presences than that. Asking in
+        pages is the difference between a complete refresh and one that
+        silently thinks 1,000 stands are the whole fair and withdraws the rest.
       */
-      const { data, error } = await supabase
-        .from('intel_source_records')
-        .select('entity_id, entity_type')
-        .eq('provider', provider)
-        .eq('provider_record_id', providerRecordId)
-        .eq('entity_type', 'presence')
-        .maybeSingle()
+      const out: { id: string; companyId: string }[] = []
+      for (let page = 0; page < 50; page++) {
+        const from = page * 1000
+        const { data, error } = await supabase
+          .from('intel_company_presences')
+          .select('id, company_id')
+          .eq('event_id', eventId)
+          .order('id', { ascending: true })
+          .range(from, from + 999)
 
-      if (error) fail('findCompanyBySourceRecord', error)
-      const presenceId = data ? str((data as Row).entity_id) : null
-      if (!presenceId) return null
-
-      const presence = await supabase
-        .from('intel_company_presences')
-        .select('company_id')
-        .eq('id', presenceId)
-        .maybeSingle()
-
-      if (presence.error) fail('findCompanyBySourceRecord.presence', presence.error)
-      const companyId = presence.data ? str((presence.data as Row).company_id) : null
-      return companyId ? { id: companyId } : null
+        if (error) fail('findPresencesForEvent', error)
+        const rows = (data ?? []) as Row[]
+        for (const row of rows) out.push({ id: String(row.id), companyId: String(row.company_id) })
+        if (rows.length < 1000) break
+      }
+      return out
     },
 
-    async findCompaniesByName(nameNormalized: string) {
-      const { data, error } = await supabase
-        .from('intel_companies')
-        .select('id, country, website_domain')
-        .eq('name_normalized', nameNormalized)
-        .order('created_at', { ascending: true })
+    async findPresenceSources(provider, providerRecordIds, payloadVersion) {
+      const out: { providerRecordId: string; contentHash: string; entityId: string }[] = []
+      for (const batch of chunked(providerRecordIds)) {
+        const { data, error } = await supabase
+          .from('intel_source_records')
+          .select('provider_record_id, content_hash, entity_id')
+          .eq('provider', provider)
+          .eq('payload_version', payloadVersion)
+          .eq('entity_type', 'presence')
+          .in('provider_record_id', batch)
 
-      if (error) fail('findCompaniesByName', error)
-      return ((data ?? []) as Row[]).map((row) => ({
-        id: String(row.id),
-        country: str(row.country),
-        websiteDomain: str(row.website_domain),
-      }))
+        if (error) fail('findPresenceSources', error)
+        for (const row of (data ?? []) as Row[]) {
+          out.push({
+            providerRecordId: String(row.provider_record_id),
+            contentHash: String(row.content_hash),
+            entityId: String(row.entity_id),
+          })
+        }
+      }
+      return out
     },
 
-    async insertCompany(input: CompanyUpsert) {
-      const { data, error } = await supabase
-        .from('intel_companies')
-        .insert({
-          display_name: input.displayName,
-          name_normalized: input.nameNormalized,
-          website_domain: input.websiteDomain,
-          country: input.country,
-          description_public: input.descriptionPublic,
-          categories: input.categories,
-          merge_candidate_of: input.mergeCandidateOf,
-        })
-        .select('id')
-        .single()
-
-      if (error || !data) fail('insertCompany', error)
-      return { id: String((data as Row).id) }
+    async insertCompanies(rows: CompanyRecord[]) {
+      for (const batch of chunked(rows)) {
+        const { error } = await supabase.from('intel_companies').insert(batch.map(companyRow))
+        if (error) fail('insertCompanies', error)
+      }
     },
 
-    async updateCompany(id: string, input: CompanyUpsert) {
+    async updateCompanies(rows: CompanyRecord[]) {
       /*
-        A later listing fills gaps; it does not erase what an earlier one knew.
-        A directory that omits a website this week has not told us the company
-        lost one, so `null` from a source means "no new information" here, while
-        a real value replaces the stored one.
+        Upsert on the primary key, which is an update: the rows were read from
+        the database moments ago and carry their own ids. The merge that decides
+        what each row should contain already happened in `planIngest`, so there
+        is no per-column coalesce here — and therefore no second copy of that
+        rule to drift from the first.
       */
-      const patch: Row = {
-        display_name: input.displayName,
-        name_normalized: input.nameNormalized,
-        updated_at: new Date().toISOString(),
+      for (const batch of chunked(rows)) {
+        const { error } = await supabase.from('intel_companies').upsert(batch.map(companyRow), { onConflict: 'id' })
+        if (error) fail('updateCompanies', error)
       }
-      if (input.websiteDomain) patch.website_domain = input.websiteDomain
-      if (input.country) patch.country = input.country
-      if (input.descriptionPublic) patch.description_public = input.descriptionPublic
-      if (input.categories.length > 0) patch.categories = input.categories
-      if (input.mergeCandidateOf) patch.merge_candidate_of = input.mergeCandidateOf
-
-      const { error } = await supabase.from('intel_companies').update(patch).eq('id', id)
-      if (error) fail('updateCompany', error)
     },
 
-    async upsertPresence(input: PresenceUpsert, options: { touchOnly: boolean }) {
-      const existing = await supabase
-        .from('intel_company_presences')
-        .select('id')
-        .eq('event_id', input.eventId)
-        .eq('company_id', input.companyId)
-        .maybeSingle()
-
-      if (existing.error) fail('upsertPresence.find', existing.error)
-
-      if (existing.data) {
-        const id = String((existing.data as Row).id)
-
-        // Unchanged: say only that it is still listed.
-        const patch: Row = options.touchOnly
-          ? { last_seen_at: input.lastSeenAt, status: 'listed' }
-          : {
-              exhibitor_display_name: input.exhibitorDisplayName,
-              hall: input.hall,
-              stand: input.stand,
-              event_categories: input.eventCategories,
-              event_description: input.eventDescription,
-              products_services: input.productsServices,
-              listing_url: input.listingUrl,
-              status: 'listed',
-              last_seen_at: input.lastSeenAt,
-              updated_at: new Date().toISOString(),
-            }
-
-        const { error } = await supabase.from('intel_company_presences').update(patch).eq('id', id)
-        if (error) fail('upsertPresence.update', error)
-        return { id, created: false }
+    async insertPresences(rows: PresenceRecord[]) {
+      for (const batch of chunked(rows)) {
+        const { error } = await supabase
+          .from('intel_company_presences')
+          .insert(batch.map((presence) => ({ ...presenceRow(presence), first_seen_at: presence.lastSeenAt })))
+        if (error) fail('insertPresences', error)
       }
-
-      const { data, error } = await supabase
-        .from('intel_company_presences')
-        .insert({
-          event_id: input.eventId,
-          company_id: input.companyId,
-          exhibitor_display_name: input.exhibitorDisplayName,
-          hall: input.hall,
-          stand: input.stand,
-          event_categories: input.eventCategories,
-          event_description: input.eventDescription,
-          products_services: input.productsServices,
-          listing_url: input.listingUrl,
-          first_seen_at: input.lastSeenAt,
-          last_seen_at: input.lastSeenAt,
-        })
-        .select('id')
-        .single()
-
-      if (error || !data) fail('upsertPresence.insert', error)
-      return { id: String((data as Row).id), created: true }
     },
 
-    async markMissingPresencesWithdrawn(eventId: string, seenPresenceIds: string[]) {
+    async updatePresences(rows: PresenceRecord[]) {
+      for (const batch of chunked(rows)) {
+        const { error } = await supabase
+          .from('intel_company_presences')
+          .upsert(
+            batch.map((presence) => ({ ...presenceRow(presence), updated_at: new Date().toISOString() })),
+            { onConflict: 'id' }
+          )
+        if (error) fail('updatePresences', error)
+      }
+    },
+
+    async touchPresences(ids: string[], lastSeenAt: string) {
+      /*
+        The whole point of the unchanged bucket: one statement per chunk that
+        writes two columns. `updated_at` is deliberately not among them — an
+        unchanged listing has not been updated, and saying it was would make
+        every refresh look like a change to anything watching that column.
+      */
+      for (const batch of chunked(ids)) {
+        const { error } = await supabase
+          .from('intel_company_presences')
+          .update({ last_seen_at: lastSeenAt, status: 'listed' })
+          .in('id', batch)
+        if (error) fail('touchPresences', error)
+      }
+    },
+
+    async markMissingPresencesWithdrawn(eventId: string, fetchedAt: string) {
       /*
         Withdrawn, never deleted. Somebody may have saved this stand as a target
-        and written a note on it; removing the row would take the note with it
-        and leave a hole in a plan that nothing could explain.
+        and written a note on it; removing the row would take the note with it.
+
+        Anything still 'listed' whose last_seen_at predates this run was not in
+        the fetch. That is one statement at any size.
       */
-      let query = supabase
+      const { data, error } = await supabase
         .from('intel_company_presences')
         .update({ status: 'withdrawn', updated_at: new Date().toISOString() })
         .eq('event_id', eventId)
         .eq('status', 'listed')
+        .lt('last_seen_at', fetchedAt)
+        .select('id')
 
-      if (seenPresenceIds.length > 0) {
-        query = query.not('id', 'in', `(${seenPresenceIds.join(',')})`)
-      }
-
-      const { data, error } = await query.select('id')
       if (error) fail('markMissingPresencesWithdrawn', error)
       return ((data ?? []) as Row[]).length
     },
 
-    async findSourceRecord(provider: string, providerRecordId: string, payloadVersion: string) {
-      const { data, error } = await supabase
-        .from('intel_source_records')
-        .select('content_hash, entity_id')
-        .eq('provider', provider)
-        .eq('provider_record_id', providerRecordId)
-        .eq('payload_version', payloadVersion)
-        .maybeSingle()
-
-      if (error) fail('findSourceRecord', error)
-      if (!data) return null
-      return {
-        contentHash: String((data as Row).content_hash),
-        entityId: String((data as Row).entity_id),
+    async recordSources(rows: SourceRecordUpsert[]) {
+      for (const batch of chunked(rows)) {
+        const { error } = await supabase.from('intel_source_records').upsert(
+          batch.map((input) => ({
+            provider: input.provider,
+            provider_record_id: input.providerRecordId,
+            payload_version: input.payloadVersion,
+            source_url: input.sourceUrl,
+            entity_type: input.entityType,
+            entity_id: input.entityId,
+            content_hash: input.contentHash,
+            fetched_at: input.fetchedAt,
+            source_updated_at: input.sourceUpdatedAt,
+          })),
+          { onConflict: 'provider,provider_record_id,payload_version' }
+        )
+        if (error) fail('recordSources', error)
       }
-    },
-
-    async recordSource(input: SourceRecordUpsert) {
-      const { error } = await supabase.from('intel_source_records').upsert(
-        {
-          provider: input.provider,
-          provider_record_id: input.providerRecordId,
-          payload_version: input.payloadVersion,
-          source_url: input.sourceUrl,
-          entity_type: input.entityType,
-          entity_id: input.entityId,
-          content_hash: input.contentHash,
-          fetched_at: input.fetchedAt,
-          source_updated_at: input.sourceUpdatedAt,
-        },
-        { onConflict: 'provider,provider_record_id,payload_version' }
-      )
-
-      if (error) fail('recordSource', error)
     },
   }
 }

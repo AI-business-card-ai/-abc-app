@@ -21,7 +21,13 @@ import {
   FIXTURE_EVENT,
   FIXTURE_EXHIBITORS,
 } from '@/lib/event-intelligence/fixtures/abc-industrial-future-expo'
-import { ingestEvent, type IngestStore } from '@/lib/event-intelligence/ingest'
+import {
+  ingestEvent,
+  planIngest,
+  resolveCompanyIdentity,
+  type CompanyRecord,
+  type IngestStore,
+} from '@/lib/event-intelligence/ingest'
 import { parseEventObjective, parseIntentProfile, parseList } from '@/lib/event-intelligence/intent'
 import {
   RESERVED_EVENT_KEYS,
@@ -48,8 +54,28 @@ import {
   matchesFilter,
   sourceDisplayName,
   sourceFacts,
+  type MatchRow,
 } from '@/lib/event-intelligence/view'
-import { buildPlan, planSummary } from '@/lib/event-intelligence/plan'
+import {
+  EMPTY_PLAN_QUERY,
+  applyPlanQuery,
+  buildPlan,
+  planHalls,
+  planSummary,
+  planTypeCounts,
+  type PlanEntry,
+  type PlanGroup,
+} from '@/lib/event-intelligence/plan'
+import {
+  EMPTY_MATCH_QUERY,
+  MATCH_PAGE_SIZE,
+  MATCH_PAYLOAD_LIMIT,
+  applyMatchQuery,
+  hallOptions,
+  sortMatches,
+  typeCounts,
+  type MatchSort,
+} from '@/lib/event-intelligence/match-query'
 import {
   deterministicMatchEngine,
   ENGINE_VERSION,
@@ -305,18 +331,50 @@ async function seedIntel(db: PGlite, owner: string, eventId: string, presenceId:
  * A second implementation of `IngestStore`, so the orchestration in
  * `ingest.ts` — resolution order, idempotency, provenance, withdrawal — is
  * driven against a real Postgres with the real constraints, indexes and
- * privileges from the migration. What it proves is the shared logic; the
- * Supabase store is the same statements through a different client.
+ * privileges from the migration.
+ *
+ * Batched like the Supabase one, and counted: `counter.statements` is how the
+ * suite asserts that importing 2,000 exhibitors does not issue 16,000
+ * statements. Each write takes the whole set as one jsonb parameter, because
+ * unnest() flattens a 2-D array and so cannot carry a per-row text[].
  */
-function pgliteIngestStore(db: PGlite): IngestStore {
-  const one = async <T>(sql: string, params: unknown[] = []): Promise<T | null> => {
-    const rows = await rowsOf<T>(db, sql, params)
-    return rows[0] ?? null
+function pgliteIngestStore(db: PGlite, counter?: { statements: number }): IngestStore {
+  const count = () => {
+    if (counter) counter.statements++
   }
+
+  const COMPANY_COLUMNS =
+    'id, display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of'
+
+  const toCompanyRecord = (row: Record<string, unknown>): CompanyRecord => ({
+    id: String(row.id),
+    displayName: String(row.display_name ?? ''),
+    nameNormalized: String(row.name_normalized ?? ''),
+    websiteDomain: (row.website_domain as string | null) ?? null,
+    country: (row.country as string | null) ?? null,
+    descriptionPublic: (row.description_public as string | null) ?? null,
+    categories: Array.isArray(row.categories) ? (row.categories as string[]) : [],
+    mergeCandidateOf: (row.merge_candidate_of as string | null) ?? null,
+  })
+
+  const companiesWhere = async (column: string, cast: string, values: string[]): Promise<CompanyRecord[]> => {
+    if (values.length === 0) return []
+    count()
+    const rows = await rowsOf(
+      db,
+      `select ${COMPANY_COLUMNS} from public.intel_companies where ${column} = any($1::${cast}[])`,
+      [values]
+    )
+    return rows.map(toCompanyRecord)
+  }
+
+  const json = (rows: unknown[]) => JSON.stringify(rows)
 
   return {
     async upsertEvent(input) {
-      const row = await one<{ id: string }>(
+      count()
+      const rows = await rowsOf<{ id: string }>(
+        db,
         `insert into public.intel_events (event_key, name, edition_year, organizer, venue, city, country, starts_on, ends_on, website_url)
          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          on conflict (event_key) do update set
@@ -330,138 +388,230 @@ function pgliteIngestStore(db: PGlite): IngestStore {
           input.city, input.country, input.startsOn, input.endsOn, input.websiteUrl,
         ]
       )
-      return { id: row!.id }
+      return { id: rows[0].id }
     },
 
-    async findCompanyByDomain(domain) {
-      return one<{ id: string }>('select id from public.intel_companies where website_domain = $1', [domain])
-    },
+    findCompaniesByDomains: (domains) => companiesWhere('website_domain', 'text', domains),
+    findCompaniesByNames: (names) => companiesWhere('name_normalized', 'text', names),
+    findCompaniesByIds: (ids) => companiesWhere('id', 'uuid', ids),
 
-    async findCompanyBySourceRecord(provider, providerRecordId) {
-      return one<{ id: string }>(
-        `select p.company_id as id
-           from public.intel_source_records s
-           join public.intel_company_presences p on p.id = s.entity_id
-          where s.provider = $1 and s.provider_record_id = $2 and s.entity_type = 'presence'`,
-        [provider, providerRecordId]
-      )
-    },
-
-    async findCompaniesByName(nameNormalized) {
-      const rows = await rowsOf<{ id: string; country: string | null; website_domain: string | null }>(
+    async findPresencesForEvent(eventId) {
+      count()
+      const rows = await rowsOf<{ id: string; company_id: string }>(
         db,
-        'select id, country, website_domain from public.intel_companies where name_normalized = $1 order by created_at, id',
-        [nameNormalized]
+        'select id, company_id from public.intel_company_presences where event_id = $1',
+        [eventId]
       )
-      return rows.map((r) => ({ id: r.id, country: r.country, websiteDomain: r.website_domain }))
+      return rows.map((row) => ({ id: row.id, companyId: row.company_id }))
     },
 
-    async insertCompany(input) {
-      const row = await one<{ id: string }>(
-        `insert into public.intel_companies (display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of)
-         values ($1,$2,$3,$4,$5,$6,$7) returning id`,
-        [
-          input.displayName, input.nameNormalized, input.websiteDomain, input.country,
-          input.descriptionPublic, input.categories, input.mergeCandidateOf,
-        ]
+    async findPresenceSources(provider, providerRecordIds, payloadVersion) {
+      if (providerRecordIds.length === 0) return []
+      count()
+      const rows = await rowsOf<{ provider_record_id: string; content_hash: string; entity_id: string }>(
+        db,
+        `select provider_record_id, content_hash, entity_id
+           from public.intel_source_records
+          where provider = $1 and payload_version = $2 and entity_type = 'presence'
+            and provider_record_id = any($3::text[])`,
+        [provider, payloadVersion, providerRecordIds]
       )
-      return { id: row!.id }
+      return rows.map((row) => ({
+        providerRecordId: row.provider_record_id,
+        contentHash: row.content_hash,
+        entityId: row.entity_id,
+      }))
     },
 
-    async updateCompany(id, input) {
-      // Gaps are filled, knowledge is not erased: a source that omits a field
-      // has not said the fact stopped being true.
+    async insertCompanies(rows) {
+      if (rows.length === 0) return
+      count()
       await db.query(
-        `update public.intel_companies set
-           display_name = $2,
-           name_normalized = $3,
-           website_domain = coalesce($4, website_domain),
-           country = coalesce($5, country),
-           description_public = coalesce($6, description_public),
-           categories = case when cardinality($7::text[]) > 0 then $7::text[] else categories end,
-           merge_candidate_of = coalesce($8, merge_candidate_of),
+        `insert into public.intel_companies
+           (id, display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of)
+         select t.id, t.display_name, t.name_normalized, t.website_domain, t.country, t.description_public,
+                coalesce(array(select jsonb_array_elements_text(t.categories)), '{}')::text[],
+                t.merge_candidate_of
+           from jsonb_to_recordset($1::jsonb) as t(
+             id uuid, display_name text, name_normalized text, website_domain text,
+             country text, description_public text, categories jsonb, merge_candidate_of uuid)`,
+        [
+          json(
+            rows.map((r) => ({
+              id: r.id,
+              display_name: r.displayName,
+              name_normalized: r.nameNormalized,
+              website_domain: r.websiteDomain,
+              country: r.country,
+              description_public: r.descriptionPublic,
+              categories: r.categories,
+              merge_candidate_of: r.mergeCandidateOf,
+            }))
+          ),
+        ]
+      )
+    },
+
+    async updateCompanies(rows) {
+      if (rows.length === 0) return
+      count()
+      await db.query(
+        `update public.intel_companies c set
+           display_name = t.display_name,
+           name_normalized = t.name_normalized,
+           website_domain = t.website_domain,
+           country = t.country,
+           description_public = t.description_public,
+           categories = coalesce(array(select jsonb_array_elements_text(t.categories)), '{}')::text[],
+           merge_candidate_of = t.merge_candidate_of,
            updated_at = now()
-         where id = $1`,
+         from jsonb_to_recordset($1::jsonb) as t(
+           id uuid, display_name text, name_normalized text, website_domain text,
+           country text, description_public text, categories jsonb, merge_candidate_of uuid)
+         where c.id = t.id`,
         [
-          id, input.displayName, input.nameNormalized, input.websiteDomain, input.country,
-          input.descriptionPublic, input.categories, input.mergeCandidateOf,
+          json(
+            rows.map((r) => ({
+              id: r.id,
+              display_name: r.displayName,
+              name_normalized: r.nameNormalized,
+              website_domain: r.websiteDomain,
+              country: r.country,
+              description_public: r.descriptionPublic,
+              categories: r.categories,
+              merge_candidate_of: r.mergeCandidateOf,
+            }))
+          ),
         ]
       )
     },
 
-    async upsertPresence(input, options) {
-      const existing = await one<{ id: string }>(
-        'select id from public.intel_company_presences where event_id = $1 and company_id = $2',
-        [input.eventId, input.companyId]
-      )
-
-      if (existing) {
-        if (options.touchOnly) {
-          await db.query(
-            "update public.intel_company_presences set last_seen_at = $2, status = 'listed' where id = $1",
-            [existing.id, input.lastSeenAt]
-          )
-        } else {
-          await db.query(
-            `update public.intel_company_presences set
-               exhibitor_display_name = $2, hall = $3, stand = $4, event_categories = $5,
-               event_description = $6, products_services = $7, listing_url = $8,
-               status = 'listed', last_seen_at = $9, updated_at = now()
-             where id = $1`,
-            [
-              existing.id, input.exhibitorDisplayName, input.hall, input.stand, input.eventCategories,
-              input.eventDescription, input.productsServices, input.listingUrl, input.lastSeenAt,
-            ]
-          )
-        }
-        return { id: existing.id, created: false }
-      }
-
-      const row = await one<{ id: string }>(
+    async insertPresences(rows) {
+      if (rows.length === 0) return
+      count()
+      await db.query(
         `insert into public.intel_company_presences
-           (event_id, company_id, exhibitor_display_name, hall, stand, event_categories, event_description, products_services, listing_url, first_seen_at, last_seen_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) returning id`,
+           (id, event_id, company_id, exhibitor_display_name, hall, stand, event_categories,
+            event_description, products_services, listing_url, first_seen_at, last_seen_at)
+         select t.id, t.event_id, t.company_id, t.exhibitor_display_name, t.hall, t.stand,
+                coalesce(array(select jsonb_array_elements_text(t.event_categories)), '{}')::text[],
+                t.event_description,
+                coalesce(array(select jsonb_array_elements_text(t.products_services)), '{}')::text[],
+                t.listing_url, t.seen, t.seen
+           from jsonb_to_recordset($1::jsonb) as t(
+             id uuid, event_id uuid, company_id uuid, exhibitor_display_name text, hall text, stand text,
+             event_categories jsonb, event_description text, products_services jsonb, listing_url text,
+             seen timestamptz)`,
         [
-          input.eventId, input.companyId, input.exhibitorDisplayName, input.hall, input.stand,
-          input.eventCategories, input.eventDescription, input.productsServices, input.listingUrl,
-          input.lastSeenAt,
+          json(
+            rows.map((r) => ({
+              id: r.id,
+              event_id: r.eventId,
+              company_id: r.companyId,
+              exhibitor_display_name: r.exhibitorDisplayName,
+              hall: r.hall,
+              stand: r.stand,
+              event_categories: r.eventCategories,
+              event_description: r.eventDescription,
+              products_services: r.productsServices,
+              listing_url: r.listingUrl,
+              seen: r.lastSeenAt,
+            }))
+          ),
         ]
       )
-      return { id: row!.id, created: true }
     },
 
-    async markMissingPresencesWithdrawn(eventId, seenPresenceIds) {
+    async updatePresences(rows) {
+      if (rows.length === 0) return
+      count()
+      await db.query(
+        `update public.intel_company_presences p set
+           exhibitor_display_name = t.exhibitor_display_name,
+           hall = t.hall,
+           stand = t.stand,
+           event_categories = coalesce(array(select jsonb_array_elements_text(t.event_categories)), '{}')::text[],
+           event_description = t.event_description,
+           products_services = coalesce(array(select jsonb_array_elements_text(t.products_services)), '{}')::text[],
+           listing_url = t.listing_url,
+           status = 'listed',
+           last_seen_at = t.seen,
+           updated_at = now()
+         from jsonb_to_recordset($1::jsonb) as t(
+           id uuid, exhibitor_display_name text, hall text, stand text, event_categories jsonb,
+           event_description text, products_services jsonb, listing_url text, seen timestamptz)
+         where p.id = t.id`,
+        [
+          json(
+            rows.map((r) => ({
+              id: r.id,
+              exhibitor_display_name: r.exhibitorDisplayName,
+              hall: r.hall,
+              stand: r.stand,
+              event_categories: r.eventCategories,
+              event_description: r.eventDescription,
+              products_services: r.productsServices,
+              listing_url: r.listingUrl,
+              seen: r.lastSeenAt,
+            }))
+          ),
+        ]
+      )
+    },
+
+    async touchPresences(ids, lastSeenAt) {
+      if (ids.length === 0) return
+      count()
+      await db.query(
+        "update public.intel_company_presences set last_seen_at = $2, status = 'listed' where id = any($1::uuid[])",
+        [ids, lastSeenAt]
+      )
+    },
+
+    async markMissingPresencesWithdrawn(eventId, fetchedAt) {
+      count()
       const rows = await rowsOf<{ id: string }>(
         db,
         `update public.intel_company_presences
             set status = 'withdrawn', updated_at = now()
-          where event_id = $1 and status = 'listed' and not (id = any($2::uuid[]))
+          where event_id = $1 and status = 'listed' and last_seen_at < $2
           returning id`,
-        [eventId, seenPresenceIds]
+        [eventId, fetchedAt]
       )
       return rows.length
     },
 
-    async findSourceRecord(provider, providerRecordId, payloadVersion) {
-      const row = await one<{ content_hash: string; entity_id: string }>(
-        'select content_hash, entity_id from public.intel_source_records where provider = $1 and provider_record_id = $2 and payload_version = $3',
-        [provider, providerRecordId, payloadVersion]
-      )
-      return row ? { contentHash: row.content_hash, entityId: row.entity_id } : null
-    },
-
-    async recordSource(input) {
+    async recordSources(rows) {
+      if (rows.length === 0) return
+      count()
       await db.query(
         `insert into public.intel_source_records
-           (provider, provider_record_id, payload_version, source_url, entity_type, entity_id, content_hash, fetched_at, source_updated_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+           (provider, provider_record_id, payload_version, source_url, entity_type, entity_id,
+            content_hash, fetched_at, source_updated_at)
+         select t.provider, t.provider_record_id, t.payload_version, t.source_url, t.entity_type,
+                t.entity_id, t.content_hash, t.fetched_at, t.source_updated_at
+           from jsonb_to_recordset($1::jsonb) as t(
+             provider text, provider_record_id text, payload_version text, source_url text,
+             entity_type text, entity_id uuid, content_hash text, fetched_at timestamptz,
+             source_updated_at timestamptz)
          on conflict (provider, provider_record_id, payload_version) do update set
-           source_url = excluded.source_url, entity_type = excluded.entity_type, entity_id = excluded.entity_id,
-           content_hash = excluded.content_hash, fetched_at = excluded.fetched_at,
-           source_updated_at = excluded.source_updated_at`,
+           source_url = excluded.source_url, entity_type = excluded.entity_type,
+           entity_id = excluded.entity_id, content_hash = excluded.content_hash,
+           fetched_at = excluded.fetched_at, source_updated_at = excluded.source_updated_at`,
         [
-          input.provider, input.providerRecordId, input.payloadVersion, input.sourceUrl,
-          input.entityType, input.entityId, input.contentHash, input.fetchedAt, input.sourceUpdatedAt,
+          json(
+            rows.map((r) => ({
+              provider: r.provider,
+              provider_record_id: r.providerRecordId,
+              payload_version: r.payloadVersion,
+              source_url: r.sourceUrl,
+              entity_type: r.entityType,
+              entity_id: r.entityId,
+              content_hash: r.contentHash,
+              fetched_at: r.fetchedAt,
+              source_updated_at: r.sourceUpdatedAt,
+            }))
+          ),
         ]
       )
     },
@@ -2496,85 +2646,353 @@ async function run() {
   // ══════════ W. Scale ══════════
 
   /*
-    500 exhibitors, which is a real trade fair rather than a fixture. Timings
-    are printed rather than asserted — a wall-clock threshold on a laptop under
-    load is a flaky test — but the counts are asserted, and a quadratic
-    regression would show up in the printed numbers long before it showed up as
-    a failure.
+    Real trade-fair sizes, not a fixture. Timings are printed rather than
+    asserted — a wall-clock threshold on a laptop under load is a flaky test —
+    but two things *are* asserted, because they are what actually decides
+    whether this works against hosted Postgres:
+
+      * the counts are right at every size, and
+      * the number of database statements stays flat as the row count grows.
+
+    The second is the whole point of the batched rewrite. Row-at-a-time was
+    ~8 statements per exhibitor; against hosted Postgres each one is a network
+    round trip, so 5,000 stands meant ~40,000 of them.
   */
-  const bigRows = ['Company,Hall,Stand,Website,Country,Categories,Description,Profile URL']
-  for (let i = 0; i < 500; i++) {
-    const kind = i % 5
-    const category = ['Robotics', 'Electric motors', 'Bearings', 'Catering', 'Publishing'][kind]
-    const description = [
-      'Robotic grippers and modular automation equipment for industrial manufacturers.',
-      'Electric motors, servo drives and machined aluminium motor housings.',
-      'Precision and special bearings for machine tools and robotics.',
-      'Stand catering, coffee service and hospitality staff.',
-      'Trade magazines and industry yearbooks.',
-    ][kind]
-    bigRows.push(
-      `Synthetic Company ${i},${(i % 10) + 1},S${i},https://synthetic-${i}.invalid,DE,${category},"${description}",https://example.invalid/s/${i}`
-    )
-  }
-  const bigCsv = bigRows.join('\n')
-
-  const { db: sdb } = await freshDatabase()
-  const scaleStore = pgliteIngestStore(sdb)
-  let scaleClock = 0
-  const scaleTick = () => new Date(Date.UTC(2026, 9, 10, 0, 0, scaleClock++)).toISOString()
-
-  const parseStart = Date.now()
-  const scaleRead = readImportRequest({ format: 'csv', text: bigCsv, event: { name: 'Scale Test Fair', editionYear: 2027 } })
-  const scaleParsed = scaleRead.ok ? parseImport(scaleRead.request) : { ok: false as const, error: 'read failed' }
-  const scalePreview = scaleParsed.ok ? buildImportPreview(scaleParsed.dataset.exhibitors, scaleParsed.warnings) : null
-  const parseMs = Date.now() - parseStart
-
-  check('W1 500 rows parse and preview', scalePreview?.counts.total, 500)
-  check('W2 all 500 are importable', scalePreview?.counts.importable, 500)
-
-  let ingestMs = 0
-  let reingestMs = 0
-  let matchMs = 0
-  let scaleMatchCount = 0
-
-  if (scaleRead.ok && scaleParsed.ok && scalePreview) {
-    const scaleProvider = new DatasetEventProvider({
-      event: scaleRead.request.event,
-      exhibitors: importableExhibitors(scaleParsed.dataset.exhibitors, scalePreview),
-      id: scaleRead.request.providerId,
-    })
-    const ref = { providerEventId: scaleRead.request.event.providerRecordId }
-
-    const ingestStart = Date.now()
-    const scaleReport = await ingestEvent(scaleProvider, ref, scaleStore, scaleTick)
-    ingestMs = Date.now() - ingestStart
-
-    const reingestStart = Date.now()
-    const scaleAgain = await ingestEvent(scaleProvider, ref, scaleStore, scaleTick)
-    reingestMs = Date.now() - reingestStart
-
-    check('W3 500 companies and 500 presences written', { c: scaleReport.companiesCreated, p: scaleReport.presencesCreated }, { c: 500, p: 500 })
-    check('W4 a second import of 500 rows writes nothing', { created: scaleAgain.presencesCreated, updated: scaleAgain.presencesUpdated, unchanged: scaleAgain.presencesUnchanged }, { created: 0, updated: 0, unchanged: 500 })
-
-    const scalePresences = (await rowsOf(sdb, `select ${PRESENCE_SQL} from public.intel_company_presences order by id`)).map(toPresence)
-    const scaleCompanies = new Map(
-      (await rowsOf(sdb, 'select id, display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of from public.intel_companies')).map(
-        (row) => [String(row.id), toCompany(row)]
+  const buildScaleCsv = (rows: number): string => {
+    const out = ['Company,Hall,Stand,Website,Country,Categories,Description,Profile URL']
+    for (let i = 0; i < rows; i++) {
+      const kind = i % 5
+      const category = ['Robotics', 'Electric motors', 'Bearings', 'Catering', 'Publishing'][kind]
+      const description = [
+        'Robotic grippers and modular automation equipment for industrial manufacturers.',
+        'Electric motors, servo drives and machined aluminium motor housings.',
+        'Precision and special bearings for machine tools and robotics.',
+        'Stand catering, coffee service and hospitality staff.',
+        'Trade magazines and industry yearbooks.',
+      ][kind]
+      out.push(
+        `Synthetic Company ${i},${(i % 10) + 1},S${i},https://synthetic-${i}.invalid,DE,${category},"${description}",https://example.invalid/s/${i}`
       )
+    }
+    return out.join('\n')
+  }
+
+  type ScaleResult = {
+    rows: number
+    parseMs: number
+    importMs: number
+    reimportMs: number
+    matchMs: number
+    importStatements: number
+    reimportStatements: number
+    matches: number
+  }
+
+  const scaleResults: ScaleResult[] = []
+
+  for (const rows of [500, 2000, 5000]) {
+    const csv = buildScaleCsv(rows)
+    const { db: sdb } = await freshDatabase()
+    const counter = { statements: 0 }
+    const scaleStore = pgliteIngestStore(sdb, counter)
+    let scaleClock = 0
+    const scaleTick = () => new Date(Date.UTC(2026, 9, 10, 0, 0, scaleClock++)).toISOString()
+
+    const parseStart = Date.now()
+    const read = readImportRequest({
+      format: 'csv',
+      text: csv,
+      event: { name: `Scale Test Fair ${rows}`, editionYear: 2027 },
+    })
+    if (!read.ok) throw new Error(`scale ${rows}: ${read.error}`)
+    const parsed = parseImport(read.request)
+    if (!parsed.ok) throw new Error(`scale ${rows}: ${parsed.error}`)
+    const preview = buildImportPreview(parsed.dataset.exhibitors, parsed.warnings)
+    const parseMs = Date.now() - parseStart
+
+    check(`W-${rows}a every row parses and previews as importable`, preview.counts.importable, rows)
+
+    const provider = new DatasetEventProvider({
+      event: read.request.event,
+      exhibitors: importableExhibitors(parsed.dataset.exhibitors, preview),
+      id: read.request.providerId,
+    })
+    const ref = { providerEventId: read.request.event.providerRecordId }
+
+    counter.statements = 0
+    const importStart = Date.now()
+    const report = await ingestEvent(provider, ref, scaleStore, scaleTick)
+    const importMs = Date.now() - importStart
+    const importStatements = counter.statements
+
+    counter.statements = 0
+    const reimportStart = Date.now()
+    const again = await ingestEvent(provider, ref, scaleStore, scaleTick)
+    const reimportMs = Date.now() - reimportStart
+    const reimportStatements = counter.statements
+
+    check(
+      `W-${rows}b ${rows} companies and ${rows} presences written`,
+      { companies: report.companiesCreated, presences: report.presencesCreated },
+      { companies: rows, presences: rows }
+    )
+    check(
+      `W-${rows}c a second import of ${rows} rows writes nothing`,
+      { created: again.presencesCreated, updated: again.presencesUpdated, unchanged: again.presencesUnchanged },
+      { created: 0, updated: 0, unchanged: rows }
+    )
+
+    /*
+      The ceiling that matters. Statements come from the fixed phases plus one
+      per chunk of writes, so they grow with rows/chunk and not with rows. 40 is
+      comfortably above what 5,000 rows needs and far below the ~8 per row the
+      previous implementation issued.
+    */
+    check(`W-${rows}d importing ${rows} rows stays under 40 statements`, importStatements <= 40, true)
+    check(`W-${rows}e re-importing ${rows} unchanged rows stays under 20`, reimportStatements <= 20, true)
+
+    const presences = (await rowsOf(sdb, `select ${PRESENCE_SQL} from public.intel_company_presences order by id`)).map(toPresence)
+    const companies = new Map(
+      (
+        await rowsOf(
+          sdb,
+          'select id, display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of from public.intel_companies'
+        )
+      ).map((row) => [String(row.id), toCompany(row)])
     )
     const matchStart = Date.now()
-    const scaleMatches = matchEvent(DEMO_PROFILE, DEMO_OBJECTIVE, scalePresences, scaleCompanies)
-    matchMs = Date.now() - matchStart
-    scaleMatchCount = scaleMatches.length
+    const matches = matchEvent(DEMO_PROFILE, DEMO_OBJECTIVE, presences, companies)
+    const matchMs = Date.now() - matchStart
 
-    check('W5 matching 500 listings still filters rather than returning everything', scaleMatches.length < 500, true)
-    check('W6 and the caterers and publishers are not in it', scaleMatches.length > 0, true)
+    check(`W-${rows}f matching ${rows} listings still filters rather than returning everything`, matches.length < rows, true)
+
+    scaleResults.push({
+      rows,
+      parseMs,
+      importMs,
+      reimportMs,
+      matchMs,
+      importStatements,
+      reimportStatements,
+      matches: matches.length,
+    })
   }
 
-  console.log(
-    `\n  scale: 500 rows — parse+preview ${parseMs}ms · import ${ingestMs}ms · re-import ${reingestMs}ms · match ${matchMs}ms → ${scaleMatchCount} matches`
+  console.log('\n  scale (local PGlite — not hosted Supabase):')
+  for (const r of scaleResults) {
+    console.log(
+      `    ${String(r.rows).padStart(5)} rows · parse ${String(r.parseMs).padStart(5)}ms · import ${String(r.importMs).padStart(5)}ms (${r.importStatements} statements) · re-import ${String(r.reimportMs).padStart(5)}ms (${r.reimportStatements}) · match ${String(r.matchMs).padStart(4)}ms → ${r.matches} matches`
+    )
+  }
+
+  check(
+    'W1 statements stay flat as rows grow — the property hosted Postgres cares about',
+    scaleResults[scaleResults.length - 1].importStatements <= scaleResults[0].importStatements * 3,
+    true
   )
+
+
+  // ══════════ X. Match discovery: search, filters, sorting ══════════
+
+  const qRow = (over: Partial<MatchRow>): MatchRow => ({
+    matchId: 'm', presenceId: 'p', companyName: 'Acme', matchType: 'customer', score: 50,
+    headline: null, location: 'Hall 1 · Stand A1', hasLocation: true, hall: '1', stand: 'A1',
+    categories: [], searchText: 'acme', withdrawn: false, weak: false, warnings: [],
+    saved: false, targetId: null, priority: null, status: null, ...over,
+  })
+
+  const qRows: MatchRow[] = [
+    qRow({ matchId: 'a', companyName: 'NordWerk Robotics', matchType: 'customer', score: 80, hall: '6', stand: 'B42', categories: ['Robotics'], searchText: 'nordwerk robotics robotics grippers' }),
+    qRow({ matchId: 'b', companyName: 'Vector Bearing Technologies', matchType: 'supplier', score: 50, hall: '3', stand: 'F07', categories: ['Bearings'], searchText: 'vector bearing technologies bearings' }),
+    qRow({ matchId: 'c', companyName: 'Meridian Engineering Design', matchType: 'partner', score: 40, hall: '10', stand: null, categories: ['Engineering'], searchText: 'meridian engineering design engineering' }),
+    qRow({ matchId: 'd', companyName: 'Atlas Automation', matchType: 'customer', score: 28, hall: '2', stand: 'A03', categories: ['Automation'], searchText: 'atlas automation automation', saved: true, targetId: 't-d' }),
+  ]
+
+  check('X1 an empty query returns everything, strongest first', applyMatchQuery(qRows, EMPTY_MATCH_QUERY).map((r) => r.matchId), ['a', 'b', 'c', 'd'])
+  check(
+    'X2 search matches the company name',
+    applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, search: 'vector' }).map((r) => r.matchId),
+    ['b']
+  )
+  check(
+    'X3 search matches a category or product, not only the name',
+    applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, search: 'grippers' }).map((r) => r.matchId),
+    ['a']
+  )
+  check(
+    'X4 every word must match, so two words narrow rather than widen',
+    applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, search: 'bearing vector' }).map((r) => r.matchId),
+    ['b']
+  )
+  check('X5 search ignores case and stray spaces', applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, search: '  ATLAS  ' }).map((r) => r.matchId), ['d'])
+  check(
+    'X6 the type filter selects one direction',
+    applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, type: 'customer' }).map((r) => r.matchId),
+    ['a', 'd']
+  )
+  check(
+    'X7 the hall filter selects one hall',
+    applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, hall: '3' }).map((r) => r.matchId),
+    ['b']
+  )
+  check(
+    'X8 "has a stand" hides the ones with nowhere to walk to',
+    applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, withStandOnly: true }).map((r) => r.matchId),
+    ['a', 'b', 'd']
+  )
+  check(
+    'X9 saved only shows what is in the plan',
+    applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, savedOnly: true }).map((r) => r.matchId),
+    ['d']
+  )
+  check(
+    'X10 filters combine',
+    applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, type: 'customer', withStandOnly: true, search: 'automation' }).map((r) => r.matchId),
+    ['d']
+  )
+
+  check('X11 sorting by name is alphabetical', applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, sort: 'name' }).map((r) => r.companyName[0]), ['A', 'M', 'N', 'V'])
+  check(
+    'X12 sorting by hall reads 2, 3, 6, 10 — not 10, 2, 3, 6',
+    applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, sort: 'hall' }).map((r) => r.hall),
+    ['2', '3', '6', '10']
+  )
+  check(
+    'X13 a hall the listing never gave sorts last, because it is not a place',
+    sortMatches([qRow({ matchId: 'x', hall: null, companyName: 'Zed' }), qRow({ matchId: 'y', hall: '9', companyName: 'Aaa' })], 'hall').map((r) => r.matchId),
+    ['y', 'x']
+  )
+  check(
+    'X14 every sort is total, so the list cannot reshuffle between renders',
+    (['relevance', 'name', 'hall'] as MatchSort[]).every((sort) => {
+      const once = applyMatchQuery(qRows, { ...EMPTY_MATCH_QUERY, sort }).map((r) => r.matchId).join()
+      const twice = applyMatchQuery([...qRows].reverse(), { ...EMPTY_MATCH_QUERY, sort }).map((r) => r.matchId).join()
+      return once === twice
+    }),
+    true
+  )
+  check('X15 sorting does not mutate the caller array', (() => { const before = qRows.map((r) => r.matchId).join(); sortMatches(qRows, 'name'); return qRows.map((r) => r.matchId).join() === before })(), true)
+
+  check(
+    'X16 type counts ignore the type filter, so the other chips still guide',
+    typeCounts(qRows, { ...EMPTY_MATCH_QUERY, type: 'supplier' }),
+    { all: 4, customer: 2, supplier: 1, partner: 1 }
+  )
+  check(
+    'X17 but they do respect the other filters',
+    typeCounts(qRows, { ...EMPTY_MATCH_QUERY, withStandOnly: true }),
+    { all: 3, customer: 2, supplier: 1, partner: 0 }
+  )
+  check('X18 hall options are offered in walking order', hallOptions(qRows), ['2', '3', '6', '10'])
+
+  check(
+    'X19 the list only hands the browser a bounded number of rows',
+    MATCH_PAYLOAD_LIMIT <= 1000 && MATCH_PAGE_SIZE <= 100,
+    true
+  )
+  check(
+    'X20 and the page says how many of how many it is showing',
+    code('components/event-intelligence/MatchList.tsx').includes('strongest of'),
+    true
+  )
+  check(
+    'X21 anything the owner saved is loaded even past the cap',
+    code('components/event-intelligence/EventIntelligenceView.tsx').includes('savedBeyondCap'),
+    true
+  )
+  check(
+    'X22 search runs on precomputed text rather than lowercasing per keystroke',
+    code('lib/event-intelligence/match-query.ts').includes('row.searchText.includes'),
+    true
+  )
+  check(
+    'X23 the filter bar offers only dimensions the listing actually holds',
+    /trending|recommended for you|popularity|ai rank/i.test(code('components/event-intelligence/MatchList.tsx')),
+    false
+  )
+
+  // Search and filter controls must be labelled, not just placeheld.
+  const listSource = code('components/event-intelligence/MatchList.tsx')
+  check('X24 the search box has a real label', listSource.includes('htmlFor="match-search"') && listSource.includes('sr-only'), true)
+  check('X25 the selects have labels', listSource.includes('htmlFor="match-hall"') && listSource.includes('htmlFor="match-sort"'), true)
+  check('X26 the filter chips report their state to a screen reader', (listSource.match(/aria-pressed/g) ?? []).length >= 3, true)
+  check('X27 the chip groups are named', listSource.includes('role="group"') && listSource.includes('aria-label="Filter by what kind of opportunity"'), true)
+  check('X28 the result count is announced', listSource.includes('role="status"'), true)
+
+  // ══════════ Y. Event Plan discovery ══════════
+
+  const planEntry = (over: Partial<PlanEntry>): PlanEntry => ({
+    targetId: 't', matchId: 'm', companyName: 'Acme', matchType: 'customer', matchTypeLabel: 'Potential customer',
+    score: 50, hall: '1', location: 'Hall 1 · Stand A1', hasLocation: true, withdrawn: false,
+    status: 'saved', priority: 2, privateNote: null, scheduledFor: null, searchText: 'acme', ...over,
+  })
+
+  const planGroups: PlanGroup[] = [
+    { priority: 1, label: 'Must meet', entries: [
+      planEntry({ targetId: 'p1', companyName: 'Vector Bearing', matchType: 'supplier', hall: '3', score: 50, searchText: 'vector bearing bearings' }),
+      planEntry({ targetId: 'p2', companyName: 'NordWerk Robotics', matchType: 'customer', hall: '6', score: 80, searchText: 'nordwerk robotics ask about housings', privateNote: 'Ask about housings' }),
+    ] },
+    { priority: 2, label: 'Worth meeting', entries: [
+      planEntry({ targetId: 'p3', companyName: 'Atlas Automation', matchType: 'customer', hall: '2', score: 28, searchText: 'atlas automation' }),
+      planEntry({ targetId: 'p4', companyName: 'Met Already', matchType: 'partner', hall: '2', score: 30, status: 'met', searchText: 'met already' }),
+    ] },
+  ]
+
+  check(
+    'Y1 priority stays the grouping whatever the sort',
+    applyPlanQuery(planGroups, { ...EMPTY_PLAN_QUERY, sort: 'name' }).map((g) => g.priority),
+    [1, 2]
+  )
+  check(
+    'Y2 sorting by hall orders within the group, not across it',
+    applyPlanQuery(planGroups, { ...EMPTY_PLAN_QUERY, sort: 'hall' })[0].entries.map((e) => e.hall),
+    ['3', '6']
+  )
+  check(
+    'Y3 a target already met sinks below what is still to do',
+    applyPlanQuery(planGroups, { ...EMPTY_PLAN_QUERY, sort: 'name' })[1].entries.map((e) => e.targetId),
+    ['p3', 'p4']
+  )
+  check(
+    'Y4 search covers the owner private note, which nobody else can see',
+    applyPlanQuery(planGroups, { ...EMPTY_PLAN_QUERY, search: 'housings' }).flatMap((g) => g.entries.map((e) => e.targetId)),
+    ['p2']
+  )
+  check(
+    'Y5 filtering by direction empties groups rather than showing empty headings',
+    applyPlanQuery(planGroups, { ...EMPTY_PLAN_QUERY, type: 'supplier' }).map((g) => ({ p: g.priority, n: g.entries.length })),
+    [{ p: 1, n: 1 }]
+  )
+  check(
+    'Y4a and buildPlan is what folds the note in, not the fixture',
+    buildPlan(
+      [{ ...savedTarget, id: 'note-t', matchId: 'note-m', presenceId: storedRows[0].presenceId, privateNote: 'Ask about housings' }],
+      planPresences,
+      allCompanies,
+      planMatches
+    )[0].entries[0].searchText.includes('housings'),
+    true
+  )
+  check('Y6 hall options come from the plan itself', planHalls(planGroups), ['2', '3', '6'])
+  check(
+    'Y7 plan type counts ignore the type filter',
+    planTypeCounts(planGroups, { ...EMPTY_PLAN_QUERY, type: 'partner' }),
+    { all: 4, customer: 2, supplier: 1, partner: 1 }
+  )
+
+  const planSource = code('components/event-intelligence/PlanBoard.tsx')
+  check('Y8 the plan promises no route and no schedule', /optimi[sz]ed route|fastest route|itinerary|we will schedule|best order to walk/i.test(planSource), false)
+  check('Y9 nothing in the plan can mark somebody as met', /set.*status.*met|markAsMet|['"]met['"]\s*:/.test(planSource.replace(/STATUS_LABEL\[[^\]]+\]/g, '')), false)
+  check('Y10 a target can be removed, because plans change', planSource.includes('Remove ') && planSource.includes("method: 'DELETE'"), true)
+  check('Y11 the plan is cards at every width, never a table', /<table|<thead|<tbody/i.test(planSource), false)
+  check('Y12 plan controls are labelled', planSource.includes('htmlFor="plan-search"') && planSource.includes('htmlFor="plan-sort"'), true)
+  check('Y13 the plan sets no fixed pixel width', /(?<![a-z-])w-\[\d+px\]/.test(planSource), false)
+  check(
+    'Y14 the controls only appear once a plan is long enough to need them',
+    planSource.includes('total > 6'),
+    true
+  )
+
 
   // ══════════ R. The handoff documents ══════════
 

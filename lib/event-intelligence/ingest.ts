@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { eventEditionKey } from '@/lib/event-intelligence/event-identity'
 import {
   contentHash,
@@ -16,18 +17,35 @@ import type {
 /**
  * Turning what a provider says into ABC's event graph.
  *
- * Everything here is backend-agnostic: it talks to an `IngestStore` and never
- * to Supabase, so the same orchestration that runs in production is what the
- * test suite drives against a real Postgres. The two properties it exists to
- * guarantee:
+ * Backend-agnostic: this talks to an `IngestStore` and never to Supabase, so
+ * the orchestration that runs in production is what the test suite drives
+ * against a real Postgres.
+ *
+ * ## Shape, and why it is this shape
+ *
+ * Read everything, decide everything in memory, then write everything — three
+ * phases, each of a bounded number of statements, rather than a loop that asks
+ * the database eight questions per exhibitor.
+ *
+ * The row-at-a-time version that came before was correct and fine on 21
+ * fixture rows. It was also ~8 statements per exhibitor, which is ~16,000
+ * statements for a 2,000-stand fair. Locally, against PGlite, that is a
+ * second or two. Against hosted Postgres every one of those is a network round
+ * trip, and the import stops being something a person waits for.
+ *
+ * So the middle phase — `planIngest` — is pure. Identity resolution,
+ * idempotency and the merge rules all happen on plain objects, which is also
+ * what makes them testable without a database at all.
+ *
+ * The two properties this exists to guarantee are unchanged:
  *
  *   **Idempotent.** Importing the same listing twice changes nothing. The
- *   source record's content hash decides whether anything is written at all, so
- *   a nightly refresh of an unchanged directory is a pile of reads.
+ *   content hash decides whether anything is written, so a refresh of an
+ *   unchanged directory is a handful of reads.
  *
- *   **Traceable.** Every company and presence it writes has a source record
- *   naming the provider, the provider's own id for the record, the URL where
- *   applicable and when it was fetched. Nothing enters the graph anonymously.
+ *   **Traceable.** Every company and presence has a source record naming the
+ *   provider, its own id for the record, the URL where there is one, and when
+ *   it was fetched.
  */
 
 // ── The storage seam ─────────────────────────────────────────────
@@ -80,54 +98,67 @@ export type SourceRecordUpsert = {
   sourceUpdatedAt: string | null
 }
 
+/** A company as it exists in the graph. */
+export type CompanyRecord = CompanyUpsert & { id: string }
+export type PresenceRecord = PresenceUpsert & { id: string }
+
+/**
+ * Everything the store must do, in batches.
+ *
+ * Each method takes or returns a set rather than a row. An implementation is
+ * free to chunk internally — both of ABC's do — but nothing here invites a
+ * caller to iterate.
+ */
 export interface IngestStore {
   upsertEvent(input: EventUpsert): Promise<{ id: string }>
 
-  findCompanyByDomain(domain: string): Promise<{ id: string } | null>
-  /** The company a previous import of this exact provider record produced. */
-  findCompanyBySourceRecord(provider: string, providerRecordId: string): Promise<{ id: string } | null>
-  findCompaniesByName(
-    nameNormalized: string
-  ): Promise<{ id: string; country: string | null; websiteDomain: string | null }[]>
-  insertCompany(input: CompanyUpsert): Promise<{ id: string }>
-  updateCompany(id: string, input: CompanyUpsert): Promise<void>
+  findCompaniesByDomains(domains: string[]): Promise<CompanyRecord[]>
+  findCompaniesByNames(nameNormalized: string[]): Promise<CompanyRecord[]>
+  findCompaniesByIds(ids: string[]): Promise<CompanyRecord[]>
+
+  /** Presences already recorded for this event, so identity survives a refresh. */
+  findPresencesForEvent(eventId: string): Promise<{ id: string; companyId: string }[]>
+
+  /** What a previous import of these exact provider records produced. */
+  findPresenceSources(
+    provider: string,
+    providerRecordIds: string[],
+    payloadVersion: string
+  ): Promise<{ providerRecordId: string; contentHash: string; entityId: string }[]>
+
+  insertCompanies(rows: CompanyRecord[]): Promise<void>
+  updateCompanies(rows: CompanyRecord[]): Promise<void>
+
+  insertPresences(rows: PresenceRecord[]): Promise<void>
+  updatePresences(rows: PresenceRecord[]): Promise<void>
+  /** Say only that these were seen again. An unchanged listing rewrites nothing. */
+  touchPresences(ids: string[], lastSeenAt: string): Promise<void>
 
   /**
-   * Write a presence, or — when `touchOnly` — record only that it was seen
-   * again. An unchanged listing must not rewrite a single field.
+   * Everything at this event the latest fetch did not mention.
+   *
+   * Identified by timestamp rather than by a list of ids: every presence this
+   * run saw had last_seen_at set to the run time, so the ones that did not are
+   * exactly the ones older than it. One small statement whether the fair has
+   * twenty stands or five thousand — the id list would have been a query string
+   * with five thousand UUIDs in it.
    */
-  upsertPresence(
-    input: PresenceUpsert,
-    options: { touchOnly: boolean }
-  ): Promise<{ id: string; created: boolean }>
-  /** Everything at this event that the latest fetch did not mention. */
-  markMissingPresencesWithdrawn(eventId: string, seenPresenceIds: string[]): Promise<number>
+  markMissingPresencesWithdrawn(eventId: string, fetchedAt: string): Promise<number>
 
-  findSourceRecord(
-    provider: string,
-    providerRecordId: string,
-    payloadVersion: string
-  ): Promise<{ contentHash: string; entityId: string } | null>
-  recordSource(input: SourceRecordUpsert): Promise<void>
+  recordSources(rows: SourceRecordUpsert[]): Promise<void>
 }
 
 // ── Normalisation ────────────────────────────────────────────────
 
-/** A provider's event, in ABC's terms. Pure; the key comes from the name. */
+/** A provider's event, in ABC's terms. Pure; the key comes from the edition. */
 export function normalizeEvent(event: ProviderEvent): EventUpsert {
   const name = sourceText(event.name) ?? event.name.trim()
   return {
     /*
       The same address space the Event Workspace uses for its URLs, so a fair
       imported here and a fair typed at a stand land on one key — but derived
-      per *edition*, not per name.
-
-      Using `eventKeyFromName` alone here was a real defect, and the kind that
-      loses data quietly: "Ambiente" imported for 2026 and again for 2027 both
-      keyed to `ambiente`, so the second import upserted onto the first
-      edition's row and one year of stands replaced the other. Nothing errored.
-      The event edition key appends the year when the name does not already
-      carry it, and leaves names that do — such as the fixture's — untouched.
+      per *edition*, not per name. See event-identity.ts for what goes wrong
+      when two years of one fair share a key.
     */
     eventKey: eventEditionKey(name, typeof event.editionYear === 'number' ? event.editionYear : null),
     name,
@@ -142,14 +173,9 @@ export function normalizeEvent(event: ProviderEvent): EventUpsert {
   }
 }
 
-/**
- * The company-level half of a listing.
- *
- * `mergeCandidateOf` is filled in by resolution, not here — this only says what
- * the listing claims about the organisation itself.
- */
+/** The company-level half of a listing. */
 export function normalizeCompany(exhibitor: ProviderExhibitor): Omit<CompanyUpsert, 'mergeCandidateOf'> {
-  const displayName = sourceText(exhibitor.companyName) ?? exhibitor.companyName.trim()
+  const displayName = sourceText(exhibitor.companyName) ?? (exhibitor.companyName ?? '').trim()
   return {
     displayName,
     nameNormalized: normalizeCompanyName(displayName),
@@ -177,16 +203,30 @@ export function normalizePresence(
   }
 }
 
+/**
+ * A later listing fills gaps; it does not erase what an earlier one knew.
+ *
+ * A directory that omits a website this week has not said the company lost
+ * one, so an absent value means "no new information" and a real one replaces
+ * what is stored. This used to live in SQL, once per backend, which is two
+ * places for one rule to drift.
+ */
+function mergeCompany(existing: CompanyRecord, incoming: Omit<CompanyUpsert, 'mergeCandidateOf'>): CompanyRecord {
+  return {
+    id: existing.id,
+    displayName: incoming.displayName || existing.displayName,
+    nameNormalized: incoming.nameNormalized || existing.nameNormalized,
+    websiteDomain: incoming.websiteDomain ?? existing.websiteDomain,
+    country: incoming.country ?? existing.country,
+    descriptionPublic: incoming.descriptionPublic ?? existing.descriptionPublic,
+    categories: incoming.categories.length > 0 ? incoming.categories : existing.categories,
+    mergeCandidateOf: existing.mergeCandidateOf,
+  }
+}
+
 // ── Company identity ─────────────────────────────────────────────
 
 export type CompanyMatchBasis = 'domain' | 'source_record' | 'name_and_country' | 'new'
-
-export type CompanyResolution = {
-  companyId: string
-  basis: CompanyMatchBasis
-  /** Set when a same-name company existed that ABC would not merge into. */
-  mergeCandidateOf: string | null
-}
 
 /**
  * Which company a listing is about.
@@ -195,74 +235,58 @@ export type CompanyResolution = {
  * fourth is "do not decide":
  *
  *   1. **Domain.** Two listings giving the same registrable host are the same
- *      company. This is the only signal strong enough to merge on alone.
- *   2. **Provider record.** A listing ABC has imported before resolves to
- *      whatever it resolved to last time, so a re-import cannot drift.
+ *      company. The only signal strong enough to merge on alone.
+ *   2. **Provider record.** A listing ABC imported before resolves to whatever
+ *      it resolved to last time, so a re-import cannot drift.
  *   3. **Name and country.** Exact normalised name *and* a country both sides
- *      state and agree on. Weak, and used only when neither side offers a
- *      domain — with a caveat below.
+ *      state and agree on — used only when neither side offers a domain. An
+ *      identified company is never merged into by an unidentified listing: if
+ *      the stored row has a domain and the incoming listing has none, all they
+ *      share is a name, and folding one into the other would attach an
+ *      unidentified stand to an identified company.
  *   4. **Neither.** A new company, and if a same-name company exists, the new
  *      row points at it as a merge candidate for a human to settle.
  *
- * The caveat on tier 3 matters: if the existing company has a domain and the
- * incoming listing does not, they are *not* merged. The existing row has been
- * positively identified and the new one has not, so folding one into the other
- * would attach an unidentified listing's stand and products to an identified
- * company. Same name, no evidence — that is exactly a merge candidate.
+ * Pure: it reads the maps the batched phase fetched, and decides nothing by
+ * asking the database.
  */
-export async function resolveCompany(
-  store: IngestStore,
-  provider: string,
-  exhibitor: ProviderExhibitor,
-  normalized: Omit<CompanyUpsert, 'mergeCandidateOf'>
-): Promise<CompanyResolution> {
+export type IdentityIndex = {
+  byDomain: Map<string, CompanyRecord>
+  byName: Map<string, CompanyRecord[]>
+  /** provider record id → the company a previous import resolved it to. */
+  bySourceRecord: Map<string, CompanyRecord>
+}
+
+export function resolveCompanyIdentity(
+  normalized: Omit<CompanyUpsert, 'mergeCandidateOf'>,
+  providerRecordId: string,
+  index: IdentityIndex
+): { company: CompanyRecord | null; basis: CompanyMatchBasis; mergeCandidateOf: string | null } {
   if (normalized.websiteDomain) {
-    const byDomain = await store.findCompanyByDomain(normalized.websiteDomain)
-    if (byDomain) {
-      return { companyId: byDomain.id, basis: 'domain', mergeCandidateOf: null }
-    }
+    const byDomain = index.byDomain.get(normalized.websiteDomain)
+    if (byDomain) return { company: byDomain, basis: 'domain', mergeCandidateOf: null }
   }
 
-  const bySource = await store.findCompanyBySourceRecord(provider, exhibitor.providerRecordId)
-  if (bySource) {
-    return { companyId: bySource.id, basis: 'source_record', mergeCandidateOf: null }
-  }
+  const bySource = index.bySourceRecord.get(providerRecordId)
+  if (bySource) return { company: bySource, basis: 'source_record', mergeCandidateOf: null }
 
-  const sameName = normalized.nameNormalized
-    ? await store.findCompaniesByName(normalized.nameNormalized)
-    : []
+  const sameName = normalized.nameNormalized ? index.byName.get(normalized.nameNormalized) ?? [] : []
 
   if (sameName.length > 0 && !normalized.websiteDomain && normalized.country) {
     const agreeing = sameName.filter(
-      (row) =>
-        row.country === normalized.country &&
-        // The caveat: an identified company is not merged into by an
-        // unidentified listing. If the stored row has a domain and this listing
-        // has none, all they share is a name, and attaching this stand and
-        // these products to that company would be a guess wearing a fact's
-        // clothes.
-        row.websiteDomain === null
+      (row) => row.country === normalized.country && row.websiteDomain === null
     )
     // Exactly one, or the agreement means nothing: two same-named companies in
     // one country is precisely where a guess is a coin toss.
     if (agreeing.length === 1) {
-      return { companyId: agreeing[0].id, basis: 'name_and_country', mergeCandidateOf: null }
+      return { company: agreeing[0], basis: 'name_and_country', mergeCandidateOf: null }
     }
   }
 
-  const created = await store.insertCompany({
-    ...normalized,
-    mergeCandidateOf: sameName.length > 0 ? sameName[0].id : null,
-  })
-
-  return {
-    companyId: created.id,
-    basis: 'new',
-    mergeCandidateOf: sameName.length > 0 ? sameName[0].id : null,
-  }
+  return { company: null, basis: 'new', mergeCandidateOf: sameName.length > 0 ? sameName[0].id : null }
 }
 
-// ── The run ──────────────────────────────────────────────────────
+// ── Planning ─────────────────────────────────────────────────────
 
 export type IngestReport = {
   provider: string
@@ -276,7 +300,177 @@ export type IngestReport = {
   presencesUnchanged: number
   presencesWithdrawn: number
   mergeCandidates: number
+  /** How many statements the write phase issued. Reported so it can be watched. */
+  writeStatements: number
 }
+
+export type IngestPlan = {
+  companiesToInsert: CompanyRecord[]
+  companiesToUpdate: CompanyRecord[]
+  presencesToInsert: PresenceRecord[]
+  presencesToUpdate: PresenceRecord[]
+  presencesToTouch: string[]
+  sources: SourceRecordUpsert[]
+  seenPresenceIds: string[]
+  counts: Omit<IngestReport, 'provider' | 'eventId' | 'eventKey' | 'presencesWithdrawn' | 'writeStatements'>
+}
+
+export type ExistingGraph = {
+  index: IdentityIndex
+  /** company id → the presence it already has at this event. */
+  presenceByCompany: Map<string, string>
+  /** provider record id → content hash from the last import. */
+  hashByRecord: Map<string, string>
+}
+
+/**
+ * Decide everything, write nothing.
+ *
+ * Rows are processed in order and accumulate, so a company listed twice in one
+ * file behaves exactly as it did row-at-a-time: the second listing updates what
+ * the first produced rather than creating a second company or a second stand.
+ */
+export function planIngest(
+  exhibitors: ProviderExhibitor[],
+  eventId: string,
+  provider: { id: string; payloadVersion: string },
+  existing: ExistingGraph,
+  fetchedAt: string
+): IngestPlan {
+  const insertedCompanies = new Map<string, CompanyRecord>()
+  const updatedCompanies = new Map<string, CompanyRecord>()
+  const insertedPresences = new Map<string, PresenceRecord>()
+  const updatedPresences = new Map<string, PresenceRecord>()
+  const touched = new Set<string>()
+  const sources: SourceRecordUpsert[] = []
+  const seenPresenceIds: string[] = []
+
+  const counts = {
+    exhibitorsSeen: 0,
+    companiesCreated: 0,
+    companiesMatched: 0,
+    presencesCreated: 0,
+    presencesUpdated: 0,
+    presencesUnchanged: 0,
+    mergeCandidates: 0,
+  }
+
+  /*
+    A working copy. The maps grow as the file is read — a company created by row
+    12 has to be findable by row 300 — and copying them keeps that growth inside
+    this call instead of mutating what the caller handed in.
+  */
+  const index = {
+    byId: new Map<string, CompanyRecord>(),
+    byDomain: new Map(existing.index.byDomain),
+    byName: new Map([...existing.index.byName].map(([key, rows]) => [key, [...rows]])),
+    bySourceRecord: existing.index.bySourceRecord,
+  }
+  for (const company of index.byDomain.values()) index.byId.set(company.id, company)
+  for (const list of index.byName.values()) for (const row of list) index.byId.set(row.id, row)
+  for (const company of index.bySourceRecord.values()) index.byId.set(company.id, company)
+
+  /** The company as it stands right now, counting what this run has planned. */
+  const currentCompany = (id: string): CompanyRecord | undefined =>
+    insertedCompanies.get(id) ?? updatedCompanies.get(id) ?? index.byId.get(id)
+
+  const presenceByCompany = new Map(existing.presenceByCompany)
+
+  for (const exhibitor of exhibitors) {
+    counts.exhibitorsSeen++
+
+    const companyFields = normalizeCompany(exhibitor)
+    const resolution = resolveCompanyIdentity(companyFields, exhibitor.providerRecordId, index)
+
+    let companyId: string
+    if (resolution.company) {
+      counts.companiesMatched++
+      companyId = resolution.company.id
+    } else {
+      counts.companiesCreated++
+      if (resolution.mergeCandidateOf) counts.mergeCandidates++
+      companyId = randomUUID()
+      const created: CompanyRecord = { id: companyId, ...companyFields, mergeCandidateOf: resolution.mergeCandidateOf }
+      insertedCompanies.set(companyId, created)
+      index.byId.set(companyId, created)
+      /*
+        Make it findable by the rest of this same file. Without this, a company
+        listed three times in one export becomes three companies — the row-at-a-
+        time version was saved from that by writing as it went.
+      */
+      if (created.websiteDomain) index.byDomain.set(created.websiteDomain, created)
+      if (created.nameNormalized) {
+        index.byName.set(created.nameNormalized, [...(index.byName.get(created.nameNormalized) ?? []), created])
+      }
+    }
+
+    const presenceFields = normalizePresence(exhibitor)
+    const payload = { company: companyFields, presence: presenceFields }
+    const hash = contentHash(payload)
+    const unchanged = existing.hashByRecord.get(exhibitor.providerRecordId) === hash
+
+    const existingPresenceId = presenceByCompany.get(companyId)
+    const presenceId = existingPresenceId ?? randomUUID()
+    const presence: PresenceRecord = {
+      id: presenceId,
+      ...presenceFields,
+      eventId,
+      companyId,
+      lastSeenAt: fetchedAt,
+    }
+
+    if (!existingPresenceId) {
+      counts.presencesCreated++
+      presenceByCompany.set(companyId, presenceId)
+      insertedPresences.set(presenceId, presence)
+    } else if (unchanged) {
+      counts.presencesUnchanged++
+      // Only if nothing else in this run already decided to rewrite it.
+      if (!insertedPresences.has(presenceId) && !updatedPresences.has(presenceId)) touched.add(presenceId)
+    } else {
+      counts.presencesUpdated++
+      touched.delete(presenceId)
+      if (insertedPresences.has(presenceId)) insertedPresences.set(presenceId, presence)
+      else updatedPresences.set(presenceId, presence)
+    }
+
+    if (!seenPresenceIds.includes(presenceId)) seenPresenceIds.push(presenceId)
+
+    // A matched company still gains whatever this listing knows that it does not.
+    if (!unchanged && resolution.company) {
+      const base = currentCompany(companyId) ?? resolution.company
+      const merged = mergeCompany(base, companyFields)
+      if (insertedCompanies.has(companyId)) insertedCompanies.set(companyId, merged)
+      else updatedCompanies.set(companyId, merged)
+      index.byId.set(companyId, merged)
+    }
+
+    sources.push({
+      provider: provider.id,
+      providerRecordId: exhibitor.providerRecordId,
+      payloadVersion: provider.payloadVersion,
+      sourceUrl: sourceText(exhibitor.listingUrl),
+      entityType: 'presence',
+      entityId: presenceId,
+      contentHash: hash,
+      fetchedAt,
+      sourceUpdatedAt: sourceText(exhibitor.sourceUpdatedAt),
+    })
+  }
+
+  return {
+    companiesToInsert: [...insertedCompanies.values()],
+    companiesToUpdate: [...updatedCompanies.values()],
+    presencesToInsert: [...insertedPresences.values()],
+    presencesToUpdate: [...updatedPresences.values()],
+    presencesToTouch: [...touched],
+    sources,
+    seenPresenceIds,
+    counts,
+  }
+}
+
+// ── The run ──────────────────────────────────────────────────────
 
 /**
  * Import one event's exhibitors.
@@ -299,105 +493,125 @@ export async function ingestEvent(
   const normalizedEvent = normalizeEvent(providerEvent)
   const event = await store.upsertEvent(normalizedEvent)
 
-  await store.recordSource({
-    provider: provider.id,
-    providerRecordId: providerEvent.providerRecordId,
-    payloadVersion: provider.payloadVersion,
-    sourceUrl: sourceText(providerEvent.sourceUrl),
-    entityType: 'event',
-    entityId: event.id,
-    contentHash: contentHash(normalizedEvent),
-    fetchedAt,
-    sourceUpdatedAt: sourceText(providerEvent.sourceUpdatedAt),
-  })
+  // ── Phase 1: collect, then read the graph in batches ──
 
-  const report: IngestReport = {
+  const exhibitors: ProviderExhibitor[] = []
+  for await (const exhibitor of provider.fetchExhibitors(ref)) exhibitors.push(exhibitor)
+
+  const domains = new Set<string>()
+  const names = new Set<string>()
+  const recordIds: string[] = []
+  for (const exhibitor of exhibitors) {
+    const company = normalizeCompany(exhibitor)
+    if (company.websiteDomain) domains.add(company.websiteDomain)
+    if (company.nameNormalized) names.add(company.nameNormalized)
+    recordIds.push(exhibitor.providerRecordId)
+  }
+
+  const [byDomainRows, byNameRows, presenceRows, sourceRows] = await Promise.all([
+    store.findCompaniesByDomains([...domains]),
+    store.findCompaniesByNames([...names]),
+    store.findPresencesForEvent(event.id),
+    store.findPresenceSources(provider.id, recordIds, provider.payloadVersion),
+  ])
+
+  const presenceByCompany = new Map<string, string>()
+  const presenceToCompany = new Map<string, string>()
+  for (const row of presenceRows) {
+    presenceByCompany.set(row.companyId, row.id)
+    presenceToCompany.set(row.id, row.companyId)
+  }
+
+  // Companies reachable only through a previous import's source record.
+  const knownIds = new Set([...byDomainRows, ...byNameRows].map((row) => row.id))
+  const extraIds = [...new Set(sourceRows.map((row) => presenceToCompany.get(row.entityId)).filter((id): id is string => Boolean(id)))].filter(
+    (id) => !knownIds.has(id)
+  )
+  const byIdRows = extraIds.length > 0 ? await store.findCompaniesByIds(extraIds) : []
+
+  const byId = new Map<string, CompanyRecord>()
+  for (const row of [...byDomainRows, ...byNameRows, ...byIdRows]) byId.set(row.id, row)
+
+  const index: IdentityIndex = {
+    byDomain: new Map(byDomainRows.filter((row) => row.websiteDomain).map((row) => [row.websiteDomain as string, row])),
+    byName: new Map(),
+    bySourceRecord: new Map(),
+  }
+  for (const row of byNameRows) {
+    index.byName.set(row.nameNormalized, [...(index.byName.get(row.nameNormalized) ?? []), row])
+  }
+  const hashByRecord = new Map<string, string>()
+  for (const row of sourceRows) {
+    hashByRecord.set(row.providerRecordId, row.contentHash)
+    const companyId = presenceToCompany.get(row.entityId)
+    const company = companyId ? byId.get(companyId) : undefined
+    if (company) index.bySourceRecord.set(row.providerRecordId, company)
+  }
+
+  // ── Phase 2: decide, in memory ──
+
+  const plan = planIngest(
+    exhibitors,
+    event.id,
+    { id: provider.id, payloadVersion: provider.payloadVersion },
+    { index, presenceByCompany, hashByRecord },
+    fetchedAt
+  )
+
+  // ── Phase 3: write, in batches ──
+
+  let writeStatements = 1 // the event upsert
+
+  /*
+    Companies before presences, because a presence names a company. Within each
+    group the order does not matter, which is what lets them be sets.
+  */
+  if (plan.companiesToInsert.length > 0) {
+    await store.insertCompanies(plan.companiesToInsert)
+    writeStatements++
+  }
+  if (plan.companiesToUpdate.length > 0) {
+    await store.updateCompanies(plan.companiesToUpdate)
+    writeStatements++
+  }
+  if (plan.presencesToInsert.length > 0) {
+    await store.insertPresences(plan.presencesToInsert)
+    writeStatements++
+  }
+  if (plan.presencesToUpdate.length > 0) {
+    await store.updatePresences(plan.presencesToUpdate)
+    writeStatements++
+  }
+  if (plan.presencesToTouch.length > 0) {
+    await store.touchPresences(plan.presencesToTouch, fetchedAt)
+    writeStatements++
+  }
+
+  await store.recordSources([
+    {
+      provider: provider.id,
+      providerRecordId: providerEvent.providerRecordId,
+      payloadVersion: provider.payloadVersion,
+      sourceUrl: sourceText(providerEvent.sourceUrl),
+      entityType: 'event',
+      entityId: event.id,
+      contentHash: contentHash(normalizedEvent),
+      fetchedAt,
+      sourceUpdatedAt: sourceText(providerEvent.sourceUpdatedAt),
+    },
+    ...plan.sources,
+  ])
+  writeStatements++
+
+  const presencesWithdrawn = await store.markMissingPresencesWithdrawn(event.id, fetchedAt)
+  writeStatements++
+
+  return {
     provider: provider.id,
     eventId: event.id,
     eventKey: normalizedEvent.eventKey,
-    exhibitorsSeen: 0,
-    companiesCreated: 0,
-    companiesMatched: 0,
-    presencesCreated: 0,
-    presencesUpdated: 0,
-    presencesUnchanged: 0,
-    presencesWithdrawn: 0,
-    mergeCandidates: 0,
+    ...plan.counts,
+    presencesWithdrawn,
+    writeStatements,
   }
-
-  const seenPresenceIds: string[] = []
-
-  for await (const exhibitor of provider.fetchExhibitors(ref)) {
-    report.exhibitorsSeen++
-
-    const companyFields = normalizeCompany(exhibitor)
-    const resolution = await resolveCompany(store, provider.id, exhibitor, companyFields)
-
-    if (resolution.basis === 'new') {
-      report.companiesCreated++
-      if (resolution.mergeCandidateOf) report.mergeCandidates++
-    } else {
-      report.companiesMatched++
-    }
-
-    const presenceFields = normalizePresence(exhibitor)
-    const payload = { company: companyFields, presence: presenceFields }
-    const hash = contentHash(payload)
-
-    const previous = await store.findSourceRecord(
-      provider.id,
-      exhibitor.providerRecordId,
-      provider.payloadVersion
-    )
-
-    /*
-      An unchanged listing is the common case on every refresh after the first,
-      and it must be cheap and inert: the presence is touched only to say it was
-      seen again, so `last_seen_at` stays honest without a single field being
-      rewritten. Nothing downstream — a saved target, a note, a priority — has
-      any reason to notice that an import ran.
-    */
-    const unchanged = previous?.contentHash === hash
-
-    const presence = await store.upsertPresence(
-      {
-        ...presenceFields,
-        eventId: event.id,
-        companyId: resolution.companyId,
-        lastSeenAt: fetchedAt,
-      },
-      { touchOnly: unchanged }
-    )
-
-    seenPresenceIds.push(presence.id)
-
-    if (presence.created) report.presencesCreated++
-    else if (unchanged) report.presencesUnchanged++
-    else report.presencesUpdated++
-
-    // A company matched by domain or by an earlier import still gains whatever
-    // this listing knows that the stored row does not.
-    if (!unchanged && resolution.basis !== 'new') {
-      await store.updateCompany(resolution.companyId, {
-        ...companyFields,
-        mergeCandidateOf: resolution.mergeCandidateOf,
-      })
-    }
-
-    await store.recordSource({
-      provider: provider.id,
-      providerRecordId: exhibitor.providerRecordId,
-      payloadVersion: provider.payloadVersion,
-      sourceUrl: sourceText(exhibitor.listingUrl),
-      entityType: 'presence',
-      entityId: presence.id,
-      contentHash: hash,
-      fetchedAt,
-      sourceUpdatedAt: sourceText(exhibitor.sourceUpdatedAt),
-    })
-  }
-
-  report.presencesWithdrawn = await store.markMissingPresencesWithdrawn(event.id, seenPresenceIds)
-
-  return report
 }
