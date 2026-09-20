@@ -215,6 +215,35 @@ function b0() {
 const LEGACY_CLAIMS = /Priority enrichment|Shared contacts|Team pipeline/i
 const LEGACY_PLAN_NAMES = /\b(Starter|Growth)\b|\bTeam plan\b|\bTEAM\b/
 
+/*
+  What /pricing is allowed to link to.
+
+  The invariant B1.4 enforces is that this page offers no way to pay: no Stripe
+  checkout, no billing screen, no external payment host. It enforces it by
+  allowlist rather than by blocklist, so a purchase link nobody thought of still
+  fails the check.
+
+  The anchor grammar used to be `/#[a-z]+`, which only ever matched a single
+  lowercase word. That was fine while every section id was one word and wrong
+  the moment the page gained `#follow-up`, `#how-it-works` and
+  `#event-intelligence` — legitimate same-page navigation, rejected for its
+  punctuation. The grammar below is the slug the ids actually use: lowercase
+  words and digits joined by single hyphens, with no leading, trailing or
+  doubled hyphen.
+
+  `$` in JavaScript also matches before a trailing newline, so "/#pricing\n"
+  would satisfy the pattern alone. Anything with whitespace in it is refused
+  before the pattern is consulted.
+*/
+const PUBLIC_ANCHOR = /^\/#[a-z0-9]+(?:-[a-z0-9]+)*$/
+const PUBLIC_ROUTES = new Set(['/', '/register', '/login', '/privacy', '/terms', '/account-deletion'])
+const SUPPORT_MAILTO = 'mailto:support@abccard.io'
+
+function isPublicHref(href: string): boolean {
+  if (/\s/.test(href)) return false
+  return PUBLIC_ROUTES.has(href) || href === SUPPORT_MAILTO || PUBLIC_ANCHOR.test(href)
+}
+
 async function renderPage(modulePath: string): Promise<string> {
   // tsx compiles JSX with the classic runtime (tsconfig keeps `jsx: preserve` for Next), which needs React in scope.
   ;(globalThis as { React?: typeof React }).React = React
@@ -244,7 +273,63 @@ async function b1() {
   )
   check(
     'B1.4 /pricing offers no purchase: its only calls to action are the free card, sign-in and public pages',
-    [...new Set(hrefs.filter((h) => !/^(\/|\/#[a-z]+|\/register|\/login|\/privacy|\/terms|\/account-deletion|mailto:support@abccard\.io)$/.test(h)))],
+    [...new Set(hrefs.filter((h) => !isPublicHref(h)))],
+    []
+  )
+  /*
+    The allowlist itself, pinned. B1.4 can only be as good as this predicate,
+    and a predicate widened to admit a hyphen is exactly the kind of change that
+    quietly admits a payment link too — so the grammar is stated here as a table
+    of what it must accept and what it must still refuse.
+  */
+  check(
+    'B1.4a the allowlist accepts public pages and hyphenated same-page anchors',
+    [
+      '/',
+      '/#pricing',
+      '/#follow-up',
+      '/#how-it-works',
+      '/#event-intelligence',
+      '/register',
+      '/login',
+      '/privacy',
+      '/terms',
+      '/account-deletion',
+      'mailto:support@abccard.io',
+    ].filter((href) => !isPublicHref(href)),
+    []
+  )
+  check(
+    'B1.4b the allowlist still refuses every way to pay, leave the site or smuggle a link past it',
+    [
+      // Paying, in every shape this repository could produce one.
+      '/pricing/checkout',
+      '/settings/billing',
+      '/api/stripe/checkout',
+      '/api/billing/portal',
+      'https://checkout.stripe.com/c/pay/cs_test_123',
+      'https://buy.stripe.com/test_123',
+      // Leaving the site, including the protocol-relative and scripted forms.
+      'https://abccard.io/#pricing',
+      '//evil.example/#pricing',
+      'javascript:alert(1)',
+      'mailto:sales@evil.example',
+      // Anchors that are not the slug grammar.
+      '/#',
+      '/#Pricing',
+      '/#follow--up',
+      '/#-follow-up',
+      '/#follow-up-',
+      '/#follow_up',
+      '/#follow-up?utm=x',
+      '/#follow-up/checkout',
+      '/#pricing\n',
+      '/#pricing ',
+      // Nearly-right routes.
+      '/registerx',
+      '/login/',
+      '/account-deletion#x',
+    ].filter((href) => isPublicHref(href)),
     []
   )
   check(
