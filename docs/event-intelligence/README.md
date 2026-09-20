@@ -93,7 +93,40 @@ EventDataProvider          lib/event-intelligence/provider.ts
 ```
 
 A provider yields `ProviderEvent` and `ProviderExhibitor` and nothing else.
-`ingestEvent()` then does the work that is the same for every source:
+`ingestEvent()` then does the work that is the same for every source.
+
+### How an import is executed
+
+Three phases, each a bounded number of statements:
+
+1. **Read** the graph in batches — companies by domain, by normalised name and
+   by id; this event's presences; the source records for these provider record
+   ids. Four queries, chunked at 500.
+2. **Plan** in memory. `planIngest()` is pure: identity resolution, idempotency
+   and the merge rules are decided on plain objects, which is also what makes
+   them testable without a database.
+3. **Write** in batches — new companies, changed companies, new presences,
+   changed presences, a single touch for the unchanged ones, the source records,
+   and one statement to withdraw whatever this fetch did not mention.
+
+The version before this was row-at-a-time: ~8 statements per exhibitor, so
+~16,000 for a 2,000-stand fair. Correct, and fine on 21 fixture rows; against
+hosted Postgres every one of those is a network round trip. Statements are now
+**flat in the row count** — measured at 9 for 500, 2,000 and 5,000 rows locally
+(the Supabase store chunks at 500, so it issues a few more).
+
+Two details worth keeping:
+
+- **Unchanged rows are touched, not rewritten.** `touchPresences` writes
+  `last_seen_at` and `status` and deliberately not `updated_at` — an unchanged
+  listing has not been updated, and saying it was would make every refresh look
+  like a change to anything watching that column.
+- **Withdrawal is by timestamp, not by id list.** Everything this run saw has
+  `last_seen_at` set to the run time, so what it did not see is exactly what is
+  older. One small statement at any size; the id list would have been a query
+  string with five thousand UUIDs in it.
+
+Either way, `ingestEvent()`:
 
 - **Company identity**, four tiers, the fourth being "do not decide": domain →
   a previously imported provider record → exact normalised name *plus* an agreed
@@ -292,10 +325,56 @@ exist, which is the cheap direction to have left it in.
 `RESERVED_EVENT_KEYS`; pages refuse to resolve an event under any of them, and a
 test asserts each reserved word is a screen that actually exists.
 
-## 9. Tests
+## 9. Working at fair scale
+
+### Measured, local PGlite — **not** hosted Supabase
+
+| Rows | Parse + preview | Import | Re-import | Match | Statements |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 500 | 30 ms | 148 ms | 111 ms | 52 ms | 9 / 8 |
+| 2,000 | 86 ms | 545 ms | 421 ms | 212 ms | 9 / 8 |
+| 5,000 | 148 ms | 1,839 ms | 1,157 ms | 450 ms | 9 / 8 |
+
+Statements are flat; milliseconds are roughly linear. On hosted Supabase the
+statement count is what matters, because each one is a round trip — but the
+timings above say nothing about it and should not be quoted as if they did.
+
+### Guardrails
+
+| Limit | Value | Why |
+| --- | --- | --- |
+| Upload size | 4 MB | ~30,000 CSV rows. A guardrail against a mis-paste, not a product limit |
+| Rows per import | 10,000 | Refused before anything is written, with the count in the message |
+| Matches sent to the browser | 500 (`MATCH_PAYLOAD_LIMIT`) | 3,000 rows is ~1 MB of JSON on a phone. The list is relevance-ordered first, so the cap keeps the part worth reading, **plus anything already saved** whatever it scored. The screen says "the 500 strongest of 3,000 are loaded" |
+| Rendered at once | 50 (`MATCH_PAGE_SIZE`) | Filtering 3,000 rows is cheap; laying out 3,000 cards is not |
+| Preview rows rendered | 50, with "Show all" | Same reason |
+
+### Finding one company among thousands
+
+The match list carries search, filters and sorting, all pure and tested in
+`match-query.ts`:
+
+- **Search** over company name, categories and products. Every word must match,
+  so a second word narrows. It runs against a `searchText` folded once at build
+  time rather than lowercasing every row on every keystroke.
+- **Filters**: type (customer / supplier / partner), hall, "has a stand",
+  "saved". Every one is a dimension the listing actually holds — there is no
+  "trending" and no second opinion about relevance.
+- **Sorts**: most relevant (the deterministic score, reasons intact), company
+  name, hall and stand. Every comparator ends in the company name, so no two
+  rows tie and the list cannot reshuffle itself between renders.
+- Type counts ignore the type filter, so the other chips still tell you where
+  else to look instead of all reading zero.
+
+The Event Plan has the same shape — search (including the owner's own private
+note), type, hall, and sorts — with priority kept as the grouping whatever the
+sort, because that is the owner's own judgement about who matters. Targets can
+be removed. Nothing there can mark anybody as met.
+
+## 10. Tests
 
 ```bash
-npm run test:event-intelligence     # 273 checks, including a 500-row scale pass
+npm run test:event-intelligence     # 329 checks, including 500/2,000/5,000-row scale passes
 npm run test:account-deletion       # proves the cascade reaches the new tables
 npm run typecheck && npm run lint && npm run build
 ```
@@ -308,7 +387,7 @@ non-idempotent refresh, auto-created encounter, uncertain merge, leaked notes,
 lost provenance, forged score, writable `'met'`) were each applied, each caught,
 and each reverted.
 
-## 10. What is not built
+## 11. What is not built
 
 - **No real data source is connected.** A person can now bring their own CSV or
   JSON, which is the realistic first source; no crawler, API or vendor is wired
@@ -320,11 +399,6 @@ and each reverted.
   rule this feature is built around. The interface for a later adapter exists.
 - **No pricing or entitlement.** Not decided, not built.
 - **No route optimisation, scheduling, outreach or contact discovery**, by design.
-- **Scale is measured, not assumed.** 500 synthetic rows, in PGlite on a laptop:
-  parse and preview 15 ms, import 1.9 s, re-import 1.0 s, matching 32 ms. Import
-  is the slow part and is linear — roughly four statements per row, issued a row
-  at a time. It has **never been run against hosted Supabase**, where each of
-  those statements is a network round trip, so a 500-row import there will be
-  slower and would likely want batching before a fair of several thousand is
-  offered. The preview renders the first 50 rows with a "Show all" control, so
-  the screen does not lay out 500 cards nobody asked for.
+- **Hosted-Supabase performance is unknown.** Everything below is local PGlite
+  on a laptop. Statement *count* is the property that should carry over, since
+  it is what turns into round trips; the milliseconds will not.

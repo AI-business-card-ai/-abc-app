@@ -35,7 +35,9 @@ All of it against a synthetic dataset, on a feature branch, with the flag off.
 - Deterministic matching produces **ABC Match**, 0–100, in three explicit
   directions: potential customer, potential supplier, potential partner. Same
   inputs, same output, every time; weights are documented and versioned.
-- A ranked list with filters (all / customers / suppliers / partners / saved).
+- A ranked list that stays usable at a real fair's size: search across company
+  names, categories and products; filters by direction, hall, whether there is a
+  stand, and whether it is saved; sorting by relevance, name or hall.
 - A detail screen that separates **From the listing** (quoted source facts) from
   **ABC analysis** (inference, with the evidence each statement rests on).
 - Saving a company as a private meeting target, with priority and a private note.
@@ -52,8 +54,10 @@ All of it against a synthetic dataset, on a feature branch, with the flag off.
   credentials stored. See `apify-provider.md`.
 - **Matching is deterministic term overlap**, not a model. It is reproducible
   and explainable, and it is not clever.
-- **Tested to 500 rows locally**, never against hosted Supabase. A large fair
-  may import slowly.
+- **Tested to 5,000 rows locally**, never against hosted Supabase. The import
+  now issues a flat handful of database statements whatever the fair's size,
+  but the measured timings are from a laptop database and say nothing about how
+  it behaves in production.
 - **No pricing, entitlement or credit cost** has been decided or built.
 
 ## Still future
@@ -73,6 +77,7 @@ Only if the section is unambiguously about what is coming, not what is available
 - "See which exhibitors fit what you sell and what you need — and why."
 - "Save the companies worth your time, with their hall and stand."
 - "Bring the organiser's exhibitor list — ABC reads it and shows you what it found."
+- "Search a fair of thousands of exhibitors down to the handful worth your time."
 - "Your plan for the fair, on your phone."
 - "When you meet them, the relationship continues in ABC."
 
