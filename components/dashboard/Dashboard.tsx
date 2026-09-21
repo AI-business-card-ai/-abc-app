@@ -8,10 +8,16 @@ import FollowUpsCard from '@/components/dashboard/FollowUpsCard'
 import MyCardCard from '@/components/dashboard/MyCardCard'
 import RecentActivityCard from '@/components/dashboard/RecentActivityCard'
 import ScanActionCard from '@/components/dashboard/ScanActionCard'
+import dynamic from 'next/dynamic'
 import Avatar from '@/components/ui/abc/Avatar'
 import { useAppProfile } from '@/lib/hooks/useAppProfile'
 import { useFollowUpBadge } from '@/lib/hooks/useFollowUpBadge'
 import type { DashboardData } from '@/lib/dashboard-data'
+import type { HomeMission } from '@/lib/event-intelligence/mission-data'
+
+// Loaded only when there is a mission to show, so Home with Event Intelligence
+// off neither renders nor downloads any of it.
+const ExpoMissionCard = dynamic(() => import('@/components/event-intelligence/ExpoMissionCard'))
 
 function greeting(now: Date = new Date()): string {
   const hour = now.getHours()
@@ -20,7 +26,12 @@ function greeting(now: Date = new Date()): string {
   return 'Good evening'
 }
 
-export default function Dashboard({ data }: { data: DashboardData }) {
+/**
+ * `mission` is present only when Event Intelligence is on (app/home/page.tsx
+ * decides that on the server). Without it this renders exactly what it always
+ * has — the same cards, in the same order.
+ */
+export default function Dashboard({ data, mission }: { data: DashboardData; mission?: HomeMission }) {
   const { profile } = useAppProfile()
   const dueCount = useFollowUpBadge()
 
@@ -67,6 +78,12 @@ export default function Dashboard({ data }: { data: DashboardData }) {
           </Link>
         </div>
       </div>
+
+      {mission ? (
+        <div className="mt-6 lg:mt-8">
+          <ExpoMissionCard mission={mission} />
+        </div>
+      ) : null}
 
       <div className="mt-6 grid grid-cols-1 gap-4 min-[430px]:grid-cols-2 lg:mt-8 lg:grid-cols-4 lg:gap-5">
         <div className="min-[430px]:col-span-2 lg:col-span-1">

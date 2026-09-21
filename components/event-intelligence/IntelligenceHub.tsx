@@ -70,7 +70,7 @@ export default function IntelligenceHub({
             {events.map(({ event, exhibitors, hasObjective, matches, targets }) => (
               <li key={event.id}>
                 <Link
-                  href={`/events/intelligence/${event.eventKey}`}
+                  href={`/events/intelligence/${event.eventKey}/mission`}
                   className="abc-surface flex items-center gap-3 p-4 transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring sm:p-5"
                 >
                   <span className="min-w-0 flex-1">

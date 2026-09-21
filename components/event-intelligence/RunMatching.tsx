@@ -15,9 +15,12 @@ import Button from '@/components/ui/abc/Button'
 export default function RunMatching({
   eventKey,
   again = false,
+  label,
 }: {
   eventKey: string
   again?: boolean
+  /** The Expo Mission words it differently; the action is the same. */
+  label?: string
 }) {
   const router = useRouter()
   const [state, setState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle')
@@ -57,7 +60,7 @@ export default function RunMatching({
   return (
     <div>
       <Button onClick={run} disabled={state === 'working'} variant={again ? 'ghost' : 'gold'} size={again ? 'md' : 'lg'}>
-        {state === 'working' ? 'Matching…' : again ? 'Run matching again' : 'Find who is worth meeting'}
+        {state === 'working' ? 'Matching…' : label ?? (again ? 'Run matching again' : 'Find who is worth meeting')}
       </Button>
 
       {message ? (
