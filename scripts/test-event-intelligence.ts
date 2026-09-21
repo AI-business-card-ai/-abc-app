@@ -102,6 +102,24 @@ import {
 } from '@/lib/event-intelligence/scoring'
 import { DEMO_EVENT_REF, JsonFixtureProvider } from '@/lib/event-intelligence/providers/json-fixture'
 import {
+  missionHomeSummary,
+  missionSetupBodies,
+  missionSetupDefaults,
+  missionTiming,
+  missionToday,
+  nextMissionAction,
+  peopleMet,
+  remainingTargets,
+  selectPrimaryMission,
+  timingLabel,
+  type MissionFacts,
+  type MissionMeetingFact,
+  type MissionOpportunityFact,
+  type MissionTargetFact,
+} from '@/lib/event-intelligence/mission'
+import { loadMissions, loadMissionSetup } from '@/lib/event-intelligence/mission-data'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import {
   DatasetEventProvider,
   parseCsvDataset,
   parseCsvRows,
@@ -3557,9 +3575,19 @@ async function run() {
         (file) =>
           !file.startsWith('app/events/intelligence/') &&
           !file.startsWith('app/api/event-intelligence/') &&
-          file !== 'app/events/page.tsx'
+          file !== 'app/events/page.tsx' &&
+          // Expo Mission on Home (owner decision). Signed-in only: pinned by Z54a below.
+          file !== 'app/home/page.tsx'
       ),
     []
+  )
+  check(
+    'Z54a Home shows a mission only to its signed-in owner: the loader needs a session owner and Home still sends the signed-out to login',
+    [
+      code('lib/event-intelligence/mission-data.ts').includes('const ownerId = await currentOwnerId(supabase)\n  if (!ownerId) return null'),
+      code('app/home/page.tsx').includes("if (!data) redirect('/login')"),
+    ],
+    [true, true]
   )
   check(
     'Z55 the prepare screen applies the phase and window the owner set',
@@ -3599,6 +3627,733 @@ async function run() {
       .filter(Boolean),
     []
   )
+
+  // ══════════ AA. Expo Mission — one next action, derived ══════════
+
+  {
+    // Nothing in this section may reach a real Supabase project; the loader falls back to "no CRM".
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    type Facts = MissionFacts
+    const mEvent = (over: Partial<Facts['event']> = {}): Facts['event'] => ({
+      key: 'medica-2026',
+      name: 'MEDICA 2026',
+      startsOn: '2026-11-16',
+      endsOn: '2026-11-19',
+      city: 'Düsseldorf',
+      venue: null,
+      ...over,
+    })
+    const opp = (id: number, company: string, score: number, extra: Partial<MissionOpportunityFact> = {}): MissionOpportunityFact => ({
+      matchId: `m-${id}`,
+      company,
+      hall: '7',
+      stand: `B${id}`,
+      matchType: 'customer',
+      score,
+      why: `${company} builds diagnostic systems that use imaging components.`,
+      listing: ['Medical imaging', 'Diagnostic equipment', 'DE'],
+      ...extra,
+    })
+    const tgt = (id: number, company: string, priority: 1 | 2 | 3, extra: Partial<MissionTargetFact> = {}): MissionTargetFact => ({
+      ...opp(id, company, 70),
+      targetId: `t-${id}`,
+      status: 'saved',
+      priority,
+      met: false,
+      brief: null,
+      ...extra,
+    })
+    const meet = (id: number, name: string, extra: Partial<MissionMeetingFact> = {}): MissionMeetingFact => ({
+      encounterId: `e-${id}`,
+      contactId: `c-${id}`,
+      personName: name,
+      company: 'Anna Medical GmbH',
+      metAt: '2026-11-17T10:00:00Z',
+      discussed: 'DACH distribution',
+      nextAction: 'Send pricing',
+      followUp: 'none',
+      followUpAt: null,
+      inCrm: false,
+      ...extra,
+    })
+    const facts = (over: Partial<Facts> = {}): Facts => ({
+      event: mEvent(),
+      today: '2026-10-01',
+      setupComplete: true,
+      exhibitors: 120,
+      matchedCompanies: 18,
+      opportunities: [opp(1, 'XYZ Medical', 82), opp(2, 'Beta Imaging', 60)],
+      targets: [],
+      meetings: [],
+      crmConnected: false,
+      ...over,
+    })
+    const act = (f: Facts) => nextMissionAction(f)
+
+    // Timing, from the fair's own dates.
+    check(
+      'AA1 the fair is placed in time from its dates: ahead, tomorrow, live on day two, over, and undated',
+      [
+        timingLabel(missionTiming(mEvent(), '2026-10-01')),
+        timingLabel(missionTiming(mEvent(), '2026-11-15')),
+        timingLabel(missionTiming(mEvent(), '2026-11-17')),
+        timingLabel(missionTiming(mEvent(), '2026-11-20')),
+        timingLabel(missionTiming(mEvent(), '2026-11-25')),
+        missionTiming(mEvent({ startsOn: null, endsOn: null }), '2026-10-01'),
+        missionToday(new Date('2026-11-17T23:30:00Z')),
+      ],
+      ['In 46 days', 'Tomorrow', 'Live · day 2 of 4', 'Ended yesterday', 'Ended 6 days ago', { kind: 'undated' }, '2026-11-17']
+    )
+
+    // Setup and missing data.
+    const setup = act(facts({ setupComplete: false }))
+    check('AA2 setup incomplete: finish the mission setup', [setup.stage, setup.primary], ['setup_required', { kind: 'setup', label: 'Build my mission' }])
+    const noList = act(facts({ exhibitors: 0 }))
+    check(
+      'AA3 no exhibitor list: import one — ABC does not claim to know the fair',
+      [noList.stage, noList.primary],
+      ['no_exhibitors', { kind: 'link', label: 'Import the exhibitor list', href: '/events/intelligence/import' }]
+    )
+    const noMatches = act(facts({ matchedCompanies: 0, opportunities: [] }))
+    check('AA4 nothing matched yet: find opportunities with the existing engine', [noMatches.stage, noMatches.primary.kind], ['find_opportunities', 'run-matching'])
+
+    // Mission ready.
+    const ready = act(facts())
+    const readyHome = missionHomeSummary(facts())
+    check(
+      'AA5 mission ready: start with the best opportunity, with the listing and ABC’s reading kept apart',
+      {
+        stage: ready.stage,
+        title: ready.title,
+        location: ready.location,
+        listing: ready.listing,
+        lines: ready.lines,
+        primary: ready.primary,
+        why: ready.whyHref,
+      },
+      {
+        stage: 'review_opportunities',
+        title: 'XYZ Medical',
+        location: 'Hall 7 · B1',
+        listing: ['Medical imaging', 'Diagnostic equipment', 'DE'],
+        lines: [{ label: 'Why it may matter', text: 'XYZ Medical builds diagnostic systems that use imaging components.' }],
+        primary: { kind: 'link', label: 'Start with the best opportunities', href: '/events/intelligence/medica-2026/m/m-1' },
+        why: '/events/intelligence/medica-2026/m/m-1',
+      }
+    )
+    check(
+      'AA6 Home says the mission is ready, how many companies are worth reviewing, and offers one thing',
+      [readyHome.headline, readyHome.next, readyHome.cta, readyHome.timing, readyHome.live],
+      ['Your mission is ready.', '18 companies worth reviewing', { label: 'Start mission', href: '/events/intelligence/medica-2026/mission' }, 'In 46 days', false]
+    )
+
+    // Preparation, by the owner's own priority.
+    const prepare = act(facts({ targets: [tgt(2, 'Second Priority', 2), tgt(3, 'Top Priority', 1)] }))
+    check(
+      'AA7 a saved target with nothing prepared: prepare the highest-priority conversation',
+      [prepare.stage, prepare.title, prepare.primary],
+      ['prepare_target', 'Top Priority', { kind: 'link', label: 'Prepare this conversation', href: '/events/intelligence/medica-2026/m/m-3/prepare' }]
+    )
+    const drafted = act(facts({ targets: [tgt(3, 'Top Priority', 1, { brief: { status: 'draft', topic: 'Precision components for diagnostic systems', productName: 'Medical Imaging Components' } })] }))
+    check(
+      'AA8 a draft carries the angle and what to show into the next step, without asking again',
+      drafted.lines,
+      [
+        { label: 'Why it may matter', text: 'Top Priority builds diagnostic systems that use imaging components.' },
+        { label: 'Your angle', text: 'Precision components for diagnostic systems' },
+        { label: 'Show', text: 'Medical Imaging Components' },
+      ]
+    )
+    const share = act(facts({ targets: [tgt(3, 'Top Priority', 1, { brief: { status: 'ready', topic: 'Precision components', productName: 'Imaging Kit' } })] }))
+    check(
+      'AA9 a prepared request: share it',
+      [share.stage, share.eyebrow, share.primary],
+      ['share_request', 'Your meeting request is ready', { kind: 'link', label: 'Share meeting request', href: '/events/intelligence/medica-2026/m/m-3/prepare' }]
+    )
+
+    // INVITATION ≠ MEETING.
+    const sharedTarget = tgt(3, 'Top Priority', 1, { brief: { status: 'shared', topic: 'Precision components', productName: 'Imaging Kit' } })
+    const afterShare = act(facts({ targets: [sharedTarget], opportunities: [opp(9, 'Weak Lead', 40)] }))
+    check(
+      'AA10 INVITATION ≠ MEETING: a shared request moves the owner on, but the company stays a target and nobody is met',
+      [
+        afterShare.stage,
+        afterShare.primary,
+        remainingTargets(facts({ targets: [sharedTarget] })).map((t) => t.company),
+        peopleMet(facts({ targets: [sharedTarget] })),
+      ],
+      ['plan_ready', { kind: 'link', label: 'Review my plan', href: '/events/intelligence/medica-2026/plan' }, ['Top Priority'], 0]
+    )
+    const moreToReview = act(facts({ targets: [sharedTarget], opportunities: [opp(8, 'Strong Lead', 71)] }))
+    check('AA11 with a strong opportunity still unsaved, review it next', [moreToReview.stage, moreToReview.title], ['review_opportunities', 'Strong Lead'])
+    const liveShared = act(facts({ today: '2026-11-17', targets: [sharedTarget] }))
+    check('AA12 at the fair, a company whose request was shared is still a target to visit', [liveShared.stage, liveShared.title], ['visit_target', 'Top Priority'])
+
+    // Live.
+    const live = act(
+      facts({
+        today: '2026-11-17',
+        targets: [tgt(3, 'XYZ Medical', 1, { brief: { status: 'shared', topic: 'Precision components', productName: 'Medical Imaging Components' } }), tgt(4, 'Other Co', 2)],
+        meetings: [meet(1, 'Anna')],
+      })
+    )
+    const liveHome = missionHomeSummary(
+      facts({ today: '2026-11-17', targets: [tgt(3, 'XYZ Medical', 1), tgt(4, 'Other Co', 2)], meetings: [meet(1, 'Anna')] })
+    )
+    check(
+      'AA13 during the fair the same screen adapts: the next target, why, what to discuss, what to show — and scanning stays one tap away',
+      { stage: live.stage, title: live.title, location: live.location, lines: live.lines.map((l) => l.label), primary: live.primary, secondary: live.secondary },
+      {
+        stage: 'visit_target',
+        title: 'XYZ Medical',
+        location: 'Hall 7 · B3',
+        lines: ['Why visit them', 'What to discuss', 'What to show'],
+        primary: { kind: 'link', label: 'Open target', href: '/events/intelligence/medica-2026/m/m-3' },
+        secondary: [{ label: 'Scan a person', href: '/scan' }],
+      }
+    )
+    check(
+      'AA14 Home during the fair: live, people met, targets remaining, continue',
+      [liveHome.live, liveHome.timing, liveHome.headline, liveHome.cta.label],
+      [true, 'Live · day 2 of 4', '1 person met · 2 targets remaining', 'Continue my mission']
+    )
+    const liveEmpty = act(facts({ today: '2026-11-17', targets: [tgt(3, 'Met Co', 1, { met: true })] }))
+    check('AA15 every target met: meet people and scan them', [liveEmpty.stage, liveEmpty.primary], ['scan_people', { kind: 'link', label: 'Scan a person', href: '/scan' }])
+
+    // TARGET ≠ ENCOUNTER.
+    const opened = tgt(3, 'Opened Co', 1, { brief: { status: 'shared', topic: 'x', productName: null } })
+    check(
+      'AA16 TARGET ≠ ENCOUNTER: only a recorded meeting makes a target met — not preparing, sharing, opening or the fair starting',
+      [
+        remainingTargets(facts({ today: '2026-11-17', targets: [opened] })).length,
+        remainingTargets(facts({ today: '2026-11-17', targets: [{ ...opened, met: true }] })).length,
+        remainingTargets(facts({ today: '2026-11-17', targets: [opened], meetings: [meet(5, 'Someone Else')] })).length,
+        peopleMet(facts({ today: '2026-11-17', targets: [opened], meetings: [meet(5, 'Someone Else')] })),
+      ],
+      [1, 0, 1, 1]
+    )
+
+    // A real meeting changes the recommendation.
+    const due = act(facts({ today: '2026-11-17', targets: [tgt(3, 'XYZ Medical', 1)], meetings: [meet(1, 'Anna', { followUp: 'due', followUpAt: '2026-11-17T08:00:00Z' })] }))
+    check(
+      'AA17 after a real meeting with a follow-up due: follow up with that person, with what was discussed and the next step',
+      { stage: due.stage, title: due.title, lines: due.lines, primary: due.primary },
+      {
+        stage: 'follow_up',
+        title: 'Follow up with Anna',
+        lines: [
+          { label: 'You discussed', text: 'DACH distribution' },
+          { label: 'Next step', text: 'Send pricing' },
+        ],
+        primary: { kind: 'link', label: 'Continue follow-up', href: '/contacts/c-1' },
+      }
+    )
+    const notYet = act(facts({ today: '2026-11-17', targets: [tgt(3, 'XYZ Medical', 1)], meetings: [meet(1, 'Anna', { followUp: 'scheduled', followUpAt: '2026-11-25T08:00:00Z' })] }))
+    check('AA18 a follow-up scheduled for later does not jump the queue at the fair', notYet.stage, 'visit_target')
+
+    // After the fair.
+    const crmStep = act(facts({ today: '2026-11-22', crmConnected: true, meetings: [meet(1, 'Anna')] }))
+    check(
+      'AA19 follow-up done but the meeting not in the CRM: send it',
+      [crmStep.stage, crmStep.title, crmStep.primary],
+      ['send_to_crm', 'Send Anna to your CRM', { kind: 'link', label: 'Send to CRM', href: '/contacts/c-1' }]
+    )
+    const noCrm = act(facts({ today: '2026-11-22', crmConnected: false, meetings: [meet(1, 'Anna')] }))
+    check('AA20 without a connected CRM, ABC never nags about one', noCrm.stage, 'complete')
+    const many = facts({
+      today: '2026-11-22',
+      crmConnected: true,
+      meetings: [
+        meet(1, 'Anna', { followUp: 'due', followUpAt: '2026-11-20T08:00:00Z' }),
+        meet(2, 'Bert', { followUp: 'due', followUpAt: '2026-11-21T08:00:00Z' }),
+        meet(3, 'Cleo', { inCrm: false }),
+        meet(4, 'Dora', { inCrm: true }),
+      ],
+    })
+    const manyAction = act(many)
+    const manyHome = missionHomeSummary(many)
+    check(
+      'AA21 after the fair: the relationships that need the owner, and one way on',
+      [manyAction.stage, manyAction.title, manyAction.lines, manyAction.primary, manyHome.headline, manyHome.cta.label],
+      [
+        'relationships_need_attention',
+        '3 relationships need your attention',
+        [
+          { label: 'Follow-ups due', text: '2' },
+          { label: 'Not yet in your CRM', text: '3' },
+        ],
+        { kind: 'link', label: 'Continue follow-ups', href: '/contacts/c-1' },
+        '3 relationships need follow-up',
+        'Continue follow-ups',
+      ]
+    )
+    const complete = act(facts({ today: '2026-11-22', crmConnected: true, meetings: [meet(1, 'Anna', { inCrm: true })] }))
+    check(
+      'AA22 everything done: mission complete, with a simple summary',
+      [complete.stage, complete.title, complete.lines, missionHomeSummary(facts({ today: '2026-11-22', crmConnected: true, meetings: [meet(1, 'Anna', { inCrm: true })] })).headline],
+      ['complete', 'Mission complete', [{ label: 'People met', text: '1' }, { label: 'In your CRM', text: '1' }], 'Mission complete']
+    )
+    check(
+      'AA23 scheduled follow-ups keep the mission open without pretending anything is due',
+      act(facts({ today: '2026-11-22', meetings: [meet(1, 'Anna', { followUp: 'scheduled', followUpAt: '2026-12-01T09:00:00Z' })] })).stage,
+      'follow_ups_scheduled'
+    )
+    check('AA24 a fair that is over with no meetings recorded says so', act(facts({ today: '2026-11-22' })).stage, 'no_meetings_recorded')
+
+    // One primary action, always.
+    const everyState: Facts[] = [
+      facts({ setupComplete: false }),
+      facts({ exhibitors: 0 }),
+      facts({ matchedCompanies: 0, opportunities: [] }),
+      facts(),
+      facts({ targets: [tgt(3, 'T', 1)] }),
+      facts({ targets: [tgt(3, 'T', 1, { brief: { status: 'ready', topic: 'a', productName: null } })] }),
+      facts({ targets: [sharedTarget], opportunities: [] }),
+      facts({ today: '2026-11-17', targets: [tgt(3, 'T', 1)] }),
+      facts({ today: '2026-11-17' , opportunities: [] }),
+      facts({ today: '2026-11-17', meetings: [meet(1, 'Anna', { followUp: 'due', followUpAt: '2026-11-17T01:00:00Z' })] }),
+      many,
+      facts({ today: '2026-11-22', crmConnected: true, meetings: [meet(1, 'Anna')] }),
+      facts({ today: '2026-11-22', meetings: [meet(1, 'Anna', { followUp: 'scheduled', followUpAt: '2026-12-01T09:00:00Z' })] }),
+      facts({ today: '2026-11-22', crmConnected: true, meetings: [meet(1, 'Anna', { inCrm: true })] }),
+      facts({ today: '2026-11-22' }),
+    ]
+    const actions = everyState.map((f) => act(f))
+    check('AA25 every state reaches a different, deliberate answer', new Set(actions.map((a) => a.stage)).size, 15)
+    check(
+      'AA26 every state has exactly one primary action and at most two quiet ones; Home always offers exactly one',
+      [
+        actions.filter((a) => !a.primary || a.secondary.length > 2),
+        everyState.map((f) => missionHomeSummary(f)).filter((s) => !s.cta || !s.cta.label || !s.cta.href),
+      ],
+      [[], []]
+    )
+    const words = [
+      ...actions.flatMap((a) => [a.eyebrow, a.title, a.primary.label, ...a.lines.map((l) => l.label), ...a.secondary.map((s) => s.label)]),
+      ...everyState.flatMap((f) => {
+        const s = missionHomeSummary(f)
+        return [s.headline, s.next ?? '', s.cta.label, s.timing ?? '']
+      }),
+    ].join(' | ')
+    check(
+      'AA27 the words on screen never expose the architecture: no matches, scores, engine, objective, phases or states',
+      words.match(/\bmatch(es|ing)?\b|\bscore|\bengine\b|\bobjective\b|\bphase\b|\bpre-event\b|\bpost-event\b|\bduring\b|SETUP_|MISSION_|_REQUIRED/gi),
+      null
+    )
+    check(
+      'AA28 the same facts always give the same answer, whatever order the rows arrived in',
+      [
+        act(facts({ targets: [tgt(2, 'B Co', 2), tgt(3, 'A Co', 1), tgt(4, 'C Co', 1)] })).title,
+        act(facts({ targets: [tgt(4, 'C Co', 1), tgt(2, 'B Co', 2), tgt(3, 'A Co', 1)] })).title,
+        act(facts({ today: '2026-11-17', targets: [tgt(4, 'C Co', 1, { hall: '9' }), tgt(3, 'A Co', 1, { hall: '10' })] })).title,
+      ],
+      ['A Co', 'A Co', 'C Co']
+    )
+
+    // Which mission leads Home.
+    const mission = (key: string, name: string, over: Partial<Facts>) => facts({ event: mEvent({ key, name }), ...over })
+    const liveM = mission('live-fair', 'Live Fair', { today: '2026-11-17' })
+    const soonM = mission('soon-fair', 'Soon Fair', { event: mEvent({ key: 'soon-fair', name: 'Soon Fair', startsOn: '2026-11-20', endsOn: '2026-11-21' }), today: '2026-11-17' })
+    const laterM = mission('later-fair', 'Later Fair', { event: mEvent({ key: 'later-fair', name: 'Later Fair', startsOn: '2027-02-01', endsOn: '2027-02-03' }), today: '2026-11-17' })
+    const pastOpen = mission('past-open', 'Past Open', { event: mEvent({ key: 'past-open', name: 'Past Open', startsOn: '2026-10-01', endsOn: '2026-10-03' }), today: '2026-11-17', meetings: [meet(1, 'Anna', { followUp: 'due', followUpAt: '2026-11-01T00:00:00Z' })] })
+    const pastDone = mission('past-done', 'Past Done', { event: mEvent({ key: 'past-done', name: 'Past Done', startsOn: '2026-09-01', endsOn: '2026-09-03' }), today: '2026-11-17' })
+    const undatedM = mission('undated', 'Undated Fair', { event: mEvent({ key: 'undated', name: 'Undated Fair', startsOn: null, endsOn: null }), today: '2026-11-17' })
+    check(
+      'AA29 with several missions, Home leads with the live fair, then the nearest ahead, then unfinished follow-up, then an undated one — and nothing when all are done',
+      [
+        selectPrimaryMission([pastOpen, laterM, soonM, liveM, undatedM])?.event.key,
+        selectPrimaryMission([pastOpen, laterM, soonM, undatedM])?.event.key,
+        selectPrimaryMission([pastOpen, undatedM, pastDone])?.event.key,
+        selectPrimaryMission([undatedM, pastDone])?.event.key,
+        selectPrimaryMission([pastDone]),
+        selectPrimaryMission([]),
+      ],
+      ['live-fair', 'soon-fair', 'past-open', 'undated', null, null]
+    )
+    check(
+      'AA30 two fairs equally near are chosen by name, so the choice never flickers',
+      [
+        selectPrimaryMission([mission('b', 'Beta Fair', { event: mEvent({ key: 'b', name: 'Beta Fair' }) }), mission('a', 'Alpha Fair', { event: mEvent({ key: 'a', name: 'Alpha Fair' }) })])?.event.key,
+        selectPrimaryMission([mission('a', 'Alpha Fair', { event: mEvent({ key: 'a', name: 'Alpha Fair' }) }), mission('b', 'Beta Fair', { event: mEvent({ key: 'b', name: 'Beta Fair' }) })])?.event.key,
+      ],
+      ['a', 'a']
+    )
+
+    // Setup: three answers onto the profile and objective the engine already reads.
+    const bodies = missionSetupBodies(
+      { sell: 'Medical imaging components', lookingFor: 'OEM customers and distributors in DACH', suppliers: false, distributors: true, partners: false },
+      'medica-2026',
+      DEMO_PROFILE,
+      null
+    )
+    check(
+      'AA31 building a mission writes what you sell and what you look for, and keeps everything else the owner set',
+      bodies.ok
+        ? {
+            sell: bodies.value.profile.whatWeSell,
+            capabilities: bodies.value.profile.capabilities,
+            geographies: bodies.value.profile.geographies,
+            company: bodies.value.profile.companyName,
+            goals: bodies.value.objective.goals,
+            partner: bodies.value.objective.partnerFocus,
+            buy: bodies.value.objective.buyFocus,
+            key: bodies.value.objective.eventKey,
+          }
+        : bodies.error,
+      {
+        sell: ['Medical imaging components'],
+        capabilities: DEMO_PROFILE.capabilities,
+        geographies: DEMO_PROFILE.geographies,
+        company: DEMO_PROFILE.companyName,
+        goals: 'OEM customers and distributors in DACH',
+        partner: ['distributor', 'distribution'],
+        buy: [],
+        key: 'medica-2026',
+      }
+    )
+    const buyer = missionSetupBodies({ sell: '', lookingFor: 'Anodising, surface coating', suppliers: true, distributors: false, partners: true }, 'medica-2026', null, null, 'Nordfeld')
+    check(
+      'AA32 a buyer with nothing to sell: what they need becomes the supplier search and partnership interest',
+      buyer.ok ? [buyer.value.profile.whatWeBuy, buyer.value.objective.buyFocus, buyer.value.objective.partnerFocus, buyer.value.profile.companyName] : buyer.error,
+      [['Anodising', 'surface coating'], ['Anodising', 'surface coating'], ['Anodising', 'surface coating'], 'Nordfeld']
+    )
+    const nothing = missionSetupBodies({ sell: '  ', lookingFor: 'anything', suppliers: false, distributors: false, partners: false }, 'medica-2026', null, null)
+    check('AA33 with nothing to sell and nothing needed, ABC asks rather than matching on nothing', nothing.ok ? 'accepted' : nothing.error, 'Tell ABC what you sell — or choose Suppliers and say what you need.')
+    check(
+      'AA34 what the form sends passes the existing API validation unchanged — there is no second setup model',
+      bodies.ok && buyer.ok
+        ? [parseIntentProfile(bodies.value.profile).ok, parseEventObjective(bodies.value.objective).ok, parseIntentProfile(buyer.value.profile).ok, parseEventObjective(buyer.value.objective).ok]
+        : 'bodies failed',
+      [true, true, true, true]
+    )
+    const roundTrip = missionSetupDefaults(DEMO_PROFILE, { ...DEMO_OBJECTIVE, goals: 'OEM customers', partnerFocus: ['distributor', 'distribution', 'Prototyping'] }, [])
+    check(
+      'AA35 the form starts from what ABC already holds: what you sell, what you look for, and which extras were chosen',
+      roundTrip,
+      { sell: DEMO_PROFILE.whatWeSell.join(', '), lookingFor: 'OEM customers', suppliers: true, distributors: true, partners: true }
+    )
+    check(
+      'AA36 with no profile yet, the products the owner already described prefill what they sell — nothing is invented',
+      [missionSetupDefaults(null, null, ['Imaging Kit', 'Detector Arm']).sell, missionSetupDefaults(null, null, []).sell],
+      ['Imaging Kit, Detector Arm', '']
+    )
+
+    // "Distributors" is honest: it only finds a partner the listing itself backs.
+    if (bodies.ok) {
+      const mProfile: CompanyIntentProfile = { ...DEMO_PROFILE, whatWeSell: bodies.value.profile.whatWeSell as string[] }
+      const mObjective: EventObjective = { ...DEMO_OBJECTIVE, goals: String(bodies.value.objective.goals), buyFocus: [], partnerFocus: bodies.value.objective.partnerFocus as string[] }
+      const distributor = { id: 'p-d', eventId: 'e', companyId: 'c-d', exhibitorDisplayName: 'MedDistri AG', hall: '7', stand: 'B40', eventCategories: ['Medical distribution'], eventDescription: 'Distributor of imaging equipment for hospitals in Germany and Austria.', productsServices: [], listingUrl: null, status: 'listed', firstSeenAt: '', lastSeenAt: '' } as unknown as ReturnType<typeof toPresence>
+      const caterer = { ...distributor, id: 'p-c', companyId: 'c-c', exhibitorDisplayName: 'Hall Catering', eventCategories: ['Catering'], eventDescription: 'Stand catering.' } as ReturnType<typeof toPresence>
+      const mCompanies = new Map([
+        ['c-d', { id: 'c-d', displayName: 'MedDistri AG', nameNormalized: 'meddistri', websiteDomain: null, country: 'DE', descriptionPublic: null, categories: [], mergeCandidateOf: null }],
+        ['c-c', { id: 'c-c', displayName: 'Hall Catering', nameNormalized: 'hall catering', websiteDomain: null, country: 'DE', descriptionPublic: null, categories: [], mergeCandidateOf: null }],
+      ]) as unknown as Map<string, ReturnType<typeof toCompany>>
+      const found = matchEvent(mProfile, mObjective, [distributor, caterer], mCompanies)
+      const partner = found.find((m) => m.presenceId === 'p-d' && m.matchType === 'partner')
+      check(
+        'AA37 choosing Distributors finds a distributor only where the listing says so, and quotes it',
+        [Boolean(partner), partner ? partner.evidence.some((e) => /distribut/i.test(e.value)) : false, found.some((m) => m.presenceId === 'p-c')],
+        [true, true, false]
+      )
+    }
+
+    // Home, navigation and the flag.
+    const home = code('app/home/page.tsx')
+    const dashboard = code('components/dashboard/Dashboard.tsx')
+    check(
+      'AA38 feature off: Home reads no mission and renders exactly the cards it always had',
+      [
+        home.includes('eventIntelligenceEnabled() ? loadHomeMission(missionToday()) : Promise.resolve(null)'),
+        dashboard.includes('{mission ? ('),
+        dashboard.includes("dynamic(() => import('@/components/event-intelligence/ExpoMissionCard'))"),
+        ['<ScanActionCard />', '<ContactsCard', '<MyCardCard', '<FollowUpsCard', '<EventsCard', '<RecentActivityCard'].every((c) => dashboard.includes(c)),
+      ],
+      [true, true, true, true]
+    )
+    check(
+      'AA39 feature on: Home gains the Expo Mission card above the existing cards, and nothing else changes',
+      dashboard.indexOf('<ExpoMissionCard mission={mission} />') > 0 && dashboard.indexOf('<ExpoMissionCard') < dashboard.indexOf('<ScanActionCard />'),
+      true
+    )
+    check(
+      'AA40 the navigation is untouched: no sidebar change, no new tab, the four bottom tabs as they were',
+      [
+        git('diff', '--name-only', BASE_REF, '--', 'components/layout'),
+        [...code('components/layout/MobileNav.tsx').matchAll(/label: '([^']+)', path: '([^']+)'/g)].map((m) => `${m[1]} ${m[2]}`),
+      ],
+      ['', ['Scan /scan', 'Contacts /contacts', 'My Card /my-card', 'Follow-ups /follow-ups']]
+    )
+    check(
+      'AA41 the mission is derived, never stored: no migration, table or column for it',
+      [
+        fs.readdirSync(path.join(ROOT, 'supabase/migrations')).filter((f) => /missions?/i.test(f) || /missions?/i.test(read(`supabase/migrations/${f}`))),
+        /\.(insert|update|upsert|delete)\(/.test(code('lib/event-intelligence/mission.ts') + code('lib/event-intelligence/mission-data.ts')),
+      ],
+      [[], false]
+    )
+    const missionData = code('lib/event-intelligence/mission-data.ts')
+    check(
+      'AA42 the one service-role read is the CRM evidence the session cannot see: two selects, the session owner only, a flag and ids out',
+      [
+        (missionData.match(/createServiceClient\(\)/g) ?? []).length,
+        missionData.includes(".from('crm_connections').select('provider').eq('user_id', ownerId)"),
+        missionData.includes(".select('local_object_id, provider')") && missionData.includes(".eq('local_object_type', 'encounter')"),
+        /access_token|refresh_token|remote_object_id/.test(missionData),
+      ],
+      [1, true, true, false]
+    )
+    check(
+      'AA43 building a mission reuses the existing endpoints — profile, objective, match — and adds no API route',
+      [
+        ['/api/event-intelligence/profile', '/api/event-intelligence/objective', '/api/event-intelligence/match'].every((route) =>
+          code('components/event-intelligence/MissionSetupForm.tsx').includes(`'${route}'`)
+        ),
+        fs.existsSync(path.join(ROOT, 'app/api/event-intelligence/mission')),
+      ],
+      [true, false]
+    )
+    const cardSrc = code('components/event-intelligence/ExpoMissionCard.tsx') + code('components/event-intelligence/MissionView.tsx') + code('components/event-intelligence/MissionSetupForm.tsx')
+    check(
+      'AA44 accessible: headings, a labelled region, pressed state on choices, a live status, and ≥44px targets',
+      [
+        code('components/event-intelligence/ExpoMissionCard.tsx').includes('aria-labelledby="expo-mission-title"'),
+        code('components/event-intelligence/MissionView.tsx').includes('<h1'),
+        code('components/event-intelligence/MissionSetupForm.tsx').includes('aria-pressed={on}'),
+        code('components/event-intelligence/MissionSetupForm.tsx').includes('aria-live="polite"'),
+        (cardSrc.match(/min-h-\[44px\]/g) ?? []).length >= 6,
+        /(?<![a-z-])w-\[\d+px\]/.test(cardSrc),
+      ],
+      [true, true, true, true, true, false]
+    )
+    check(
+      'AA45 no Before / During / After navigation and no tabs on the mission',
+      /role="tab"|<Tabs|>\s*(Before|During|After)\s*</.test(cardSrc),
+      false
+    )
+
+    // ── Against a real database, as the owner, through RLS ──
+
+    const { db: mdb } = await freshDatabase()
+    await seedAccount(mdb, OWNER, 'mission-owner')
+    await seedAccount(mdb, OTHER, 'mission-other')
+    await ingestEvent(new JsonFixtureProvider(), DEMO_EVENT_REF, pgliteIngestStore(mdb), () => '2026-09-21T10:00:00.000Z')
+
+    /** Just enough of supabase-js, over PGlite, as `authenticated` with a JWT subject. */
+    const rest = (sub: string) => {
+      const ident = (s: string) => {
+        if (!/^[a-z_, ]+$/.test(s)) throw new Error(`unexpected identifier ${s}`)
+        return s
+      }
+      const from = (table: string) => {
+        const state = {
+          cols: '*',
+          where: [] as { col: string; op: '=' | 'in'; value: unknown }[],
+          order: [] as { col: string; asc: boolean }[],
+          range: null as [number, number] | null,
+          limit: null as number | null,
+          head: false,
+          count: false,
+          single: false,
+        }
+        const run = async () => {
+          const params: unknown[] = []
+          const clause = state.where
+            .map((w) => {
+              params.push(w.op === 'in' ? (w.value as unknown[]).map(String) : String(w.value))
+              return w.op === 'in' ? `${ident(w.col)}::text = any($${params.length}::text[])` : `${ident(w.col)}::text = $${params.length}::text`
+            })
+            .join(' and ')
+          const where = clause ? `where ${clause}` : ''
+          try {
+            if (state.count && state.head) {
+              const res = await asRole<{ n: number }>(mdb, 'authenticated', `select count(*)::int as n from public.${ident(table)} ${where}`, params, sub)
+              return { data: null, error: null, count: res.rows[0].n }
+            }
+            const order = state.order.length ? `order by ${state.order.map((o) => `${ident(o.col)} ${o.asc ? 'asc' : 'desc'} nulls last`).join(', ')}` : ''
+            const limit = state.range ? `limit ${state.range[1] - state.range[0] + 1} offset ${state.range[0]}` : state.limit !== null ? `limit ${state.limit}` : ''
+            const res = await asRole<{ row: Record<string, unknown> }>(
+              mdb,
+              'authenticated',
+              `select to_jsonb(t) as row from (select ${ident(state.cols)} from public.${ident(table)} ${where} ${order} ${limit}) t`,
+              params,
+              sub
+            )
+            const rows = res.rows.map((r) => r.row)
+            return { data: state.single ? rows[0] ?? null : rows, error: null, count: null }
+          } catch (err) {
+            return { data: null, error: { code: (err as { code?: string }).code ?? 'error' }, count: null }
+          }
+        }
+        const builder = {
+          select(cols: string, opts?: { count?: string; head?: boolean }) {
+            state.cols = cols
+            state.count = opts?.count === 'exact'
+            state.head = Boolean(opts?.head)
+            return builder
+          },
+          eq(col: string, value: unknown) {
+            state.where.push({ col, op: '=', value })
+            return builder
+          },
+          in(col: string, values: unknown[]) {
+            state.where.push({ col, op: 'in', value: values })
+            return builder
+          },
+          order(col: string, opts?: { ascending?: boolean }) {
+            state.order.push({ col, asc: opts?.ascending !== false })
+            return builder
+          },
+          range(a: number, b: number) {
+            state.range = [a, b]
+            return builder
+          },
+          limit(n: number) {
+            state.limit = n
+            return builder
+          },
+          maybeSingle() {
+            state.single = true
+            return builder
+          },
+          then(resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) {
+            return run().then(resolve, reject)
+          },
+        }
+        return builder
+      }
+      return { from } as unknown as SupabaseClient
+    }
+
+    const ownerRest = rest(OWNER)
+    const fairKey = 'abc-industrial-future-expo-2026'
+    const fairId = (await rowsOf<{ id: string }>(mdb, 'select id from public.intel_events where event_key = $1', [fairKey]))[0].id
+    const listed = (await rowsOf<{ n: number }>(mdb, "select count(*)::int as n from public.intel_company_presences where event_id = $1 and status = 'listed'", [fairId]))[0].n
+
+    const empty = await loadMissions(ownerRest, OWNER, '2026-10-01')
+    const setupCtx = await loadMissionSetup(ownerRest, OWNER, '2026-10-01')
+    check(
+      'AA46 real database: no objective, no mission — Home offers setup for the fair ABC holds, with its exhibitor count',
+      [empty.missions.length, setupCtx.events.map((e) => [e.key, e.exhibitors, e.hasMission]), setupCtx.defaults.sell],
+      [0, [[fairKey, listed, false]], '']
+    )
+
+    // Build the mission the way the form does: profile, objective, then the engine's matches.
+    const profileId = (
+      await rowsOf<{ id: string }>(
+        mdb,
+        'insert into public.intel_company_profiles (user_id, company_name, what_we_do, what_we_sell, what_we_buy, who_we_want_to_meet, target_industries, target_company_types, capabilities, materials, geographies) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning id',
+        [OWNER, DEMO_PROFILE.companyName, DEMO_PROFILE.whatWeDo, DEMO_PROFILE.whatWeSell, DEMO_PROFILE.whatWeBuy, DEMO_PROFILE.whoWeWantToMeet, DEMO_PROFILE.targetIndustries, DEMO_PROFILE.targetCompanyTypes, DEMO_PROFILE.capabilities, DEMO_PROFILE.materials, DEMO_PROFILE.geographies]
+      )
+    )[0].id
+    const objectiveId = (
+      await rowsOf<{ id: string }>(mdb, 'insert into public.intel_event_objectives (user_id, event_id, profile_id, buy_focus, partner_focus) values ($1,$2,$3,$4,$5) returning id', [OWNER, fairId, profileId, DEMO_OBJECTIVE.buyFocus, DEMO_OBJECTIVE.partnerFocus])
+    )[0].id
+    const mPresences = (await rowsOf(mdb, `select ${PRESENCE_SQL} from public.intel_company_presences where event_id = $1 order by id`, [fairId])).map(toPresence)
+    const mCompaniesDb = new Map(
+      (await rowsOf(mdb, 'select id, display_name, name_normalized, website_domain, country, description_public, categories, merge_candidate_of from public.intel_companies')).map((row) => [String(row.id), toCompany(row)])
+    )
+    const results = matchEvent(DEMO_PROFILE, DEMO_OBJECTIVE, mPresences, mCompaniesDb)
+    const matchIds: string[] = []
+    for (const r of results) {
+      matchIds.push(
+        (
+          await rowsOf<{ id: string }>(
+            mdb,
+            "insert into public.intel_matches (user_id, objective_id, presence_id, match_type, score, engine_version, reasons, evidence, warnings) values ($1,$2,$3,$4,$5,'deterministic-v1',$6,$7,$8) returning id",
+            [OWNER, objectiveId, r.presenceId, r.matchType, r.score, JSON.stringify(r.reasons), JSON.stringify(r.evidence), JSON.stringify(r.warnings)]
+          )
+        )[0].id
+      )
+    }
+    const distinctMatched = new Set(results.map((r) => r.presenceId)).size
+    // The strongest match exactly as the database orders it: score, then id.
+    const top = (await rowsOf<{ id: string; presence_id: string }>(mdb, 'select id, presence_id from public.intel_matches where objective_id = $1 order by score desc, id asc limit 1', [objectiveId]))[0]
+    const topName = (() => {
+      const p = mPresences.find((x) => x.id === top.presence_id)
+      return p ? p.exhibitorDisplayName ?? mCompaniesDb.get(p.companyId)?.displayName ?? '?' : '?'
+    })()
+
+    const readyDb = await loadMissions(ownerRest, OWNER, '2026-10-01')
+    const readyMission = readyDb.missions[0]
+    check(
+      'AA47 real database: the mission is ready — every company counted once, the strongest first, from the listing ABC holds',
+      readyMission
+        ? [readyDb.missions.length, readyMission.action.stage, readyMission.facts.exhibitors, readyMission.facts.matchedCompanies, readyMission.action.title]
+        : 'no mission',
+      [1, 'review_opportunities', listed, distinctMatched, topName]
+    )
+
+    // Save the strongest as a target, owner-side, as the plan does.
+    const topMatchId = top.id
+    const targetId = (
+      await asRole<{ id: string }>(
+        mdb,
+        'authenticated',
+        'insert into public.intel_meeting_targets (user_id, match_id, event_id, presence_id, priority) values ($1,$2,$3,$4,1) returning id',
+        [OWNER, topMatchId, fairId, top.presence_id],
+        OWNER
+      )
+    ).rows[0].id
+    const prepareDb = (await loadMissions(ownerRest, OWNER, '2026-10-01')).missions[0]
+    check('AA48 real database: a saved target with no request yet — prepare this conversation', [prepareDb?.action.stage, prepareDb?.action.title], ['prepare_target', topName])
+
+    await rowsOf(mdb, "insert into public.intel_meeting_briefs (user_id, target_id, topic, status) values ($1,$2,'Housings for your next motor line','ready')", [OWNER, targetId])
+    check('AA49 real database: a ready request — share it', (await loadMissions(ownerRest, OWNER, '2026-10-01')).missions[0]?.action.stage, 'share_request')
+
+    await rowsOf(mdb, "update public.intel_meeting_briefs set status = 'shared', shared_at = now() where target_id = $1", [targetId])
+    const sharedDb = (await loadMissions(ownerRest, OWNER, '2026-10-01')).missions[0]
+    check(
+      'AA50 real database: INVITATION ≠ MEETING — sharing moves the mission on, and the company is still a target nobody has met',
+      sharedDb ? [sharedDb.action.stage !== 'share_request', remainingTargets(sharedDb.facts).map((t) => t.company), peopleMet(sharedDb.facts)] : 'no mission',
+      [true, [topName], 0]
+    )
+
+    // At the fair: a real meeting, recorded the way the scanner records one.
+    const annaId = (await rowsOf<{ id: string }>(mdb, "insert into public.scanned_contacts (user_id, name, company) values ($1, 'Anna Keller', 'Keller Robotics') returning id", [OWNER]))[0].id
+    const encounterId = (
+      await rowsOf<{ id: string }>(
+        mdb,
+        "insert into public.contact_encounters (contact_id, user_id, event, discussed, next_action, follow_up_at, met_at) values ($1,$2,'ABC Industrial Future Expo 2026','DACH distribution','Send pricing','2026-11-04T07:00:00Z','2026-11-04T09:00:00Z') returning id",
+        [annaId, OWNER]
+      )
+    )[0].id
+    const liveDb = (await loadMissions(ownerRest, OWNER, '2026-11-04', { now: new Date('2026-11-04T12:00:00Z') })).missions[0]
+    check(
+      'AA51 real database: during the fair, a due follow-up from a real meeting comes first, with what was discussed',
+      liveDb ? [liveDb.action.stage, liveDb.action.title, liveDb.action.lines.map((l) => l.text), peopleMet(liveDb.facts)] : 'no mission',
+      ['follow_up', 'Follow up with Anna Keller', ['DACH distribution', 'Send pricing'], 1]
+    )
+
+    await rowsOf(mdb, 'update public.contact_encounters set follow_up_at = null where id = $1', [encounterId])
+    const liveNext = (await loadMissions(ownerRest, OWNER, '2026-11-04', { now: new Date('2026-11-04T12:00:00Z') })).missions[0]
+    check(
+      'AA52 real database: TARGET ≠ ENCOUNTER — meeting somebody at the fair does not mark the target met',
+      liveNext ? [liveNext.action.stage, liveNext.action.title, remainingTargets(liveNext.facts).length] : 'no mission',
+      ['visit_target', topName, 1]
+    )
+
+    await asRole(mdb, 'authenticated', 'update public.intel_meeting_targets set met_encounter_id = $1 where id = $2', [encounterId, targetId], OWNER)
+    const metDb = (await loadMissions(ownerRest, OWNER, '2026-11-04', { now: new Date('2026-11-04T12:00:00Z') })).missions[0]
+    check('AA53 real database: only linking the recorded meeting makes the target met', metDb ? remainingTargets(metDb.facts).length : 'no mission', 0)
+
+    // After the fair.
+    const afterDb = (await loadMissions(ownerRest, OWNER, '2026-11-10', { now: new Date('2026-11-10T12:00:00Z') })).missions[0]
+    check('AA54 real database: after the fair with nothing due and no CRM connected, the mission is complete', afterDb?.action.stage, 'complete')
+
+    await rowsOf(mdb, "update public.contact_encounters set follow_up_at = '2026-11-20T08:00:00Z' where id = $1", [encounterId])
+    const scheduledDb = (await loadMissions(ownerRest, OWNER, '2026-11-10', { now: new Date('2026-11-10T12:00:00Z') })).missions[0]
+    check('AA55 real database: a follow-up scheduled for later keeps it open, honestly', scheduledDb?.action.stage, 'follow_ups_scheduled')
+
+    const otherView = await loadMissions(rest(OTHER), OTHER, '2026-11-10')
+    const otherSneak = await loadMissions(rest(OTHER), OWNER, '2026-11-10')
+    check(
+      'AA56 real database: another account sees no mission of this owner — not even by passing the owner’s id',
+      [otherView.missions.length, otherSneak.missions.length],
+      [0, 0]
+    )
+  }
 
   // ── Report ──
 
