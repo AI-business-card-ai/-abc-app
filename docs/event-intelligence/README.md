@@ -200,7 +200,7 @@ npm ci
 ABC_EVENT_INTELLIGENCE=1 npx next dev --port 3111
 ```
 
-Then sign in and open **Events → Event Intelligence**:
+Then sign in. **Home** now carries the Expo Mission card (§13): three answers, one button, and from then on one next action at a time. The steps below are the screens underneath it, still reachable directly from **Events → Event Intelligence**:
 
 1. **Load the demo fair** — one click on the hub. It calls
    `POST /api/event-intelligence/import`, which runs `JsonFixtureProvider` over
@@ -499,7 +499,7 @@ be removed. Nothing there can mark anybody as met.
 ## 11. Tests
 
 ```bash
-npm run test:event-intelligence     # 388 checks, including 500/2,000/5,000-row scale passes
+npm run test:event-intelligence     # 445 checks, including 500/2,000/5,000-row scale passes and the Expo Mission (§13)
 npm run test:account-deletion       # proves the cascade reaches the new tables
 npm run typecheck && npm run lint && npm run build
 ```
@@ -527,3 +527,123 @@ and each reverted.
 - **Hosted-Supabase performance is unknown.** Everything below is local PGlite
   on a laptop. Statement *count* is the property that should carry over, since
   it is what turns into round trips; the milliseconds will not.
+
+## 13. Expo Mission — one next action
+
+**Maximum intelligence underneath, maximum simplicity on top.** Everything above
+is machinery. A person going to a fair sees one thing: the Expo Mission, which
+answers *what should I do next?* — nothing about matches, targets, phases or
+plans.
+
+### Where it lives
+
+| Surface | What it shows |
+| --- | --- |
+| **Home** — the Expo Mission card | No mission: *Where are you going next?* and the three-answer setup, in place. A mission: the fair, where it stands in one sentence, one button. Several missions: the one that matters now, and "View all missions" |
+| `/events/intelligence/[eventKey]/mission` | The fair, a line of status, **What matters next** — one card, one primary action — a quiet context line, and everything else behind "Show details" |
+
+The main navigation is unchanged: no sidebar change, no new tab. Home is the way
+in; `/events/intelligence` doubles as "all missions", and its rows now open the
+mission. The earlier screens — all opportunities, the plan, the profile, the
+prepare screen, setup — are still there, one step away, never the default.
+
+### The mission is derived, never stored
+
+A mission **is** an objective for one fair. There is no mission table, column or
+status to update: every read derives the state from rows that already exist —
+the event's dates, the profile and objective, matches, targets, meeting
+requests, and the meetings the owner recorded at that fair. Nothing can fall out
+of step, and there is no migration.
+
+```
+lib/event-intelligence/mission.ts       pure: timing, the rules, Home summary, which mission leads, setup mapping
+lib/event-intelligence/mission-data.ts  reads the facts; decides nothing
+```
+
+### The rules, in order (`nextMissionAction`)
+
+1. Not set up → set it up (the three answers).
+2. No exhibitor list for the fair → import one. ABC does not know every fair.
+3. **After the fair** → relationships: several need attention → "Continue
+   follow-ups"; one due → follow up with that person; one not in the CRM →
+   send to CRM (only if a CRM is connected); follow-ups scheduled → say so;
+   nothing left → **Mission complete**; no meetings → say that.
+4. A follow-up **due now** from a meeting at this fair comes first.
+5. Nothing matched yet → find opportunities (the existing engine).
+6. **During the fair** → the next target to walk to (priority, then hall, then
+   stand) with why, what to discuss and what to show; none left → scan people.
+   "Scan a person" is always one tap away.
+7. **Before the fair** → prepare the highest-priority target; share a ready
+   request; review the next strong opportunity; else review the plan.
+
+Which fair leads Home (`selectPrimaryMission`): live → nearest ahead → over but
+with people waiting → undated → none. Ties break on the name.
+
+### Setup: three answers, no second model
+
+"What do you sell?", "What are you looking for?", and optionally Suppliers /
+Distributors / Partners. `missionSetupBodies` maps them onto the profile and
+objective the engine already reads — what you sell → `what_we_sell`; what you
+look for → the objective's goals; Suppliers → `buy_focus`; Partners and
+Distributors → `partner_focus` — and carries every other field over unchanged,
+so the simple form never wipes what somebody set in "Refine". The button then
+calls the existing profile, objective and match endpoints; there is no mission
+API. Customers are always looked for: "what do you sell" is exactly the question
+that finds them. Prefill comes from the profile, else the products the owner
+already described; nothing is invented.
+
+### The invariants still hold
+
+- **TARGET ≠ ENCOUNTER.** A target counts as met only through
+  `met_encounter_id`. Opening it, preparing it, sharing a request or the fair
+  starting changes nothing.
+- **INVITATION ≠ MEETING.** A shared request moves the mission on, and the
+  company stays a target to visit.
+- **Facts ≠ analysis.** The card quotes "From the listing" separately from
+  ABC's "Why", and says that the why is ABC's reading.
+
+### Meetings, follow-ups and CRM — the Event Workspace's own rules
+
+Meetings at a fair are read through `buildEventWorkspace`, so "a meeting at this
+fair", its follow-up state and its CRM state mean what they mean on the Events
+screen.
+
+CRM state needs one careful read. `crm_connections` and `crm_object_mappings`
+are server-only tables — their migrations revoke every privilege from the
+signed-in role — so the mission reads them with the service role, for the session
+owner only, and returns only "a CRM is connected" and a set of meeting ids. If
+the service role is unavailable the answer is "no CRM", so the mission never
+nags about a CRM it cannot see.
+
+**Found while doing this (release code, not changed here):** the Event
+Workspace itself (`lib/events/data.ts`, `fetchCrmByEncounter`) reads
+`crm_object_mappings` through the signed-in session. Postgres refuses that read
+(`42501`, verified in PGlite), the error is logged, and every meeting shows as
+"not in CRM" whatever was pushed. It belongs on the release branch.
+
+### Flag
+
+Everything is behind `ABC_EVENT_INTELLIGENCE`. With it off, Home runs no mission
+query and renders exactly the cards it always did; the card's code is loaded with
+`next/dynamic` only when there is a mission to show. The mission page is gated
+like every other Event Intelligence page.
+
+### Tests
+
+`npm run test:event-intelligence`, section **AA** (56 checks) plus Z54a: every
+state and rule above on pure facts, the setup mapping against the real API
+parsers, the real engine finding a distributor only where the listing says so,
+the Home gate, the untouched navigation, and — against PGlite, as the
+`authenticated` role through RLS — the whole mission from "no objective" to
+"complete", including TARGET ≠ ENCOUNTER and another account seeing nothing.
+Eight mutations (met without an encounter, shared counted as met, live not
+leading, CRM nag with no CRM, follow-up not first, setup wiping Refine, Home
+ignoring the flag, Home without a session) were each caught and reverted.
+
+### Not built
+
+- A real event data source (unchanged: imported lists only).
+- A product brain: the mission reuses the profile and products the owner typed.
+- Hosted-Supabase performance: Home reads the owner's encounters to find the
+  meetings at their fairs, like the Event Workspace does; measured nowhere but
+  locally.
