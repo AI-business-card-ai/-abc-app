@@ -76,9 +76,13 @@ and no policy.
 | **PERSON ≠ ENCOUNTER** | untouched. Nothing here inserts a contact or an encounter |
 | **facts ≠ inference** | `evidence` quotes the listing with the field it came from; `reasons` are ABC's words and carry the indices of the evidence they rest on. The UI renders them in separate panels |
 
-An owner's whole intelligence chain hangs off their `abc_profiles` row by
+**D — the Smart Event Profile (new, owner-scoped, RLS).** `intel_products`,
+`intel_event_materials`, `intel_meeting_briefs`, `intel_brief_materials`. What
+the owner will show, and the meeting they are asking for. See §9.
+
+An owner's whole chain — C and D both — hangs off their `abc_profiles` row by
 cascade, so `remove_account_data()` deletes it without this feature editing that
-function. The account-deletion suite seeds all four tables and proves it.
+function. The account-deletion suite seeds all eight tables and proves it.
 
 ## 3. The provider seam
 
@@ -173,16 +177,19 @@ and cannot be probed. Verified by running the server both ways.
 
 ## 6. Migrations
 
-One, additive, and applied **nowhere but locally**:
+Two, both additive, both applied **nowhere but locally**:
 
 ```
 supabase/migrations/20260919120000_event_expo_intelligence.sql
+supabase/migrations/20260920120000_event_smart_profile.sql
 ```
 
-No existing migration is edited or renumbered (a test asserts it). It is applied
-in tests by PGlite, which runs `schema.sql` plus every migration in order.
+No existing migration is edited or renumbered (a test asserts it) — including
+the first of these two, which the second builds on by adding a constraint
+rather than by changing it. Both are applied in tests by PGlite, which runs
+`schema.sql` plus every migration in order.
 
-**Do not apply this to remote Supabase.** That is an owner decision and a
+**Do not apply these to remote Supabase.** That is an owner decision and a
 deployment step, not part of this branch.
 
 ## 7. Running it
@@ -325,7 +332,120 @@ exist, which is the cheap direction to have left it in.
 `RESERVED_EVENT_KEYS`; pages refuse to resolve an event under any of them, and a
 test asserts each reserved word is a screen that actually exists.
 
-## 9. Working at fair scale
+## 9. Smart Event Profile — what to show, and asking for the meeting
+
+Matching answers *who* and *why*. This layer answers *what do I show them* and
+*how do I ask*, and it is a contextual layer on ABC rather than a second card
+product: identity, the card slug, the public URL, the QR and the image bucket
+are all reused unchanged.
+
+| Table | Holds |
+| --- | --- |
+| `intel_products` | what the owner sells, as they describe it |
+| `intel_event_materials` | material for **one edition**: video, document, image, link, offer |
+| `intel_meeting_briefs` | one per saved target: topic, note, product, status |
+| `intel_brief_materials` | which material is attached to which brief |
+
+**Why not `card_showcase_items`.** It is eight images on the card as a whole —
+no event, no edition, no product, no tags, no validity window. Event material is
+the opposite of card-global, and adding `event_id`, tags and a phase to a table
+that ships in the launch release would push event semantics into the card model
+and change a live table. The card keeps its showcase; the event layer has its
+own.
+
+### Three kinds of claim, and why they stay apart
+
+The feature now holds three things that all look like statements about a
+company, and confusing them would be the worst thing it could do:
+
+| | What it is | Where it lives |
+| --- | --- | --- |
+| **Source fact** | what an event listing says about *them* | `intel_source_records`, quoted with provenance |
+| **ABC analysis** | what ABC inferred by comparing | `intel_matches.reasons`, with the evidence it rests on |
+| **Your material** | what the owner says about *their own* company | `intel_products`, `intel_event_materials` |
+
+The third is first-party marketing content. ABC stores it, shows it, and never
+checks it — `firstPartyNotice` is the one sentence the screens use to say so.
+
+### Content phases
+
+Material can be pinned to `pre`, `live` or `post`, or left as `any`. Which
+phase a fair is in comes from the event's own dates (`eventPhaseOn`), so it is a
+fact rather than a guess — and an event with no dates has no phase, in which
+case a phase never hides anything. An explicit `visible_from` / `visible_until`
+window is honoured independently.
+
+### Edition scoping
+
+`event_id` is **not nullable**. A teaser made for Ambiente 2026 is not material
+for Ambiente 2027 until somebody deliberately creates a row for 2027. Nothing
+copies forward, because "we showed this last year" is a decision, not a default.
+
+### The meeting brief, and what it refuses to claim
+
+Statuses are `draft`, `ready`, `shared` — and nothing else. There is no
+`accepted`, `confirmed` or `scheduled`, because nobody replies to anything
+inside ABC and a status implying agreement would be the product asserting a
+relationship that may not exist. A database CHECK makes `shared` true exactly
+when there is a `shared_at`.
+
+**Nothing is sent.** There is no transport in the feature: no mail, no message,
+no webhook, no third party. Every way out is the owner's own app:
+
+| Button | What it does | Recorded as shared |
+| --- | --- | --- |
+| Share… | the device's share sheet (shown only where the browser has one) | when the sheet completes; a cancelled sheet records nothing |
+| Email | `mailto:?subject=…&body=…` — the owner's mail app, **no recipient** | only if the owner then says "I sent it" |
+| WhatsApp | `https://wa.me/?text=…` — WhatsApp's chat picker, **no number** | only if the owner then says "I sent it" |
+| Copy | the clipboard | only if the owner then says "I sent it" |
+
+ABC cannot see whether a composer was sent or abandoned, so it does not guess.
+There is no recipient anywhere because Event Intelligence holds none: a target
+is a company from a listing, and no person or address is ingested. That is also
+why `lib/outreach-composers.ts` (Smart Follow-up's composers) is not reused
+directly — each of them needs a phone number, an email address or a LinkedIn
+profile, which here would have to be discovered, and discovery is out of scope.
+The handoff URLs are the same shapes without the recipient.
+
+### What leaves ABC
+
+`buildShareText` in `profile.ts` assembles the note, and the boundary is drawn
+by its signature: it takes the topic, the owner's note, the product name, the
+chosen material, the fair's name, and the owner's name, company and published
+card link. There is no parameter for the private target note, the priority, the
+target status, the score, ABC's reasoning, the listing's evidence, CRM state or
+the other side's stand — so none of them can reach the text. The suite passes
+all of them in anyway and checks the output is byte-for-byte unchanged. The
+card link is `publicCardUrl` (`abccard.io/d/<slug>`) and appears only when the
+card is published. No public page exists for a profile or a brief; nothing is
+reachable without signing in.
+
+**INVITATION ≠ MEETING** and **TARGET ≠ ENCOUNTER** both still hold. Preparing
+or sharing a brief creates no contact and no encounter, and the target stays a
+target until the owner records a real meeting.
+
+### Files: what is actually supported
+
+| Kind | Upload into ABC | Why |
+| --- | --- | --- |
+| Image | **bucket yes, this form no** | the existing `card-media` bucket takes `image/jpeg`, `image/png`, `image/webp` up to 10 MB, but the material form has no upload control yet — it takes the address of an image already in ABC or anywhere on the web |
+| Video, document, offer, link | **reference only** | the bucket accepts images only. ABC stores the address; the file stays where the company hosts it |
+
+This is a storage configuration, not a limit of the model — `url` holds the
+answer either way, and `UPLOAD_SUPPORTED` in `profile.ts` is the single place
+that changes if the bucket ever accepts more. The form says which case it is in
+rather than offering an upload control that would fail. URLs are restricted to
+`http`/`https` by `safeMaterialUrl`, because these become links somebody else
+opens.
+
+### Routes
+
+```
+/events/intelligence/[eventKey]/profile              what you will show, this edition
+/events/intelligence/[eventKey]/m/[matchId]/prepare  topic, product, material, note, share
+```
+
+## 10. Working at fair scale
 
 ### Measured, local PGlite — **not** hosted Supabase
 
@@ -371,10 +491,10 @@ note), type, hall, and sorts — with priority kept as the grouping whatever the
 sort, because that is the owner's own judgement about who matters. Targets can
 be removed. Nothing there can mark anybody as met.
 
-## 10. Tests
+## 11. Tests
 
 ```bash
-npm run test:event-intelligence     # 329 checks, including 500/2,000/5,000-row scale passes
+npm run test:event-intelligence     # 386 checks, including 500/2,000/5,000-row scale passes
 npm run test:account-deletion       # proves the cascade reaches the new tables
 npm run typecheck && npm run lint && npm run build
 ```
@@ -387,7 +507,7 @@ non-idempotent refresh, auto-created encounter, uncertain merge, leaked notes,
 lost provenance, forged score, writable `'met'`) were each applied, each caught,
 and each reverted.
 
-## 11. What is not built
+## 12. What is not built
 
 - **No real data source is connected.** A person can now bring their own CSV or
   JSON, which is the realistic first source; no crawler, API or vendor is wired

@@ -44,6 +44,13 @@ All of it against a synthetic dataset, on a feature branch, with the flag off.
 - A plan for the fair, grouped by priority and ordered by hall.
 - Linking a target to a meeting the owner actually recorded, which is the only
   way a target is ever shown as met.
+- **A Smart Event Profile per edition**: the products the company wants to talk
+  about, and the material behind them — video, brochure, datasheet, offer or
+  link — prepared for one fair and one year.
+- **Meeting preparation per target**: pick the topic, the product and the
+  material, write a short note, preview exactly what would go out, and hand it
+  to your own share sheet, mail app or WhatsApp, or copy it. You pick the
+  recipient and press send; ABC sends nothing and adds no address.
 
 ## What is prototype only
 
@@ -78,6 +85,8 @@ Only if the section is unambiguously about what is coming, not what is available
 - "Save the companies worth your time, with their hall and stand."
 - "Bring the organiser's exhibitor list — ABC reads it and shows you what it found."
 - "Search a fair of thousands of exhibitors down to the handful worth your time."
+- "Decide what to show them before you get there."
+- "Walk up with the right product, the right material and the right question."
 - "Your plan for the fair, on your phone."
 - "When you meet them, the relationship continues in ABC."
 
@@ -96,7 +105,10 @@ Each of these is either untrue today or untrue in principle.
 | "AI-powered matching", "AI finds your best leads" | V1 has no model in it. |
 | "Know who will buy", "predicts your best prospects", any percentage read as a win rate | ABC Match is fit to a stated objective, explicitly not a probability. The product says so on screen and the marketing must not contradict it. |
 | "Get their contact details before the event" | No personal data is collected, by design. |
-| "Automated outreach", "message exhibitors before you go" | Not built, and out of scope. |
+| "Automated outreach", "message exhibitors before you go", "ABC sends the invitation" | ABC has no transport at all. The owner shares from their own device; nothing is sent by ABC. |
+| "Book a meeting", "confirmed meetings", "they accepted" | A brief is only ever draft, ready or shared. Nobody replies inside ABC, and there is no status that claims they did. |
+| "Upload your videos and brochures to ABC" | Video and documents are **links** to where the company already hosts them. Even images are added by address in this form today. |
+| "ABC finds the right person to contact", "reach the decision-maker" | ABC holds no person or address for an exhibitor. The owner chooses who the note goes to. |
 | "Optimised route around the fair", "we schedule your meetings" | The plan is grouped and sorted; it is not a route or a schedule, and says so. |
 | Any vendor or infrastructure name — Apify, scraper, crawler, lead scraper | Customer-facing language is "event listing" or "event directory". |
 | Screenshots of the demo data presented as real companies | Every exhibitor in it is invented. If a screenshot is used, label it as an illustration. |
