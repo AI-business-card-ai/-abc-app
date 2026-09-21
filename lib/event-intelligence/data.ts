@@ -163,17 +163,17 @@ export function toTarget(row: Row): MeetingTarget {
   }
 }
 
-const EVENT_COLUMNS =
+export const EVENT_COLUMNS =
   'id, event_key, name, edition_year, organizer, venue, city, country, starts_on, ends_on, website_url'
-const PRESENCE_COLUMNS =
+export const PRESENCE_COLUMNS =
   'id, event_id, company_id, exhibitor_display_name, hall, stand, event_categories, event_description, products_services, listing_url, status, first_seen_at, last_seen_at'
 const PROFILE_COLUMNS =
   'id, user_id, company_name, what_we_do, what_we_sell, what_we_buy, who_we_want_to_meet, target_industries, target_company_types, capabilities, technologies, materials, certifications, geographies'
-const OBJECTIVE_COLUMNS =
+export const OBJECTIVE_COLUMNS =
   'id, user_id, event_id, profile_id, goals, sell_focus, buy_focus, partner_focus, priority_industries, priority_geographies, notes'
-const MATCH_COLUMNS =
+export const MATCH_COLUMNS =
   'id, user_id, objective_id, presence_id, match_type, score, engine_version, reasons, evidence, warnings, matched_at'
-const TARGET_COLUMNS =
+export const TARGET_COLUMNS =
   'id, user_id, match_id, event_id, presence_id, status, priority, private_note, scheduled_for, met_encounter_id'
 
 // ── Reads ────────────────────────────────────────────────────────
