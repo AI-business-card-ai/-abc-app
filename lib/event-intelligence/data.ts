@@ -2,6 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServerComponentClient } from '@/lib/supabase-server'
 import { eventDisplayName, eventKeyFromName } from '@/lib/events/workspace'
 import type {
+  EventMaterial,
+  EventProduct,
+  MeetingBrief,
+} from '@/lib/event-intelligence/profile'
+import type {
   CompanyIntentProfile,
   EventObjective,
   IntelCompany,
@@ -448,4 +453,128 @@ export async function loadLinkableEncounters(
       event: str(row.event) ?? str(row.event_normalized),
     }
   })
+}
+
+// ── Smart Event Profile: products, material, meeting briefs ──────
+
+const PRODUCT_COLUMNS =
+  'id, user_id, name, description, product_tags, industry_tags, use_case_tags, sort_order'
+const MATERIAL_COLUMNS =
+  'id, user_id, event_id, product_id, title, description, media_kind, url, phase, visible_from, visible_until, priority, product_tags, industry_tags'
+const BRIEF_COLUMNS = 'id, user_id, target_id, product_id, topic, message, status, shared_at'
+
+export function toProduct(row: Row): EventProduct {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    name: String(row.name),
+    description: str(row.description),
+    productTags: list(row.product_tags),
+    industryTags: list(row.industry_tags),
+    useCaseTags: list(row.use_case_tags),
+    sortOrder: Number(row.sort_order) || 0,
+  }
+}
+
+export function toMaterial(row: Row): EventMaterial {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    eventId: String(row.event_id),
+    productId: str(row.product_id),
+    title: String(row.title),
+    description: str(row.description),
+    mediaKind: row.media_kind as EventMaterial['mediaKind'],
+    url: String(row.url),
+    phase: row.phase as EventMaterial['phase'],
+    visibleFrom: str(row.visible_from),
+    visibleUntil: str(row.visible_until),
+    priority: (Number(row.priority) || 2) as 1 | 2 | 3,
+    productTags: list(row.product_tags),
+    industryTags: list(row.industry_tags),
+  }
+}
+
+export async function loadProducts(supabase: Client, ownerId: string): Promise<EventProduct[]> {
+  const { data, error } = await supabase
+    .from('intel_products')
+    .select(PRODUCT_COLUMNS)
+    .eq('user_id', ownerId)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+
+  if (error) {
+    console.error('[event-intelligence] product query failed:', error.code ?? 'unknown')
+    return []
+  }
+  return ((data ?? []) as Row[]).map(toProduct)
+}
+
+export async function loadMaterials(
+  supabase: Client,
+  ownerId: string,
+  eventId: string
+): Promise<EventMaterial[]> {
+  const { data, error } = await supabase
+    .from('intel_event_materials')
+    .select(MATERIAL_COLUMNS)
+    .eq('user_id', ownerId)
+    .eq('event_id', eventId)
+    .order('priority', { ascending: true })
+    .order('title', { ascending: true })
+
+  if (error) {
+    console.error('[event-intelligence] material query failed:', error.code ?? 'unknown')
+    return []
+  }
+  return ((data ?? []) as Row[]).map(toMaterial)
+}
+
+/**
+ * The brief for one target, with the material attached to it.
+ *
+ * Two queries rather than a join, because the attachment table is the only
+ * place the order lives and it reads more honestly as its own list.
+ */
+export async function loadBrief(
+  supabase: Client,
+  ownerId: string,
+  targetId: string
+): Promise<MeetingBrief | null> {
+  const { data, error } = await supabase
+    .from('intel_meeting_briefs')
+    .select(BRIEF_COLUMNS)
+    .eq('user_id', ownerId)
+    .eq('target_id', targetId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[event-intelligence] brief query failed:', error.code ?? 'unknown')
+    return null
+  }
+  if (!data) return null
+
+  const row = data as Row
+  const attached = await supabase
+    .from('intel_brief_materials')
+    .select('material_id, sort_order')
+    .eq('user_id', ownerId)
+    .eq('brief_id', String(row.id))
+    .order('sort_order', { ascending: true })
+
+  if (attached.error) {
+    console.error('[event-intelligence] brief material query failed:', attached.error.code ?? 'unknown')
+  }
+
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    targetId: String(row.target_id),
+    productId: str(row.product_id),
+    topic: str(row.topic),
+    message: str(row.message),
+    status: row.status as MeetingBrief['status'],
+    sharedAt: str(row.shared_at),
+    materialIds: ((attached.data ?? []) as Row[]).map((entry) => String(entry.material_id)),
+  }
 }

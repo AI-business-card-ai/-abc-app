@@ -103,10 +103,14 @@ const OWNER_TABLES = [
   // abc_profiles row, which the function already deletes last. They are seeded
   // in full below, so A2 proves the cascade actually reaches them rather than
   // passing over four empty tables.
+  'intel_brief_materials',
   'intel_company_profiles',
+  'intel_event_materials',
   'intel_event_objectives',
   'intel_matches',
+  'intel_meeting_briefs',
   'intel_meeting_targets',
+  'intel_products',
   'native_connector_attempts',
   'scan_batch_items',
   'scan_batches',
@@ -436,6 +440,19 @@ async function seedAccount(db: PGlite, storage: FakeStorage, owner: string, tag:
   const intelMatch = (await rowsOf<{ id: string }>(db, "insert into public.intel_matches (user_id, objective_id, presence_id, match_type, score, engine_version) values ($1, $2, $3, 'customer', 88, 'deterministic-v1') returning id", [owner, intelObjective, intelPresence]))[0].id
   await db.query("insert into public.intel_meeting_targets (user_id, match_id, event_id, presence_id, priority, private_note, met_encounter_id) values ($1, $2, $3, $4, 1, $5, $6)", [owner, intelMatch, intelEvent, intelPresence, `Ask ${tag} about housings`, encounter])
 
+  /*
+    Smart Event Profile: a product, material for the edition, a prepared meeting
+    brief and the material attached to it. Seeded so A2 proves the cascade
+    reaches all four rather than passing over empty tables — and the brief
+    carries a topic, which is exactly the sort of thing that must not survive
+    the owner who wrote it.
+  */
+  const intelProduct = (await rowsOf<{ id: string }>(db, "insert into public.intel_products (user_id, name) values ($1, $2) returning id", [owner, `Product ${tag}`]))[0].id
+  const intelMaterial = (await rowsOf<{ id: string }>(db, "insert into public.intel_event_materials (user_id, event_id, product_id, title, media_kind, url) values ($1, $2, $3, $4, 'video', 'https://example.invalid/v') returning id", [owner, intelEvent, intelProduct, `Teaser ${tag}`]))[0].id
+  const intelTarget = (await rowsOf<{ id: string }>(db, 'select id from public.intel_meeting_targets where user_id = $1 limit 1', [owner]))[0].id
+  const intelBrief = (await rowsOf<{ id: string }>(db, "insert into public.intel_meeting_briefs (user_id, target_id, product_id, topic) values ($1, $2, $3, $4) returning id", [owner, intelTarget, intelProduct, `Topic ${tag}`]))[0].id
+  await db.query('insert into public.intel_brief_materials (brief_id, material_id, user_id) values ($1, $2, $3)', [intelBrief, intelMaterial, owner])
+
   return { email, contact, second, encounter, batch }
 }
 
@@ -446,7 +463,9 @@ async function snapshot(db: PGlite, storage: FakeStorage, owner: string) {
     abc_profiles: await rowsOf(db, 'select * from public.abc_profiles where id = $1', [owner]),
   }
   for (const table of OWNER_TABLES) {
-    out[table] = await rowsOf(db, `select * from public.${table} where user_id = $1 order by id`, [owner])
+    // `order by 1` rather than `order by id`: a join table keyed by a pair has
+    // no id column, and the snapshot only needs a stable order to compare.
+    out[table] = await rowsOf(db, `select * from public.${table} where user_id = $1 order by 1`, [owner])
   }
   out.storage = ACCOUNT_STORAGE_BUCKETS.map((bucket) => storage.paths(bucket, `${owner}/`))
   return out
