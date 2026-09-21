@@ -151,6 +151,9 @@ export default function EventIntelligenceView({
                   Your plan
                 </Button>
               ) : null}
+              <Button href={`/events/intelligence/${event.eventKey}/profile`} variant="ghost">
+                What you will show
+              </Button>
               <Button href={`/events/intelligence/${event.eventKey}/setup`} variant="ghost">
                 Edit what you told ABC
               </Button>

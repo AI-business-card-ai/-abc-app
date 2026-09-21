@@ -365,6 +365,9 @@ export default function MatchDetailView({ event, match, presence, company, targe
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <Button href={`/events/intelligence/${event.eventKey}/m/${match.id}/prepare`}>
+                Prepare the meeting
+              </Button>
               <Button href={`/events/intelligence/${event.eventKey}/plan`} variant="surface">
                 Your plan
               </Button>
