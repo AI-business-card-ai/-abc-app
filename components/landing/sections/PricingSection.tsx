@@ -3,54 +3,46 @@ import { IconCheck, IconInfinity, IconScan } from '@tabler/icons-react'
 import Reveal from '@/components/landing/Reveal'
 import Chapter from '@/components/landing/cinema/Chapter'
 import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
-import {
-  PRICE_TBC,
-  PRO_ACCESS,
-  SCAN_PACKS,
-  formatPrice,
-} from '@/lib/landing/pricing'
+import { PRICE_TBC, PRO_ACCESS, SCAN_PACKS, formatPrice } from '@/lib/landing/pricing'
 
 /**
- * The commercial architecture: identity is free, capture is prepaid, the
- * workflow is a subscription.
+ * Scene 8a — what ABC costs, framed by what it saves.
  *
- * Four beats down the page rather than a row of equal cards, because they are
- * not comparable things. The card is not a cheaper tier of Pro — it is a
- * different product with a different cost basis, which is the whole reason the
- * pricing works this way. Six matched boxes would flatten that into "pick a
- * size" and lose the argument.
+ * The architecture, in the order a buyer meets it: the free identity, the Pro
+ * workflow, the intelligence tier that is coming, and — kept deliberately
+ * apart from all three — the Smart Scan packs, which are usage credits rather
+ * than a plan.
  *
- * What is deliberately missing:
+ * Also rendered by /pricing, so this component is the single public statement
+ * about money and the two surfaces can never disagree.
  *
- *  - Scan counts. The pack prices are locked; how many Smart Scans each buys
- *    depends on unit economics nobody has calculated. Rather than print a
- *    plausible number, the packs sell on the terms that are true today —
- *    one-time, and the credits never expire.
- *  - Pro prices. Same reason. The access models are shown because the
- *    architecture is decided; the figures are not.
- *  - Purchase buttons for either. Stripe is subscription-only and there is no
- *    credit ledger, so a Buy button here would lead nowhere. The one live CTA
- *    on this section is the free card, which genuinely works.
+ * What is deliberately missing, because nobody has decided it:
  *
- * Every value comes from lib/landing/pricing.ts so settling a number later is
- * a data edit rather than a rebuild.
+ *  - Scan counts per pack. The prices are locked; the credit quantities come
+ *    from unit economics that have not been calculated, and lib/billing/catalog
+ *    treats a pack with no configured quantity as not configured at all.
+ *  - Pro prices and the Event Pass duration. The access models are shown
+ *    because the architecture is decided; the figures are not.
+ *  - Purchase buttons for either, and any price for Event & Expo Intelligence.
+ *    The one live action in this chapter is creating the free ABC.
+ *
+ * Pro is not a scan allowance and not unlimited scanning: credits are bought by
+ * every account, Pro or not (lib/billing/catalog.ts).
  */
 
 /** Verified ungated in the product — no plan check on any of these. */
 const FREE_INCLUDES = [
-  'Permanent public link and QR',
-  'About, Looking for and your links',
-  'Showcase gallery',
+  'Your ABC, with a permanent link and QR',
+  'About, Looking for, your links and your work',
   'Save contact as a vCard, and sharing',
-  'Two-way exchange — people send details back',
+  'Two-way exchange — people send their details back',
+  'Your contacts, meetings and events',
 ]
 
 /**
- * Exactly the features the release candidate gates behind Pro
- * (lib/billing/pro-features.ts: smart_follow_up, follow_up_sequence, gmail, crm).
- * Meeting context, meeting history and event workspaces are not gated, so they
- * are not listed here — calling them paid would be false and would put free
- * users off features they already have.
+ * Exactly the features gated behind Pro (lib/billing/pro-features.ts:
+ * smart_follow_up, follow_up_sequence, gmail, crm). Meeting context, meeting
+ * history and event workspaces are not gated, so they are not listed here.
  */
 const PRO_INCLUDES = [
   'Smart Follow-up drafted from the meeting itself',
@@ -59,39 +51,51 @@ const PRO_INCLUDES = [
   'Sync to HubSpot, Salesforce and Pipedrive',
 ]
 
+/** Planned, not sold. Mirrors the Event Intelligence chapter above. */
+const INTELLIGENCE_INCLUDES = [
+  'Find relevant customers, suppliers and partners',
+  'Your event plan, with hall and stand',
+  'Why each company may matter to you',
+  'Meeting invitations and conversation angles',
+  'Event-specific product material',
+]
+
+const VALUES = ['Less manual entry.', 'Faster follow-up.', 'Better CRM context.', 'More time for selling.']
+
 export default function PricingSection() {
   return (
     <Chapter
       id="pricing"
       className="pub-section cine-pricing"
       labelledBy="pricing-title"
-      glow={{ x: '50%', y: '62%' }}
+      glow={{ x: '50%', y: '40%' }}
     >
       <div className="pub-container">
         <div className="pub-head-center">
           <p className="pub-eyebrow">Pricing</p>
           <CinematicHeadline id="pricing-title" className="pub-h2">
-            Your card is free. Pay when ABC does the work.
+            Save hours. Spend less than one lunch at the fair.
           </CinematicHeadline>
-          <p className="pub-lead">
-            Being findable costs us nothing, so it costs you nothing. Reading a business card costs
-            real processing, so you buy scans when you need them. The follow-up and CRM workflow is
-            ABC Pro — for one event, a month or a year.
-          </p>
+          <ul className="cine-values cine-values--inline">
+            {VALUES.map((value) => (
+              <li key={value}>{value}</li>
+            ))}
+          </ul>
         </div>
 
         {/* ---------- 1. Free ---------- */}
         <Reveal>
           <div className="pub-tier-band">
             <div className="pub-tier-band-head">
-              <p className="pub-plan-name">ABC Card</p>
+              <p className="pub-plan-name">ABC Free</p>
               <p className="pub-tier-band-price">Free</p>
               <p className="pub-plan-note">
-                Your professional identity, for as long as you want it. No payment method.
+                Your professional identity, and the foundation for every new relationship. No
+                payment method.
               </p>
               <div className="pub-tier-band-action">
                 <Link href="/register" className="pub-btn pub-btn-gold">
-                  Create your card — free
+                  Start free
                 </Link>
                 <p className="pub-body" style={{ marginTop: 12 }}>
                   No credit card required.
@@ -109,46 +113,14 @@ export default function PricingSection() {
           </div>
         </Reveal>
 
-        {/* ---------- 2. Smart Scan packs ---------- */}
+        {/* ---------- 2. Pro ---------- */}
         <Reveal delay={80}>
-          <div className="pub-packs">
-            <div className="pub-packs-copy">
-              <p className="pub-plan-name">Smart Scan</p>
-              <p className="pub-plan-title">Buy capture when you need it.</p>
-              <p className="pub-plan-note">
-                Each Smart Scan turns a card into a contact and a meeting, with or without Pro. Buy
-                scans in packs instead of paying for a subscription you only need twice a year.
-              </p>
-              <ul className="pub-packs-terms">
-                <li>
-                  <IconScan size={15} stroke={1.8} aria-hidden="true" />
-                  One-time purchase
-                </li>
-                <li>
-                  <IconInfinity size={15} stroke={1.8} aria-hidden="true" />
-                  Credits never expire
-                </li>
-              </ul>
-            </div>
-
-            <div className="pub-packs-prices" role="list" aria-label="Smart Scan pack prices">
-              {SCAN_PACKS.map(({ price, scans }) => (
-                <div className="pub-pack" role="listitem" key={price}>
-                  <p className="pub-pack-price">{formatPrice(price)}</p>
-                  {/* Rendered only once a count is actually approved. */}
-                  {scans === null ? null : <p className="pub-pack-scans">{scans} Smart Scans</p>}
-                </div>
-              ))}
-            </div>
-          </div>
-        </Reveal>
-
-        {/* ---------- 3. Pro ---------- */}
-        <Reveal delay={160}>
           <div className="pub-pro">
             <div className="pub-pro-head">
               <p className="pub-plan-name">ABC Pro</p>
-              <p className="pub-plan-title">Smart Scan captures the meeting. ABC Pro moves it forward.</p>
+              <p className="pub-plan-title">
+                For professionals, founders and sales teams who turn meetings into business.
+              </p>
               <p className="pub-plan-note">
                 One product. Three ways to buy it, because someone who works two fairs a year should
                 not be paying for twelve months of software.
@@ -175,11 +147,72 @@ export default function PricingSection() {
             </div>
 
             <p className="pub-pro-note">
-              {PRICE_TBC}. Pro is the workflow, not a scan allowance — Smart Scans stay separate, and
-              every scanned contact gets the full Pro workflow when you have it.
+              {PRICE_TBC}. Pro is the workflow, not a scan allowance — Smart Scans stay separate,
+              and every scanned contact gets the full Pro workflow when you have it.
             </p>
           </div>
         </Reveal>
+
+        {/* ---------- 3. Event & Expo Intelligence — not for sale yet ---------- */}
+        <Reveal delay={160}>
+          <div className="pub-pro cine-tier-future">
+            <div className="pub-pro-head">
+              <p className="pub-plan-name">ABC Event &amp; Expo Intelligence</p>
+              <p className="cine-soon-badge">Coming soon</p>
+              <p className="pub-plan-title">Everything in Pro — plus intelligence before the meeting.</p>
+              <p className="pub-plan-note">
+                In development, and not available to buy. It is listed here so the direction is
+                clear: ABC is being built for the whole event, not only the part after the
+                handshake.
+              </p>
+            </div>
+
+            <ul className="pub-plan-list pub-pro-list">
+              {INTELLIGENCE_INCLUDES.map((item) => (
+                <li key={item}>
+                  <IconCheck size={16} stroke={2.2} aria-hidden="true" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Reveal>
+
+        {/* ---------- 4. Smart Scan packs — usage, not a plan ---------- */}
+        <Reveal delay={200}>
+          <div className="pub-packs">
+            <div className="pub-packs-copy">
+              <p className="pub-plan-name">Smart Scan packs</p>
+              <p className="pub-plan-title">Buy capture when you need it.</p>
+              <p className="pub-plan-note">
+                Not a plan — credits. Each Smart Scan turns a card into a contact and a meeting,
+                with or without Pro, so you buy scans for the events you actually work.
+              </p>
+              <ul className="pub-packs-terms">
+                <li>
+                  <IconScan size={15} stroke={1.8} aria-hidden="true" />
+                  One-time purchase
+                </li>
+                <li>
+                  <IconInfinity size={15} stroke={1.8} aria-hidden="true" />
+                  Credits never expire
+                </li>
+              </ul>
+            </div>
+
+            <div className="pub-packs-prices" role="list" aria-label="Smart Scan pack prices">
+              {SCAN_PACKS.map(({ price, scans }) => (
+                <div className="pub-pack" role="listitem" key={price}>
+                  <p className="pub-pack-price">{formatPrice(price)}</p>
+                  {/* Rendered only once a count is actually approved. */}
+                  {scans === null ? null : <p className="pub-pack-scans">{scans} Smart Scans</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </Reveal>
+
+        <p className="cine-statement cine-rise">Your time costs more than ABC.</p>
       </div>
     </Chapter>
   )

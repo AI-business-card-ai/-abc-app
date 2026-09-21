@@ -3,43 +3,52 @@ import Chapter from '@/components/landing/cinema/Chapter'
 import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 
 /**
- * Event workspaces — shipping in the release candidate (app/events).
+ * Scene 5b — one meeting becomes a whole event.
  *
- * Mirrors what the event screen actually shows: one event, who was met there,
- * what was discussed, what was promised, and whether each meeting reached the
- * CRM, filterable by In CRM / Not in CRM. The person is the one global contact —
- * there is no event-local copy of them — which is the Person ≠ Encounter rule
- * made visible: meeting Martin at a second fair adds a row to that fair, not a
- * second Martin.
+ * Event workspaces ship in this release (app/events). The panel mirrors what
+ * the event screen shows: who was met, what was discussed, what was promised,
+ * whether the follow-up has gone and whether it reached the CRM — with the
+ * same In CRM / Not in CRM filter the product has.
  *
- * Composed differently from the chapters above it: the copy leads across the
- * top and the workspace opens underneath at full measure, on its own stage,
- * because an event is the one screen where the width is the point — the list
- * of events and the people inside one of them, side by side.
+ * The person stays one contact across events, which is the Person ≠ Encounter
+ * rule made visible: meeting John at a second fair adds a row to that fair,
+ * not a second John.
  *
  * The rows are interface demonstration, not results. No figure here is a claim
  * about what any customer achieved.
+ *
+ * MEDIA SLOT — `event-workspace`.
  */
 
 const EVENTS = [
-  { name: 'Messe Frankfurt', when: 'Sep 2026', active: true },
+  { name: 'Ambiente 2026', when: 'Feb 2026', active: true },
   { name: 'MEDICA', when: 'Nov 2025', active: false },
   { name: 'Interzoo', when: 'May 2025', active: false },
 ]
 
 const MEETINGS = [
   {
-    initials: 'MN',
-    name: 'Martin Novák',
-    discussed: 'Booth build for Q1, two levels',
-    promised: 'Send layout and pricing',
-    inCrm: true,
+    initials: 'JS',
+    name: 'John Smith',
+    company: 'Acme GmbH',
+    discussed: 'DACH distribution for the 2027 range',
+    state: 'Follow-up ready',
+    inCrm: false,
   },
   {
     initials: 'AW',
     name: 'Anna Weber',
+    company: 'XYZ Robotics',
     discussed: 'Replacement supplier for 2027',
-    promised: 'Intro call next week',
+    state: 'Followed up',
+    inCrm: true,
+  },
+  {
+    initials: 'MK',
+    name: 'Michael Klein',
+    company: 'Example AG',
+    discussed: 'Pricing for a pilot line',
+    state: 'Next step due',
     inCrm: false,
   },
 ]
@@ -48,7 +57,7 @@ export default function EventWorkspaceSection() {
   return (
     <Chapter
       id="events"
-      className="pub-section"
+      className="pub-section cine-section--continued"
       labelledBy="events-title"
       glow={{ x: '50%', y: '72%' }}
     >
@@ -56,19 +65,19 @@ export default function EventWorkspaceSection() {
         <div className="cine-stack">
           <div className="cine-stack-head">
             <div>
-              <p className="pub-eyebrow">Event workspace</p>
+              <p className="pub-eyebrow">Event Workspace</p>
               <CinematicHeadline id="events-title" className="pub-h2">
-                Every event keeps its own people.
+                Your event. Every meeting. One place.
               </CinematicHeadline>
               <p className="pub-lead">
-                Open an event and see who you met there, what you talked about, what you promised
-                and whether it reached your CRM. The forty people from one fair do not dissolve into
-                a list with everyone you met at the next.
+                A trade fair can mean dozens of conversations in just a few hours. ABC keeps them
+                together — so you can see who you met, what you discussed and what still needs to
+                happen.
               </p>
             </div>
 
             <ul className="pub-notes cine-rise">
-              <li>Filter an event by what is already in your CRM and what still is not.</li>
+              <li>Filter an event by what has already reached your CRM and what has not.</li>
               <li>
                 Each person stays one contact. Meet them again at another event and that meeting
                 appears there too — their history stays in one place.
@@ -99,18 +108,18 @@ export default function EventWorkspaceSection() {
                   </div>
 
                   <ul className="pub-event-meetings">
-                    {MEETINGS.map(({ initials, name, discussed, promised, inCrm }) => (
+                    {MEETINGS.map(({ initials, name, company, discussed, state, inCrm }) => (
                       <li key={name} className="pub-event-meeting">
                         <span className="pub-scan-avatar" aria-hidden="true">
                           {initials}
                         </span>
                         <div className="pub-event-meeting-body">
                           <p className="pub-batch-name">
-                            {name}
+                            {name} · {company}
                             <IconChevronRight size={13} stroke={2} aria-hidden="true" />
                           </p>
                           <p className="pub-batch-sub">{discussed}</p>
-                          <p className="pub-event-promise">Promised: {promised}</p>
+                          <p className="pub-event-promise">{state}</p>
                         </div>
                         <span className={`pub-event-crm${inCrm ? ' is-in' : ''}`}>
                           {inCrm ? (
@@ -130,6 +139,10 @@ export default function EventWorkspaceSection() {
             </div>
           </div>
         </div>
+
+        <p className="cine-statement cine-rise">
+          Leave the event with a pipeline — not a pile of business cards.
+        </p>
       </div>
     </Chapter>
   )

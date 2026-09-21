@@ -3,15 +3,14 @@ import Link from 'next/link'
 /**
  * The public footer, shared by every marketing surface.
  *
- * Only routes that exist are listed. The previous footer was a centred row of
- * three links under the strapline "Scan. Know. Connect." — a description of a
- * scanner, which is the half of the product the site is trying to stop being
- * filed under.
+ * Only routes that exist are listed, and only one address: support@abccard.io
+ * is the single published contact in this repository, so business enquiries are
+ * pointed at it rather than at an invented sales alias. No social icons — ABC
+ * has no configured public accounts, and empty icons advertise absence.
  *
  * The year is fixed rather than `new Date().getFullYear()`: a server component
  * rendering a live year is the classic way to get a hydration mismatch the
- * moment a page is statically rendered in one year and served in the next, and
- * a copyright date is not worth a client boundary.
+ * moment a page is statically rendered in one year and served in the next.
  */
 export default function PublicFooter() {
   return (
@@ -22,9 +21,9 @@ export default function PublicFooter() {
             <Link href="/" className="pub-wordmark" aria-label="ABC Card — home">
               ABC<span>.</span>
             </Link>
-            <p className="pub-footer-pitch">
-              From handshake to follow-up to CRM. ABC turns the people you meet into
-              relationships your business can act on.
+            <p className="pub-footer-pitch">From handshake to CRM in seconds.</p>
+            <p className="pub-footer-flow" aria-hidden="true">
+              Meet <span>→</span> Scan <span>→</span> Remember <span>→</span> Follow up <span>→</span> CRM
             </p>
           </div>
 
@@ -32,34 +31,57 @@ export default function PublicFooter() {
             <h2>Product</h2>
             <ul>
               <li>
-                <Link href="/#card">The ABC Card</Link>
+                <Link href="/#product">Smart Scan</Link>
               </li>
               <li>
-                <Link href="/#remember">How it works</Link>
+                <Link href="/#follow-up">Smart Follow-up</Link>
               </li>
               <li>
-                <Link href="/#pricing">Pricing</Link>
+                <Link href="/#events">Event Workspace</Link>
+              </li>
+              <li>
+                <Link href="/#crm">CRM integrations</Link>
+              </li>
+              <li>
+                <Link href="/#event-intelligence">
+                  Event &amp; Expo Intelligence <span className="pub-footer-soon">Coming soon</span>
+                </Link>
               </li>
             </ul>
           </div>
 
           <div className="pub-footer-col">
-            <h2>Company</h2>
+            <h2>Explore</h2>
             <ul>
               <li>
-                <Link href="/privacy">Privacy</Link>
+                <Link href="/#pricing">Pricing</Link>
               </li>
               <li>
-                <Link href="/terms">Terms</Link>
+                <Link href="/login">Log in</Link>
+              </li>
+              <li>
+                <Link href="/register">Get started</Link>
+              </li>
+              <li>
+                <a href="mailto:support@abccard.io">Support</a>
+              </li>
+            </ul>
+          </div>
+
+          <div className="pub-footer-col">
+            <h2>Legal</h2>
+            <ul>
+              <li>
+                <Link href="/privacy">Privacy Policy</Link>
+              </li>
+              <li>
+                <Link href="/terms">Terms of Service</Link>
               </li>
               <li>
                 <Link href="/account-deletion">Account deletion</Link>
               </li>
               <li>
                 <a href="mailto:support@abccard.io">support@abccard.io</a>
-              </li>
-              <li>
-                <Link href="/login">Sign in</Link>
               </li>
             </ul>
           </div>

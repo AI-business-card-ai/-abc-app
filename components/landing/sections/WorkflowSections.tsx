@@ -1,332 +1,100 @@
 import {
   IconBrandLinkedin,
   IconBrandWhatsapp,
-  IconCalendarEvent,
   IconCheck,
   IconCloudUpload,
-  IconHistory,
   IconMail,
-  IconMapPin,
-  IconMessage,
-  IconMessage2,
-  IconQrcode,
-  IconScan,
-  IconTargetArrow,
-  IconUserPlus,
 } from '@tabler/icons-react'
 import Chapter from '@/components/landing/cinema/Chapter'
 import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
+import Equation from '@/components/landing/cinema/Equation'
 
 /**
- * The four chapters after the card: capture, remember, follow up, CRM.
+ * Scene 4 — the follow-up, and where it ends up.
  *
- * One file because they are one argument and share one layout — four separate
- * modules would invite four separate drifts in spacing and tone. They alternate
- * sides down the page so the eye has somewhere to go, but the copy always
- * precedes its panel in the DOM, so a phone and a screen reader both get the
- * claim before the illustration of it.
+ * Two chapters that read as one move: the meeting becomes a message, and the
+ * relationship becomes a CRM record. They share a ground and the CRM chapter
+ * opens by continuing the sentence the follow-up chapter finishes.
  *
- * Composition alternates too: capture and CRM open their visual onto a
- * full-bleed stage that runs to the edge of the page, remember and follow-up
- * hold theirs inside the measure. Four identical text-left, screen-right rows
- * would read as a feature list rather than a sequence.
+ * Channel truth, checked against components/contacts/detail/SmartFollowUpCard:
  *
- * Everything named exists in the release candidate. The meeting fields are the
- * contact screen's own labels, Multi-Card review is the batch scan flow with its
- * remove and restore, the CRM steps are the objects the exporter writes, and
- * sending is only ever something the owner does: from their own Gmail when they
- * have connected it, otherwise through each channel's own composer.
+ *  - Email opens the composer with subject and body. With Gmail connected the
+ *    message can be sent from the owner's own address (Pro; gmail.send only).
+ *  - WhatsApp opens WhatsApp with the text ready.
+ *  - LinkedIn accepts no pre-filled text, so ABC copies the message and opens
+ *    the profile. The page says exactly that rather than implying three equal
+ *    send integrations.
  *
- * There is no enrichment copy anywhere in this file. The third-party enrichment
- * providers were removed from the product, and "enriched in the background" had
- * outlived them.
+ * Nothing is ever sent without the owner pressing send, and ABC does not read
+ * a mailbox or Google Contacts.
+ *
+ * MEDIA SLOT — `follow-up-crm`. The real draft and export UI carry it for now.
  */
-
-/* ---------------------------------------------------------------- capture */
-
-/** A Multi-Card review, as the batch screen shows it. One detection was not a card. */
-const BATCH = [
-  { initials: 'MN', name: 'Martin Novák', company: 'MedTech GmbH', removed: false },
-  { initials: 'AW', name: 'Anna Weber', company: 'Weber & Söhne GmbH', removed: false },
-  { initials: '—', name: 'Not a business card', company: 'Removed from this scan', removed: true },
-]
-
-export function CaptureSection() {
-  return (
-    <Chapter
-      id="capture"
-      className="pub-section"
-      labelledBy="capture-title"
-      glow={{ x: '74%', y: '50%' }}
-    >
-      <div className="pub-container">
-        <div className="pub-split cine-bleed">
-          <div className="pub-split-copy">
-            <p className="pub-eyebrow">Smart Scan</p>
-            <CinematicHeadline id="capture-title" className="pub-h2">
-              One card, or the whole stack.
-            </CinematicHeadline>
-            <p className="pub-lead">
-              Scan the card you were handed and ABC turns it into a contact and a meeting — while
-              you are still standing there, not typed up in a hotel room three days later.
-            </p>
-
-            <ul className="pub-list cine-rise">
-              <li className="pub-list-item">
-                <span className="pub-list-icon" aria-hidden="true">
-                  <IconScan size={16} stroke={1.7} />
-                </span>
-                <div>
-                  <h3 className="pub-h3">Several cards in one scan</h3>
-                  <p className="pub-body">
-                    Lay out the cards from a busy stand and scan them together. Review what ABC
-                    found, remove anything that is not a card, restore it if you change your mind.
-                  </p>
-                </div>
-              </li>
-              <li className="pub-list-item">
-                <span className="pub-list-icon" aria-hidden="true">
-                  <IconUserPlus size={16} stroke={1.7} />
-                </span>
-                <div>
-                  <h3 className="pub-h3">Someone you already know</h3>
-                  <p className="pub-body">
-                    Scan a person ABC already has and the new meeting joins their history, instead
-                    of creating a second copy of them.
-                  </p>
-                </div>
-              </li>
-              <li className="pub-list-item">
-                <span className="pub-list-icon" aria-hidden="true">
-                  <IconQrcode size={16} stroke={1.7} />
-                </span>
-                <div>
-                  <h3 className="pub-h3">Or they scan yours</h3>
-                  <p className="pub-body">
-                    They open your ABC Card and can send their details straight back — no app and
-                    no account on their side.
-                  </p>
-                </div>
-              </li>
-            </ul>
-          </div>
-
-          <div className="pub-split-media cine-media cine-stage">
-            <div className="pub-panel">
-              <p className="pub-panel-tag">Multi-Card review</p>
-              <div className="pub-scan">
-                <div className="pub-scan-frame" aria-hidden="true">
-                  <span className="pub-scan-corner pub-scan-corner--tl" />
-                  <span className="pub-scan-corner pub-scan-corner--tr" />
-                  <span className="pub-scan-corner pub-scan-corner--bl" />
-                  <span className="pub-scan-corner pub-scan-corner--br" />
-                  <div className="pub-scan-stack">
-                    <div className="pub-scan-card pub-scan-card--back">
-                      <p className="pub-scan-card-name">Anna Weber</p>
-                      <p className="pub-scan-card-sub">Weber &amp; Söhne GmbH</p>
-                    </div>
-                    <div className="pub-scan-card">
-                      <p className="pub-scan-card-name">Martin Novák</p>
-                      <p className="pub-scan-card-sub">MedTech GmbH</p>
-                      <span className="pub-scan-card-rule" />
-                      <p className="pub-scan-card-meta">martin@medtech.de · +49 69 1200 4408</p>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="pub-scan-status">
-                  <IconCheck size={14} stroke={2.4} aria-hidden="true" />
-                  3 found · 2 cards to save
-                </p>
-
-                <ul className="pub-batch">
-                  {BATCH.map(({ initials, name, company, removed }) => (
-                    <li key={name} className={`pub-batch-row${removed ? ' is-removed' : ''}`}>
-                      <span className="pub-scan-avatar" aria-hidden="true">
-                        {initials}
-                      </span>
-                      <div className="pub-batch-text">
-                        <p className="pub-batch-name">{name}</p>
-                        <p className="pub-batch-sub">{company}</p>
-                      </div>
-                      <span className={removed ? 'pub-batch-restore' : 'pub-scan-added'}>
-                        {removed ? 'Restore' : 'Contact'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Chapter>
-  )
-}
-
-/* --------------------------------------------------------------- remember */
-
-const MEETING = [
-  { Icon: IconMapPin, label: 'Met at', value: 'Messe Frankfurt · 2 Sep 2026' },
-  { Icon: IconMessage, label: 'Discussed', value: 'New booth build for Q1, 60–80 m², two levels' },
-  { Icon: IconTargetArrow, label: 'Next step', value: 'Send layout and indicative pricing' },
-  { Icon: IconCalendarEvent, label: 'Follow up', value: 'Thu, 3 Sep' },
-]
-
-export function RememberSection() {
-  return (
-    <Chapter
-      id="remember"
-      className="pub-section pub-section--raised"
-      labelledBy="remember-title"
-      glow={{ x: '28%', y: '50%' }}
-    >
-      <div className="pub-container">
-        <div className="pub-split pub-split--flip">
-          <div className="pub-split-copy">
-            <p className="pub-eyebrow">Remember</p>
-            <CinematicHeadline id="remember-title" className="pub-h2">
-              Remember the meeting, not just the contact.
-            </CinematicHeadline>
-            <p className="pub-lead">
-              Anyone can store a phone number. What decides whether a meeting turns into business is
-              whether you still know, three weeks later, where you met, what you actually talked
-              about, and what you promised to do next. ABC keeps that with the person.
-            </p>
-
-            <ul className="pub-list cine-rise">
-              <li className="pub-list-item">
-                <span className="pub-list-icon" aria-hidden="true">
-                  <IconMessage size={16} stroke={1.7} />
-                </span>
-                <div>
-                  <h3 className="pub-h3">The meeting, not just the contact</h3>
-                  <p className="pub-body">
-                    Where and when you met, the event, what was discussed, the opportunity, and the
-                    next step — recorded once, against the person.
-                  </p>
-                </div>
-              </li>
-              <li className="pub-list-item">
-                <span className="pub-list-icon" aria-hidden="true">
-                  <IconHistory size={16} stroke={1.7} />
-                </span>
-                <div>
-                  <h3 className="pub-h3">Every time you meet again</h3>
-                  <p className="pub-body">
-                    Meetings stack up as history rather than overwriting each other, so a
-                    relationship you have built over three trade fairs reads like one.
-                  </p>
-                </div>
-              </li>
-            </ul>
-          </div>
-
-          <div className="pub-split-media cine-media">
-            <div className="pub-panel">
-              <p className="pub-panel-tag">Meeting context</p>
-
-              <div className="pub-meeting">
-                <div className="pub-meeting-head">
-                  <span className="pub-scan-avatar" aria-hidden="true">
-                    MN
-                  </span>
-                  <div>
-                    <p className="pub-h3">Martin Novák</p>
-                    <p className="pub-body">Head of Sales · MedTech GmbH</p>
-                  </div>
-                </div>
-
-                <dl className="pub-fields">
-                  {MEETING.map(({ Icon, label, value }) => (
-                    <div className="pub-field" key={label}>
-                      <dt className="pub-field-label">
-                        <Icon size={13} stroke={1.8} aria-hidden="true" />
-                        {label}
-                      </dt>
-                      <dd className="pub-field-value">{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-
-                <p className="pub-meeting-history">
-                  <IconHistory size={13} stroke={1.8} aria-hidden="true" />
-                  Third meeting since Mar 2025
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Chapter>
-  )
-}
 
 /* -------------------------------------------------------------- follow up */
 
 const CHANNELS = [
-  { Icon: IconMail, label: 'Email' },
-  { Icon: IconBrandWhatsapp, label: 'WhatsApp' },
-  { Icon: IconBrandLinkedin, label: 'LinkedIn' },
-  { Icon: IconMessage2, label: 'SMS' },
+  {
+    Icon: IconMail,
+    label: 'Email',
+    note: 'Opens your composer — or sends from your own Gmail when you connect it.',
+  },
+  { Icon: IconBrandWhatsapp, label: 'WhatsApp', note: 'Opens WhatsApp with the message ready.' },
+  {
+    Icon: IconBrandLinkedin,
+    label: 'LinkedIn',
+    note: 'Copies the message and opens their profile, because LinkedIn accepts no pre-filled text.',
+  },
 ]
 
 export function FollowUpSection() {
   return (
     <Chapter
-      id="followup"
-      className="pub-section"
-      labelledBy="followup-title"
-      glow={{ x: '72%', y: '46%' }}
+      id="follow-up"
+      className="pub-section pub-section--raised"
+      labelledBy="follow-up-title"
+      glow={{ x: '30%', y: '46%' }}
     >
       <div className="pub-container">
-        <div className="pub-split">
+        <div className="pub-split pub-split--flip">
           <div className="pub-split-copy">
-            <p className="pub-eyebrow">Follow up</p>
-            <CinematicHeadline id="followup-title" className="pub-h2">
-              Context is what makes a follow-up land.
+            <p className="pub-eyebrow">Smart Follow-up · ABC Pro</p>
+            <CinematicHeadline id="follow-up-title" className="pub-h2">
+              The meeting ends. The relationship shouldn’t.
             </CinematicHeadline>
             <p className="pub-lead">
-              ABC drafts from the meeting you actually had — the event, the topic, the next step you
-              agreed — so the message reads like it came from the person who was standing there.
-              Connect Gmail and send it from your own mailbox, or open WhatsApp or LinkedIn with the
-              text ready.
+              You already captured who you met, what you discussed and what should happen next. ABC
+              turns that context into a follow-up that continues the actual conversation — while it
+              is still fresh.
             </p>
 
+            <p className="cine-callout cine-rise">Not another generic “nice to meet you.”</p>
+
             <ul className="pub-list cine-rise">
-              <li className="pub-list-item">
-                <span className="pub-list-icon" aria-hidden="true">
-                  <IconMessage size={16} stroke={1.7} />
-                </span>
-                <div>
-                  <h3 className="pub-h3">Written from the meeting</h3>
-                  <p className="pub-body">
-                    Not a template with a name dropped in. The draft references what you discussed
-                    and what you said you would do.
-                  </p>
-                </div>
-              </li>
-              <li className="pub-list-item">
-                <span className="pub-list-icon" aria-hidden="true">
-                  <IconCheck size={16} stroke={1.7} />
-                </span>
-                <div>
-                  <h3 className="pub-h3">Nothing goes out until you press Send</h3>
-                  <p className="pub-body">
-                    You review and edit every draft. With Gmail connected it is sent from your own
-                    address; ABC only ever sends the message you approved.
-                  </p>
-                </div>
-              </li>
+              {CHANNELS.map(({ Icon, label, note }) => (
+                <li className="pub-list-item" key={label}>
+                  <span className="pub-list-icon" aria-hidden="true">
+                    <Icon size={16} stroke={1.7} />
+                  </span>
+                  <div>
+                    <h3 className="pub-h3">{label}</h3>
+                    <p className="pub-body">{note}</p>
+                  </div>
+                </li>
+              ))}
             </ul>
+
+            <p className="pub-body cine-rise">
+              You review and edit every draft. Nothing goes out until you send it.
+            </p>
           </div>
 
           <div className="pub-split-media cine-media">
             <div className="pub-panel">
-              <p className="pub-panel-tag">Smart Follow-up · ABC Pro</p>
+              <p className="pub-panel-tag">Smart Follow-up</p>
 
               <div className="pub-draft">
-                <div className="pub-draft-channels" role="list">
+                <div className="pub-draft-channels" role="list" aria-label="Choose how you want to continue">
                   {CHANNELS.map(({ Icon, label }, i) => (
                     <span
                       role="listitem"
@@ -340,14 +108,14 @@ export function FollowUpSection() {
                 </div>
 
                 <div className="pub-draft-body">
-                  <p className="pub-draft-subject">Booth concept for Q1 — following up from Frankfurt</p>
+                  <p className="pub-draft-subject">DACH distribution — following up from Ambiente</p>
                   <p className="pub-draft-text">
-                    Hi Martin,
+                    Hi John,
                     <br />
                     <br />
-                    Good to meet you at Messe Frankfurt on Tuesday. You mentioned you are planning a
-                    60–80 m² stand on two levels for Q1 — I have put together an indicative layout
-                    and pricing for that footprint.
+                    Good to meet you in Hall 4 on Tuesday. You mentioned you are looking for a DACH
+                    distribution partner for the 2027 range — I have put together a proposal for
+                    exactly that.
                     <br />
                     <br />
                     Shall I send it over this week?
@@ -365,6 +133,10 @@ export function FollowUpSection() {
             </div>
           </div>
         </div>
+
+        <p className="cine-statement cine-rise">
+          One meeting. The right context. Your preferred channel — without starting from zero.
+        </p>
       </div>
     </Chapter>
   )
@@ -379,21 +151,21 @@ export function CrmSection() {
   return (
     <Chapter
       id="crm"
-      className="pub-section pub-section--raised"
+      className="pub-section pub-section--raised cine-section--continued"
       labelledBy="crm-title"
-      glow={{ x: '26%', y: '50%' }}
+      glow={{ x: '72%', y: '52%' }}
     >
       <div className="pub-container">
-        <div className="pub-split pub-split--flip cine-bleed cine-bleed--left">
+        <div className="pub-split cine-bleed">
           <div className="pub-split-copy">
-            <p className="pub-eyebrow">CRM</p>
+            <p className="pub-eyebrow">CRM sync · ABC Pro</p>
             <CinematicHeadline id="crm-title" className="pub-h2">
-              The meeting should not die on the way to your CRM.
+              Your CRM should start with the conversation.
             </CinematicHeadline>
             <p className="pub-lead">
-              When the relationship is worth tracking, push it across. The person, their company,
-              the meeting you recorded and the follow-up task all land as proper records — not one
-              contact row with an empty notes field.
+              ABC doesn’t send just another contact into your CRM. It keeps the person connected to
+              the context behind the meeting — so your sales pipeline starts with more than a name
+              and an email address.
             </p>
 
             <ul className="pub-list cine-rise">
@@ -422,20 +194,25 @@ export function CrmSection() {
                 </div>
               </li>
             </ul>
+
+            <p className="cine-values cine-rise">
+              <span>Less manual entry.</span>
+              <span>Better context.</span>
+              <span>A clearer next step.</span>
+            </p>
           </div>
 
           <div className="pub-split-media cine-media cine-stage">
             <div className="pub-panel">
-              <p className="pub-panel-tag">CRM sync · ABC Pro</p>
+              <p className="pub-panel-tag">ABC record → your CRM</p>
 
               <div className="pub-crm">
-                <ul className="pub-chips pub-crm-dest">
-                  {DESTINATIONS.map((name, i) => (
-                    <li key={name} className={`pub-chip pub-chip-sm${i === 0 ? ' is-active' : ''}`}>
-                      {name}
-                    </li>
-                  ))}
-                </ul>
+                <div className="cine-crm-source">
+                  <p className="pub-h3">John Smith · Acme GmbH</p>
+                  <p className="pub-body">
+                    Ambiente 2026 · DACH distribution · proposal due next week
+                  </p>
+                </div>
 
                 <ul className="pub-crm-steps">
                   {PUSH_STEPS.map((step) => (
@@ -448,11 +225,29 @@ export function CrmSection() {
                   ))}
                 </ul>
 
+                <ul className="pub-chips pub-crm-dest">
+                  {DESTINATIONS.map((name, i) => (
+                    <li key={name} className={`pub-chip pub-chip-sm${i === 0 ? ' is-active' : ''}`}>
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+
                 <p className="pub-crm-note">Pushed to HubSpot · 5 records</p>
               </div>
             </div>
           </div>
         </div>
+
+        <Equation
+          terms={['Person', 'Meeting context', 'What matters next']}
+          result={DESTINATIONS}
+        />
+
+        <p className="cine-statement cine-rise">
+          ABC doesn’t replace your CRM. It turns real conversations into CRM-ready context in
+          seconds.
+        </p>
       </div>
     </Chapter>
   )

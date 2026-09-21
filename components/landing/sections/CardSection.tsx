@@ -1,5 +1,6 @@
 import dynamic from 'next/dynamic'
 import {
+  IconDeviceMobile,
   IconDownload,
   IconMail,
   IconMapPin,
@@ -17,57 +18,55 @@ const PublicQrCode = dynamic(() => import('@/components/landing/PublicQrCode'), 
 })
 
 /**
- * The free half of the product, staged as an object rather than described.
+ * Scene 7a — your ABC: the identity the relationship workflow starts from.
  *
- * The previous version of this section read as documentation: three icon +
- * heading + paragraph rows on the left, and on the right a single rectangle
- * with the QR, the actions, About and Looking for stacked inside it. Everything
- * in it was true, and none of it made anybody want the card.
+ * Deliberately placed late. Led with, it would file ABC under "digital
+ * business card", which is the category this page exists to escape; arriving
+ * here, after the meeting workflow, it reads as what it is — the thing you
+ * hand over, and the reason the other side can hand something back.
  *
- * Two changes. The copy stops explaining what the product visibly does — the
- * QR, the save and the share are all right there in the composition, so
- * spelling them out in prose was saying the same thing twice, once weakly. And
- * the visual becomes two planes instead of one: the identity surface, and the
- * share code sitting slightly proud of its lower corner, casting onto it. Two
- * objects at different depths is what stops a product shot reading as a
- * screenshot of a page.
+ * Every capability listed was checked against the shipping card schema
+ * (lib/types.ts, lib/card/*): name, role, company, photo, cover and company
+ * logo, tagline, About and Looking for, location and languages, email, phone,
+ * WhatsApp, website, calendar link, eight social profiles behind per-link
+ * toggles, a permanent public link with QR, a real vCard, and a Showcase
+ * gallery of up to eight images with captions.
  *
- * The hero shows this card inside a phone. This shows it at full size, which is
- * also how somebody actually receives it — most people open a card on a screen
- * bigger than the one it was sent from.
- *
- * Every field is real: fullName, jobTitle, companyName, location, whatIDo
- * (About), lookingFor (Looking for), the showcase count, the vCard behind Save
- * contact, the share link, and the permanent public URL and QR.
+ * Deliberately not claimed, because the shipping Showcase stores images only:
+ * video, brochures, PDFs and datasheets. Those belong to the planned Event &
+ * Expo Intelligence material layer, and saying them here would be a promise
+ * this release cannot keep.
  */
+
 const DEMO_URL = 'https://abccard.io/u/martin'
 
-/** What the composition cannot show for itself. Deliberately three short lines. */
+/** What the composition cannot show for itself. */
 const NOTES = [
-  'Change your role or your number once — everyone who scans it from then on gets the new details.',
+  'Show what you choose: contact details, About, what you are looking for, your links and your work — each one on or off.',
+  'Change your role or your number once and everyone who opens it from then on gets the new details.',
   'Save contact downloads a real vCard, so you land in the phonebook properly rather than as a screenshot.',
-  'Room for what you actually do: About, what you are looking for, your links and your work.',
+  'Add ABC to your home screen and share your card from your phone in seconds.',
 ]
 
 export default function CardSection() {
   return (
     <Chapter
       id="card"
-      className="pub-section pub-section--raised"
+      className="pub-section"
       labelledBy="card-title"
       glow={{ x: '68%', y: '48%' }}
     >
       <div className="pub-container">
         <div className="pub-split pub-split--card">
           <div className="pub-split-copy">
-            <p className="pub-eyebrow">Free ABC Card</p>
+            <p className="pub-eyebrow">Your ABC</p>
             <CinematicHeadline id="card-title" className="pub-h2">
-              A professional identity people actually keep.
+              Your card. Always with you.
             </CinematicHeadline>
             <p className="pub-lead">
-              One permanent link and one QR code. Show it on your phone, put it in your signature,
-              print it on a badge. Whoever opens it gets you — and can hand their details straight
-              back.
+              Share the essentials — or tell the whole story. Your ABC can be as simple or as rich
+              as you want it to be, and the person you just met opens it without installing
+              anything.
             </p>
 
             <ul className="pub-notes cine-rise">
@@ -75,6 +74,13 @@ export default function CardSection() {
                 <li key={note}>{note}</li>
               ))}
             </ul>
+
+            <p className="cine-callout cine-rise">You decide what people see.</p>
+
+            <p className="pub-body cine-rise">
+              <IconDeviceMobile size={15} stroke={1.8} aria-hidden="true" /> They can send their own
+              details straight back, so an exchange goes both ways — included with every free ABC.
+            </p>
           </div>
 
           <div className="pub-split-media cine-media">
@@ -143,7 +149,7 @@ export default function CardSection() {
                   */}
                   <span>
                     <IconPhoto size={13} stroke={1.7} aria-hidden="true" />
-                    Selected work · 6 images
+                    My work · 6 images
                   </span>
                 </div>
               </article>
@@ -155,6 +161,10 @@ export default function CardSection() {
             </div>
           </div>
         </div>
+
+        <p className="cine-statement cine-rise">
+          A paper card tells them how to contact you. Your ABC can show them who you are.
+        </p>
       </div>
     </Chapter>
   )

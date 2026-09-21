@@ -17,7 +17,7 @@ import LandingPage from '@/components/landing/LandingPage'
 */
 const TITLE = 'ABC Card — From handshake to CRM in seconds'
 const DESCRIPTION =
-  'Scan a business card and ABC keeps the person, the meeting, what you discussed and the next step — then drafts the follow-up and syncs the relationship to HubSpot, Salesforce or Pipedrive. Your ABC Card is free.'
+  'ABC captures the person and the meeting — what you discussed and what happens next — then turns it into a follow-up and CRM-ready context in HubSpot, Salesforce or Pipedrive. For salespeople, founders and exhibitors. Free to start.'
 
 /*
   Same origin rule the release candidate already uses for links in email

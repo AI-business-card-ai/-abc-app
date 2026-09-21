@@ -1350,9 +1350,16 @@ a,
   grid-template-columns: minmax(0, 1fr);
   gap: 40px;
 }
+/* Brand block plus three link columns: Product, Explore, Legal. */
 @media (min-width: 760px) {
   .pub-footer-top {
     grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+    gap: 44px;
+  }
+}
+@media (min-width: 1024px) {
+  .pub-footer-top {
+    grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
     gap: 48px;
   }
 }
@@ -4314,10 +4321,17 @@ a,
   line-height: 1.02;
   letter-spacing: -0.04em;
 }
+/*
+  17ch, not 15: the funnel's headlines are two short sentences rather than one
+  phrase, and the tighter measure broke them mid-sentence. Balancing does the
+  same thing — it equalises line lengths and splits "Scan the person." across
+  two lines — so a column headline wraps greedily and breaks at its full stop.
+*/
 .cine .pub-split-copy .pub-h2,
 .cine .cine-stack-head .pub-h2 {
   font-size: clamp(31px, 3.9vw, 56px);
-  max-width: 15ch;
+  max-width: 17ch;
+  text-wrap: wrap;
 }
 .cine .pub-lead {
   line-height: 1.6;
@@ -4815,5 +4829,754 @@ a,
   .cine .lh-cta-primary:hover,
   .cine .lh-cta-secondary:hover {
     transform: none;
+  }
+}
+
+/* ============================================================
+   FUNNEL SCENES  (.cine-* continued)
+   ============================================================
+   The eight-scene sales story: the problem, capture, follow-up
+   and CRM, time and the event, the lifecycle and what is coming,
+   the identity and the systems, pricing and the close.
+
+   Built from the tokens above — no new colours, no new easing, no
+   new motion primitives. Everything here inherits the chapter
+   reveal and the active-chapter lighting, so a new scene wakes
+   exactly like an old one.
+   ============================================================ */
+
+/* ---------- Shared scene furniture ---------- */
+
+/*
+  The line a scene lands on. Big enough to be read as the conclusion of the
+  chapter, quiet enough that it never competes with the headline above it.
+*/
+.cine .cine-statement {
+  max-width: 34ch;
+  margin: clamp(40px, 5vw, 68px) auto 0;
+  font-size: clamp(21px, 2.3vw, 30px);
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+  color: var(--pub-ink);
+  text-align: center;
+  text-wrap: balance;
+}
+.cine .cine-final .cine-statement {
+  color: #141416;
+}
+
+/* A shorter aside in the copy column: the sentence with the edge on it. */
+.cine .cine-callout {
+  margin: 26px 0 0;
+  padding-left: 16px;
+  border-left: 2px solid rgba(245, 213, 138, 0.55);
+  font-size: clamp(17px, 1.5vw, 20px);
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: #e9e9ec;
+  max-width: 34ch;
+}
+.cine .cine-centered {
+  margin-inline: auto;
+  text-align: center;
+  max-width: 46ch;
+}
+/* A question that hands over to the next chapter needs air after the
+   statement it follows, or the two read as one run-on line. */
+.cine .cine-question.cine-centered {
+  margin-top: clamp(28px, 3.5vw, 46px);
+  color: var(--pub-ink-2);
+}
+.cine .cine-callout.cine-centered {
+  border-left: 0;
+  padding-left: 0;
+}
+
+/* Short value phrases, as a row of lit fragments rather than a bullet list. */
+.cine .cine-values {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  margin: 26px 0 0;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--pub-ink-2);
+}
+.cine .cine-values > * {
+  position: relative;
+  padding-left: 16px;
+}
+.cine .cine-values > *::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 8px;
+  height: 1px;
+  background: var(--pub-gold);
+}
+.cine .cine-values--inline {
+  justify-content: center;
+  margin-top: 24px;
+}
+.cine .cine-values--grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 32px;
+  margin-top: clamp(32px, 4vw, 48px);
+}
+@media (min-width: 900px) {
+  .cine .cine-values--grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Inline notes under a list: smaller than a list item, with its own icon. */
+.cine .cine-notes {
+  list-style: none;
+  display: grid;
+  gap: 12px;
+  margin: 26px 0 0;
+  padding: 0;
+}
+.cine .cine-notes li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 11px;
+  align-items: start;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--pub-ink-3);
+  max-width: 48ch;
+}
+.cine .cine-notes svg {
+  margin-top: 2px;
+  color: var(--pub-gold);
+}
+
+/*
+  Where two chapters are one scene, the second drops the gap and the ground
+  change so the pair reads as a single move.
+*/
+.cine .cine-section--continued {
+  padding-top: 0;
+}
+
+/* ---------- Scene 2: the problem ---------- */
+
+.cine .cine-fragments {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+  margin: clamp(40px, 5vw, 64px) 0 0;
+  padding: 0;
+  background: var(--pub-line);
+  border-block: 1px solid var(--pub-line);
+}
+@media (min-width: 720px) {
+  .cine .cine-fragments {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.cine .cine-fragments li {
+  padding: 22px 20px;
+  background: var(--pub-ground-raised);
+}
+.cine .cine-fragment-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pub-ink-3);
+}
+.cine .cine-fragments .pub-body {
+  color: var(--pub-ink-2);
+}
+
+/* The three questions: the scene's real content, set as type. */
+.cine .cine-questions {
+  display: grid;
+  gap: 10px;
+  margin: clamp(40px, 5vw, 64px) 0 0;
+  text-align: center;
+}
+@media (min-width: 900px) {
+  .cine .cine-questions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 28px;
+  }
+}
+.cine .cine-question {
+  margin: 0;
+  font-size: clamp(20px, 2.4vw, 32px);
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+  color: #d4d4d8;
+}
+
+/* ---------- Scene 3: capture ---------- */
+
+.cine .cine-capture {
+  display: grid;
+  gap: 14px;
+}
+.cine .cine-capture-scan {
+  padding: 26px 18px;
+}
+/* The record the scan resolves into: the point of the whole scene. */
+.cine .cine-capture-record {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(245, 213, 138, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(168deg, rgba(245, 213, 138, 0.05), rgba(12, 12, 14, 0.5) 60%);
+}
+.cine .cine-capture-record .pub-meeting-head {
+  padding-bottom: 14px;
+}
+
+/* ---------- Scene 4: follow-up and CRM ---------- */
+
+.cine .cine-crm-source {
+  padding: 14px 16px;
+  border: 1px solid var(--pub-line);
+  border-radius: 14px;
+  background: var(--pub-panel);
+}
+.cine .cine-crm-source .pub-body {
+  color: var(--pub-ink-2);
+}
+
+/* ---------- Scene 5a: time and value ---------- */
+
+.cine .cine-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  margin-top: clamp(40px, 5vw, 64px);
+}
+@media (min-width: 860px) {
+  .cine .cine-compare {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: clamp(20px, 3vw, 44px);
+    align-items: center;
+  }
+}
+.cine .cine-compare-col {
+  padding: clamp(24px, 3vw, 34px);
+  border: 1px solid var(--pub-line);
+  border-radius: 22px;
+  background: linear-gradient(170deg, #141416, #0d0d0f 70%);
+}
+.cine .cine-compare-col ul {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--pub-ink-2);
+}
+.cine .cine-compare-col li {
+  padding-left: 18px;
+  position: relative;
+}
+.cine .cine-compare-col li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 8px;
+  height: 1px;
+  background: #52525b;
+}
+.cine .cine-compare-head {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pub-ink-3);
+}
+.cine .cine-compare-cost {
+  margin: 22px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--pub-line);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--pub-ink-2);
+}
+/* The side that wins carries the champagne edge and the lit values. */
+.cine .cine-compare-col--with {
+  border-color: rgba(245, 213, 138, 0.22);
+  background:
+    radial-gradient(90% 60% at 20% 0%, rgba(245, 213, 138, 0.07), transparent 60%),
+    linear-gradient(170deg, #17150f, #0e0e10 62%);
+  box-shadow: inset 0 1px 0 rgba(245, 213, 138, 0.18);
+}
+.cine .cine-compare-col--with li::before {
+  background: var(--pub-gold);
+}
+.cine .cine-compare-col--with .cine-compare-cost {
+  color: #f5d58a;
+  border-top-color: rgba(245, 213, 138, 0.2);
+}
+.cine .cine-compare-arrow {
+  display: grid;
+  place-items: center;
+  color: var(--pub-gold);
+  transform: rotate(90deg);
+}
+@media (min-width: 860px) {
+  .cine .cine-compare-arrow {
+    transform: none;
+  }
+}
+
+/* ---------- Scene 6a: before / during / after ---------- */
+
+.cine .cine-phases .cine-step-num {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--pub-ink-2);
+}
+.cine .cine-phases .cine-panel[data-active] .cine-step-num {
+  color: #f5d58a;
+}
+/* Which phase exists today, said in the phase itself. */
+.cine .cine-phase-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.09);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--abc-green);
+  white-space: nowrap;
+}
+.cine .cine-phase-flag--next {
+  border-style: dashed;
+  border-color: rgba(245, 213, 138, 0.4);
+  background: transparent;
+  color: #f5d58a;
+}
+.cine .cine-phase-product {
+  margin: 14px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #f5d58a;
+}
+/* The unbuilt phase is drawn as a plan, not as a product. */
+.cine .cine-phases .cine-panel:first-child {
+  border-style: dashed;
+}
+
+/* ---------- Scene 6b: Event & Expo Intelligence ---------- */
+
+.cine .cine-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 5px 14px;
+  border: 1px dashed rgba(245, 213, 138, 0.45);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #f5d58a;
+}
+.cine .pub-head-center .cine-soon-badge {
+  margin-inline: auto;
+}
+
+.cine .cine-ei {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  margin-top: clamp(40px, 5vw, 64px);
+  align-items: stretch;
+}
+@media (min-width: 900px) {
+  .cine .cine-ei {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: clamp(24px, 3vw, 44px);
+  }
+}
+.cine .cine-ei-inputs,
+.cine .cine-ei-preview {
+  padding: clamp(22px, 2.6vw, 32px);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.cine .cine-ei-label,
+.cine .cine-ei-preview-tag {
+  margin: 0 0 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pub-ink-3);
+}
+.cine .cine-ei-preview-tag {
+  color: #f5d58a;
+}
+.cine .cine-ei-inputs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 11px;
+  font-size: 15px;
+  color: var(--pub-ink-2);
+}
+.cine .cine-ei-inputs li {
+  position: relative;
+  padding-left: 18px;
+}
+.cine .cine-ei-inputs li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 8px;
+  height: 1px;
+  background: var(--pub-gold);
+}
+.cine .cine-ei-company {
+  margin: 0;
+  font-size: clamp(20px, 2vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--pub-ink);
+}
+/*
+  Source fact and ABC's reading of it, visibly separated — the distinction the
+  future product has to keep, kept here too.
+*/
+.cine .cine-ei-facts {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0 0;
+}
+.cine .cine-ei-facts > div {
+  display: grid;
+  gap: 4px;
+}
+.cine .cine-ei-facts dt {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pub-ink-3);
+}
+.cine .cine-ei-facts dd {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #d4d4d8;
+}
+.cine .cine-ei-action {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
+  font-size: 13.5px;
+  color: var(--pub-ink-2);
+}
+
+/* A quiet grid for a capability that does not exist yet: no panels, no boxes. */
+.cine .cine-grid-quiet {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px 32px;
+  margin: clamp(36px, 4vw, 56px) 0 0;
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .cine .cine-grid-quiet {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .cine .cine-grid-quiet {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.cine .cine-grid-quiet .pub-card-icon {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--pub-ink-2);
+}
+/* The future chapter keeps its ambient light low. */
+.cine .cine-future::before {
+  opacity: 0.18;
+}
+.cine .cine-future[data-active]::before {
+  opacity: 0.55;
+}
+
+/* ---------- Scene 7b: integrations ---------- */
+
+.cine .cine-integrations {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: clamp(36px, 4vw, 56px) 0 0;
+  padding: 0;
+}
+@media (min-width: 760px) {
+  .cine .cine-integrations {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.cine .cine-integrations li {
+  display: grid;
+  gap: 5px;
+  padding: 20px;
+  border: 1px solid var(--pub-line);
+  border-radius: 16px;
+  background: var(--pub-panel);
+  text-align: center;
+}
+.cine .cine-integration-name {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--pub-ink);
+}
+.cine .cine-integration-note {
+  font-size: 12.5px;
+  color: var(--pub-ink-3);
+}
+
+/* ---------- Scene 8: pricing and close ---------- */
+
+/* The tier that cannot be bought reads as a plan on paper, not a product. */
+.cine .cine-tier-future {
+  border-style: dashed;
+  border-color: rgba(245, 213, 138, 0.28);
+  background: linear-gradient(170deg, rgba(23, 21, 15, 0.7), rgba(14, 14, 16, 0.7) 62%);
+}
+.cine .cine-tier-future .pub-plan-list svg {
+  color: var(--pub-ink-3);
+}
+
+.cine .cine-final-promise {
+  margin: clamp(28px, 3vw, 40px) auto 0;
+  font-size: clamp(18px, 1.8vw, 23px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #2c2721;
+}
+
+/* ---------- Hero lifecycle strip ---------- */
+
+.cine .lh-flow {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin: clamp(26px, 3vw, 38px) 0 0;
+  padding: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pub-ink-3);
+}
+.cine .lh-flow li {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.cine .lh-flow li:not(:last-child)::after {
+  content: '';
+  width: 16px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(245, 213, 138, 0.6), rgba(245, 213, 138, 0.15));
+}
+@media (max-width: 519px) {
+  .cine .lh-flow {
+    gap: 8px 10px;
+    letter-spacing: 0.12em;
+  }
+  .cine .lh-flow li {
+    gap: 10px;
+  }
+}
+
+/* ---------- Footer ---------- */
+
+.cine .pub-footer-flow,
+.pub-footer-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pub-ink-3);
+}
+.pub-footer-flow span {
+  color: var(--pub-gold);
+}
+.pub-footer-soon {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f5d58a;
+  white-space: nowrap;
+}
+
+/* ---------- Value equations ---------- */
+
+/*
+  The two locked equations — what Smart Scan captures, and what reaches the
+  CRM. Type on a hairline, not a diagram: the terms stay quiet, the operators
+  carry the champagne, and the result is the one element with an edge.
+*/
+.cine .cine-equation {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 12px 14px;
+  margin: clamp(36px, 4.5vw, 60px) auto 0;
+  padding: 18px 0;
+  border-block: 1px solid var(--pub-line);
+  max-width: 1040px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pub-ink-2);
+}
+.cine .cine-eq-part {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 14px;
+}
+.cine .cine-eq-op {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--pub-gold);
+}
+.cine .cine-eq-arrow {
+  font-size: 18px;
+}
+.cine .cine-eq-term {
+  white-space: nowrap;
+}
+.cine .cine-eq-result {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border: 1px solid rgba(245, 213, 138, 0.3);
+  border-radius: 999px;
+  background: rgba(245, 213, 138, 0.06);
+  color: #f5d58a;
+  white-space: nowrap;
+}
+@media (max-width: 519px) {
+  .cine .cine-equation {
+    gap: 10px 10px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+  .cine .cine-eq-part {
+    gap: 8px 10px;
+  }
+  .cine .cine-eq-result {
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+/* ---------- Event Intelligence: outputs and target detail ---------- */
+
+.cine .cine-ei-label--out {
+  margin-top: 26px;
+}
+/*
+  Scoped under .cine-ei-inputs on purpose: the input list's grid and dash
+  bullets are set on `.cine-ei-inputs ul/li`, and without matching specificity
+  they leaked into these chips and stacked them full-width.
+*/
+.cine .cine-ei-inputs .cine-ei-outputs {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+.cine .cine-ei-inputs .cine-ei-outputs li::before {
+  display: none;
+}
+.cine .cine-ei-inputs .cine-ei-outputs li {
+  padding: 6px 13px;
+  border: 1px dashed rgba(245, 213, 138, 0.38);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f5d58a;
+}
+/* Beside the company name: the kind of target, as the real list labels it. */
+.cine .cine-ei-kind {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pub-ink-3);
+}
+/* The analysis block is ABC's reading, so it is visibly set apart from the facts. */
+.cine .cine-ei-group {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #f5d58a;
+}
+.cine .cine-ei-analysis {
+  margin-top: 12px;
+}
+@media (min-width: 640px) {
+  .cine .cine-ei-analysis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 24px;
   }
 }

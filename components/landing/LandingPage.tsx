@@ -6,40 +6,39 @@ import { createClientComponent } from '@/lib/supabase'
 import PublicHeader from '@/components/landing/PublicHeader'
 import PublicFooter from '@/components/landing/PublicFooter'
 import LandingHero from '@/components/landing/hero/LandingHero'
-import CardSection from '@/components/landing/sections/CardSection'
-import TurnSection from '@/components/landing/sections/TurnSection'
-import HowItWorksSection from '@/components/landing/sections/HowItWorksSection'
-import ExchangeSection from '@/components/landing/sections/ExchangeSection'
+import ProblemSection from '@/components/landing/sections/ProblemSection'
+import CaptureContextSection from '@/components/landing/sections/CaptureContextSection'
+import RoiSection from '@/components/landing/sections/RoiSection'
 import EventWorkspaceSection from '@/components/landing/sections/EventWorkspaceSection'
-import MobileSection from '@/components/landing/sections/MobileSection'
-import PricingSection from '@/components/landing/sections/PricingSection'
-import ComingNextSection from '@/components/landing/sections/ComingNextSection'
+import LifecycleSection from '@/components/landing/sections/LifecycleSection'
+import EventIntelligenceSection from '@/components/landing/sections/EventIntelligenceSection'
+import CardSection from '@/components/landing/sections/CardSection'
 import TrustSection from '@/components/landing/sections/TrustSection'
-import {
-  CaptureSection,
-  CrmSection,
-  FollowUpSection,
-  RememberSection,
-} from '@/components/landing/sections/WorkflowSections'
-import {
-  AudienceSection,
-  FaqSection,
-  FinalCtaSection,
-} from '@/components/landing/sections/ClosingSections'
+import PricingSection from '@/components/landing/sections/PricingSection'
+import { CrmSection, FollowUpSection } from '@/components/landing/sections/WorkflowSections'
+import { FinalCtaSection } from '@/components/landing/sections/ClosingSections'
 
 /**
- * The public landing page.
+ * The public landing page — one sales story, in eight scenes.
  *
- * The order is the argument. The promise and the free card open it; the turn
- * hands over to the five steps ABC actually performs; each step then gets its
- * own chapter — capture, the meeting, the follow-up, the CRM, the event. After
- * that come the things a careful buyer checks: how it runs on a phone, what is
- * still to come, who it is for, what it costs, what ABC does with their data,
- * and the questions that stop people.
+ * The order is the argument, and it is a funnel rather than a feature list:
  *
- * Every capability named here exists in the release candidate
- * (berlin-final-release-cleanup). The one thing that does not — event
- * intelligence — is labelled as coming next and kept visually subordinate.
+ *   1  Hero            the promise: handshake to CRM
+ *   2  Problem         the meeting happened, the CRM knows nothing
+ *   3  Smart Scan      person + meeting context, captured together
+ *   4  Follow-up, CRM  the relationship continues, and reaches the CRM
+ *   5  Time, Event     what that saves, across a whole event
+ *   6  Lifecycle, EI   before / during / after, and what is coming next
+ *   7  Your ABC, Trust the identity behind it, and the systems it joins
+ *   8  Pricing, CTA    what it costs, and the one thing to do now
+ *
+ * Scenes 4, 5, 6 and 7 are pairs: two chapters that share a ground and read as
+ * one move, so the page lands as roughly eight cinematic scenes rather than
+ * fourteen full-height pages.
+ *
+ * Every capability named here exists in the release this branch is cut from.
+ * The one that does not — Event & Expo Intelligence — is labelled as coming
+ * next wherever it appears, and is never purchasable.
  *
  * A client component only because of the session check below. The metadata for
  * this route lives in app/page.tsx, which renders this.
@@ -81,27 +80,26 @@ export default function LandingPage() {
       <PublicHeader />
 
       <main>
+        {/* 1 */}
         <LandingHero />
-        <CardSection />
-        <TurnSection />
-        <HowItWorksSection />
-        <CaptureSection />
-        <RememberSection />
+        {/* 2 */}
+        <ProblemSection />
+        {/* 3 */}
+        <CaptureContextSection />
+        {/* 4 */}
         <FollowUpSection />
         <CrmSection />
+        {/* 5 */}
+        <RoiSection />
         <EventWorkspaceSection />
-        <ExchangeSection />
-        <MobileSection />
-        <AudienceSection />
-        <PricingSection />
+        {/* 6 */}
+        <LifecycleSection />
+        <EventIntelligenceSection />
+        {/* 7 */}
+        <CardSection />
         <TrustSection />
-        {/*
-          The one unbuilt capability sits after trust, not among the shipping
-          chapters, so it reads as what comes next rather than as part of what
-          a visitor can use today.
-        */}
-        <ComingNextSection />
-        <FaqSection />
+        {/* 8 */}
+        <PricingSection />
         <FinalCtaSection />
       </main>
 

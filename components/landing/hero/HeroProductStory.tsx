@@ -52,11 +52,15 @@ import type { TablerIcon } from '@tabler/icons-react'
 
 type Field = { Icon: TablerIcon; label: string; value: string }
 
-/** The meeting, in the fields the contact screen stores it in. */
+/*
+  The meeting, in the fields the contact screen stores it in — and the same
+  meeting every chapter below the hero returns to, so the page tells one story
+  rather than a different anecdote per section.
+*/
 const MEETING: Field[] = [
-  { Icon: IconMapPin, label: 'Met at', value: 'Messe Frankfurt · 2 Sep 2026' },
-  { Icon: IconMessage, label: 'Discussed', value: 'New booth build for Q1' },
-  { Icon: IconTargetArrow, label: 'Next step', value: 'Send layout and pricing' },
+  { Icon: IconMapPin, label: 'Met at', value: 'Ambiente 2026 · Hall 4' },
+  { Icon: IconMessage, label: 'Discussed', value: 'DACH distribution' },
+  { Icon: IconTargetArrow, label: 'Next step', value: 'Send proposal next week' },
 ]
 
 /** Where ABC can put the contact and the meeting. Wordmarks, not logos. */
