@@ -30,6 +30,23 @@ import {
 } from '@/lib/event-intelligence/ingest'
 import { parseEventObjective, parseIntentProfile, parseList } from '@/lib/event-intelligence/intent'
 import {
+  BRIEF_STATUS_HINT,
+  BRIEF_STATUS_LABEL,
+  UPLOAD_SUPPORTED,
+  briefStatusFor,
+  buildShareText,
+  canMarkReady,
+  emailHandoffUrl,
+  eventPhaseOn,
+  firstPartyNotice,
+  materialVisible,
+  parseMaterial,
+  parseProduct,
+  safeMaterialUrl,
+  whatsappHandoffUrl,
+  type ShareInput,
+} from '@/lib/event-intelligence/profile'
+import {
   RESERVED_EVENT_KEYS,
   eventEditionKey,
   isReservedEventKey,
@@ -169,6 +186,19 @@ const INTEL_OWNER_TABLES = [
   'intel_event_objectives',
   'intel_matches',
   'intel_meeting_targets',
+]
+
+/*
+  The Smart Event Profile's own owner-scoped tables. Listed apart from
+  INTEL_OWNER_TABLES because that list drives the per-row isolation loop below,
+  which seeds exactly one row in each — these four are seeded in their own
+  section instead. Both lists together are what the schema-wide checks use.
+*/
+const INTEL_PROFILE_TABLES = [
+  'intel_brief_materials',
+  'intel_event_materials',
+  'intel_meeting_briefs',
+  'intel_products',
 ]
 
 const INTEL_PUBLIC_TABLES = [
@@ -694,9 +724,9 @@ async function run() {
     "select table_name from information_schema.tables where table_schema='public' and table_name like 'intel\\_%' order by table_name"
   )
   check(
-    'D2 the eight tables exist',
+    'D2 every table the feature owns exists',
     intelTables.map((r) => r.table_name),
-    [...INTEL_PUBLIC_TABLES, ...INTEL_OWNER_TABLES].sort()
+    [...INTEL_PUBLIC_TABLES, ...INTEL_OWNER_TABLES, ...INTEL_PROFILE_TABLES].sort()
   )
 
   const rls = await rowsOf<{ relname: string; relrowsecurity: boolean }>(
@@ -704,7 +734,7 @@ async function run() {
     "select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r' and relname like 'intel\\_%' order by relname"
   )
   check(
-    'D3 row-level security is enabled on all eight',
+    'D3 row-level security is enabled on every one of them',
     rls.filter((r) => !r.relrowsecurity).map((r) => r.relname),
     []
   )
@@ -716,7 +746,7 @@ async function run() {
   check(
     'D4 exactly the private tables carry an owner — the public graph has no user_id to leak',
     ownerColumns.map((r) => r.table_name),
-    INTEL_OWNER_TABLES
+    [...INTEL_OWNER_TABLES, ...INTEL_PROFILE_TABLES].sort()
   )
 
   // ── Seed two accounts and one shared public event ──
@@ -2993,6 +3023,544 @@ async function run() {
     true
   )
 
+
+  // ══════════ Z. Smart Event Profile: products, material, briefs ══════════
+
+  check(
+    'Z1 ABC can hold images and only links the rest, because the bucket takes images only',
+    UPLOAD_SUPPORTED,
+    { image: true, video: false, document: false, link: false, offer: false }
+  )
+  check(
+    'Z2 a product needs a name',
+    (() => {
+      const bad = parseProduct({})
+      return !bad.ok && bad.error.length > 0
+    })(),
+    true
+  )
+  check(
+    'Z3 a product keeps its tags for a later, explicit ordering feature',
+    (() => {
+      const good = parseProduct({ name: 'Aluminium housings', productTags: 'CNC, aluminium', industryTags: 'Robotics' })
+      return good.ok ? [good.value.name, good.value.productTags, good.value.industryTags] : 'refused'
+    })(),
+    ['Aluminium housings', ['CNC', 'aluminium'], ['Robotics']]
+  )
+
+  check(
+    'Z4 material needs a title, a kind and a web address',
+    [parseMaterial({}).ok, parseMaterial({ title: 'Teaser' }).ok, parseMaterial({ title: 'Teaser', mediaKind: 'video' }).ok],
+    [false, false, false]
+  )
+  check(
+    'Z5 a javascript: or data: URL is refused — it would become a link somebody else opens',
+    [
+      safeMaterialUrl('javascript:alert(1)'),
+      safeMaterialUrl('data:text/html,<script>'),
+      safeMaterialUrl('file:///etc/passwd'),
+      safeMaterialUrl('  example.com/a.pdf '),
+    ],
+    [null, null, null, 'https://example.com/a.pdf']
+  )
+  check(
+    'Z6 a window that closes before it opens is refused',
+    (() => {
+      const bad = parseMaterial({
+        title: 'Teaser', mediaKind: 'video', url: 'https://example.invalid/v',
+        visibleFrom: '2026-11-05T00:00:00Z', visibleUntil: '2026-11-01T00:00:00Z',
+      })
+      return !bad.ok && /after its start/.test(bad.error)
+    })(),
+    true
+  )
+
+  /* The three moments of a fair, decided from the fair's own dates. */
+  const fair = { startsOn: '2026-11-03', endsOn: '2026-11-06' }
+  check(
+    'Z7 the phase comes from the event dates, not from a guess',
+    [
+      eventPhaseOn(fair, new Date('2026-10-01T12:00:00Z')),
+      eventPhaseOn(fair, new Date('2026-11-04T12:00:00Z')),
+      eventPhaseOn(fair, new Date('2026-12-01T12:00:00Z')),
+      eventPhaseOn({ startsOn: null, endsOn: null }, new Date('2026-11-04T12:00:00Z')),
+    ],
+    ['pre', 'live', 'post', null]
+  )
+  check(
+    'Z8 material pinned to a phase shows in that phase and not another',
+    [
+      materialVisible({ phase: 'pre', visibleFrom: null, visibleUntil: null }, new Date('2026-10-01T12:00:00Z'), 'pre'),
+      materialVisible({ phase: 'pre', visibleFrom: null, visibleUntil: null }, new Date('2026-11-04T12:00:00Z'), 'live'),
+      materialVisible({ phase: 'any', visibleFrom: null, visibleUntil: null }, new Date('2026-11-04T12:00:00Z'), 'live'),
+    ],
+    [true, false, true]
+  )
+  check(
+    'Z9 a fair with no dates has no phase, so a phase cannot hide anything',
+    materialVisible({ phase: 'live', visibleFrom: null, visibleUntil: null }, new Date('2026-11-04T12:00:00Z'), null),
+    true
+  )
+  check(
+    'Z10 an explicit window is honoured on both sides',
+    [
+      materialVisible({ phase: 'any', visibleFrom: '2026-11-02T00:00:00Z', visibleUntil: null }, new Date('2026-11-01T12:00:00Z'), null),
+      materialVisible({ phase: 'any', visibleFrom: null, visibleUntil: '2026-11-02T00:00:00Z' }, new Date('2026-11-03T12:00:00Z'), null),
+    ],
+    [false, false]
+  )
+
+  // ── The brief, and what it refuses to claim ──
+
+  check(
+    'Z11 a brief needs a topic and something to show before it is ready',
+    [
+      canMarkReady({ topic: null, productId: null, materialIds: [] }),
+      canMarkReady({ topic: 'Housings', productId: null, materialIds: [] }),
+      canMarkReady({ topic: 'Housings', productId: 'p1', materialIds: [] }),
+      canMarkReady({ topic: 'Housings', productId: null, materialIds: ['m1'] }),
+    ],
+    [false, false, true, true]
+  )
+  check(
+    'Z12 there is no status that claims the other side agreed',
+    Object.keys(BRIEF_STATUS_LABEL).sort(),
+    ['draft', 'ready', 'shared']
+  )
+  check(
+    'Z13 and asking for one is refused',
+    ['accepted', 'confirmed', 'scheduled', 'met'].map(
+      (s) => briefStatusFor(s, { topic: 'x', productId: 'p', materialIds: [] }).ok
+    ),
+    [false, false, false, false]
+  )
+  check(
+    'Z14 the shared state says plainly that it is not a reply and not a meeting',
+    BRIEF_STATUS_HINT.shared.includes('does not mean they replied') && BRIEF_STATUS_HINT.shared.includes('have met'),
+    true
+  )
+  check(
+    'Z15 first-party material is labelled as the owner own claim, not a source fact',
+    firstPartyNotice.includes('does not check it') && firstPartyNotice.includes('source fact'),
+    true
+  )
+
+  // ── Against a real database ──
+
+  const { db: pdb } = await freshDatabase()
+  await seedAccount(pdb, OWNER, 'profile-owner')
+  await seedAccount(pdb, OTHER, 'profile-other')
+
+  const makeEdition = async (key: string, name: string, year: number) =>
+    (
+      await rowsOf<{ id: string }>(
+        pdb,
+        'insert into public.intel_events (event_key, name, edition_year) values ($1,$2,$3) returning id',
+        [key, name, year]
+      )
+    )[0].id
+
+  const amb26 = await makeEdition('ambiente-2026', 'Ambiente', 2026)
+  const amb27 = await makeEdition('ambiente-2027', 'Ambiente', 2027)
+
+  const pCompany = (
+    await rowsOf<{ id: string }>(
+      pdb,
+      "insert into public.intel_companies (display_name, name_normalized, website_domain) values ('NordWerk Robotics', 'nordwerk robotics', 'nordwerk.test') returning id"
+    )
+  )[0].id
+  const pPresence26 = (
+    await rowsOf<{ id: string }>(
+      pdb,
+      "insert into public.intel_company_presences (event_id, company_id, hall, stand) values ($1,$2,'6','B42') returning id",
+      [amb26, pCompany]
+    )
+  )[0].id
+
+  const ownerChain = await seedIntel(pdb, OWNER, amb26, pPresence26)
+  const otherChain = await seedIntel(pdb, OTHER, amb26, pPresence26)
+
+  const product = (
+    await rowsOf<{ id: string }>(
+      pdb,
+      "insert into public.intel_products (user_id, name) values ($1, 'Aluminium housings') returning id",
+      [OWNER]
+    )
+  )[0].id
+
+  const material26 = (
+    await rowsOf<{ id: string }>(
+      pdb,
+      "insert into public.intel_event_materials (user_id, event_id, product_id, title, media_kind, url, phase) values ($1,$2,$3,'Housings teaser','video','https://example.invalid/v','pre') returning id",
+      [OWNER, amb26, product]
+    )
+  )[0].id
+
+  check(
+    'Z16 material made for 2026 does not appear at 2027 — nothing carries forward',
+    {
+      at2026: (await rowsOf<{ n: number }>(pdb, 'select count(*)::int as n from public.intel_event_materials where event_id = $1', [amb26]))[0].n,
+      at2027: (await rowsOf<{ n: number }>(pdb, 'select count(*)::int as n from public.intel_event_materials where event_id = $1', [amb27]))[0].n,
+    },
+    { at2026: 1, at2027: 0 }
+  )
+
+  check(
+    'Z17 reusing it at the next edition is an explicit new row',
+    (await rowsOf<{ id: string }>(
+      pdb,
+      "insert into public.intel_event_materials (user_id, event_id, title, media_kind, url) values ($1,$2,'Housings teaser','video','https://example.invalid/v') returning id",
+      [OWNER, amb27]
+    )).length,
+    1
+  )
+
+  check(
+    'Z18 one account cannot attach another account material to its own product',
+    await refusal(
+      pdb,
+      'authenticated',
+      "insert into public.intel_event_materials (user_id, event_id, product_id, title, media_kind, url) values ($1,$2,$3,'Stolen','video','https://example.invalid/x')",
+      [OTHER, amb26, product],
+      OTHER
+    ),
+    'foreign key'
+  )
+
+  const brief = (
+    await rowsOf<{ id: string }>(
+      pdb,
+      "insert into public.intel_meeting_briefs (user_id, target_id, product_id, topic) values ($1,$2,$3,'Housings for robots') returning id",
+      [OWNER, ownerChain.target, product]
+    )
+  )[0].id
+
+  check(
+    'Z19 a brief cannot be filed against another account target',
+    await refusal(
+      pdb,
+      'authenticated',
+      "insert into public.intel_meeting_briefs (user_id, target_id, topic) values ($1,$2,'Hijack')",
+      [OWNER, otherChain.target],
+      OWNER
+    ),
+    'foreign key'
+  )
+
+  check(
+    "Z20 'shared' without a moment of sharing is refused by the database",
+    await refusal(
+      pdb,
+      'authenticated',
+      "update public.intel_meeting_briefs set status = 'shared' where id = $1",
+      [brief],
+      OWNER
+    ),
+    'check'
+  )
+  check(
+    'Z21 and a status the product does not have is refused too',
+    await refusal(
+      pdb,
+      'authenticated',
+      "update public.intel_meeting_briefs set status = 'accepted' where id = $1",
+      [brief],
+      OWNER
+    ),
+    'check'
+  )
+  check(
+    'Z22 sharing records the moment, and that is all it records',
+    (
+      await asRole(
+        pdb,
+        'authenticated',
+        "update public.intel_meeting_briefs set status = 'shared', shared_at = now() where id = $1 returning 1",
+        [brief],
+        OWNER
+      )
+    ).rows.length,
+    1
+  )
+
+  /* INVITATION != MEETING, and TARGET != ENCOUNTER, after all of that. */
+  const contactsNow = (await rowsOf<{ n: number }>(pdb, 'select count(*)::int as n from public.scanned_contacts where user_id = $1', [OWNER]))[0].n
+  const encountersNow = (await rowsOf<{ n: number }>(pdb, 'select count(*)::int as n from public.contact_encounters where user_id = $1', [OWNER]))[0].n
+  check('Z23 preparing and sharing created no contact and no meeting', { contacts: contactsNow, encounters: encountersNow }, { contacts: 1, encounters: 1 })
+  check(
+    'Z24 and the target itself is still only a target',
+    (
+      await rowsOf<{ status: string; met_encounter_id: string | null }>(
+        pdb,
+        'select status, met_encounter_id from public.intel_meeting_targets where id = $1',
+        [ownerChain.target]
+      )
+    )[0],
+    { status: 'saved', met_encounter_id: null }
+  )
+
+  // ── Owner isolation and privileges ──
+
+  for (const table of ['intel_products', 'intel_event_materials', 'intel_meeting_briefs', 'intel_brief_materials']) {
+    check(
+      `Z25 ${table}: anon can read nothing`,
+      await refusal(pdb, 'anon', `select count(*) from public.${table}`),
+      'permission denied'
+    )
+  }
+
+  check(
+    'Z26 one account cannot read another account material',
+    (
+      await asRole<{ n: number }>(
+        pdb,
+        'authenticated',
+        'select count(*)::int as n from public.intel_event_materials',
+        [],
+        OTHER
+      )
+    ).rows[0].n,
+    0
+  )
+  check(
+    'Z27 nor their meeting briefs',
+    (
+      await asRole<{ n: number }>(pdb, 'authenticated', 'select count(*)::int as n from public.intel_meeting_briefs', [], OTHER)
+    ).rows[0].n,
+    0
+  )
+  check(
+    'Z28 ownership itself cannot be edited after the fact',
+    (
+      await rowsOf<{ column_name: string }>(
+        pdb,
+        "select column_name from information_schema.column_privileges where table_schema='public' and table_name='intel_meeting_briefs' and grantee='authenticated' and privilege_type='UPDATE' order by column_name"
+      )
+    ).map((r) => r.column_name),
+    ['message', 'product_id', 'shared_at', 'status', 'topic', 'updated_at']
+  )
+
+  // ── Deleting the account takes all of it ──
+
+  await pdb.query('select public.remove_account_data($1)', [OWNER])
+  check(
+    'Z29 deleting the account removes products, material, briefs and attachments',
+    (
+      await rowsOf<{ n: number }>(
+        pdb,
+        `select (select count(*) from public.intel_products where user_id = $1)
+              + (select count(*) from public.intel_event_materials where user_id = $1)
+              + (select count(*) from public.intel_meeting_briefs where user_id = $1)
+              + (select count(*) from public.intel_brief_materials where user_id = $1) as n`,
+        [OWNER]
+      )
+    )[0].n,
+    0
+  )
+
+  // ── Nothing sends, nothing is invented ──
+
+  const briefRoute = code('app/api/event-intelligence/brief/route.ts')
+  const prepareView = code('components/event-intelligence/PrepareMeetingView.tsx')
+  check(
+    'Z30 no route sends a message, an email or a webhook',
+    /nodemailer|resend|sendMail|fetch\(['"]https?:|gmail|smtp|webhook/i.test(briefRoute),
+    false
+  )
+  check(
+    'Z31 the composer writes no prose for the owner',
+    /generateMessage|aiDraft|suggestedMessage|claude|anthropic/i.test(prepareView),
+    false
+  )
+  check(
+    'Z32 and says so on the screen',
+    prepareView.includes('ABC writes nothing for you'),
+    true
+  )
+  check(
+    'Z33 sharing is the owner device, not an ABC transport',
+    prepareView.includes('navigator.share') && prepareView.includes('clipboard'),
+    true
+  )
+  check(
+    'Z34 the screen states that sharing is not a meeting',
+    prepareView.includes('does not mean you have met'),
+    true
+  )
+  check(
+    'Z35 the smart profile is a contextual layer, not a second card system',
+    /card_links|card_showcase_items|abc_profiles/.test(code('supabase/migrations/20260920120000_event_smart_profile.sql')),
+    true
+  )
+  check(
+    'Z36 no migration that shipped was edited to make room for it',
+    git('diff', '--diff-filter=MD', '--name-only', BASE_REF, '--', 'supabase/migrations')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean),
+    []
+  )
+
+  const profileSources = [
+    'app/api/event-intelligence/products/route.ts',
+    'app/api/event-intelligence/materials/route.ts',
+    'app/api/event-intelligence/brief/route.ts',
+    'components/event-intelligence/SmartProfileView.tsx',
+    'components/event-intelligence/PrepareMeetingView.tsx',
+  ]
+    .map((file) => code(file))
+    .join('\n')
+
+  check(
+    'Z37 none of it writes to the relationship graph',
+    /from\('(scanned_contacts|contact_encounters|scan_batches)'\)[\s\S]{0,160}\.(insert|upsert|update|delete)\(/.test(profileSources),
+    false
+  )
+
+
+  // ── What leaves ABC: the public/private boundary ──
+
+  const shareBase: ShareInput = {
+    topic: 'Housings for your next gripper line',
+    message: 'We machine aluminium housings. Ten minutes at your stand?',
+    product: { name: 'LiteCase housings' },
+    material: [{ title: 'LiteCase in 90 seconds', url: 'https://video.example.com/litecase' }],
+    event: { name: 'Ambiente 2026' },
+    me: { name: 'Dana Novak', company: 'Novak Machining', cardUrl: 'https://abccard.io/d/dana' },
+  }
+  const shared = buildShareText(shareBase)
+  check(
+    'Z38 the note carries what the owner chose to send',
+    [
+      'Housings for your next gripper line',
+      'Ten minutes at your stand?',
+      'About: LiteCase housings',
+      'LiteCase in 90 seconds — https://video.example.com/litecase',
+      'Ambiente 2026',
+      'Dana Novak, Novak Machining',
+      'https://abccard.io/d/dana',
+    ].filter((line) => !shared.includes(line)),
+    []
+  )
+
+  // Everything a careless caller might hand over. None of it has a parameter to arrive through.
+  const secrets = {
+    note: 'PRIVATE-NOTE-they-are-cash-strapped',
+    privateNote: 'PRIVATE-NOTE-2',
+    priority: 'PRIORITY-high',
+    status: 'TARGET-STATUS-planned',
+    targetStatus: 'TARGET-STATUS-2',
+    score: 87,
+    matchScore: 'SCORE-87',
+    reasons: [{ statement: 'ABC-REASON-they-sell-grippers' }],
+    evidence: ['EVIDENCE-listing-quote'],
+    crm: { stage: 'CRM-STAGE-negotiation' },
+    salesManagerNote: 'MANAGER-NOTE-push-hard',
+    presence: { hall: 'HALL-SECRET-9', stand: 'STAND-SECRET-C44' },
+    ownerEmail: 'owner@example.com',
+  }
+  const leaky = buildShareText({ ...shareBase, ...secrets } as unknown as ShareInput)
+  check(
+    'Z39 private notes, priority, target status, score, ABC reasoning and CRM state never reach the note',
+    [
+      'PRIVATE-NOTE',
+      'PRIORITY-',
+      'TARGET-STATUS',
+      '87',
+      'ABC-REASON',
+      'EVIDENCE-',
+      'CRM-STAGE',
+      'MANAGER-NOTE',
+      'HALL-SECRET',
+      'STAND-SECRET',
+      'owner@example.com',
+    ].filter((marker) => leaky.includes(marker)),
+    []
+  )
+  check('Z40 and handing them over changes nothing at all', leaky, shared)
+  check(
+    'Z41 no card link unless the owner has a published card',
+    buildShareText({ ...shareBase, me: { ...shareBase.me, cardUrl: null } }).includes('abccard.io'),
+    false
+  )
+  check(
+    'Z42 an empty brief names only the fair, and invents nothing',
+    buildShareText({
+      topic: '  ',
+      message: null,
+      product: null,
+      material: [],
+      event: { name: 'Ambiente 2026' },
+      me: { name: null, company: null, cardUrl: null },
+    }),
+    'Ambiente 2026'
+  )
+
+  const shareCall = /buildShareText\(\{[\s\S]*?\}\)/.exec(prepareView)?.[0] ?? ''
+  check('Z43 the screen builds its note with that function, not by hand', shareCall.length > 0, true)
+  check(
+    'Z44 and hands it nothing private',
+    /target|note|priority|score|reason|status|presence|evidence/i.test(shareCall),
+    false
+  )
+  const preparePage = code('app/events/intelligence/[eventKey]/m/[matchId]/prepare/page.tsx')
+  check(
+    'Z45 the card link is the real public address, and only for a published card',
+    /publicCardUrl\(slug\)/.test(preparePage) && /card_published === true/.test(preparePage),
+    true
+  )
+
+  // ── Channels: the owner's own apps, no recipient, nothing sent ──
+
+  const mail = emailHandoffUrl('Ambiente 2026', 'Line one\nLine & two')
+  check('Z46 email opens the owner mail app with no recipient in it', mail.startsWith('mailto:?subject='), true)
+  check('Z47 and the note survives the trip intact', decodeURIComponent(mail.split('&body=')[1] ?? ''), 'Line one\nLine & two')
+  check(
+    'Z48 WhatsApp opens its own chat picker, with no number in it',
+    whatsappHandoffUrl('Hello there'),
+    'https://wa.me/?text=Hello%20there'
+  )
+  check(
+    'Z49 the handoffs take a subject and a body, and nothing that could carry an address',
+    [emailHandoffUrl.length, whatsappHandoffUrl.length],
+    [2, 1]
+  )
+  check(
+    'Z50 a cancelled share sheet records nothing',
+    /navigator\.share\([\s\S]*?catch[\s\S]*?return[\s\S]*?save\(\{ status: 'shared' \}\)/.test(prepareView),
+    true
+  )
+  const bodyOf = (fn: string) =>
+    new RegExp('function ' + fn + '\\(\\)[\\s\\S]*?\\n  \\}').exec(prepareView)?.[0] ?? ''
+  check(
+    'Z51 opening email, WhatsApp or copying does not claim the note was sent',
+    ['openEmail', 'openWhatsApp', 'copy'].filter((fn) => !bodyOf(fn) || /status: 'shared'/.test(bodyOf(fn))),
+    []
+  )
+  check(
+    'Z52 the owner says whether they sent it, because ABC cannot see',
+    prepareView.includes('ABC cannot see whether you sent it') && prepareView.includes('I sent it'),
+    true
+  )
+  check(
+    'Z53 the screen says who presses send',
+    prepareView.includes('you press send') && prepareView.includes('ABC does not'),
+    true
+  )
+  check(
+    'Z54 no public page exists for a profile or a brief',
+    git('diff', '--name-only', BASE_REF, '--', 'app')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter(
+        (file) =>
+          !file.startsWith('app/events/intelligence/') &&
+          !file.startsWith('app/api/event-intelligence/') &&
+          file !== 'app/events/page.tsx'
+      ),
+    []
+  )
 
   // ══════════ R. The handoff documents ══════════
 
