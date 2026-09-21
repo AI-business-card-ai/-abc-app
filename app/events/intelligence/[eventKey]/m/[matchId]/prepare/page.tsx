@@ -11,6 +11,7 @@ import {
 } from '@/lib/event-intelligence/data'
 import { eventIntelligenceContext } from '@/lib/event-intelligence/page-context'
 import { publicCardUrl } from '@/lib/my-card-data'
+import { eventPhaseOn, materialVisible } from '@/lib/event-intelligence/profile'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +77,15 @@ export default async function PrepareMeetingPage({
     .eq('id', ownerId)
     .maybeSingle()
 
+  /*
+    The owner's own timing, applied: material pinned to after the fair, or
+    given a window that has not opened, is still listed — it is theirs, and
+    they may want it anyway — but it is labelled and goes after what is for now.
+  */
+  const now = new Date()
+  const phase = eventPhaseOn(event, now)
+  const visibleNow = materials.filter((material) => materialVisible(material, now, phase)).map((material) => material.id)
+
   const profile = (profileRow ?? {}) as Record<string, unknown>
   const slug = typeof profile.card_slug === 'string' ? profile.card_slug : null
 
@@ -88,6 +98,7 @@ export default async function PrepareMeetingPage({
       target={target}
       products={products}
       materials={materials}
+      visibleNow={visibleNow}
       brief={brief}
       me={{
         name: typeof profile.full_name === 'string' ? profile.full_name : null,

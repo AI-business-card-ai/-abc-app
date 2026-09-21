@@ -19,6 +19,7 @@ import {
   BRIEF_STATUS_HINT,
   BRIEF_STATUS_LABEL,
   MEDIA_KIND_LABEL,
+  PHASE_LABEL,
   buildShareText,
   canMarkReady,
   emailHandoffUrl,
@@ -64,6 +65,8 @@ type Props = {
   target: MeetingTarget
   products: EventProduct[]
   materials: EventMaterial[]
+  /** Material inside the phase and window the owner gave it, decided on the server. */
+  visibleNow: string[]
   brief: MeetingBrief | null
   /** `cardUrl` is set only for a published card. */
   me: { name: string | null; company: string | null; cardUrl: string | null }
@@ -77,6 +80,7 @@ export default function PrepareMeetingView({
   target,
   products,
   materials,
+  visibleNow,
   brief,
   me,
 }: Props) {
@@ -101,6 +105,15 @@ export default function PrepareMeetingView({
   const chosen = useMemo(
     () => attached.map((id) => materials.find((m) => m.id === id)).filter((m): m is EventMaterial => Boolean(m)),
     [attached, materials]
+  )
+
+  // What is for now first; the rest keeps its order behind it.
+  const listed = useMemo(
+    () => [
+      ...materials.filter((m) => visibleNow.includes(m.id)),
+      ...materials.filter((m) => !visibleNow.includes(m.id)),
+    ],
+    [materials, visibleNow]
   )
 
   const ready = canMarkReady({ topic: topic.trim() || null, productId: productId || null, materialIds: attached })
@@ -321,8 +334,9 @@ export default function PrepareMeetingView({
           </p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
-            {materials.map((material) => {
+            {listed.map((material) => {
               const on = attached.includes(material.id)
+              const current = visibleNow.includes(material.id)
               return (
                 <li key={material.id}>
                   <button
@@ -344,7 +358,8 @@ export default function PrepareMeetingView({
                         {material.title}
                       </span>
                       <span className="block text-[12px] text-abc-muted">
-                        {MEDIA_KIND_LABEL[material.mediaKind]}
+                        {MEDIA_KIND_LABEL[material.mediaKind]} · {PHASE_LABEL[material.phase]}
+                        {current ? '' : ' · outside the time you set for it'}
                       </span>
                     </span>
                     {on ? (

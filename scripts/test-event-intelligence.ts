@@ -3561,6 +3561,16 @@ async function run() {
       ),
     []
   )
+  check(
+    'Z55 the prepare screen applies the phase and window the owner set',
+    preparePage.includes('eventPhaseOn(event, now)') && preparePage.includes('materialVisible(material, now, phase)'),
+    true
+  )
+  check(
+    'Z56 and still lists what falls outside them, labelled, because it is the owner’s material',
+    prepareView.includes('outside the time you set for it') && prepareView.includes('...materials.filter((m) => !visibleNow'),
+    true
+  )
 
   // ══════════ R. The handoff documents ══════════
 

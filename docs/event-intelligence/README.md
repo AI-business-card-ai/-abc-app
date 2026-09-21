@@ -375,6 +375,11 @@ fact rather than a guess — and an event with no dates has no phase, in which
 case a phase never hides anything. An explicit `visible_from` / `visible_until`
 window is honoured independently.
 
+The prepare screen applies both on the server: what is for now is listed
+first, and anything outside its phase or window is still listed after it,
+labelled "outside the time you set for it". It is the owner's own material, so
+ABC orders and labels it rather than hiding it.
+
 ### Edition scoping
 
 `event_id` is **not nullable**. A teaser made for Ambiente 2026 is not material
@@ -494,7 +499,7 @@ be removed. Nothing there can mark anybody as met.
 ## 11. Tests
 
 ```bash
-npm run test:event-intelligence     # 386 checks, including 500/2,000/5,000-row scale passes
+npm run test:event-intelligence     # 388 checks, including 500/2,000/5,000-row scale passes
 npm run test:account-deletion       # proves the cascade reaches the new tables
 npm run typecheck && npm run lint && npm run build
 ```
