@@ -162,8 +162,19 @@ export default function EventIntelligenceView({
 
           <MatchList rows={rows} eventKey={event.eventKey} totalMatches={allRows.length} />
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap items-center gap-2">
             <RunMatching eventKey={event.eventKey} again />
+            {/*
+              Checking ABC’s work is the owner’s business, not the fair’s: a quiet
+              link, next to the action that produced the list, and nowhere in the
+              navigation. It never competes with walking the fair.
+            */}
+            <Link
+              href={`/events/intelligence/${event.eventKey}/benchmark`}
+              className="touch-target inline-flex min-h-[44px] items-center text-[13px] text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+            >
+              Was this list any good?
+            </Link>
           </div>
         </>
       )}

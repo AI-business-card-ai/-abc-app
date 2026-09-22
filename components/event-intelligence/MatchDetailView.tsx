@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { IconArrowLeft, IconMapPin } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
+import RelevanceFeedback from '@/components/event-intelligence/RelevanceFeedback'
 import { SectionLabel } from '@/components/ui/abc/Bits'
 import {
   MATCH_TYPE_LABEL,
@@ -17,6 +18,7 @@ import {
   sourceFacts,
 } from '@/lib/event-intelligence/view'
 import { displayTargetStatus } from '@/lib/event-intelligence/types'
+import type { MatchFeedback } from '@/lib/event-intelligence/benchmark'
 import type { LinkableEncounter } from '@/lib/event-intelligence/data'
 import type {
   IntelCompany,
@@ -56,9 +58,20 @@ type Props = {
   source: { provider: string; sourceUrl: string | null; fetchedAt: string } | null
   /** Meetings this owner already recorded at this fair. Never created here. */
   encounters: LinkableEncounter[]
+  /** What the owner already thought of this suggestion, if they said. */
+  feedback: MatchFeedback | null
 }
 
-export default function MatchDetailView({ event, match, presence, company, target, source, encounters }: Props) {
+export default function MatchDetailView({
+  event,
+  match,
+  presence,
+  company,
+  target,
+  source,
+  encounters,
+  feedback,
+}: Props) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState(target?.privateNote ?? '')
@@ -377,6 +390,11 @@ export default function MatchDetailView({ event, match, presence, company, targe
             </div>
           </div>
         )}
+      </section>
+
+      {/* ── Was ABC right? Asked last, and never before the reasoning ── */}
+      <section className="mt-6">
+        <RelevanceFeedback matchId={match.id} feedback={feedback} />
       </section>
 
       {/* ── Where all this came from ── */}

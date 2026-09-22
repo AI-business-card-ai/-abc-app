@@ -7,6 +7,7 @@ import {
   toMatch,
   toPresence,
 } from '@/lib/event-intelligence/data'
+import { loadFeedbackForMatch } from '@/lib/event-intelligence/benchmark-data'
 import { eventIntelligenceContext } from '@/lib/event-intelligence/page-context'
 
 export const dynamic = 'force-dynamic'
@@ -67,9 +68,10 @@ export default async function MatchDetailPage({
     .limit(1)
     .maybeSingle()
 
-  const [targets, encounters] = await Promise.all([
+  const [targets, encounters, feedback] = await Promise.all([
     loadTargets(supabase, ownerId, event.id),
     loadLinkableEncounters(supabase, ownerId, event.eventKey),
+    loadFeedbackForMatch(supabase, ownerId, match.id),
   ])
 
   return (
@@ -80,6 +82,7 @@ export default async function MatchDetailPage({
       company={companyRow ? toCompany(companyRow as Record<string, unknown>) : undefined}
       target={targets.find((target) => target.matchId === match.id) ?? null}
       encounters={encounters}
+      feedback={feedback}
       source={
         sourceRow
           ? {
