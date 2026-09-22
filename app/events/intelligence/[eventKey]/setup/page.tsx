@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import SetupView from '@/components/event-intelligence/SetupView'
+import { loadBrainView } from '@/lib/event-intelligence/brain-data'
 import { loadIntentProfile, loadObjective } from '@/lib/event-intelligence/data'
 import { eventIntelligenceContext } from '@/lib/event-intelligence/page-context'
 
@@ -18,8 +19,16 @@ export default async function SetupPage({ params }: { params: { eventKey: string
   if (result.kind === 'absent') notFound()
 
   const { supabase, ownerId, event } = result.context
-  const profile = await loadIntentProfile(supabase, ownerId)
+  const [profile, brain] = await Promise.all([loadIntentProfile(supabase, ownerId), loadBrainView(supabase, ownerId)])
   const objective = profile ? await loadObjective(supabase, ownerId, event.id) : null
 
-  return <SetupView event={event} profile={profile} objective={objective} />
+  // How ABC understands the business: one card, owner-scoped, above the owner's own answers.
+  return (
+    <SetupView
+      event={event}
+      profile={profile}
+      objective={objective}
+      brain={{ summary: brain.summary, website: brain.website }}
+    />
+  )
 }

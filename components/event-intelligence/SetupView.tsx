@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { IconArrowLeft } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import { SectionLabel } from '@/components/ui/abc/Bits'
+import ProductBrainCard from '@/components/event-intelligence/ProductBrainCard'
+import type { BrainSummary } from '@/lib/event-intelligence/product-brain'
 import type { CompanyIntentProfile, EventObjective, IntelEvent } from '@/lib/event-intelligence/types'
 
 /**
@@ -25,6 +27,8 @@ type Props = {
   event: IntelEvent
   profile: CompanyIntentProfile | null
   objective: EventObjective | null
+  /** How ABC understands the business. Absent, the card is not shown. */
+  brain?: { summary: BrainSummary; website: string | null }
 }
 
 const lines = (values: string[] | undefined) => (values ?? []).join('\n')
@@ -47,7 +51,7 @@ function Field({
   )
 }
 
-export default function SetupView({ event, profile, objective }: Props) {
+export default function SetupView({ event, profile, objective, brain }: Props) {
   const router = useRouter()
 
   const [companyName, setCompanyName] = useState(profile?.companyName ?? '')
@@ -155,7 +159,9 @@ export default function SetupView({ event, profile, objective }: Props) {
         </p>
       </header>
 
-      <section className="abc-surface mt-6 flex flex-col gap-5 p-4 sm:p-5">
+      {brain ? <ProductBrainCard summary={brain.summary} website={brain.website} /> : null}
+
+      <section className={`abc-surface ${brain ? 'mt-4' : 'mt-6'} flex flex-col gap-5 p-4 sm:p-5`}>
         <SectionLabel>Your company</SectionLabel>
 
         <Field label="Company name">

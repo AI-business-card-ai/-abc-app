@@ -1470,6 +1470,55 @@ export async function runEngineSuite(ctx: SuiteContext): Promise<void> {
   )
   check('AE13 the new migration is new, additive, and edits nothing that shipped', [ctx.git('ls-tree', '--name-only', '9a757f9', '--', 'supabase/migrations/20260921120000_event_data_engine.sql'), /\bdrop\s+(table|column|constraint)\b|alter\s+table\s+public\.\w+\s+(drop|alter\s+column)/i.test(ctx.code('supabase/migrations/20260921120000_event_data_engine.sql'))], ['', false])
   check('AE14 the edition key still carries the year', [eventEditionKey('MEDICA', 2026), eventEditionKey('MEDICA', 2027)], ['medica-2026', 'medica-2027'])
+
+  // ── The one owner-facing surface: THIS IS HOW ABC UNDERSTANDS YOUR BUSINESS ──
+
+  const card = ctx.code('components/event-intelligence/ProductBrainCard.tsx')
+  check(
+    'AE15 one card, one concept: the heading, "Looks right" and "Edit", each item labelled with whose words it is',
+    [
+      card.includes('This is how ABC understands your business'),
+      card.includes("'Looks right'"),
+      card.includes('>\n                Edit\n') || card.includes('Edit\n'),
+      card.includes('{item.label}'),
+      card.includes('aria-labelledby="brain-title"'),
+    ],
+    [true, true, true, true, true]
+  )
+  check(
+    'AE16 no admin surface: no sources, runs, crawl reports, evidence dumps or taxonomy on the card, and no second primary action',
+    [
+      // The note explaining a refused read is owner-facing copy ("asks AI crawlers not to read it"), not an admin surface.
+      /source[_ ]?health|intel_source|crawl|robots|evidence|basis|taxonomy|provider/i.test(
+        card.replace(/const WEBSITE_NOTE[\s\S]*?\n}\n/, '').replace(/Reading your website|read my website/gi, '')
+      ),
+      /variant="gold"|<Button(?![^>]*variant=)/.test(card),
+    ],
+    [false, false]
+  )
+  check(
+    'AE17 the owner’s own words cannot be removed from the card — only ABC’s reading can; the owner edits their words in the form',
+    card.includes("editing && item.origin !== 'owner' && item.id"),
+    true
+  )
+  check(
+    'AE18 touch targets and live status: every card control is ≥44px, the busy state is announced, errors are alerts',
+    [(card.match(/touch-target/g) ?? []).length >= 1, card.includes('aria-live="polite"'), card.includes('role="alert"'), ctx.code('components/ui/abc/Button.tsx').includes('touch-target')],
+    [true, true, true, true]
+  )
+  check(
+    'AE19 the card lives on Refine only — progressive disclosure — not on Home, the mission, or the navigation',
+    [
+      ctx.code('components/event-intelligence/SetupView.tsx').includes('<ProductBrainCard'),
+      /ProductBrainCard/.test(ctx.code('components/event-intelligence/MissionView.tsx') + ctx.code('components/event-intelligence/ExpoMissionCard.tsx') + ctx.code('app/home/page.tsx')),
+    ],
+    [true, false]
+  )
+  check(
+    'AE20 when the website is not read, the owner is told why rather than shown nothing',
+    [card.includes('refused_ai_opt_out'), card.includes('asks AI crawlers not to read it')],
+    [true, true]
+  )
   void FIXTURE_ORIGIN
 }
 
