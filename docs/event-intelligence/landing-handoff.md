@@ -52,6 +52,11 @@ All of it against a synthetic dataset, on a feature branch, with the flag off.
   to your own share sheet, mail app or WhatsApp, or copy it. You pick the
   recipient and press send; ABC sends nothing and adds no address.
 
+- **You can tell ABC when it was wrong.** Three taps on a suggestion — great
+  target, relevant, not relevant — with an optional reason, plus a way to flag a
+  company ABC should have found and did not. Private to the owner, off the main
+  navigation, and it changes nothing about the company.
+
 ## What is prototype only
 
 - **ABC ships no event data.** There is one synthetic demo fair with 21
@@ -65,6 +70,11 @@ All of it against a synthetic dataset, on a feature branch, with the flag off.
   now issues a flat handful of database statements whatever the fair's size,
   but the measured timings are from a laptop database and say nothing about how
   it behaves in production.
+- **Feedback teaches ABC nothing yet.** It is recorded and counted so the
+  quality of the suggestions can be measured before anything is tuned. No
+  weights change, and there is no self-improving loop.
+- **The benchmark is a handful of opinions about one fair**, not a measurement
+  of how ABC performs generally.
 - **No pricing, entitlement or credit cost** has been decided or built.
 
 ## Still future
@@ -106,6 +116,8 @@ Each of these is either untrue today or untrue in principle.
 | "Know who will buy", "predicts your best prospects", any percentage read as a win rate | ABC Match is fit to a stated objective, explicitly not a probability. The product says so on screen and the marketing must not contradict it. |
 | "Get their contact details before the event" | No personal data is collected, by design. |
 | "Automated outreach", "message exhibitors before you go", "ABC sends the invitation" | ABC has no transport at all. The owner shares from their own device; nothing is sent by ABC. |
+| "ABC learns from your feedback", "gets smarter with every use", "self-improving matching" | Feedback is recorded and counted. Nothing is retrained, retuned or reweighted by it. |
+| "X% accurate", "proven match accuracy", any benchmark number | The benchmark is the owner's own opinions on one fair, and the product deliberately avoids the word accuracy. Publishing a rate as a product claim would misread it. |
 | "Book a meeting", "confirmed meetings", "they accepted" | A brief is only ever draft, ready or shared. Nobody replies inside ABC, and there is no status that claims they did. |
 | "Upload your videos and brochures to ABC" | Video and documents are **links** to where the company already hosts them. Even images are added by address in this form today. |
 | "ABC finds the right person to contact", "reach the decision-maker" | ABC holds no person or address for an exhibitor. The owner chooses who the note goes to. |

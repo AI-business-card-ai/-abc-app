@@ -512,8 +512,8 @@ be removed. Nothing there can mark anybody as met.
 ## 11. Tests
 
 ```bash
-npm run test:event-intelligence     # 580 checks: the 445 below, plus sections AB–AE for §14–15 (see §16)
-npm run test:account-deletion       # proves the cascade reaches the new tables, brain tables included
+npm run test:event-intelligence     # 659 checks: the 445 below, plus AB–AE for §14–15 (§16) and AF for §17
+npm run test:account-deletion       # proves the cascade reaches every new table, benchmark rows included
 npm run typecheck && npm run lint && npm run build
 ```
 
@@ -542,6 +542,10 @@ and each reverted.
   suggested next step; the deterministic engine cannot write them without
   asserting something nobody told it, and fabricating them would break the one
   rule this feature is built around. The interface for a later adapter exists.
+- **No learning from feedback.** The benchmark (§17) records what the owner
+  thought of ABC's suggestions and counts it. No weight, rule or brain fact
+  changes as a result, and no outcome — meeting, follow-up, CRM push — is
+  treated as proof that a recommendation was good.
 - **No pricing or entitlement.** Not decided, not built.
 - **No route optimisation, scheduling, outreach or contact discovery**, by design.
 - **Hosted-Supabase performance is unknown.** Everything below is local PGlite
@@ -1030,3 +1034,113 @@ to show, the Expo Mission, the card), called from the main suite: 135 checks,
 | keep crawling after a 403 | AC9, AC10 |
 | ignore AI opt-outs | AB3, AC6b, AD27a |
 | read only the first robots group | AC6a |
+
+## 17. Mission Benchmark V1 — is ABC recommending the right companies?
+
+Built before more scraping, and before any tuning, because a matching engine
+nobody has measured is an opinion with a version number. This is the
+instrument, not the improvement: it records what the owner thought of what ABC
+suggested, counts it, and stops there.
+
+### OWNER FEEDBACK is a fourth kind of claim
+
+The feature already keeps three apart. This adds one, and keeps it apart too:
+
+| Kind | Where it lives |
+| --- | --- |
+| OWNER FACT | `intel_company_profiles`, `intel_products` — what the owner typed |
+| SOURCE FACT | `intel_source_records`, the listing — what a source said |
+| ABC ANALYSIS | `intel_matches.reasons`, `intel_brain_facts` (`origin = 'analysis'`) |
+| **OWNER FEEDBACK** | **`intel_match_feedback`, `intel_missed_opportunities`** |
+
+A judgment rewrites none of the first three. `scoring.ts`, `product-brain.ts`
+and `brain-data.ts` never read these tables — AF66 fails if they start to — so
+one click cannot retune anything. **No silent learning:** when learning arrives
+it will be a deliberate process with a version of its own, and the seam it will
+use is already here (`loadFeedbackForOwner`, `loadFeedbackForMatch`,
+`recordRecommendationFeedback`, `recordMissedOpportunity`, `buildBenchmark`).
+
+### Three answers, and the reason for a refusal
+
+`great`, `relevant`, `not_relevant`. There is no `met`, `contacted`,
+`accepted`, `converted` or `won`, in the type or in the CHECK: **TARGET ≠
+ENCOUNTER** holds here too, and a great target is a judgment about a
+suggestion, not a claim that anybody met. A `not_relevant` may carry one
+reason from a closed list of seven — wrong industry, wrong kind of company, we
+don't sell to them, wrong market, already known, not enough to go on, something
+else — and a database CHECK ties a reason to the refusal it explains. The
+reason is asked *after* the judgment is recorded, never before it, because a
+form is how feedback stops being given.
+
+### Missed opportunities
+
+The half that grading recommendations cannot reach: a system that suggests
+three companies and gets all three right looks perfect and is useless.
+`intel_missed_opportunities` names a company **at this edition** — a composite
+foreign key to `(id, event_id)` makes the database check the pairing, so a flag
+on Ambiente 2026 can never be about a 2027 stand. No score and no rank: ABC did
+not rank it, which is the complaint.
+
+### The arithmetic, and what it refuses to claim
+
+`buildBenchmark` is pure. One rule carries the whole instrument: **an
+unreviewed recommendation is not a negative one.** It is absent from both sides
+of every fraction, and `coverage` says how much of the list the numbers rest
+on. Counting silence as failure would make ABC improve by suggesting less.
+
+Top 5, 10 and 25 are reported over the ranking as it was shown (score, then
+id — the order `loadMatches` returns). A slice shorter than its `k` says so
+(`complete: false`) instead of padding the denominator.
+
+Nothing is called accuracy, precision, recall or confidence, and AF41 fails if
+it ever is. `positiveRate` is the share of *reviewed* suggestions the owner
+called useful — a count of opinions about one fair, not a measurement of a
+population.
+
+### Reproducibility
+
+A match row is current: re-running matching rewrites its score and engine
+version in place. So each judgment copies what ABC had concluded at that
+moment — `match_score`, `match_type`, `engine_version`, and `brain_version`
+split out of the stamp when the Product Brain contributed. AF52 re-scores a
+match and proves the judgment still names what it was given for, which is what
+makes a before-and-after possible at all. Mixed versions in one sample are
+flagged on screen rather than averaged.
+
+### Privacy and who may write
+
+Owner-scoped, RLS, `anon` nothing. `authenticated` may **SELECT only**: the
+judgment is the owner's, but the row carries ABC's record of what it had
+recommended, and a client able to INSERT could file a judgment against a score
+ABC never gave. Both routes read the match through the owner's own client
+(so another account's match is *not found*, not *forbidden*), then write with
+the service role, stamping the owner id from the session. Both tables cascade
+from `abc_profiles`, so account deletion takes them with it — seeded and proved
+in the account-deletion suite.
+
+### Where it lives
+
+Owner-only progressive disclosure, and **not in the navigation**: one quiet
+link on the fair's overview ("Was this list any good?"). Expo Mission is
+untouched — one card, one action, no feedback on it (AF70). On the match detail
+the control sits *after* the reasoning (AF71), never above it.
+
+```
+/events/intelligence/[eventKey]/benchmark    summary · review one at a time · what ABC missed
+/api/event-intelligence/feedback             POST a judgment, DELETE to take it back
+/api/event-intelligence/missed               POST a flag, DELETE to remove it
+```
+
+### Tests
+
+`scripts/event-intelligence-benchmark-suite.ts`, section **AF**: 79 checks,
+659 in total. The arithmetic is checked against a 26-recommendation fixture
+fair whose answers were worked out by hand; the isolation against real Postgres
+as the actual `authenticated` and `anon` roles.
+
+### Not built
+
+No learning, no weight updates, no outcome tracking. `Target → Encounter →
+follow-up → CRM` stays the honest chain it already is: a meeting is not proof
+that a recommendation was good, and a CRM push is not a sale. Nothing in this
+section assumes otherwise.
