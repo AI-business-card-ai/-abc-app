@@ -56,7 +56,9 @@ test fails if that changes.
 
 No `user_id` anywhere in B, so there is nothing to leak between accounts.
 `authenticated` may `SELECT`; only `service_role` may write. `anon` has no grant
-and no policy.
+and no policy. Beside B, and not part of it for anyone but the service role:
+`intel_source_runs`, the Event Data Engine's run records and source health
+(§14) — no grant to `authenticated` at all.
 
 **C — intelligence (new, owner-scoped, RLS).**
 
@@ -80,9 +82,13 @@ and no policy.
 `intel_event_materials`, `intel_meeting_briefs`, `intel_brief_materials`. What
 the owner will show, and the meeting they are asking for. See §9.
 
-An owner's whole chain — C and D both — hangs off their `abc_profiles` row by
+**E — the Product Brain (new, owner-scoped, RLS).** `intel_brain_documents`,
+`intel_brain_facts`: what ABC read about the owner's own business and what it
+concluded, kept apart from what the owner typed. See §15.
+
+An owner's whole chain — C, D and E — hangs off their `abc_profiles` row by
 cascade, so `remove_account_data()` deletes it without this feature editing that
-function. The account-deletion suite seeds all eight tables and proves it.
+function. The account-deletion suite seeds all ten tables and proves it.
 
 ## 3. The provider seam
 
@@ -93,11 +99,15 @@ EventDataProvider          lib/event-intelligence/provider.ts
   ├─ JsonFixtureProvider   the synthetic fair (also exported as DatasetEventProvider)
   ├─ parseCsvDataset       an organiser's CSV export        ─┐ import-file.ts
   └─ parseJsonDataset      an uploaded JSON document        ─┘
-      (future)  ApifyEventProvider / OfficialEventApiProvider
+      in front of it since V1 of the Event Data Engine (§14):
+      EventSourceAdapter → official directory / API · Apify dataset · uploaded file
 ```
 
 A provider yields `ProviderEvent` and `ProviderExhibitor` and nothing else.
-`ingestEvent()` then does the work that is the same for every source.
+`ingestEvent()` then does the work that is the same for every source. The
+Event Data Engine (§14) adds source adapters, quality gates and provenance
+snapshots in front of this seam; it ends in the same two types and the same
+ingestion.
 
 ### How an import is executed
 
@@ -177,17 +187,20 @@ and cannot be probed. Verified by running the server both ways.
 
 ## 6. Migrations
 
-Two, both additive, both applied **nowhere but locally**:
+Three, all additive, all applied **nowhere but locally**:
 
 ```
 supabase/migrations/20260919120000_event_expo_intelligence.sql
 supabase/migrations/20260920120000_event_smart_profile.sql
+supabase/migrations/20260921120000_event_data_engine.sql      source runs, snapshots, the Product Brain (§14–15)
 ```
 
 No existing migration is edited or renumbered (a test asserts it) — including
-the first of these two, which the second builds on by adding a constraint
-rather than by changing it. Both are applied in tests by PGlite, which runs
-`schema.sql` plus every migration in order.
+the first of these, which the second builds on by adding a constraint rather
+than by changing it. The third adds two nullable columns to
+`intel_source_records` and three new tables; it alters nothing else. All are
+applied in tests by PGlite, which runs `schema.sql` plus every migration in
+order.
 
 **Do not apply these to remote Supabase.** That is an owner decision and a
 deployment step, not part of this branch.
@@ -499,8 +512,8 @@ be removed. Nothing there can mark anybody as met.
 ## 11. Tests
 
 ```bash
-npm run test:event-intelligence     # 445 checks, including 500/2,000/5,000-row scale passes and the Expo Mission (§13)
-npm run test:account-deletion       # proves the cascade reaches the new tables
+npm run test:event-intelligence     # 580 checks: the 445 below, plus sections AB–AE for §14–15 (see §16)
+npm run test:account-deletion       # proves the cascade reaches the new tables, brain tables included
 npm run typecheck && npm run lint && npm run build
 ```
 
@@ -514,10 +527,17 @@ and each reverted.
 
 ## 12. What is not built
 
-- **No real data source is connected.** A person can now bring their own CSV or
-  JSON, which is the realistic first source; no crawler, API or vendor is wired
-  up. See `apify-provider.md` for what connecting one would require, and §1 of
-  it for the decisions that are the owner's rather than an engineer's.
+- **No real data source is connected.** A person can bring their own CSV or
+  JSON, which is the realistic first source. The Event Data Engine (§14) can
+  read an organiser's structured feed or a finished Apify dataset, but no
+  source has a legal basis, no token exists, and the pilot (MEDICA 2026) is
+  not read — its directory is reserved against AI crawlers, and it is HTML.
+  See `apify-provider.md` §1 for the decisions that are the owner's.
+- **No reading of exhibitors' own websites.** The crawler and extractor are
+  shared, but only the owner's own site is read, on request. Enriching
+  thousands of exhibitors needs a queue, a cost ceiling and a place to keep
+  company facts; none is built.
+- **No HTML directory reader.** Structured feeds only.
 - **No AI-written prose.** No conversation opener, discovery questions or
   suggested next step; the deterministic engine cannot write them without
   asserting something nobody told it, and fabricating them would break the one
@@ -643,7 +663,370 @@ ignoring the flag, Home without a session) were each caught and reverted.
 ### Not built
 
 - A real event data source (unchanged: imported lists only).
-- A product brain: the mission reuses the profile and products the owner typed.
+- ~~A product brain~~ — built since (§15). The mission itself still reads the
+  profile and products the owner typed; the brain reaches it through matching
+  and the "ABC suggests showing" line, and only once the owner confirms.
 - Hosted-Supabase performance: Home reads the owner's encounters to find the
   meetings at their fairs, like the Event Workspace does; measured nowhere but
   locally.
+
+## 14. Event Data Engine V1 — acquiring exhibitor data, and judging it
+
+The provider seam of §3 still stands: ingestion consumes `ProviderEvent` and
+`ProviderExhibitor` and nothing else. The Event Data Engine is everything
+*before* that model — where real sources differ and where they fail — and it
+ends in exactly that model, handed to the same ingestion. There is no second
+ingestion universe and no second refresh system.
+
+### What is real, and what is not
+
+| | Status |
+| --- | --- |
+| Engine, adapters, gates, run records | **Implemented**, tested against real Postgres (PGlite) |
+| MEDICA 2026 as a live source | **Not read.** Its robots.txt — read raw by ABC's own fetcher on 2026-09-22, the only request made to that site — lets a generic crawler read the directory pages but reserves `/vis/`, the whole exhibitor directory, against GPTBot, ClaudeBot, Google-Extended, PerplexityBot and ChatGPT-User by name. ABC honours that AI opt-out for itself. No legal basis has been decided, and the directory is HTML, which the structured-feed adapter does not read. The pilot is **fixture-tested**: invented exhibitors, `.invalid` domains, in a structured-feed shape |
+| Apify | **Adapter only, mock-tested.** Reads a finished run's dataset; never starts one. No token in the repository; no real run read |
+| Network behaviour (robots, SSRF, pacing, limits) | **Mocked transport** in tests. **Real once:** the MEDICA robots.txt read above, which is also how the group-merging bug below was found |
+| Hosted Supabase | **Not verified.** Nothing here has run against it |
+
+### The source contract
+
+`lib/event-intelligence/sources/adapter.ts`:
+
+```ts
+interface EventSourceAdapter<Raw> {
+  id: string                 // 'official:medica', 'apify:<label>', 'csv:upload' — stored, never shown
+  kind: SourceKind           // official_api | official_directory | official_detail | company_website | secondary | file
+  displayName: string        // what a reader sees: 'Event directory', never a vendor
+  payloadVersion: string
+  access: { legalBasis: LegalBasis | null; reviewedOn?: string | null }
+
+  healthCheck(ref)           // configured? lawful? permitted by robots.txt? — never throws
+  discoverEvent(ref)         // the edition, as the source describes it
+  fetchListings(ref)         // every listing, raw; throws if the read cannot finish
+  fetchListingDetail?(l)     // optional detail page; null when it could not be read
+  normalizeListing(l)        // raw → ProviderExhibitor, or a rejection reason
+}
+```
+
+Splitting *read* from *normalise* is what lets a run count what it
+discovered, parsed and rejected. `raw` is dropped after normalisation; only
+the normalised listing is stored.
+
+**Legal basis first.** `legalBasis: null` means nobody has decided, and a
+source with no basis fails its health check before a single request is made.
+The MEDICA configuration ships with `null`.
+
+**Source priority** (`SOURCE_PRIORITY`, lower is better): official API and
+uploaded file 1, official directory 2, official detail pages 3, the
+exhibitor's own website 4, secondary 5. `selectSource()` takes the
+best-ranked source whose health check passes and reports why each better one
+was refused.
+
+| Adapter | File | What it reads |
+| --- | --- | --- |
+| Official directory / API | `sources/official-directory.ts` | An organiser's structured JSON feed, paged. One generic adapter, configured per event. JSON only: an HTML directory needs per-site rules and is not built |
+| MEDICA pilot | `sources/pilots/medica.ts` | Configuration, not code: the real edition (16–19 Nov 2026, Messe Düsseldorf), the real directory address, a field map, `legalBasis: null` |
+| Apify | `sources/apify.ts` | A **finished** run's dataset (`SUCCEEDED` only), read-only. `APIFY_TOKEN` in an Authorization header, never a URL. The configuration must state the legal basis of the *underlying* source |
+| Uploaded file | `sources/file.ts` | A parsed CSV/JSON, so uploads go through the same gates |
+
+**A correction, recorded here on purpose.** Commit `5f68326` (and the first
+version of the MEDICA configuration) said MEDICA's robots.txt disallows
+`/vis/` for every agent. That came from a tool's summary of the file, not the
+file. The raw file says otherwise, as above, and reading it found a real bug:
+`groupFor` used only the first `User-agent: *` group, where RFC 9309 merges
+them, so it missed MEDICA's second `*` group and would have allowed the
+exhibitor search. Fixed in `cf2218c`; tests AC6a and AB3.
+
+### The one way ABC touches the network
+
+`sources/http.ts`, the PoliteFetcher. There is no option that makes it
+impolite:
+
+- **Public hosts only.** http/https, no credentials in the URL, never a
+  loopback, private, link-local, CGNAT, multicast or `.local`/`.internal`
+  address — checked on the literal and on what the name resolves to, on every
+  redirect hop.
+- **robots.txt obeyed** (RFC 9309): the most specific agent's groups, merged;
+  longest rule; Allow wins ties; wildcards and end anchors; same-site
+  redirects followed. Missing means no rules; 401/403/5xx/unreadable means no
+  crawl. Crawl-delay honoured in full.
+- **AI opt-outs honoured.** A path a site disallows for a named AI crawler
+  (GPTBot, ClaudeBot, Google-Extended, CCBot, PerplexityBot and the rest of
+  `AI_CRAWLER_TOKENS`) is disallowed for ABC too. ABC is an AI product, and a
+  site that reserved content against AI crawlers has not invited a
+  differently named one in. Refusals are `robots_ai_opt_out`. The switch
+  (`honourAiOptOut: false`) exists for a source with agreed terms and is set
+  by nothing today — a conservative default the owner may revisit.
+- **Slow.** One request at a time per host, at least a second apart.
+- **Bounded.** A timeout over headers and body, a 1.5 MB streamed ceiling, a
+  content-type allowlist, three redirects.
+- **Stops when told to.** 401, 403, 429 or a challenge page stops that host
+  for the rest of the run. No retry, no second user agent, no proxy.
+- One honest User-Agent (`ABCEventIntelligence/1.0`; `ABC_CRAWLER_USER_AGENT`
+  overrides it). Failures are codes; recorded URLs are redacted of
+  credential-like parameters.
+
+### A run
+
+`runEventSource(adapter, ref, { ingestStore, runStore })` in `source-run.ts`:
+
+```
+probe → discover → read → detail → normalise → measure
+      → prepareIngest (identity, changes, projected withdrawals — nothing written)
+      → quality gates (against the last published run)
+      → commitIngest, only if the gates allow
+      → one intel_source_runs row, whatever happened
+```
+
+`ingest.ts` was split so the gates sit between planning and writing:
+`prepareIngest` reads and plans, `commitIngest` writes. `ingestEvent()` is the
+two composed and issues exactly the statements it did before (9 / 8 at every
+scale). A gated run looks the edition up without writing it, so a refused run
+leaves no trace but its run record.
+
+### Provenance
+
+Every listing still has an `intel_source_records` row, now with:
+
+- `snapshot` — what the source said, in the provider contract's vocabulary.
+  It is the object `content_hash` is computed over, so the stored hash is the
+  hash of the stored snapshot. This is the SOURCE FACT layer: presence and
+  company rows are ABC's merged, current view; the snapshot is one source at
+  one moment and is never merged into.
+- `run_id` — the run that wrote it.
+- `source_url` — the listing's own page, or where the record was read
+  (`retrievedFrom`) when it has none.
+
+**Fixed while doing this — edition-scoped source keys.** Source records were
+keyed by `(provider, provider_record_id, payload_version)` with the
+provider's bare id. Organisers keep an exhibitor's id across years and
+spreadsheet row ids restart at 1, so importing MEDICA 2027 re-pointed MEDICA
+2026's source records at the 2027 presences: the 2026 stands silently lost
+their provenance, and a later refresh of 2026 compared against 2027's hashes.
+Listing keys are now `<event_key>::<provider id>` (`listingSourceKey`).
+Records written before are still found, but believed only when they point at
+a presence of the same edition. Tests AB32–AB37.
+
+**No personal data.** The contract has no field for a person; unmapped fields
+are dropped at the adapter boundary; any sentence of free text that gives an
+email address or a phone number is removed whole, name and all.
+
+### Normalisation
+
+Config-driven field maps (`sources/mapping.ts`): dotted paths with fallbacks,
+lists from arrays or `;`/`|` cells, relative listing links resolved.
+"Hall 12 / D18" is split only when the pattern is unambiguous; otherwise hall
+and stand stay missing and the run counts it. A record with no company name
+or no stable id is rejected, never invented.
+
+### Identity
+
+Unchanged, deliberately (§3): domain → previous source record → exact name
+plus agreed country when neither has a domain → otherwise a new company
+flagged as a merge candidate. "Vitalis Healthcare AG" and "Vitalis Healthcare
+GmbH" on one domain are one company; two "Aurora Diagnostics" in different
+countries with no website stay two. False merges are worse than duplicates.
+
+### Refresh and change detection
+
+From the snapshots, per listing: **new**, **unchanged**, **changed** (with the
+fields — name, website, country, descriptions, categories, hall, stand,
+products, listing URL), **reappeared**, and **withdrawn** (projected before
+the write, counted after). A summary with up to 25 samples is kept on the run.
+Withdrawal is still by timestamp and still never a delete.
+
+### Source health and quality gates
+
+Every run measures records discovered / parsed / rejected by reason,
+duplicate records, duplicate companies, detail pages attempted and failed,
+locations it could not parse, contact details removed, coverage of hall,
+stand, website, description, categories and country (with missing-% for the
+first three), listed before, projected withdrawals, companies created and
+updated, presences created / updated / unchanged / withdrawn, write
+statements, errors and duration.
+
+A read completing is not success. `QUALITY_THRESHOLDS` in `source-health.ts`:
+
+| Gate | Blocks when |
+| --- | --- |
+| `records_present` | nothing usable was read |
+| `record_count_collapse` | fewer than half the last published run's listings |
+| `withdrawal_spike` | it would withdraw more than 30% of what is listed (3 always allowed) — works with no baseline |
+| `reject_rate` | more than 20% of listings rejected |
+| `empty_name_rate` | more than 5% with no name (2 always allowed) |
+| `duplicate_rate` | duplicates more than double the baseline rate and over 10% (warn only without a baseline) |
+| `hall_/stand_/website_coverage_collapse` | coverage falls more than 30 points against the baseline |
+| `detail_failure_rate` | more than 20% of detail pages fail — otherwise known stands would be overwritten with "not given" |
+| `layout_change_suspected` | two or more coverage collapses at once |
+
+The brief's own case — yesterday ~5,000, today 43 — is unhealthy on count
+collapse and withdrawal spike (AB41) and, against a real database, writes
+nothing (AB18–AB20). An operator who knows a fair really shrank can publish
+by naming the gates (`publishDespite`); the override is recorded and the run
+is `degraded`. No route an owner can call sets it.
+
+`intel_source_runs` is internal: no grant to `authenticated` or `anon`, and
+CHECKs make an unhealthy, un-overridden run unpublishable and a blocked run
+unable to claim it wrote anything. None of it reaches the Expo Mission.
+
+**Uploads use it too.** `/api/event-intelligence/import/commit` now runs the
+file through `runEventSource`. A truncated re-upload that would withdraw most
+of a fair is refused with "Nothing was imported …", and the import screen
+shows that message as it is.
+
+### Measured — local PGlite, network mocked
+
+| Listings | Source run | Refresh | Ingest statements |
+| ---: | ---: | ---: | ---: |
+| 500 | ~100 ms | ~105 ms | 8 / 9 |
+| 2,000 | ~380 ms | ~420 ms | 8 / 9 |
+| 5,000 | ~950 ms | ~950 ms | 8 / 9 |
+
+Plus two run-store statements per run. Snapshots make the refresh read
+larger (~1 KB per listing, so ~5 MB at 5,000). Source-key reads are chunked
+by length (6,000 characters) as well as count, because a provider id is often
+a URL and 500 of them overflow a query string. Hosted timings: unknown.
+
+## 15. Product Brain V1 — what the owner's business is
+
+ABC should understand what the owner sells, makes and is looking for, without
+pretending to understand what it cannot support. So the brain is small
+structured facts, not a paragraph, and every fact says what kind of statement
+it is.
+
+| | Where it lives | Example |
+| --- | --- | --- |
+| **OWNER FACT** | `intel_company_profiles`, `intel_products`, `abc_profiles` — read live, never copied | "Precision aluminium components" typed in What we sell |
+| **SOURCE FACT** | `intel_brain_facts`, `origin = 'source'`, quoting the page and when it was read | "ISO 13485", from the capabilities page |
+| **ABC ANALYSIS** | `intel_brain_facts`, `origin = 'analysis'`, with the rule (`basis`) | "Medical equipment manufacturers" as likely customers, because you make components for medical equipment |
+
+Kinds (V1): company name, summary, country; products, services, capabilities;
+industries, applications; customer types, supplier needs, partner types;
+markets; certifications, materials, technologies.
+
+### Reading the owner's business — deterministic, no model
+
+- **What the owner wrote** (`interpretOwnerStatements`): what we do, who we
+  want to meet, the ABC profile's product description and ideal customer,
+  and their event goals. "We sell precision aluminium components for medical
+  equipment. We are looking for OEM customers and distributors in DACH."
+  becomes a product, an application, a customer type (OEMs), a partner type
+  (distributors), a market (DACH) and its three countries — all ANALYSIS,
+  each quoting the sentence.
+- **The owner's website** (`website/crawl.ts`, `website/extract.ts`): the
+  home page and a handful of chosen pages — products, solutions, services,
+  industries, applications, capabilities, about — on the same host and its
+  `www.` twin only; never contact, imprint, legal, login, cart, news,
+  careers, files or query strings; at most 8 fetches (hard ceiling 20), two
+  links deep, 40 seconds; duplicate addresses and duplicate content collapse.
+  From structured data, the meta description, headings and list items on the
+  page about those things, and fixed lexicons for certifications, materials,
+  production capabilities, industries (from sentences, never menus) and
+  regions. Navigation and footers are never evidence. Quotes lose any
+  sentence with an email or phone number. A site that opts out of AI
+  crawlers is not read — including the owner's own, because ABC cannot know
+  the person asking owns it — and the analysis says so
+  (`websiteRead: refused_ai_opt_out`); what the owner wrote still counts.
+- **Across facts** (`inferFromFacts`): components for an application → the
+  application's manufacturers as likely customers. Labelled as ABC's reading.
+
+Derived facts are capped per kind and deduplicated by kind plus their
+comparable words, so "Aluminium housings" and "aluminium housing" are one.
+
+### The owner decides
+
+Nothing ABC read or concluded changes a single match until the owner
+confirms it. In the database, `authenticated` may update `status`,
+`decided_at` and `updated_at` and nothing else — not the value, the origin,
+the basis or the evidence — and may insert nothing. CHECKs: no fact without
+evidence; an analysis always carries its rule and a source fact never does; a
+decision always has a moment.
+
+- A fact the owner already typed is never proposed back.
+- Confirmed stays confirmed, even if a later read no longer finds it.
+- Rejected stays rejected and is never proposed again.
+- A proposal no longer supported is withdrawn.
+- A website that cannot be read this time keeps what it said before.
+- The same account may ask for its website to be read once every 10 minutes.
+
+`POST /api/event-intelligence/brain` — `analyze` (the website defaults to the
+ABC profile's), `confirm` (every open proposal), `reject` (one fact). Behind
+the flag; the owner from the session; nothing sent anywhere.
+
+### What the owner sees
+
+One card on the Refine screen (`ProductBrainCard`), checked at 1440, 820 and
+390 on a temporary harness (not committed): **This is how ABC understands
+your business** — We make and sell · Our typical customers · Main
+applications · Markets · What sets us apart — each item labelled *You said*,
+*From your website* or *ABC's reading*, then **Looks right** or **Edit**.
+Edit removes ABC's reading one item at a time; new or changed facts go in
+the owner's own answers below, where they are owner facts. The screen's one
+primary action is still "Save and see matches". When the website was not
+read, the card says why.
+
+### Into matching — the engine is unchanged
+
+`projectBrainForMatching(profile, facts)` hands the existing engine the
+owner's profile plus **confirmed** facts, in the lists it already reads
+(products and services → what we sell, customer types → target company
+types, industries and applications → target industries, markets →
+geographies, and so on). The match route stamps `deterministic-v1+brain-v1`
+when the brain contributed. `scoring.ts` is byte-for-byte unchanged (AE3).
+
+The explanation keeps three parts apart: TARGET FACTS (the listing, quoted),
+ABC ANALYSIS (reasons citing that evidence) and — new — YOUR BUSINESS:
+`ownerSideOfMatch` says, per matched term, whether the owner said it, their
+website did, or it is ABC's reading. The owner's words win every tie;
+`whatWeDo` is not credited, because the engine never reads it.
+
+AE1 is the brief's example with the real engine: an owner who typed only
+"Precision aluminium components" has no customer match with an invented
+imaging-systems OEM exhibitor; once they confirm what ABC read, it is a
+potential customer, with the listing's "Medical equipment OEM" as evidence.
+
+### What to show
+
+`what-to-show.ts` picks the owner's product whose own words (name,
+description, tags) share the most terms with the target's listing, and the
+highest-priority showable material for it. The Expo Mission shows it as
+**ABC suggests showing …** only when the owner has not chosen a product;
+their choice always wins, and the suggestion is a line, never a second
+button.
+
+### Learning, later
+
+`BrainFeedbackSignal` names the feedback a later version may collect —
+relevant, not relevant, good customer, wrong customer type, wrong industry,
+already working with them, met, opportunity, CRM outcome. Nothing records or
+acts on it. The rule for whoever builds it: a signal is evidence, never an
+edit; no count of them changes a confirmed fact without the owner
+confirming.
+
+## 16. Tests for sections 14–15, and what they proved
+
+`scripts/event-intelligence-engine-suite.ts`, sections **AB** (engine), **AC**
+(network and website reading), **AD** (Product Brain), **AE** (matching, what
+to show, the Expo Mission, the card), called from the main suite: 135 checks,
+580 in total.
+
+**Mutations**, each applied, run and restored byte-clean (16 of 16 caught):
+
+| Broken on purpose | Caught by |
+| --- | --- |
+| drop the year from the edition key | T9–T11, AB32–AB37 and 8 more |
+| drop provenance | J8, J10–J15, AB7, AB14, AB15, AB34, AB35 and more |
+| merge companies on name alone | J2, J5, AB12, AB34 and 8 more |
+| publish an unhealthy run | the run-record CHECK refuses it |
+| brain facts readable by any account | AD24 (and RLS `WITH CHECK`) |
+| analysis stored as a source fact | AD1, AD3, AD4, AD8, AD16 |
+| overrun the website page limit | AC19, AC20 |
+| unscoped listing source key | AB7, AB34–AB36 |
+| proposed facts feed matching | AD14, AD17, AD25 |
+| ignore robots.txt | AC4, AC7, AC11, AC16, AC23 |
+| allow private addresses | AC1, AC3, AC4 |
+| remove the withdrawal gate | AB18, AB21, AB38, AB41 |
+| stop scrubbing contact details | AB6, AB9, AB55, AD7 |
+| keep crawling after a 403 | AC9, AC10 |
+| ignore AI opt-outs | AB3, AC6b, AD27a |
+| read only the first robots group | AC6a |

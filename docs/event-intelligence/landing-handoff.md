@@ -117,3 +117,58 @@ Each of these is either untrue today or untrue in principle.
 
 If a sentence would be false with the flag off and no real data loaded, it is
 false today. That is the whole test.
+
+## Update — Event Data Engine V1 and Product Brain V1 (2026-09-22)
+
+What changed underneath, and how little it changes for the public site. The
+feature is still off in production, still holds no real event data, and still
+belongs under **Coming next**.
+
+### Newly implemented (flag off, local only)
+
+- **ABC checks an exhibitor list before it uses it.** Every import — an
+  uploaded file included — is measured and refused if it looks broken: far
+  fewer exhibitors than last time, most of the list about to disappear, names
+  or halls suddenly missing. A refused import changes nothing.
+- **Where every fact came from** is kept per listing, and ABC can say what
+  changed between two versions of a list: new, moved hall, moved stand, new
+  website, withdrawn.
+- **ABC can read a company's own website** — a handful of pages, politely,
+  never contact or legal pages, and not at all if the site asks AI crawlers to
+  stay out — and show *This is how ABC understands your business*, each item
+  marked as the company's own words, its website's, or ABC's reading. The
+  company says "Looks right" or edits it, and nothing is used for matching
+  until it does.
+- **A suggestion of what to show** each target, from the company's own
+  products, clearly labelled as ABC's suggestion.
+
+### Still not true — do not imply
+
+- **ABC has no real exhibitor data and reads no real directory.** The pilot
+  event is MEDICA 2026 *in configuration only*. Its organiser reserves the
+  exhibitor directory against AI crawlers, ABC respects that, no legal basis
+  has been decided, and the pilot runs on invented test data. Do not name
+  MEDICA or any fair.
+- **No Apify or other vendor is connected.** An optional adapter exists and
+  is unused.
+- **No AI model.** The website reading and matching are deterministic rules.
+- **Nothing is sent** and no exhibitor contact is collected — unchanged.
+
+### Additional safe copy (Coming next framing only)
+
+- "Tell ABC your website. It shows you how it understands your business — you
+  confirm it."
+- "ABC checks an exhibitor list before trusting it."
+- "Know where every fact came from."
+- "See what changed since you last looked: new exhibitors, moved stands."
+- "A suggestion of what to show each company — yours to take or leave."
+
+### Additional unsafe claims
+
+| Do not say | Why |
+| --- | --- |
+| "ABC reads every trade-fair directory", "automatic exhibitor data", "live directory sync" | No real source is connected. The pilot directory is reserved against AI crawlers and ABC does not read it. |
+| "AI understands your business", "ABC learns from you" | Deterministic rules, no model; feedback learning is only a planned shape. |
+| "ABC knows what you sell" without the confirmation step | ABC proposes; the company confirms. Unconfirmed readings change nothing. |
+| "ABC scans exhibitors' websites for you" | Only the owner's own site is read, on request. Reading exhibitors' sites is not built. |
+| "Works with any website" | A site that opts out of AI crawlers is not read, by design. |

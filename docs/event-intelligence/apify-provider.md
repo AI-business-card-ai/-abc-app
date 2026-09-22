@@ -1,11 +1,17 @@
 # ApifyEventProvider — contract, not an implementation
 
-**Status: not built, not connected, not chosen.** No Apify dependency is
-installed, no token is stored, no actor has been selected and no run has ever
-been made. This document exists so that when the owner decides to acquire real
-exhibitor data, the work is an afternoon of writing one file against a contract
-that already exists — and so that the decisions which are *not* engineering
-decisions are visible before anybody starts.
+**Status (2026-09-22): a read-only adapter exists; nothing is connected or
+chosen.** `lib/event-intelligence/sources/apify.ts` reads the dataset of a run
+that has already `SUCCEEDED`, through the Event Data Engine's source contract
+and quality gates (README §14). It never starts, aborts or pays for a run. It
+is mock-tested only: no Apify dependency is installed, no token is stored, no
+actor has been selected and no real run has been read. The configuration must
+state the legal basis of the *underlying* source — a dataset of a directory
+that reserves itself against AI crawlers is no more acceptable for having been
+collected by somebody else's crawler.
+
+This document still sets out the decisions which are *not* engineering
+decisions, so they are visible before anybody connects a real run.
 
 Everything here describes one possible implementation of
 `EventDataProvider` (`lib/event-intelligence/provider.ts`). ABC's core knows
