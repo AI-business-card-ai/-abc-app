@@ -8,6 +8,7 @@ import FollowUpsCard from '@/components/dashboard/FollowUpsCard'
 import MyCardCard from '@/components/dashboard/MyCardCard'
 import RecentActivityCard from '@/components/dashboard/RecentActivityCard'
 import ScanActionCard from '@/components/dashboard/ScanActionCard'
+import ExpoMissionPreview from '@/components/expo-mission/ExpoMissionPreview'
 import Avatar from '@/components/ui/abc/Avatar'
 import { useAppProfile } from '@/lib/hooks/useAppProfile'
 import { useFollowUpBadge } from '@/lib/hooks/useFollowUpBadge'
@@ -84,6 +85,15 @@ export default function Dashboard({ data }: { data: DashboardData }) {
         <div className="min-[430px]:col-span-2 lg:col-span-1">
           <EventsCard events={data.events} />
         </div>
+      </div>
+
+      {/*
+        The layer before the handshake, as a preview. It sits under the working
+        dashboard rather than above it: what ABC does today comes first, and a
+        feature nobody can use yet does not get the top of the screen.
+      */}
+      <div className="mt-4 lg:mt-5">
+        <ExpoMissionPreview />
       </div>
 
       {data.activity.length > 0 ? (
