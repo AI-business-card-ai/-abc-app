@@ -103,6 +103,10 @@ const OWNER_TABLES = [
   // abc_profiles row, which the function already deletes last. They are seeded
   // in full below, so A2 proves the cascade actually reaches them rather than
   // passing over four empty tables.
+  // Product Brain V1 (intel_brain_*): what ABC read about the owner's own
+  // business and concluded from it — the same cascade, seeded the same way.
+  'intel_brain_documents',
+  'intel_brain_facts',
   'intel_brief_materials',
   'intel_company_profiles',
   'intel_event_materials',
@@ -452,6 +456,20 @@ async function seedAccount(db: PGlite, storage: FakeStorage, owner: string, tag:
   const intelTarget = (await rowsOf<{ id: string }>(db, 'select id from public.intel_meeting_targets where user_id = $1 limit 1', [owner]))[0].id
   const intelBrief = (await rowsOf<{ id: string }>(db, "insert into public.intel_meeting_briefs (user_id, target_id, product_id, topic) values ($1, $2, $3, $4) returning id", [owner, intelTarget, intelProduct, `Topic ${tag}`]))[0].id
   await db.query('insert into public.intel_brief_materials (brief_id, material_id, user_id) values ($1, $2, $3)', [intelBrief, intelMaterial, owner])
+
+  /*
+    Product Brain: a page ABC read on the owner's website, and a fact it drew
+    from it that the owner confirmed. The quote is the owner's business in
+    their own site's words — it must not outlive the account.
+  */
+  await db.query(
+    "insert into public.intel_brain_documents (user_id, document_kind, url, page_kind, content_hash, extractor_version, retrieved_at) values ($1, 'website_page', $2, 'products', 'hash', 'brain-v1', now())",
+    [owner, `https://${tag}.invalid/products`]
+  )
+  await db.query(
+    "insert into public.intel_brain_facts (user_id, kind, value, value_key, origin, evidence, status, decided_at, extractor_version) values ($1, 'product', $2, $3, 'source', $4, 'confirmed', now(), 'brain-v1')",
+    [owner, `Housings ${tag}`, `product:housing ${tag}`, JSON.stringify([{ source: 'website', field: 'heading', quote: `Housings ${tag}`, url: `https://${tag}.invalid/products` }])]
+  )
 
   return { email, contact, second, encounter, batch }
 }

@@ -28,6 +28,8 @@ import {
   type CompanyRecord,
   type IngestStore,
 } from '@/lib/event-intelligence/ingest'
+import type { ListingSnapshot } from '@/lib/event-intelligence/change-detection'
+import { measureEngineScale, runEngineSuite, type SuiteContext } from './event-intelligence-engine-suite'
 import { parseEventObjective, parseIntentProfile, parseList } from '@/lib/event-intelligence/intent'
 import {
   BRIEF_STATUS_HINT,
@@ -225,6 +227,18 @@ const INTEL_PUBLIC_TABLES = [
   'intel_events',
   'intel_source_records',
 ]
+
+/*
+  Product Brain V1: owner-scoped, RLS, seeded and checked in section AB. Apart
+  from INTEL_OWNER_TABLES for the same reason the profile tables are.
+*/
+const INTEL_BRAIN_TABLES = ['intel_brain_documents', 'intel_brain_facts']
+
+/*
+  Event Data Engine V1: source runs are internal operational records. No owner
+  column, and — unlike the public graph — no grant to authenticated at all.
+*/
+const INTEL_ENGINE_TABLES = ['intel_source_runs']
 
 // ─────────────────────────── DATABASE ───────────────────────────
 
@@ -439,35 +453,46 @@ function pgliteIngestStore(db: PGlite, counter?: { statements: number }): Ingest
       return { id: rows[0].id }
     },
 
+    async findEventByKey(eventKey) {
+      count()
+      const rows = await rowsOf<{ id: string }>(db, 'select id from public.intel_events where event_key = $1', [eventKey])
+      return rows[0] ? { id: rows[0].id } : null
+    },
+
     findCompaniesByDomains: (domains) => companiesWhere('website_domain', 'text', domains),
     findCompaniesByNames: (names) => companiesWhere('name_normalized', 'text', names),
     findCompaniesByIds: (ids) => companiesWhere('id', 'uuid', ids),
 
     async findPresencesForEvent(eventId) {
       count()
-      const rows = await rowsOf<{ id: string; company_id: string }>(
+      const rows = await rowsOf<{ id: string; company_id: string; status: string }>(
         db,
-        'select id, company_id from public.intel_company_presences where event_id = $1',
+        'select id, company_id, status from public.intel_company_presences where event_id = $1',
         [eventId]
       )
-      return rows.map((row) => ({ id: row.id, companyId: row.company_id }))
+      return rows.map((row) => ({
+        id: row.id,
+        companyId: row.company_id,
+        status: row.status === 'withdrawn' ? ('withdrawn' as const) : ('listed' as const),
+      }))
     },
 
-    async findPresenceSources(provider, providerRecordIds, payloadVersion) {
-      if (providerRecordIds.length === 0) return []
+    async findPresenceSources(provider, sourceKeys, payloadVersion) {
+      if (sourceKeys.length === 0) return []
       count()
-      const rows = await rowsOf<{ provider_record_id: string; content_hash: string; entity_id: string }>(
+      const rows = await rowsOf<{ provider_record_id: string; content_hash: string; entity_id: string; snapshot: ListingSnapshot | null }>(
         db,
-        `select provider_record_id, content_hash, entity_id
+        `select provider_record_id, content_hash, entity_id, snapshot
            from public.intel_source_records
           where provider = $1 and payload_version = $2 and entity_type = 'presence'
             and provider_record_id = any($3::text[])`,
-        [provider, payloadVersion, providerRecordIds]
+        [provider, payloadVersion, sourceKeys]
       )
       return rows.map((row) => ({
         providerRecordId: row.provider_record_id,
         contentHash: row.content_hash,
         entityId: row.entity_id,
+        snapshot: row.snapshot ?? null,
       }))
     },
 
@@ -635,17 +660,18 @@ function pgliteIngestStore(db: PGlite, counter?: { statements: number }): Ingest
       await db.query(
         `insert into public.intel_source_records
            (provider, provider_record_id, payload_version, source_url, entity_type, entity_id,
-            content_hash, fetched_at, source_updated_at)
+            content_hash, fetched_at, source_updated_at, snapshot, run_id)
          select t.provider, t.provider_record_id, t.payload_version, t.source_url, t.entity_type,
-                t.entity_id, t.content_hash, t.fetched_at, t.source_updated_at
+                t.entity_id, t.content_hash, t.fetched_at, t.source_updated_at, t.snapshot, t.run_id
            from jsonb_to_recordset($1::jsonb) as t(
              provider text, provider_record_id text, payload_version text, source_url text,
              entity_type text, entity_id uuid, content_hash text, fetched_at timestamptz,
-             source_updated_at timestamptz)
+             source_updated_at timestamptz, snapshot jsonb, run_id uuid)
          on conflict (provider, provider_record_id, payload_version) do update set
            source_url = excluded.source_url, entity_type = excluded.entity_type,
            entity_id = excluded.entity_id, content_hash = excluded.content_hash,
-           fetched_at = excluded.fetched_at, source_updated_at = excluded.source_updated_at`,
+           fetched_at = excluded.fetched_at, source_updated_at = excluded.source_updated_at,
+           snapshot = excluded.snapshot, run_id = excluded.run_id`,
         [
           json(
             rows.map((r) => ({
@@ -658,6 +684,8 @@ function pgliteIngestStore(db: PGlite, counter?: { statements: number }): Ingest
               content_hash: r.contentHash,
               fetched_at: r.fetchedAt,
               source_updated_at: r.sourceUpdatedAt,
+              snapshot: r.snapshot ?? null,
+              run_id: r.runId ?? null,
             }))
           ),
         ]
@@ -744,7 +772,7 @@ async function run() {
   check(
     'D2 every table the feature owns exists',
     intelTables.map((r) => r.table_name),
-    [...INTEL_PUBLIC_TABLES, ...INTEL_OWNER_TABLES, ...INTEL_PROFILE_TABLES].sort()
+    [...INTEL_PUBLIC_TABLES, ...INTEL_OWNER_TABLES, ...INTEL_PROFILE_TABLES, ...INTEL_BRAIN_TABLES, ...INTEL_ENGINE_TABLES].sort()
   )
 
   const rls = await rowsOf<{ relname: string; relrowsecurity: boolean }>(
@@ -764,7 +792,7 @@ async function run() {
   check(
     'D4 exactly the private tables carry an owner — the public graph has no user_id to leak',
     ownerColumns.map((r) => r.table_name),
-    [...INTEL_OWNER_TABLES, ...INTEL_PROFILE_TABLES].sort()
+    [...INTEL_OWNER_TABLES, ...INTEL_PROFILE_TABLES, ...INTEL_BRAIN_TABLES].sort()
   )
 
   // ── Seed two accounts and one shared public event ──
@@ -1410,11 +1438,17 @@ async function run() {
     that belongs to no account, and 'match' writes scores, which are ABC's
     conclusion and must not be forgeable by the account they are about. Any
     third route appearing here is a finding.
+
+    'brain' joined in the Product Brain iteration, for the same reason as
+    'match': what ABC read on a website and concluded from it is ABC's record,
+    and `authenticated` may only confirm or reject it (section AB proves the
+    grant). Its session-scoped reads and decisions do not use the service role.
   */
   check(
     'L10 the service role is held only by the routes whose writes are not the owner to make',
     intelRoutes.filter((route) => code(route).includes('createServiceClient')),
     [
+      'app/api/event-intelligence/brain/route.ts',
       'app/api/event-intelligence/import/commit/route.ts',
       'app/api/event-intelligence/import/route.ts',
       'app/api/event-intelligence/match/route.ts',
@@ -4354,6 +4388,38 @@ async function run() {
       [0, 0]
     )
   }
+
+  // ══════════ AB–AE. Event Data Engine V1 and Product Brain V1 ══════════
+  // In scripts/event-intelligence-engine-suite.ts, over this file's harness.
+
+  const engineContext: SuiteContext = {
+    check,
+    freshDatabase,
+    pgliteIngestStore,
+    rowsOf,
+    asRole: asRole as SuiteContext['asRole'],
+    refusal,
+    seedAccount,
+    code,
+    git,
+    BASE_REF,
+    OWNER,
+    OTHER,
+  }
+  await runEngineSuite(engineContext)
+
+  const engineScale = await measureEngineScale(engineContext, [500, 2000, 5000])
+  console.log('\n  source runs, end to end (local PGlite — not hosted Supabase; network mocked):')
+  for (const r of engineScale) {
+    console.log(
+      `    ${String(r.rows).padStart(5)} listings · run ${String(r.runMs).padStart(5)}ms (${r.statements} statements) · refresh ${String(r.refreshMs).padStart(5)}ms (${r.refreshStatements}) · brain projection ${r.brainMs}ms`
+    )
+  }
+  check(
+    'AB59 a source run stays flat in statements as the fair grows — the gates and the run record cost a handful, not one per listing',
+    engineScale.map((r) => r.statements <= 40 && r.refreshStatements <= 40),
+    [true, true, true]
+  )
 
   // ── Report ──
 
