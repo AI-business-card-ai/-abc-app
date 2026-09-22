@@ -1,7 +1,7 @@
 # ApifyEventProvider — contract, not an implementation
 
-**Status (2026-09-22): a read-only adapter exists; nothing is connected or
-chosen.** `lib/event-intelligence/sources/apify.ts` reads the dataset of a run
+**Status (2026-09-22): a read-only adapter exists — not connected, not
+chosen.** Nothing is connected: `lib/event-intelligence/sources/apify.ts` reads the dataset of a run
 that has already `SUCCEEDED`, through the Event Data Engine's source contract
 and quality gates (README §14). It never starts, aborts or pays for a run. It
 is mock-tested only: no Apify dependency is installed, no token is stored, no

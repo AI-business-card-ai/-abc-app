@@ -3637,7 +3637,17 @@ async function run() {
   // ══════════ R. The handoff documents ══════════
 
   const apifyDoc = read('docs/event-intelligence/apify-provider.md')
-  check('R1 the provider contract says plainly that nothing is connected', /not built, not connected, not chosen/i.test(apifyDoc), true)
+  /*
+    Until the Event Data Engine this read "not built, not connected, not
+    chosen". A read-only, mock-tested adapter now exists (sources/apify.ts),
+    so "not built" would be false; what must stay plain is that nothing is
+    connected, nothing is chosen, and no real run has been read.
+  */
+  check(
+    'R1 the provider contract says plainly that nothing is connected',
+    [/not\s+connected,\s+not\s+chosen/i.test(apifyDoc), /no\s+actor\s+has\s+been\s+selected/i.test(apifyDoc), /no\s+real\s+run\s+has\s+been\s+read/i.test(apifyDoc)],
+    [true, true, true]
+  )
   check(
     'R2 it covers every concern the owner asked for',
     ['Idempotency', 'Pagination', 'Retry', 'Rate limiting', 'Refresh', 'provenance', 'Credentials', 'terms'].filter(
