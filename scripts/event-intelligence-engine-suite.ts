@@ -121,7 +121,7 @@ const cols = (s: string) => {
  * Just enough of supabase-js, over PGlite, for the brain and run stores —
  * reads *and* writes — executed as a real role, with a JWT subject when given.
  */
-function pgClient(ctx: SuiteContext, db: PGlite, role: Role, sub?: string): SupabaseClient {
+export function pgClient(ctx: SuiteContext, db: PGlite, role: Role, sub?: string): SupabaseClient {
   const from = (table: string) => {
     const state = {
       op: 'select' as 'select' | 'insert' | 'upsert' | 'update' | 'delete',

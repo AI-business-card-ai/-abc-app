@@ -30,6 +30,7 @@ import {
 } from '@/lib/event-intelligence/ingest'
 import type { ListingSnapshot } from '@/lib/event-intelligence/change-detection'
 import { measureEngineScale, runEngineSuite, type SuiteContext } from './event-intelligence-engine-suite'
+import { runBenchmarkSuite } from './event-intelligence-benchmark-suite'
 import { parseEventObjective, parseIntentProfile, parseList } from '@/lib/event-intelligence/intent'
 import {
   BRIEF_STATUS_HINT,
@@ -239,6 +240,12 @@ const INTEL_BRAIN_TABLES = ['intel_brain_documents', 'intel_brain_facts']
   column, and — unlike the public graph — no grant to authenticated at all.
 */
 const INTEL_ENGINE_TABLES = ['intel_source_runs']
+
+/*
+  Mission Benchmark V1: what the owner thought of what ABC suggested, and what
+  it failed to suggest. Owner-scoped, RLS, seeded and checked in section AF.
+*/
+const INTEL_BENCHMARK_TABLES = ['intel_match_feedback', 'intel_missed_opportunities']
 
 // ─────────────────────────── DATABASE ───────────────────────────
 
@@ -772,7 +779,14 @@ async function run() {
   check(
     'D2 every table the feature owns exists',
     intelTables.map((r) => r.table_name),
-    [...INTEL_PUBLIC_TABLES, ...INTEL_OWNER_TABLES, ...INTEL_PROFILE_TABLES, ...INTEL_BRAIN_TABLES, ...INTEL_ENGINE_TABLES].sort()
+    [
+      ...INTEL_PUBLIC_TABLES,
+      ...INTEL_OWNER_TABLES,
+      ...INTEL_PROFILE_TABLES,
+      ...INTEL_BRAIN_TABLES,
+      ...INTEL_ENGINE_TABLES,
+      ...INTEL_BENCHMARK_TABLES,
+    ].sort()
   )
 
   const rls = await rowsOf<{ relname: string; relrowsecurity: boolean }>(
@@ -792,7 +806,7 @@ async function run() {
   check(
     'D4 exactly the private tables carry an owner — the public graph has no user_id to leak',
     ownerColumns.map((r) => r.table_name),
-    [...INTEL_OWNER_TABLES, ...INTEL_PROFILE_TABLES, ...INTEL_BRAIN_TABLES].sort()
+    [...INTEL_OWNER_TABLES, ...INTEL_PROFILE_TABLES, ...INTEL_BRAIN_TABLES, ...INTEL_BENCHMARK_TABLES].sort()
   )
 
   // ── Seed two accounts and one shared public event ──
@@ -1443,15 +1457,24 @@ async function run() {
     'match': what ABC read on a website and concluded from it is ABC's record,
     and `authenticated` may only confirm or reject it (section AB proves the
     grant). Its session-scoped reads and decisions do not use the service role.
+
+    'feedback' and 'missed' joined with the benchmark. The judgment is the
+    owner's, but the row carries ABC's record of what it had recommended — the
+    score, the direction, the engine version — and a client that could insert
+    one could file a judgment against a score ABC never gave. Both read the
+    match through the owner's own client first; `authenticated` may only SELECT
+    (section AF proves the grant).
   */
   check(
     'L10 the service role is held only by the routes whose writes are not the owner to make',
     intelRoutes.filter((route) => code(route).includes('createServiceClient')),
     [
       'app/api/event-intelligence/brain/route.ts',
+      'app/api/event-intelligence/feedback/route.ts',
       'app/api/event-intelligence/import/commit/route.ts',
       'app/api/event-intelligence/import/route.ts',
       'app/api/event-intelligence/match/route.ts',
+      'app/api/event-intelligence/missed/route.ts',
     ]
   )
   check(
@@ -4417,6 +4440,10 @@ async function run() {
     OTHER,
   }
   await runEngineSuite(engineContext)
+
+  // ══════════ AF. Mission Benchmark V1 ══════════
+  // In scripts/event-intelligence-benchmark-suite.ts, over the same harness.
+  await runBenchmarkSuite(engineContext)
 
   const engineScale = await measureEngineScale(engineContext, [500, 2000, 5000])
   console.log('\n  source runs, end to end (local PGlite — not hosted Supabase; network mocked):')

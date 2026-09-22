@@ -105,15 +105,20 @@ const OWNER_TABLES = [
   // passing over four empty tables.
   // Product Brain V1 (intel_brain_*): what ABC read about the owner's own
   // business and concluded from it — the same cascade, seeded the same way.
+  // Mission Benchmark V1 (intel_match_feedback, intel_missed_opportunities):
+  // what the owner thought of ABC's suggestions — their own words about their
+  // own market, and among the first things that should go with the account.
   'intel_brain_documents',
   'intel_brain_facts',
   'intel_brief_materials',
   'intel_company_profiles',
   'intel_event_materials',
   'intel_event_objectives',
+  'intel_match_feedback',
   'intel_matches',
   'intel_meeting_briefs',
   'intel_meeting_targets',
+  'intel_missed_opportunities',
   'intel_products',
   'native_connector_attempts',
   'scan_batch_items',
@@ -469,6 +474,20 @@ async function seedAccount(db: PGlite, storage: FakeStorage, owner: string, tag:
   await db.query(
     "insert into public.intel_brain_facts (user_id, kind, value, value_key, origin, evidence, status, decided_at, extractor_version) values ($1, 'product', $2, $3, 'source', $4, 'confirmed', now(), 'brain-v1')",
     [owner, `Housings ${tag}`, `product:housing ${tag}`, JSON.stringify([{ source: 'website', field: 'heading', quote: `Housings ${tag}`, url: `https://${tag}.invalid/products` }])]
+  )
+
+  /*
+    Mission Benchmark: a judgment on the suggestion above, with the note the
+    owner wrote, and a company they said ABC should have found. Both are
+    opinions about the owner's own market — private, and nobody else's to keep.
+  */
+  await db.query(
+    "insert into public.intel_match_feedback (user_id, match_id, objective_id, event_id, judgment, note, match_type, match_score, engine_version) values ($1, $2, $3, $4, 'not_relevant', $5, 'customer', 88, 'deterministic-v1')",
+    [owner, intelMatch, intelObjective, intelEvent, `Too small for ${tag}`]
+  )
+  await db.query(
+    "insert into public.intel_missed_opportunities (user_id, objective_id, event_id, presence_id, reason, note) values ($1, $2, $3, $4, 'strong_customer', $5)",
+    [owner, intelObjective, intelEvent, intelPresence, `${tag} should have seen this one`]
   )
 
   return { email, contact, second, encounter, batch }
