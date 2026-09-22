@@ -1,11 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ListingSnapshot } from '@/lib/event-intelligence/change-detection'
 import type {
   CompanyRecord,
   EventUpsert,
   IngestStore,
   PresenceRecord,
+  PresenceSourceRow,
   SourceRecordUpsert,
 } from '@/lib/event-intelligence/ingest'
+import type { PresenceStatus } from '@/lib/event-intelligence/types'
 
 /**
  * The ingest store over Supabase, for the service role only.
@@ -41,6 +44,35 @@ function chunked<T>(values: T[], size = CHUNK): T[][] {
   const out: T[][] = []
   for (let i = 0; i < values.length; i += size) out.push(values.slice(i, i + size))
   return out
+}
+
+/** How many characters of `in.(…)` values one read may carry. */
+const KEY_CHARS_PER_REQUEST = 6000
+
+export function chunkedByLength(values: string[], maxChars: number, maxCount = CHUNK): string[][] {
+  const out: string[][] = []
+  let current: string[] = []
+  let length = 0
+  for (const value of values) {
+    // +3 for the quoting and the comma PostgREST puts around each value.
+    const cost = value.length + 3
+    if (current.length > 0 && (length + cost > maxChars || current.length >= maxCount)) {
+      out.push(current)
+      current = []
+      length = 0
+    }
+    current.push(value)
+    length += cost
+  }
+  if (current.length > 0) out.push(current)
+  return out
+}
+
+/** A stored snapshot, or not one: anything else is treated as absent. */
+function isSnapshot(value: unknown): value is ListingSnapshot {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  return Boolean(v.company && typeof v.company === 'object' && v.presence && typeof v.presence === 'object')
 }
 
 const str = (value: unknown): string | null => {
@@ -144,6 +176,12 @@ export function supabaseIngestStore(supabase: SupabaseClient): IngestStore {
     findCompaniesByNames: (names) => companiesWhere('name_normalized', names),
     findCompaniesByIds: (ids) => companiesWhere('id', ids),
 
+    async findEventByKey(eventKey: string) {
+      const { data, error } = await supabase.from('intel_events').select('id').eq('event_key', eventKey).maybeSingle()
+      if (error) fail('findEventByKey', error)
+      return data ? { id: String((data as Row).id) } : null
+    },
+
     async findPresencesForEvent(eventId: string) {
       /*
         Paged rather than one unbounded select: PostgREST caps a response at
@@ -151,30 +189,43 @@ export function supabaseIngestStore(supabase: SupabaseClient): IngestStore {
         pages is the difference between a complete refresh and one that
         silently thinks 1,000 stands are the whole fair and withdraws the rest.
       */
-      const out: { id: string; companyId: string }[] = []
+      const out: { id: string; companyId: string; status: PresenceStatus }[] = []
       for (let page = 0; page < 50; page++) {
         const from = page * 1000
         const { data, error } = await supabase
           .from('intel_company_presences')
-          .select('id, company_id')
+          .select('id, company_id, status')
           .eq('event_id', eventId)
           .order('id', { ascending: true })
           .range(from, from + 999)
 
         if (error) fail('findPresencesForEvent', error)
         const rows = (data ?? []) as Row[]
-        for (const row of rows) out.push({ id: String(row.id), companyId: String(row.company_id) })
+        for (const row of rows) {
+          out.push({
+            id: String(row.id),
+            companyId: String(row.company_id),
+            status: row.status === 'withdrawn' ? 'withdrawn' : 'listed',
+          })
+        }
         if (rows.length < 1000) break
       }
       return out
     },
 
-    async findPresenceSources(provider, providerRecordIds, payloadVersion) {
-      const out: { providerRecordId: string; contentHash: string; entityId: string }[] = []
-      for (const batch of chunked(providerRecordIds)) {
+    async findPresenceSources(provider, sourceKeys, payloadVersion) {
+      const out: PresenceSourceRow[] = []
+      /*
+        Chunked by length, not only by count. A source key is the edition plus
+        the provider's id, and a provider's id is often the listing URL: 500 of
+        those in one `in.(…)` is a query string of tens of kilobytes, past what
+        a gateway will accept. Bounded by characters, the request stays small
+        whatever the ids look like.
+      */
+      for (const batch of chunkedByLength(sourceKeys, KEY_CHARS_PER_REQUEST)) {
         const { data, error } = await supabase
           .from('intel_source_records')
-          .select('provider_record_id, content_hash, entity_id')
+          .select('provider_record_id, content_hash, entity_id, snapshot')
           .eq('provider', provider)
           .eq('payload_version', payloadVersion)
           .eq('entity_type', 'presence')
@@ -186,6 +237,7 @@ export function supabaseIngestStore(supabase: SupabaseClient): IngestStore {
             providerRecordId: String(row.provider_record_id),
             contentHash: String(row.content_hash),
             entityId: String(row.entity_id),
+            snapshot: isSnapshot(row.snapshot) ? row.snapshot : null,
           })
         }
       }
@@ -283,6 +335,8 @@ export function supabaseIngestStore(supabase: SupabaseClient): IngestStore {
             content_hash: input.contentHash,
             fetched_at: input.fetchedAt,
             source_updated_at: input.sourceUpdatedAt,
+            snapshot: input.snapshot ?? null,
+            run_id: input.runId ?? null,
           })),
           { onConflict: 'provider,provider_record_id,payload_version' }
         )

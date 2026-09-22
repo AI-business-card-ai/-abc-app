@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { serverErrorResponse } from '@/lib/api/errors'
 import { createServiceClient } from '@/lib/supabase/service'
-import { ingestEvent } from '@/lib/event-intelligence/ingest'
 import { buildImportPreview, importableExhibitors } from '@/lib/event-intelligence/import-preview'
 import { parseImport, readImportRequest } from '@/lib/event-intelligence/import-request'
-import { DatasetEventProvider } from '@/lib/event-intelligence/providers/import-file'
+import { runEventSource } from '@/lib/event-intelligence/source-run'
+import { fileSourceAdapter } from '@/lib/event-intelligence/sources/file'
 import { supabaseIngestStore } from '@/lib/event-intelligence/store/supabase-ingest'
+import { supabaseSourceRunStore } from '@/lib/event-intelligence/store/supabase-source-runs'
 import { requireEventIntelligence, readJson } from '@/lib/event-intelligence/route-guard'
 
 /**
@@ -50,21 +51,37 @@ export async function POST(request: Request) {
       )
     }
 
-    const provider = new DatasetEventProvider({
-      event: read.request.event,
-      exhibitors,
-      id: read.request.providerId,
-    })
-
-    const report = await ingestEvent(
-      provider,
+    /*
+      Through the same gated run as every other event source. A file is judged
+      like a directory: one that would withdraw most of what ABC lists for this
+      event — a truncated export, the wrong sheet — is refused and nothing is
+      written, rather than taking every exhibitor it happens to leave out, and
+      every saved target among them, off the list.
+    */
+    const service = createServiceClient()
+    const run = await runEventSource(
+      fileSourceAdapter({ event: read.request.event, exhibitors, id: read.request.providerId }, read.request.providerId),
       { providerEventId: read.request.event.providerRecordId },
-      supabaseIngestStore(createServiceClient())
+      { ingestStore: supabaseIngestStore(service), runStore: supabaseSourceRunStore(service) }
     )
 
+    if (run.status === 'blocked') {
+      const reason = run.gates.find((gate) => !gate.passed && gate.severity === 'block' && !gate.overridden)
+      return NextResponse.json(
+        {
+          error: `Nothing was imported. ${reason?.message ?? 'The file does not look complete.'} That looks like an incomplete file rather than a smaller event, so ABC kept the current list.`,
+          code: 'source_unhealthy',
+        },
+        { status: 409 }
+      )
+    }
+    if (run.status !== 'published' || !run.ingest) {
+      return NextResponse.json({ error: 'The import could not be completed. Nothing was changed.', code: 'import_failed' }, { status: 500 })
+    }
+
     return NextResponse.json({
-      eventKey: report.eventKey,
-      report,
+      eventKey: run.ingest.eventKey,
+      report: run.ingest,
       skipped: {
         invalid: preview.counts.invalid,
         duplicateInFile: preview.counts.duplicateInFile,

@@ -1,4 +1,12 @@
 import { randomUUID } from 'node:crypto'
+import {
+  emptyChangeSummary,
+  recordChange,
+  snapshotDiff,
+  type ChangeSummary,
+  type ListingChangeKind,
+  type ListingSnapshot,
+} from '@/lib/event-intelligence/change-detection'
 import { eventEditionKey } from '@/lib/event-intelligence/event-identity'
 import {
   contentHash,
@@ -13,6 +21,7 @@ import type {
   ProviderEventRef,
   ProviderExhibitor,
 } from '@/lib/event-intelligence/provider'
+import type { PresenceStatus } from '@/lib/event-intelligence/types'
 
 /**
  * Turning what a provider says into ABC's event graph.
@@ -96,11 +105,42 @@ export type SourceRecordUpsert = {
   contentHash: string
   fetchedAt: string
   sourceUpdatedAt: string | null
+  /** What the source said, as hashed. Presence records only. */
+  snapshot?: ListingSnapshot | null
+  /** The source run that wrote this, when the write came through one. */
+  runId?: string | null
 }
 
 /** A company as it exists in the graph. */
 export type CompanyRecord = CompanyUpsert & { id: string }
 export type PresenceRecord = PresenceUpsert & { id: string }
+
+/** What a previous import of one listing left behind. */
+export type PresenceSourceRow = {
+  providerRecordId: string
+  contentHash: string
+  entityId: string
+  /** Absent for records written before snapshots existed. */
+  snapshot?: ListingSnapshot | null
+}
+
+/**
+ * The key a listing's source record is stored under: the edition, then the
+ * provider's own id for the listing.
+ *
+ * A listing is always a listing *at one edition*. Organisers commonly keep an
+ * exhibitor's id across years, and a spreadsheet's row ids restart at 1 for
+ * every fair, so the provider's id alone is not unique across editions — and
+ * `intel_source_records` is unique on `(provider, provider_record_id,
+ * payload_version)`. Stored unscoped, importing MEDICA 2027 re-pointed MEDICA
+ * 2026's source records at the 2027 presences: the 2026 stands silently lost
+ * their provenance, and a refresh of 2026 then compared its listings against
+ * 2027's hashes. Scoping the key by the edition is what keeps two editions'
+ * provenance apart, and it needs no change to the table.
+ */
+export function listingSourceKey(eventKey: string, providerRecordId: string): string {
+  return `${eventKey}::${providerRecordId}`
+}
 
 /**
  * Everything the store must do, in batches.
@@ -112,19 +152,30 @@ export type PresenceRecord = PresenceUpsert & { id: string }
 export interface IngestStore {
   upsertEvent(input: EventUpsert): Promise<{ id: string }>
 
+  /**
+   * An edition ABC already holds, without writing anything. A gated run reads
+   * the graph through this, so a run its quality gates refuse leaves no trace
+   * — not even a touched event row.
+   */
+  findEventByKey(eventKey: string): Promise<{ id: string } | null>
+
   findCompaniesByDomains(domains: string[]): Promise<CompanyRecord[]>
   findCompaniesByNames(nameNormalized: string[]): Promise<CompanyRecord[]>
   findCompaniesByIds(ids: string[]): Promise<CompanyRecord[]>
 
-  /** Presences already recorded for this event, so identity survives a refresh. */
-  findPresencesForEvent(eventId: string): Promise<{ id: string; companyId: string }[]>
+  /**
+   * Presences already recorded for this event, so identity survives a refresh.
+   * `status` is what lets a run project what it would withdraw before it
+   * withdraws anything; a store that omits it is read as "listed".
+   */
+  findPresencesForEvent(eventId: string): Promise<{ id: string; companyId: string; status?: PresenceStatus }[]>
 
-  /** What a previous import of these exact provider records produced. */
+  /** What a previous import of these exact source keys produced. */
   findPresenceSources(
     provider: string,
-    providerRecordIds: string[],
+    sourceKeys: string[],
     payloadVersion: string
-  ): Promise<{ providerRecordId: string; contentHash: string; entityId: string }[]>
+  ): Promise<PresenceSourceRow[]>
 
   insertCompanies(rows: CompanyRecord[]): Promise<void>
   updateCompanies(rows: CompanyRecord[]): Promise<void>
@@ -295,6 +346,8 @@ export type IngestReport = {
   exhibitorsSeen: number
   companiesCreated: number
   companiesMatched: number
+  /** Matched companies this read taught something new — a website, a description. */
+  companiesUpdated: number
   presencesCreated: number
   presencesUpdated: number
   presencesUnchanged: number
@@ -302,6 +355,8 @@ export type IngestReport = {
   mergeCandidates: number
   /** How many statements the write phase issued. Reported so it can be watched. */
   writeStatements: number
+  /** What changed, field by field, against what the source said last time. */
+  changes: ChangeSummary
 }
 
 export type IngestPlan = {
@@ -312,7 +367,15 @@ export type IngestPlan = {
   presencesToTouch: string[]
   sources: SourceRecordUpsert[]
   seenPresenceIds: string[]
-  counts: Omit<IngestReport, 'provider' | 'eventId' | 'eventKey' | 'presencesWithdrawn' | 'writeStatements'>
+  counts: Omit<
+    IngestReport,
+    'provider' | 'eventId' | 'eventKey' | 'presencesWithdrawn' | 'writeStatements' | 'changes' | 'companiesUpdated'
+  >
+  changes: ChangeSummary
+  /** Listed at this edition before the run and not seen by it: what committing would withdraw. */
+  projectedWithdrawals: number
+  /** Listed at this edition before the run. */
+  listedBefore: number
 }
 
 export type ExistingGraph = {
@@ -321,6 +384,10 @@ export type ExistingGraph = {
   presenceByCompany: Map<string, string>
   /** provider record id → content hash from the last import. */
   hashByRecord: Map<string, string>
+  /** provider record id → what that source said last time, where it was kept. */
+  snapshotByRecord?: Map<string, ListingSnapshot>
+  /** presence id → its status before this run. Absent means every presence counts as listed. */
+  presenceStatus?: Map<string, PresenceStatus>
 }
 
 /**
@@ -332,11 +399,12 @@ export type ExistingGraph = {
  */
 export function planIngest(
   exhibitors: ProviderExhibitor[],
-  eventId: string,
+  event: { id: string; key: string },
   provider: { id: string; payloadVersion: string },
   existing: ExistingGraph,
   fetchedAt: string
 ): IngestPlan {
+  const eventId = event.id
   const insertedCompanies = new Map<string, CompanyRecord>()
   const updatedCompanies = new Map<string, CompanyRecord>()
   const insertedPresences = new Map<string, PresenceRecord>()
@@ -344,6 +412,9 @@ export function planIngest(
   const touched = new Set<string>()
   const sources: SourceRecordUpsert[] = []
   const seenPresenceIds: string[] = []
+  const seenPresenceSet = new Set<string>()
+  const changes = emptyChangeSummary()
+  const reappeared = new Set<string>()
 
   const counts = {
     exhibitorsSeen: 0,
@@ -405,12 +476,32 @@ export function planIngest(
     }
 
     const presenceFields = normalizePresence(exhibitor)
-    const payload = { company: companyFields, presence: presenceFields }
-    const hash = contentHash(payload)
+    // The hashed payload is the snapshot: one object, so the stored hash is
+    // always the hash of the stored snapshot.
+    const snapshot: ListingSnapshot = { company: companyFields, presence: presenceFields }
+    const hash = contentHash(snapshot)
     const unchanged = existing.hashByRecord.get(exhibitor.providerRecordId) === hash
 
     const existingPresenceId = presenceByCompany.get(companyId)
     const presenceId = existingPresenceId ?? randomUUID()
+
+    // What this listing is, relative to what ABC held before this read.
+    let kind: ListingChangeKind
+    let fields: ReturnType<typeof snapshotDiff> = []
+    const previous = existing.snapshotByRecord?.get(exhibitor.providerRecordId)
+    if (!existingPresenceId) {
+      kind = 'new'
+    } else if (existing.presenceStatus?.get(existingPresenceId) === 'withdrawn' && !reappeared.has(existingPresenceId)) {
+      reappeared.add(existingPresenceId)
+      kind = 'reappeared'
+      if (previous && !unchanged) fields = snapshotDiff(previous, snapshot)
+    } else if (unchanged) {
+      kind = 'unchanged'
+    } else {
+      kind = 'changed'
+      if (previous) fields = snapshotDiff(previous, snapshot)
+    }
+    recordChange(changes, { providerRecordId: exhibitor.providerRecordId, kind, fields }, kind !== 'changed' || Boolean(previous))
     const presence: PresenceRecord = {
       id: presenceId,
       ...presenceFields,
@@ -434,7 +525,12 @@ export function planIngest(
       else updatedPresences.set(presenceId, presence)
     }
 
-    if (!seenPresenceIds.includes(presenceId)) seenPresenceIds.push(presenceId)
+    // A set beside the list: `includes` on the list made this loop quadratic,
+    // which at 5,000 listings is 12.5 million comparisons for a bookkeeping step.
+    if (!seenPresenceSet.has(presenceId)) {
+      seenPresenceSet.add(presenceId)
+      seenPresenceIds.push(presenceId)
+    }
 
     // A matched company still gains whatever this listing knows that it does not.
     if (!unchanged && resolution.company) {
@@ -447,16 +543,28 @@ export function planIngest(
 
     sources.push({
       provider: provider.id,
-      providerRecordId: exhibitor.providerRecordId,
+      providerRecordId: listingSourceKey(event.key, exhibitor.providerRecordId),
       payloadVersion: provider.payloadVersion,
-      sourceUrl: sourceText(exhibitor.listingUrl),
+      // The page a person can open; failing that, where ABC read the record.
+      sourceUrl: sourceText(exhibitor.listingUrl) ?? sourceText(exhibitor.retrievedFrom),
       entityType: 'presence',
       entityId: presenceId,
       contentHash: hash,
       fetchedAt,
       sourceUpdatedAt: sourceText(exhibitor.sourceUpdatedAt),
+      snapshot,
     })
   }
+
+  // What committing this plan would withdraw, known before anything is written.
+  let listedBefore = 0
+  let projectedWithdrawals = 0
+  for (const presenceId of existing.presenceByCompany.values()) {
+    if ((existing.presenceStatus?.get(presenceId) ?? 'listed') !== 'listed') continue
+    listedBefore++
+    if (!seenPresenceSet.has(presenceId)) projectedWithdrawals++
+  }
+  changes.withdrawn = projectedWithdrawals
 
   return {
     companiesToInsert: [...insertedCompanies.values()],
@@ -467,31 +575,60 @@ export function planIngest(
     sources,
     seenPresenceIds,
     counts,
+    changes,
+    projectedWithdrawals,
+    listedBefore,
   }
 }
 
 // ── The run ──────────────────────────────────────────────────────
 
 /**
- * Import one event's exhibitors.
+ * Everything a run decided, before it wrote anything.
  *
- * Runs with the service role, from a server job — never from a request an owner
- * makes, because this writes shared reference data that is not theirs.
+ * The seam the Event Data Engine's quality gates sit in. `prepareIngest` reads
+ * the graph and plans in memory; nothing is written until `commitIngest` is
+ * called with the result — so a run whose gates fail can be dropped here and
+ * leaves the graph exactly as it was.
  */
-export async function ingestEvent(
+export type PreparedIngest = {
+  provider: { id: string; payloadVersion: string }
+  providerEvent: ProviderEvent
+  event: EventUpsert
+  /** Null when the edition is new: it is created only if this run is committed. */
+  eventId: string | null
+  /** True when the caller already wrote the event row (the ungated path). */
+  eventWritten: boolean
+  fetchedAt: string
+  exhibitors: ProviderExhibitor[]
+  plan: IngestPlan
+}
+
+/** Where a plan made for a not-yet-created edition is re-pointed on commit. */
+const PENDING_EVENT = 'pending-event'
+
+/**
+ * Read the graph for these listings and plan the import. Writes nothing.
+ *
+ * `options.eventId` is for the ungated path, which has already upserted the
+ * event; the gated path passes nothing and the edition is looked up without a
+ * write.
+ */
+export async function prepareIngest(
   provider: EventDataProvider,
   ref: ProviderEventRef,
   store: IngestStore,
-  now: () => string = () => new Date().toISOString()
-): Promise<IngestReport> {
-  const providerEvent = await provider.fetchEvent(ref)
+  now: () => string = () => new Date().toISOString(),
+  options: { eventId?: string; eventWritten?: boolean; providerEvent?: ProviderEvent; fetchedAt?: string } = {}
+): Promise<PreparedIngest> {
+  const providerEvent = options.providerEvent ?? (await provider.fetchEvent(ref))
   if (!providerEvent) {
     throw new Error(`ingest: provider ${provider.id} has no event ${ref.providerEventId}`)
   }
 
-  const fetchedAt = now()
+  const fetchedAt = options.fetchedAt ?? now()
   const normalizedEvent = normalizeEvent(providerEvent)
-  const event = await store.upsertEvent(normalizedEvent)
+  const eventId = options.eventId ?? (await store.findEventByKey(normalizedEvent.eventKey))?.id ?? null
 
   // ── Phase 1: collect, then read the graph in batches ──
 
@@ -508,25 +645,55 @@ export async function ingestEvent(
     recordIds.push(exhibitor.providerRecordId)
   }
 
+  /*
+    Source records are keyed by edition (see `listingSourceKey`). The provider's
+    bare ids are asked for too, in the same statement, so records written before
+    the key was scoped are still found — but a bare-id row is believed only when
+    it points at a presence of *this* edition, which is exactly the confusion
+    the scoped key exists to end.
+  */
+  const scopedKey = (id: string) => listingSourceKey(normalizedEvent.eventKey, id)
+  const sourceKeys = eventId ? [...recordIds.map(scopedKey), ...recordIds] : []
+
   const [byDomainRows, byNameRows, presenceRows, sourceRows] = await Promise.all([
     store.findCompaniesByDomains([...domains]),
     store.findCompaniesByNames([...names]),
-    store.findPresencesForEvent(event.id),
-    store.findPresenceSources(provider.id, recordIds, provider.payloadVersion),
+    eventId ? store.findPresencesForEvent(eventId) : Promise.resolve([]),
+    sourceKeys.length > 0
+      ? store.findPresenceSources(provider.id, sourceKeys, provider.payloadVersion)
+      : Promise.resolve([] as PresenceSourceRow[]),
   ])
 
   const presenceByCompany = new Map<string, string>()
   const presenceToCompany = new Map<string, string>()
+  const presenceStatus = new Map<string, PresenceStatus>()
   for (const row of presenceRows) {
     presenceByCompany.set(row.companyId, row.id)
     presenceToCompany.set(row.id, row.companyId)
+    presenceStatus.set(row.id, row.status ?? 'listed')
+  }
+
+  // Scoped rows win; a bare-id row only fills in for a listing with none, and
+  // only when it names a presence at this edition.
+  const prefix = listingSourceKey(normalizedEvent.eventKey, '')
+  const byRecord = new Map<string, PresenceSourceRow>()
+  for (const row of sourceRows) {
+    if (row.providerRecordId.startsWith(prefix)) byRecord.set(row.providerRecordId.slice(prefix.length), row)
+  }
+  for (const row of sourceRows) {
+    if (row.providerRecordId.startsWith(prefix)) continue
+    if (byRecord.has(row.providerRecordId)) continue
+    if (!presenceToCompany.has(row.entityId)) continue
+    byRecord.set(row.providerRecordId, row)
   }
 
   // Companies reachable only through a previous import's source record.
   const knownIds = new Set([...byDomainRows, ...byNameRows].map((row) => row.id))
-  const extraIds = [...new Set(sourceRows.map((row) => presenceToCompany.get(row.entityId)).filter((id): id is string => Boolean(id)))].filter(
-    (id) => !knownIds.has(id)
-  )
+  const extraIds = [
+    ...new Set(
+      [...byRecord.values()].map((row) => presenceToCompany.get(row.entityId)).filter((id): id is string => Boolean(id))
+    ),
+  ].filter((id) => !knownIds.has(id))
   const byIdRows = extraIds.length > 0 ? await store.findCompaniesByIds(extraIds) : []
 
   const byId = new Map<string, CompanyRecord>()
@@ -541,26 +708,65 @@ export async function ingestEvent(
     index.byName.set(row.nameNormalized, [...(index.byName.get(row.nameNormalized) ?? []), row])
   }
   const hashByRecord = new Map<string, string>()
-  for (const row of sourceRows) {
-    hashByRecord.set(row.providerRecordId, row.contentHash)
+  const snapshotByRecord = new Map<string, ListingSnapshot>()
+  for (const [recordId, row] of byRecord) {
+    hashByRecord.set(recordId, row.contentHash)
+    if (row.snapshot) snapshotByRecord.set(recordId, row.snapshot)
     const companyId = presenceToCompany.get(row.entityId)
     const company = companyId ? byId.get(companyId) : undefined
-    if (company) index.bySourceRecord.set(row.providerRecordId, company)
+    if (company) index.bySourceRecord.set(recordId, company)
   }
 
   // ── Phase 2: decide, in memory ──
 
   const plan = planIngest(
     exhibitors,
-    event.id,
+    { id: eventId ?? PENDING_EVENT, key: normalizedEvent.eventKey },
     { id: provider.id, payloadVersion: provider.payloadVersion },
-    { index, presenceByCompany, hashByRecord },
+    { index, presenceByCompany, hashByRecord, snapshotByRecord, presenceStatus },
     fetchedAt
   )
 
+  return {
+    provider: { id: provider.id, payloadVersion: provider.payloadVersion },
+    providerEvent,
+    event: normalizedEvent,
+    eventId,
+    eventWritten: Boolean(options.eventWritten),
+    fetchedAt,
+    exhibitors,
+    plan,
+  }
+}
+
+/**
+ * Write what `prepareIngest` decided.
+ *
+ * Runs with the service role, from a server job — never from a request an owner
+ * makes, because this writes shared reference data that is not theirs.
+ */
+export async function commitIngest(
+  prepared: PreparedIngest,
+  store: IngestStore,
+  options: { runId?: string | null } = {}
+): Promise<IngestReport> {
+  const { plan, fetchedAt, provider, providerEvent } = prepared
+  const runId = options.runId ?? null
+
   // ── Phase 3: write, in batches ──
 
-  let writeStatements = 1 // the event upsert
+  // The event upsert counts as a write statement whoever made it.
+  let writeStatements = 1
+  let eventId: string
+  if (prepared.eventWritten && prepared.eventId) {
+    eventId = prepared.eventId
+  } else {
+    eventId = (await store.upsertEvent(prepared.event)).id
+  }
+
+  // A plan made before the edition existed names a placeholder; re-point it.
+  const atEvent = (rows: PresenceRecord[]): PresenceRecord[] =>
+    rows.map((row) => (row.eventId === eventId ? row : { ...row, eventId }))
 
   /*
     Companies before presences, because a presence names a company. Within each
@@ -575,11 +781,11 @@ export async function ingestEvent(
     writeStatements++
   }
   if (plan.presencesToInsert.length > 0) {
-    await store.insertPresences(plan.presencesToInsert)
+    await store.insertPresences(atEvent(plan.presencesToInsert))
     writeStatements++
   }
   if (plan.presencesToUpdate.length > 0) {
-    await store.updatePresences(plan.presencesToUpdate)
+    await store.updatePresences(atEvent(plan.presencesToUpdate))
     writeStatements++
   }
   if (plan.presencesToTouch.length > 0) {
@@ -594,24 +800,60 @@ export async function ingestEvent(
       payloadVersion: provider.payloadVersion,
       sourceUrl: sourceText(providerEvent.sourceUrl),
       entityType: 'event',
-      entityId: event.id,
-      contentHash: contentHash(normalizedEvent),
+      entityId: eventId,
+      contentHash: contentHash(prepared.event),
       fetchedAt,
       sourceUpdatedAt: sourceText(providerEvent.sourceUpdatedAt),
+      snapshot: null,
+      runId,
     },
-    ...plan.sources,
+    ...plan.sources.map((source) => ({ ...source, runId })),
   ])
   writeStatements++
 
-  const presencesWithdrawn = await store.markMissingPresencesWithdrawn(event.id, fetchedAt)
+  const presencesWithdrawn = await store.markMissingPresencesWithdrawn(eventId, fetchedAt)
   writeStatements++
 
   return {
     provider: provider.id,
-    eventId: event.id,
-    eventKey: normalizedEvent.eventKey,
+    eventId,
+    eventKey: prepared.event.eventKey,
     ...plan.counts,
+    companiesUpdated: plan.companiesToUpdate.length,
     presencesWithdrawn,
     writeStatements,
+    changes: { ...plan.changes, withdrawn: presencesWithdrawn },
   }
+}
+
+/**
+ * Import one event's exhibitors, ungated.
+ *
+ * The path the demo fair and the tests of ingestion itself take: the event is
+ * upserted first, exactly as it always was, then the listings are planned and
+ * written — the same statements as before the split. A source that should be
+ * judged before it is published goes through `runEventSource` in
+ * source-run.ts, which calls the same two halves with its quality gates
+ * between them.
+ */
+export async function ingestEvent(
+  provider: EventDataProvider,
+  ref: ProviderEventRef,
+  store: IngestStore,
+  now: () => string = () => new Date().toISOString()
+): Promise<IngestReport> {
+  const providerEvent = await provider.fetchEvent(ref)
+  if (!providerEvent) {
+    throw new Error(`ingest: provider ${provider.id} has no event ${ref.providerEventId}`)
+  }
+
+  const fetchedAt = now()
+  const event = await store.upsertEvent(normalizeEvent(providerEvent))
+  const prepared = await prepareIngest(provider, ref, store, now, {
+    eventId: event.id,
+    eventWritten: true,
+    providerEvent,
+    fetchedAt,
+  })
+  return commitIngest(prepared, store)
 }

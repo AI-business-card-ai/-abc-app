@@ -80,6 +80,14 @@ export type ProviderExhibitor = {
 
   listingUrl?: string | null
   sourceUpdatedAt?: string | null
+
+  /**
+   * Where this record was read, when that is not the listing itself — the page
+   * of a structured feed, say. Provenance only: recorded on the source record
+   * when there is no listing URL, never shown as a place to open, and not part
+   * of the content hash, so it cannot make an unchanged listing look changed.
+   */
+  retrievedFrom?: string | null
 }
 
 export interface EventDataProvider {
