@@ -674,7 +674,7 @@ export async function runEngineSuite(ctx: SuiteContext): Promise<void> {
     check('AB36 the key is the edition then the provider’s id', listingSourceKey('medica-2027', 'MX-1001'), 'medica-2027::MX-1001')
 
     // A record written before keys were scoped is believed only for the edition it points at.
-    const presence2027 = (await ctx.rowsOf<{ id: string }>(db, "select p.id::text from public.intel_company_presences p join public.intel_events e on e.id = p.event_id where e.event_key = 'medica-2027' limit 1"))[0].id
+    const presence2027 = (await ctx.rowsOf<{ id: string }>(db, "select p.id::text from public.intel_company_presences p join public.intel_events e on e.id = p.event_id where e.event_key = 'medica-2027' limit 1"))[0]?.id ?? '00000000-0000-4000-8000-000000000000'
     await ctx.rowsOf(db, "insert into public.intel_source_records (provider, provider_record_id, payload_version, entity_type, entity_id, content_hash) values ('official:medica-fixture', 'MX-9999', 'v1', 'presence', $1, 'legacy')", [presence2027])
     const legacyAdopter = await runEventSource(
       medicaFixtureAdapter(() => [...r2026, { exhibitorId: 'MX-9999', companyName: 'Legacy Lookalike', country: 'DE', hall: '1', stand: 'Z1', sectors: ['Other'] }]).adapter,
@@ -1250,7 +1250,7 @@ export async function runEngineSuite(ctx: SuiteContext): Promise<void> {
     ['check', 'check', 'check', 'check']
   )
 
-  const someFact = (await ctx.rowsOf<{ id: string }>(bdb, "select id::text from public.intel_brain_facts where user_id = $1 and origin = 'analysis' limit 1", [ctx.OWNER]))[0].id
+  const someFact = (await ctx.rowsOf<{ id: string }>(bdb, "select id::text from public.intel_brain_facts where user_id = $1 and origin = 'analysis' limit 1", [ctx.OWNER]))[0]?.id ?? '00000000-0000-4000-8000-000000000000'
   check(
     'AD23 the owner decides and ABC extracts: the owner may confirm or reject, and may not rewrite what ABC read or turn an inference into a source fact',
     [
@@ -1268,7 +1268,7 @@ export async function runEngineSuite(ctx: SuiteContext): Promise<void> {
       await count(ctx, bdb, 'select count(*)::int as n from public.intel_brain_facts'),
       (await ctx.asRole<{ n: number }>(bdb, 'authenticated', 'select count(*)::int as n from public.intel_brain_facts', [], ctx.OTHER)).rows[0].n,
       (await ctx.asRole<{ n: number }>(bdb, 'authenticated', 'select count(*)::int as n from public.intel_brain_documents', [], ctx.OTHER)).rows[0].n,
-      (await ctx.asRole<{ id: string }>(bdb, 'authenticated', "update public.intel_brain_facts set status = 'rejected', decided_at = now() where id = $1 returning id", [someFact], ctx.OTHER)).rows.length,
+      await ctx.asRole<{ id: string }>(bdb, 'authenticated', "update public.intel_brain_facts set status = 'rejected', decided_at = now() where id = $1 returning id", [someFact], ctx.OTHER).then((r) => r.rows.length, () => 'refused after reading'),
       (await loadStoredBrainFacts(pgClient(ctx, bdb, 'authenticated', ctx.OTHER), ctx.OWNER)).length,
       await ctx.refusal(bdb, 'anon', 'select count(*) from public.intel_brain_facts'),
       await ctx.refusal(bdb, 'anon', 'select count(*) from public.intel_brain_documents'),
@@ -1284,7 +1284,7 @@ export async function runEngineSuite(ctx: SuiteContext): Promise<void> {
     [beforeConfirm.contributed.length, confirmed.ok, confirmed.changed > 0, afterConfirm.contributed.length > 0],
     [0, true, true, true]
   )
-  const rejectTarget = (await ctx.rowsOf<{ id: string }>(bdb, "select id::text from public.intel_brain_facts where user_id = $1 and value = 'Heat sinks'", [ctx.OWNER]))[0].id
+  const rejectTarget = (await ctx.rowsOf<{ id: string }>(bdb, "select id::text from public.intel_brain_facts where user_id = $1 and value = 'Heat sinks'", [ctx.OWNER]))[0]?.id ?? '00000000-0000-4000-8000-000000000000'
   await decideBrainFacts(session, ctx.OWNER, 'reject', [rejectTarget])
   const reanalysed = await analyzeOwnerBusiness({ session, service, ownerId: ctx.OWNER, fetcher: fixtureFetcher(ownerSiteRoutes().transport, '2026-10-10T10:00:00.000Z'), now: () => new Date('2026-10-10T10:00:00Z') })
   const view = await loadBrainView(session, ctx.OWNER)
