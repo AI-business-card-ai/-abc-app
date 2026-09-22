@@ -328,9 +328,9 @@ export async function runEngineSuite(ctx: SuiteContext): Promise<void> {
     )
     const robotsProbe = await withBasis.healthCheck(MEDICA_REF)
     check(
-      'AB3 and even with a basis, robots.txt as MEDICA publishes it disallows /vis/: refused, and only robots.txt was asked for',
+      'AB3 and even with a basis, MEDICA reserves its directory against AI crawlers by name, and ABC honours that for itself: refused, and only robots.txt was asked for',
       [robotsProbe, real.requests.map((r) => new URL(r.url).pathname)],
-      [{ available: false, reason: 'robots_disallowed' }, ['/robots.txt']]
+      [{ available: false, reason: 'robots_ai_opt_out' }, ['/robots.txt']]
     )
 
     const { db } = await ctx.freshDatabase()
@@ -897,6 +897,24 @@ export async function runEngineSuite(ctx: SuiteContext): Promise<void> {
       [at('/private/x'), at('/nope'), at('/nope/more'), at('/files/a.pdf'), at('/private/x', 'OtherBot'), at('/private/public/y', 'OtherBot'), robotsDecision(policy, 'ABCEventIntelligence', new URL('https://x.invalid/')).crawlDelaySeconds],
       [true, false, true, false, false, true, 2]
     )
+    const medica = parseRobots(MEDICA_OBSERVED_ROBOTS)
+    const on = (path: string, token = 'ABCEventIntelligence', honourAiOptOut = true) =>
+      robotsDecision(medica, token, new URL(`https://www.medica-tradefair.com${path}`), { honourAiOptOut })
+    check(
+      'AC6a repeated `User-agent: *` groups are merged: MEDICA’s second `*` group disallows the exhibitor search, and reading only the first missed it',
+      [on('/vis/v1/en/search?q=x', 'x', false).allowed, on('/kati-cgi/kati/a', 'x', false).allowed, on('/vis/v1/en/directory/a', 'x', false).allowed],
+      [false, false, true]
+    )
+    check(
+      'AC6b an AI opt-out by name is honoured for ABC too; a `*` rule alone is not an opt-out; switching it off is explicit',
+      [
+        on('/vis/v1/en/directory/a'),
+        on('/').allowed,
+        on('/vis/v1/en/directory/a', 'ABCEventIntelligence', false).allowed,
+        robotsDecision(parseRobots('User-agent: *\nDisallow: /x\n'), 'ABCEventIntelligence', new URL('https://s.invalid/y')).allowed,
+      ],
+      [{ allowed: false, crawlDelaySeconds: null, rule: 'AI opt-out (gptbot) Disallow: /vis/', aiOptOut: true }, true, true, true]
+    )
     check('AC6 on a tie, Allow wins; an empty Disallow allows everything', [robotsDecision(parseRobots('User-agent: *\nDisallow: /a\nAllow: /a\n'), 'x', new URL('https://x.invalid/a')).allowed, robotsDecision(parseRobots('User-agent: *\nDisallow:\n'), 'x', new URL('https://x.invalid/a')).allowed], [true, true])
   }
   {
@@ -1309,6 +1327,23 @@ export async function runEngineSuite(ctx: SuiteContext): Promise<void> {
     'AD27 a website that cannot be read this time has not changed its mind: nothing ABC read before is withdrawn',
     [downSite.ok, await count(ctx, bdb, "select count(*)::int as n from public.intel_brain_facts where user_id = $1 and status <> 'rejected'", [ctx.OWNER]) >= (analysed.ok ? analysed.written.inserted - 1 : 0)],
     [true, true]
+  )
+  const noAiSite = fixtureTransport({
+    'https://no-ai.invalid/robots.txt': text('User-agent: GPTBot\nDisallow: /\n\nUser-agent: CCBot\nDisallow: /\n'),
+    'https://no-ai.invalid/': html('<h1>Would be readable by a generic crawler</h1>'),
+  })
+  const optedOut = await analyzeOwnerBusiness({
+    session,
+    service,
+    ownerId: ctx.OWNER,
+    website: 'https://no-ai.invalid',
+    fetcher: fixtureFetcher(noAiSite.transport, '2026-10-10T12:00:00.000Z'),
+    now: () => new Date('2026-10-10T12:00:00Z'),
+  })
+  check(
+    'AD27a a website that opts out of AI crawlers is not read — only its robots.txt is — the owner is told why, and what they wrote still counts',
+    [optedOut.ok, optedOut.ok && optedOut.websiteRead, noAiSite.pageRequests().length, optedOut.ok && optedOut.view.summary.sections.length > 0],
+    [true, 'refused_ai_opt_out', 0, true]
   )
   check(
     'AD28 the brain route: behind the guard, the owner from the session, confirm and reject only, no send',

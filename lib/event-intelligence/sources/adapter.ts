@@ -88,6 +88,8 @@ export type SourceUnavailable =
   | 'not_configured'
   | 'no_legal_basis'
   | 'robots_disallowed'
+  /** The site disallows this path for named AI crawlers; ABC honours that for itself. */
+  | 'robots_ai_opt_out'
   | 'robots_unavailable'
   | 'unreachable'
   | 'access_denied'

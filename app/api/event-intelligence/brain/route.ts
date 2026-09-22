@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       }
       return NextResponse.json({
         summary: result.view.summary,
+        websiteRead: result.websiteRead,
         read: result.crawl ? { pages: result.crawl.pagesKept, stoppedBy: result.crawl.stoppedBy } : null,
       })
     }

@@ -200,11 +200,23 @@ export function generatedRecords(count: number, prefix = 'GX'): FixtureRecord[] 
 export const OPEN_ROBOTS = 'User-agent: *\nDisallow: /private/\n'
 
 /**
- * The rules medica-tradefair.com published when checked on 2026-09-21,
- * restated as fixture data: the directory path is disallowed for every agent.
- * Not a copy of the file, and not a live read.
+ * The structure of medica-tradefair.com/robots.txt as read raw on 2026-09-22,
+ * restated as fixture data (its rules, not its sitemaps or comments): two `*`
+ * groups, the second disallowing the exhibitor search, and the directory
+ * `/vis/` disallowed by name for AI crawlers. Not a live read.
  */
-export const MEDICA_OBSERVED_ROBOTS = 'User-agent: *\nDisallow: /kati-cgi/kati/\nDisallow: /vis/\n'
+export const MEDICA_OBSERVED_ROBOTS = [
+  'User-agent: *',
+  'Disallow:  /kati-cgi/kati/',
+  '',
+  'User-agent: Screaming Frog SEO Spider',
+  'Allow: /',
+  '',
+  ...['GPTBot', 'ClaudeBot', 'Google-Extended', 'PerplexityBot', 'ChatGPT-User'].flatMap((bot) => [`User-agent: ${bot}`, 'Disallow: /vis/', '']),
+  'User-agent: *',
+  'Disallow: /vis/v1/en/search',
+  '',
+].join('\n')
 
 /** Serve records as the paged feed the MEDICA pilot configuration reads. */
 export function directoryRoutes(

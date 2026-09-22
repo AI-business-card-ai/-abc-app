@@ -167,8 +167,16 @@ async function lastDocumentRead(supabase: Client, ownerId: string): Promise<stri
 /** How soon the same owner may ask ABC to read a website again. */
 export const ANALYSIS_COOLDOWN_MS = 10 * 60 * 1000
 
+/**
+ * Whether the website was read, and if not, why — so the owner is told the
+ * true thing. `refused_ai_opt_out` is common: many sites ask AI crawlers to
+ * stay out, and ABC honours that on the owner's own site too, because it
+ * cannot know the person asking is the site's owner.
+ */
+export type WebsiteRead = 'read' | 'not_attempted' | 'refused_ai_opt_out' | 'refused_robots' | 'failed'
+
 export type AnalysisResult =
-  | { ok: true; view: BrainView; crawl: CrawlReport | null; written: { inserted: number; updated: number; removed: number } }
+  | { ok: true; view: BrainView; crawl: CrawlReport | null; websiteRead: WebsiteRead; written: { inserted: number; updated: number; removed: number } }
   | { ok: false; code: 'cooldown' | 'invalid_website' | 'write_failed' }
 
 /**
@@ -282,6 +290,15 @@ export async function analyzeOwnerBusiness(input: {
     ok: true,
     view: await loadBrainView(session, ownerId),
     crawl: crawlReport,
+    websiteRead: !pages
+      ? 'not_attempted'
+      : pages.ok
+        ? 'read'
+        : pages.code === 'robots_ai_opt_out'
+          ? 'refused_ai_opt_out'
+          : pages.code === 'robots_disallowed'
+            ? 'refused_robots'
+            : 'failed',
     written: { inserted: plan.insert.length, updated: plan.update.length, removed: plan.remove.length },
   }
 }

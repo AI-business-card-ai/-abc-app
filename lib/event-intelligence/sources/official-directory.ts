@@ -87,6 +87,7 @@ export function officialDirectoryAdapter(
       if (config.robots === 'obey') {
         const robots = await fetcher.checkRobots(config.listing.pageUrl(1))
         if (!robots.allowed) {
+          if (robots.aiOptOut) return { available: false, reason: 'robots_ai_opt_out' }
           return { available: false, reason: robots.status === 'ok' || robots.status === 'missing' ? 'robots_disallowed' : 'robots_unavailable' }
         }
       }

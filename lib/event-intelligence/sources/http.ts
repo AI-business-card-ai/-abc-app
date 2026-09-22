@@ -45,6 +45,7 @@ export type FetchFailure =
   | 'dns_failed'
   | 'out_of_scope'
   | 'robots_disallowed'
+  | 'robots_ai_opt_out'
   | 'robots_unavailable'
   | 'host_stopped'
   | 'timeout'
@@ -133,7 +134,7 @@ export type RobotsStatus = 'ok' | 'missing' | 'forbidden' | 'unavailable'
 export interface PoliteFetcher {
   get(url: string, accept: Accept, options?: RequestOptions): Promise<FetchOutcome>
   /** Whether a URL may be fetched, and why — reads robots.txt, fetches nothing else. */
-  checkRobots(url: string): Promise<{ allowed: boolean; status: RobotsStatus; rule: string | null }>
+  checkRobots(url: string): Promise<{ allowed: boolean; status: RobotsStatus; rule: string | null; aiOptOut?: boolean }>
   readonly stats: FetcherStats
   readonly productToken: string
 }
@@ -283,6 +284,11 @@ export type FetcherOptions = {
   /** ISO timestamp, for provenance. */
   clock?: () => string
   policy?: Partial<FetchPolicy>
+  /**
+   * Treat a path a site has disallowed for named AI crawlers as disallowed for
+   * ABC too. On by default; off only for a source with agreed terms.
+   */
+  honourAiOptOut?: boolean
 }
 
 export function createPoliteFetcher(options: FetcherOptions = {}): PoliteFetcher {
@@ -438,13 +444,13 @@ export function createPoliteFetcher(options: FetcherOptions = {}): PoliteFetcher
     return pending
   }
 
-  async function robotsAllows(url: URL): Promise<{ allowed: boolean; status: RobotsStatus; rule: string | null }> {
+  async function robotsAllows(url: URL): Promise<{ allowed: boolean; status: RobotsStatus; rule: string | null; aiOptOut?: boolean }> {
     const { policy: robots, status } = await robotsFor(url)
-    const decision = robotsDecision(robots, productToken, url)
+    const decision = robotsDecision(robots, productToken, url, { honourAiOptOut: options.honourAiOptOut !== false })
     if (decision.crawlDelaySeconds !== null) {
       intervalFor.set(url.host, Math.max(policy.minIntervalMs, decision.crawlDelaySeconds * 1000))
     }
-    return { allowed: decision.allowed, status, rule: decision.rule }
+    return { allowed: decision.allowed, status, rule: decision.rule, ...(decision.aiOptOut ? { aiOptOut: true } : {}) }
   }
 
   async function admissible(url: URL, options: RequestOptions): Promise<FetchFailure | null> {
@@ -459,6 +465,7 @@ export function createPoliteFetcher(options: FetcherOptions = {}): PoliteFetcher
       const robots = await robotsAllows(url)
       if (!robots.allowed) {
         stats.refusedByRobots++
+        if (robots.aiOptOut) return 'robots_ai_opt_out'
         return robots.status === 'ok' || robots.status === 'missing' ? 'robots_disallowed' : 'robots_unavailable'
       }
     }

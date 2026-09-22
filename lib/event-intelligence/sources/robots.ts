@@ -83,27 +83,35 @@ export function parseRobots(text: string): RobotsPolicy {
  * `productToken` is the name before the slash in a User-Agent header. A group
  * applies when its agent value is a case-insensitive prefix of the token (so a
  * group for `abceventintelligence` applies to `ABCEventIntelligence`); the most
- * specific such group wins, and `*` is used only when none matches.
+ * specific such agent wins, and `*` is used only when none matches.
+ *
+ * Every group naming that agent is merged into one (RFC 9309 §2.2.1). Real
+ * files repeat `User-agent: *` — medica-tradefair.com does, with a second
+ * `*` group further down that disallows its exhibitor search — and reading
+ * only the first group silently drops the rules in the second.
  */
 export function groupFor(policy: RobotsPolicy, productToken: string): RobotsGroup | null {
   const token = productToken.toLowerCase()
-  let best: RobotsGroup | null = null
-  let bestLength = -1
-  let star: RobotsGroup | null = null
+  let bestAgent: string | null = null
 
   for (const group of policy.groups) {
     for (const agent of group.agents) {
-      if (agent === '*') {
-        star = star ?? group
-        continue
-      }
-      if (token.startsWith(agent) && agent.length > bestLength) {
-        best = group
-        bestLength = agent.length
-      }
+      if (agent === '*') continue
+      if (token.startsWith(agent) && agent.length > (bestAgent?.length ?? -1)) bestAgent = agent
     }
   }
-  return best ?? star
+
+  const chosen = bestAgent ?? '*'
+  const matching = policy.groups.filter((group) => group.agents.includes(chosen))
+  if (matching.length === 0) return null
+
+  const delays = matching.map((g) => g.crawlDelaySeconds).filter((d): d is number => d !== null)
+  return {
+    agents: [chosen],
+    rules: matching.flatMap((g) => g.rules),
+    // Where two groups disagree, the slower one is the one to honour.
+    crawlDelaySeconds: delays.length > 0 ? Math.max(...delays) : null,
+  }
 }
 
 function patternToRegExp(pattern: string): RegExp {
@@ -121,12 +129,37 @@ function matchTarget(url: URL): string {
   return `${url.pathname || '/'}${url.search}`
 }
 
-export type RobotsDecision = { allowed: boolean; crawlDelaySeconds: number | null; rule: string | null }
+export type RobotsDecision = {
+  allowed: boolean
+  crawlDelaySeconds: number | null
+  rule: string | null
+  /** Refused because the site opted this path out for AI crawlers, not for ABC by name. */
+  aiOptOut?: boolean
+}
 
-export function robotsDecision(policy: RobotsPolicy, productToken: string, url: URL): RobotsDecision {
-  const group = groupFor(policy, productToken)
-  if (!group) return { allowed: true, crawlDelaySeconds: null, rule: null }
+/**
+ * Crawlers that exist to gather material for AI systems. A site that
+ * disallows a path for these by name has said, in the machine-readable way it
+ * has available, that it does not want that content collected for AI use.
+ */
+export const AI_CRAWLER_TOKENS = [
+  'gptbot',
+  'chatgpt-user',
+  'oai-searchbot',
+  'claudebot',
+  'claude-web',
+  'anthropic-ai',
+  'google-extended',
+  'ccbot',
+  'perplexitybot',
+  'applebot-extended',
+  'bytespider',
+  'meta-externalagent',
+  'cohere-ai',
+] as const
 
+function decideFor(group: RobotsGroup | null, url: URL): { allowed: boolean; rule: string | null } {
+  if (!group) return { allowed: true, rule: null }
   const target = matchTarget(url)
   let winner: RobotsRule | null = null
   for (const rule of group.rules) {
@@ -139,13 +172,47 @@ export function robotsDecision(policy: RobotsPolicy, productToken: string, url: 
       winner = rule
     }
   }
+  return { allowed: winner ? winner.allow : true, rule: winner ? `${winner.allow ? 'Allow' : 'Disallow'}: ${winner.pattern}` : null }
+}
+
+/**
+ * May this agent fetch this URL.
+ *
+ * By default ABC also honours an **AI opt-out**: if the site disallows the
+ * path for a named AI crawler, ABC treats it as disallowed for itself too.
+ * ABC is an AI product, and a site that has told AI crawlers to stay out of
+ * its exhibitor directory has not invited a differently named one in. Only
+ * groups that name an AI crawler explicitly count — the `*` group is not an
+ * opt-out, it is the rule for everyone and is already applied above.
+ *
+ * `honourAiOptOut: false` exists for a source whose owner has agreed terms
+ * with ABC; nothing sets it by default.
+ */
+export function robotsDecision(
+  policy: RobotsPolicy,
+  productToken: string,
+  url: URL,
+  options: { honourAiOptOut?: boolean } = {}
+): RobotsDecision {
+  const group = groupFor(policy, productToken)
+  const crawlDelaySeconds = group?.crawlDelaySeconds ?? null
 
   // /robots.txt itself is always fetchable.
-  if (url.pathname === '/robots.txt') return { allowed: true, crawlDelaySeconds: group.crawlDelaySeconds, rule: null }
+  if (url.pathname === '/robots.txt') return { allowed: true, crawlDelaySeconds, rule: null }
 
-  return {
-    allowed: winner ? winner.allow : true,
-    crawlDelaySeconds: group.crawlDelaySeconds,
-    rule: winner ? `${winner.allow ? 'Allow' : 'Disallow'}: ${winner.pattern}` : null,
+  const own = decideFor(group, url)
+  if (!own.allowed) return { allowed: false, crawlDelaySeconds, rule: own.rule }
+
+  if (options.honourAiOptOut !== false) {
+    for (const bot of AI_CRAWLER_TOKENS) {
+      const named = policy.groups.filter((g) => g.agents.includes(bot))
+      if (named.length === 0) continue
+      const decision = decideFor({ agents: [bot], rules: named.flatMap((g) => g.rules), crawlDelaySeconds: null }, url)
+      if (!decision.allowed) {
+        return { allowed: false, crawlDelaySeconds, rule: `AI opt-out (${bot}) ${decision.rule}`, aiOptOut: true }
+      }
+    }
   }
+
+  return { allowed: true, crawlDelaySeconds, rule: own.rule }
 }
