@@ -1451,12 +1451,21 @@ export async function runEngineSuite(ctx: SuiteContext): Promise<void> {
     []
   )
   check(
-    'AE10 no new screens, no new navigation: the only new route is the brain API, and the main navigation is unchanged',
+    'AE10 no new navigation, and every screen added since the Mission is owner-only progressive disclosure',
     [
       ctx.git('diff', '--name-only', '--diff-filter=A', '9a757f9', '--', 'app').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).filter((f) => f.endsWith('page.tsx')),
       ctx.git('diff', '--name-only', '9a757f9', '--', 'components/layout', 'app/home/page.tsx'),
     ],
-    [[], '']
+    [
+      /*
+        The benchmark (§17) is the one screen added since the Expo Mission, and
+        deliberately so: checking ABC's work is the owner's own business, reached
+        by a quiet link on the fair's overview. The navigation itself is still
+        untouched, which is what the second half of this check holds.
+      */
+      ['app/events/intelligence/[eventKey]/benchmark/page.tsx'],
+      '',
+    ]
   )
   check(
     'AE11 the Expo Mission never shows the engine: no source health, runs, crawl or provider on the mission or Home card',
