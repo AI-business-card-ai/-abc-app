@@ -6,6 +6,7 @@ import {
   currentOwnerId,
   EVENT_COLUMNS,
   loadIntentProfile,
+  loadProducts,
   MATCH_COLUMNS,
   OBJECTIVE_COLUMNS,
   PRESENCE_COLUMNS,
@@ -30,6 +31,8 @@ import {
   type MissionSetupInput,
   type MissionTargetFact,
 } from '@/lib/event-intelligence/mission'
+import type { EventProduct } from '@/lib/event-intelligence/profile'
+import { suggestWhatToShow } from '@/lib/event-intelligence/what-to-show'
 import type {
   CompanyIntentProfile,
   EventObjective,
@@ -443,6 +446,14 @@ export async function loadMissions(
     profile && (profile.whatWeDo || profile.whatWeSell.length > 0 || profile.whatWeBuy.length > 0)
   )
 
+  /*
+    The owner's products, once for every mission: they name what a brief
+    shows, and they are what ABC's "what to show" suggestion chooses from. One
+    small owner-scoped query, and only once somebody has a mission at all.
+  */
+  const ownerProducts: EventProduct[] = await loadProducts(supabase, ownerId)
+  const productNameById = new Map(ownerProducts.map((p) => [p.id, p.name]))
+
   const perMission = await Promise.all(
     objectives
       .filter((objective) => events.has(objective.eventId))
@@ -474,14 +485,7 @@ export async function loadMissions(
         const presenceIds = Array.from(
           new Set([...opportunities.map((m) => m.presenceId), ...targets.map((t) => t.presenceId)])
         )
-        const [{ presences, companies }, products] = await Promise.all([
-          presencesAndCompanies(supabase, presenceIds),
-          productNames(
-            supabase,
-            ownerId,
-            Array.from(new Set([...briefs.values()].map((b) => b.productId).filter((id): id is string => Boolean(id))))
-          ),
-        ])
+        const { presences, companies } = await presencesAndCompanies(supabase, presenceIds)
 
         const targetFacts: MissionTargetFact[] = []
         for (const target of targets) {
@@ -490,15 +494,16 @@ export async function loadMissions(
           const base = opportunityFact(match, presences, companies)
           if (!base) continue
           const brief = briefs.get(target.id)
+          const chosen = brief?.productId ? productNameById.get(brief.productId) ?? null : null
           targetFacts.push({
             ...base,
             targetId: target.id,
             status: target.status,
             priority: target.priority,
             met: Boolean(target.metEncounterId),
-            brief: brief
-              ? { status: brief.status, topic: brief.topic, productName: brief.productId ? products.get(brief.productId) ?? null : null }
-              : null,
+            brief: brief ? { status: brief.status, topic: brief.topic, productName: chosen } : null,
+            // Only when the owner has not chosen: their choice is never second-guessed.
+            suggestedShow: chosen ? null : suggestWhatToShow(match.evidence, ownerProducts)?.productName ?? null,
           })
         }
 

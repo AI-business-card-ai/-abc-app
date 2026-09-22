@@ -70,6 +70,12 @@ export type MissionTargetFact = MissionOpportunityFact & {
   /** True only when the target points at a recorded meeting. */
   met: boolean
   brief: MissionBriefFact | null
+  /**
+   * The owner's product ABC suggests showing, when the owner has not chosen
+   * one: the product whose own words overlap what the listing says
+   * (what-to-show.ts). ABC's suggestion, shown as one, and never a selection.
+   */
+  suggestedShow?: string | null
 }
 
 /** A meeting recorded at this fair, read through the Event Workspace rules. */
@@ -288,6 +294,16 @@ function companyAction(
   }
 }
 
+/**
+ * What to show a target: the owner's own choice when they made one, else
+ * ABC's suggestion under a label that says whose it is, else nothing.
+ */
+function showLine(target: MissionTargetFact, label: string): MissionLine {
+  if (target.brief?.productName) return { label, text: target.brief.productName }
+  if (target.suggestedShow) return { label: 'ABC suggests showing', text: target.suggestedShow }
+  return { label, text: '' }
+}
+
 function followUpAction(facts: MissionFacts, meeting: MissionMeetingFact): MissionAction {
   const lines: MissionLine[] = []
   if (meeting.discussed) lines.push({ label: 'You discussed', text: meeting.discussed })
@@ -485,7 +501,7 @@ export function nextMissionAction(facts: MissionFacts): MissionAction {
         [
           { label: 'Why visit them', text: target.why ?? '' },
           { label: 'What to discuss', text: target.brief?.topic ?? '' },
-          { label: 'What to show', text: target.brief?.productName ?? '' },
+          showLine(target, 'What to show'),
         ],
         { kind: 'link', label: 'Open target', href: paths.match(target.matchId) },
         [{ label: 'Scan a person', href: '/scan' }]
@@ -517,7 +533,7 @@ export function nextMissionAction(facts: MissionFacts): MissionAction {
         [
           { label: 'Why it may matter', text: target.why ?? '' },
           { label: 'Your angle', text: brief?.topic ?? '' },
-          { label: 'Show', text: brief?.productName ?? '' },
+          showLine(target, 'Show'),
         ],
         { kind: 'link', label: 'Prepare this conversation', href: paths.prepare(target.matchId) },
         [{ label: 'Your plan', href: paths.plan }]

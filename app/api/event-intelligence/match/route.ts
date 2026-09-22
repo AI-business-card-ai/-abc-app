@@ -7,6 +7,8 @@ import {
   loadIntentProfile,
   loadObjective,
 } from '@/lib/event-intelligence/data'
+import { loadStoredBrainFacts } from '@/lib/event-intelligence/brain-data'
+import { matchInputsVersion, projectBrainForMatching } from '@/lib/event-intelligence/product-brain'
 import { readJson, requireEventIntelligence } from '@/lib/event-intelligence/route-guard'
 import { ENGINE_VERSION, matchEvent } from '@/lib/event-intelligence/scoring'
 
@@ -56,7 +58,14 @@ export async function POST(request: Request) {
       )
     }
 
-    const results = matchEvent(profile, objective, presences, companies)
+    /*
+      The Product Brain adds only what the owner confirmed. The engine is the
+      same one; it is handed a profile that also carries those facts, and the
+      version stamped on each row says the brain contributed.
+    */
+    const projection = projectBrainForMatching(profile, await loadStoredBrainFacts(supabase, ownerId))
+    const results = matchEvent(projection.profile, objective, presences, companies)
+    const engineVersion = matchInputsVersion(ENGINE_VERSION, projection)
 
     const service = createServiceClient()
 
@@ -68,7 +77,7 @@ export async function POST(request: Request) {
           presence_id: result.presenceId,
           match_type: result.matchType,
           score: result.score,
-          engine_version: ENGINE_VERSION,
+          engine_version: engineVersion,
           reasons: result.reasons,
           evidence: result.evidence,
           warnings: result.warnings,
@@ -133,7 +142,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       matched: results.length,
       removed,
-      engineVersion: ENGINE_VERSION,
+      engineVersion,
     })
   } catch (err) {
     return serverErrorResponse('event-intelligence/match', err)
