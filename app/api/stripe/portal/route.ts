@@ -1,14 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { serverErrorResponse } from '@/lib/api/errors'
+import { readStripeConfig, stripeClient } from '@/lib/billing/stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-
+/**
+ * The billing portal, for an account that already has a subscription.
+ *
+ * Stripe is created when a request asks for it, never at import. A client
+ * built at module scope from `STRIPE_SECRET_KEY!` throws the moment the module
+ * is loaded with no key — including while Next collects page data during a
+ * build — so an unconfigured Stripe stopped the whole app from deploying
+ * rather than making this one route unavailable. Configuration is read here
+ * through the same helper the rest of billing uses, and a missing or malformed
+ * key is an honest 503 from this route alone.
+ */
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return NextResponse.json({ error: 'Stripe is not configured' }, { status: 500 })
+    const stripeConfig = readStripeConfig()
+    if (!stripeConfig.ok) {
+      return NextResponse.json(
+        { error: 'Stripe is not configured' },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } }
+      )
     }
 
     const supabase = createRouteHandlerClient()
@@ -33,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
 
-    const session = await stripe.billingPortal.sessions.create({
+    const session = await stripeClient(stripeConfig.config.secretKey).billingPortal.sessions.create({
       customer: customerId,
       return_url: `${appUrl}/profile`,
     })
