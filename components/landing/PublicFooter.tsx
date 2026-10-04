@@ -37,7 +37,7 @@ export default function PublicFooter() {
                 <Link href="/#follow-up">Smart Follow-up</Link>
               </li>
               <li>
-                <Link href="/#events">Event Workspace</Link>
+                <Link href="/#how-it-works">How it works</Link>
               </li>
               <li>
                 <Link href="/#crm">CRM integrations</Link>

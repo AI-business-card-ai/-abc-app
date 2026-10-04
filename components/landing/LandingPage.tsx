@@ -5,40 +5,39 @@ import { useRouter } from 'next/navigation'
 import { createClientComponent } from '@/lib/supabase'
 import PublicHeader from '@/components/landing/PublicHeader'
 import PublicFooter from '@/components/landing/PublicFooter'
-import LandingHero from '@/components/landing/hero/LandingHero'
-import ProblemSection from '@/components/landing/sections/ProblemSection'
-import CaptureContextSection from '@/components/landing/sections/CaptureContextSection'
-import RoiSection from '@/components/landing/sections/RoiSection'
-import EventWorkspaceSection from '@/components/landing/sections/EventWorkspaceSection'
-import LifecycleSection from '@/components/landing/sections/LifecycleSection'
-import EventIntelligenceSection from '@/components/landing/sections/EventIntelligenceSection'
-import CardSection from '@/components/landing/sections/CardSection'
-import TrustSection from '@/components/landing/sections/TrustSection'
-import PricingSection from '@/components/landing/sections/PricingSection'
-import { CrmSection, FollowUpSection } from '@/components/landing/sections/WorkflowSections'
-import { FinalCtaSection } from '@/components/landing/sections/ClosingSections'
+import HeroScene from '@/components/landing/champagne/HeroScene'
+import ProblemScene from '@/components/landing/champagne/ProblemScene'
+import HowItWorksScene from '@/components/landing/champagne/HowItWorksScene'
+import FollowUpScene from '@/components/landing/champagne/FollowUpScene'
+import EventIntelligenceScene from '@/components/landing/champagne/EventIntelligenceScene'
+import { FinalCtaScene, PricingStrip } from '@/components/landing/champagne/ClosingScenes'
+import '@/app/landing-champagne.css'
 
 /**
- * The public landing page — one sales story, in eight scenes.
+ * The public landing page — one sales story, in six scenes.
  *
- * The order is the argument, and it is a funnel rather than a feature list:
+ *   1  Hero              from handshake to CRM
+ *   2  Problem           the meeting happened, the CRM knows nothing
+ *   3  How it works      scan, context, next step, CRM
+ *   4  Follow-up + CRM   the relationship continues, and reaches the CRM
+ *   5  Event & Expo      before / during / after, and what is coming next
+ *   6  Pricing + close   what it costs, and the one thing to do now
  *
- *   1  Hero            the promise: handshake to CRM
- *   2  Problem         the meeting happened, the CRM knows nothing
- *   3  Smart Scan      person + meeting context, captured together
- *   4  Follow-up, CRM  the relationship continues, and reaches the CRM
- *   5  Time, Event     what that saves, across a whole event
- *   6  Lifecycle, EI   before / during / after, and what is coming next
- *   7  Your ABC, Trust the identity behind it, and the systems it joins
- *   8  Pricing, CTA    what it costs, and the one thing to do now
+ * The previous version ran to fourteen section components across eight
+ * cinematic scenes on a near-black ground. It said several things twice —
+ * follow-up and CRM were separate chapters making one point, lifecycle and
+ * Event Intelligence another — and on a phone it was a very long way to the
+ * end. This version drops the repetition rather than recolouring it.
  *
- * Scenes 4, 5, 6 and 7 are pairs: two chapters that share a ground and read as
- * one move, so the page lands as roughly eight cinematic scenes rather than
- * fourteen full-height pages.
+ * Those components are still in the repository and still carry the dark
+ * `.pub-*` system, which /pricing, /privacy, /terms and the checkout-return
+ * pages continue to use. Nothing here changes them: the champagne tokens are
+ * scoped to `.lp-page`, so the shared header and footer are re-themed on this
+ * page only.
  *
  * Every capability named here exists in the release this branch is cut from.
- * The one that does not — Event & Expo Intelligence — is labelled as coming
- * next wherever it appears, and is never purchasable.
+ * The one that does not — Event & Expo Intelligence — is labelled coming soon
+ * wherever it appears and is never purchasable.
  *
  * A client component only because of the session check below. The metadata for
  * this route lives in app/page.tsx, which renders this.
@@ -68,39 +67,22 @@ export default function LandingPage() {
   }, [router, supabase])
 
   return (
-    <div className="pub-root cine" aria-busy={redirecting || undefined}>
-      {/* Without JavaScript nothing would ever mark a chapter as seen. */}
+    <div className="pub-root lp-page" aria-busy={redirecting || undefined}>
+      {/* Without JavaScript nothing marks a reveal as seen. */}
       <noscript>
-        <style>
-          {
-            '.cine .cine-chapter :is(.pub-eyebrow,.cine-h,.pub-lead,.cine-rise,.cine-item,.cine-media){opacity:1!important;transform:none!important}'
-          }
-        </style>
+        <style>{'.lp-reveal{opacity:1!important;transform:none!important}'}</style>
       </noscript>
-      <PublicHeader />
+
+      <PublicHeader menu />
 
       <main>
-        {/* 1 */}
-        <LandingHero />
-        {/* 2 */}
-        <ProblemSection />
-        {/* 3 */}
-        <CaptureContextSection />
-        {/* 4 */}
-        <FollowUpSection />
-        <CrmSection />
-        {/* 5 */}
-        <RoiSection />
-        <EventWorkspaceSection />
-        {/* 6 */}
-        <LifecycleSection />
-        <EventIntelligenceSection />
-        {/* 7 */}
-        <CardSection />
-        <TrustSection />
-        {/* 8 */}
-        <PricingSection />
-        <FinalCtaSection />
+        <HeroScene />
+        <ProblemScene />
+        <HowItWorksScene />
+        <FollowUpScene />
+        <EventIntelligenceScene />
+        <PricingStrip />
+        <FinalCtaScene />
       </main>
 
       <PublicFooter />
