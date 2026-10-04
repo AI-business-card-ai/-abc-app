@@ -8,7 +8,29 @@ import {
   isSingleEmailAddress,
 } from '@/lib/email-safety'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+/**
+ * The provider, created when something is actually sent.
+ *
+ * Never at module scope. `new Resend(undefined)` throws the moment the module
+ * is loaded without a key — including while Next collects page data during a
+ * build — so an unconfigured Resend stopped the whole app from deploying
+ * rather than making email alone unavailable. That is how `/api/card/connect`,
+ * which reaches this file through `lib/qr-connect`, failed every Preview
+ * deployment: `RESEND_API_KEY` is set for Production only.
+ *
+ * Same shape as the Stripe fix in e590c39: configuration is read per call and
+ * the client is built at the point of use.
+ *
+ * `null` rather than a throw, because both callers are fire-and-forget (`void
+ * sendCardExchangeNotification(...)`), and an unhandled rejection in a
+ * background notification is a worse failure than a logged refusal. The send
+ * functions turn it into `ok: false`, which every caller already treats as "not
+ * sent" — nothing reports success for an email that was never handed over.
+ */
+function resendClient(): Resend | null {
+  const key = process.env.RESEND_API_KEY
+  return key ? new Resend(key) : null
+}
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://abccard.io'
 
@@ -52,6 +74,12 @@ export function renderWelcomeEmailHtml(name: string): string {
  * its name reaches the log.
  */
 export async function sendWelcomeEmail(to: string, name: string): Promise<{ ok: boolean }> {
+  const resend = resendClient()
+  if (!resend) {
+    console.error('[email] welcome not sent: RESEND_API_KEY is not configured')
+    return { ok: false }
+  }
+
   const { error } = await resend.emails.send({
     from: 'ABC AI Business Card <hello@abccard.io>',
     to,
@@ -232,6 +260,12 @@ async function deliver(kind: string, to: string, email: RenderedEmail): Promise<
   const recipient = typeof to === 'string' ? to.trim() : ''
   if (!isSingleEmailAddress(recipient)) {
     console.error(`[email] ${kind} not sent: the recipient is not a single address`)
+    return { ok: false }
+  }
+
+  const resend = resendClient()
+  if (!resend) {
+    console.error(`[email] ${kind} not sent: RESEND_API_KEY is not configured`)
     return { ok: false }
   }
 
