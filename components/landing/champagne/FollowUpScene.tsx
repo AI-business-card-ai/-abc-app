@@ -38,15 +38,17 @@ export default function FollowUpScene() {
           <h2 className="lp-h2" id="follow-up-title">
             The meeting ends.
             <br />
-            The relationship shouldn’t.
+            <span className="lp-shine">The relationship shouldn’t.</span>
           </h2>
+          <div className="lp-rule" aria-hidden="true" />
         </Reveal>
 
         <div className="lp-followup">
           <Reveal delay={100}>
             <p className="lp-lead" style={{ marginTop: 0 }}>
-              Turn what you discussed into a follow-up that continues the actual conversation — while
-              it is still fresh.
+              Most follow-ups are forgettable because they could have been sent to anyone. ABC writes
+              from your own meeting notes, so the message continues the actual conversation — while it
+              is still fresh, and in your words.
             </p>
 
             <div className="lp-channels">

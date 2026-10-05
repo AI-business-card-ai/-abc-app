@@ -6,7 +6,13 @@ import Button from '@/components/ui/abc/Button'
 import ExpoMissionInfo from '@/components/expo-mission/ExpoMissionInfo'
 
 /**
- * Expo Mission, on the dashboard, as a promise rather than a feature.
+ * Event & Expo Intelligence, on the dashboard, as a promise rather than a
+ * feature.
+ *
+ * The family is named here, not the feature inside it: Expo Mission is one
+ * thing this will do, and putting that name at the top of a card made it read
+ * as a second product to buy. One top-level area, honestly labelled coming
+ * soon until it is not.
  *
  * ABC today is the handshake onwards: scan, remember, follow up, CRM. Expo
  * Mission is the layer before the handshake, and it is not built for anybody
@@ -63,7 +69,7 @@ export default function ExpoMissionPreview() {
                 id="expo-mission-preview-title"
                 className="text-[17px] font-bold tracking-tight text-abc-text lg:text-[19px]"
               >
-                Expo Mission
+                Event &amp; Expo Intelligence
               </h2>
               {/* Text, not a colour: it reads as "Coming soon" to a screen reader too. */}
               <span

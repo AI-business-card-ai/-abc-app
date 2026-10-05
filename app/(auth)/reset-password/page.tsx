@@ -134,7 +134,7 @@ export default function ResetPasswordPage() {
               <Link
                 href="/forgot-password"
                 className="interactive w-full rounded-lg text-center text-xs font-medium py-2.5 opacity-80 hover:opacity-100"
-                style={{ background: 'transparent', border: '1px solid #2a2a2a', color: '#999999' }}
+                style={{ background: 'transparent', border: '1px solid var(--abc-border-strong)', color: 'var(--abc-text-secondary)' }}
               >
                 Request a new reset link
               </Link>
@@ -178,7 +178,7 @@ export default function ResetPasswordPage() {
                 className={`interactive w-full rounded-lg text-xs font-medium py-2.5 transition-opacity ${
                   saving ? 'opacity-40' : 'opacity-80 hover:opacity-100'
                 }`}
-                style={{ background: 'transparent', border: '1px solid #2a2a2a', color: '#999999' }}
+                style={{ background: 'transparent', border: '1px solid var(--abc-border-strong)', color: 'var(--abc-text-secondary)' }}
               >
                 {saving ? 'Updating…' : 'Update password'}
               </motion.button>

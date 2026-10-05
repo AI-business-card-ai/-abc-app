@@ -33,8 +33,9 @@ export default function HowItWorksScene() {
 
         <Reveal delay={60}>
           <h2 className="lp-h2" id="product-title">
-            Capture more than a business card.
+            Capture <span className="lp-shine">more than a business card.</span>
           </h2>
+          <div className="lp-rule" aria-hidden="true" />
         </Reveal>
 
         <Reveal delay={100}>

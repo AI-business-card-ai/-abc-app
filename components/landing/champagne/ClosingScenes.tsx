@@ -90,7 +90,8 @@ export function FinalCtaScene() {
       <div className="lp-container lp-final-inner">
         <Reveal>
           <h2 className="lp-h2" id="final-cta-title">
-            Your next handshake could become your next opportunity.
+            Your next handshake could become{' '}
+            <span className="lp-shine">your next opportunity.</span>
           </h2>
         </Reveal>
 

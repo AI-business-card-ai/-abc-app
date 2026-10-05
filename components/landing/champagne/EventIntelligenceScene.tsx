@@ -37,8 +37,13 @@ export default function EventIntelligenceScene() {
 
         <Reveal delay={60}>
           <h2 className="lp-h2" id="event-intelligence-title">
-            One event. One relationship workflow.
+            One event. <span className="lp-shine">One relationship workflow.</span>
           </h2>
+          <div className="lp-rule" aria-hidden="true" />
+          <p className="lp-lead">
+            A fair is three days of conversations and six months of consequences. ABC covers the part
+            that decides which — and is being built to cover the part before you arrive.
+          </p>
         </Reveal>
 
         <div className="lp-phases">

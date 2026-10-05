@@ -6,7 +6,6 @@ import EventsCard from '@/components/dashboard/EventsCard'
 import ContactsCard from '@/components/dashboard/ContactsCard'
 import FollowUpsCard from '@/components/dashboard/FollowUpsCard'
 import MyCardCard from '@/components/dashboard/MyCardCard'
-import RecentActivityCard from '@/components/dashboard/RecentActivityCard'
 import ScanActionCard from '@/components/dashboard/ScanActionCard'
 import ExpoMissionPreview from '@/components/expo-mission/ExpoMissionPreview'
 import Avatar from '@/components/ui/abc/Avatar'
@@ -81,26 +80,29 @@ export default function Dashboard({ data }: { data: DashboardData }) {
         <div className="min-[430px]:col-span-2 lg:col-span-1">
           <FollowUpsCard counts={data.followUps} />
         </div>
-
-        <div className="min-[430px]:col-span-2 lg:col-span-1">
-          <EventsCard events={data.events} />
-        </div>
       </div>
 
       {/*
-        The layer before the handshake, as a preview. It sits under the working
-        dashboard rather than above it: what ABC does today comes first, and a
-        feature nobody can use yet does not get the top of the screen.
+        One area for everything that happens around an event.
+
+        Events used to sit in the grid above as a fifth peer of Scan, Contacts,
+        My Card and Follow-ups, and the intelligence teaser sat below it under
+        its own product name — so the same subject appeared twice, in two
+        places, under two names. They are one area now: what ABC does with
+        events today, and what it is being built to do before you arrive.
+
+        It sits under the working dashboard rather than above it: what ABC does
+        today comes first, and a feature nobody can use yet does not get the top
+        of the screen.
+
+        Recent Activity is gone from Home. Every line in it was reachable from
+        the card it belonged to, so it was a second copy of the dashboard
+        underneath the dashboard.
       */}
-      <div className="mt-4 lg:mt-5">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:mt-5 lg:gap-5">
+        <EventsCard events={data.events} />
         <ExpoMissionPreview />
       </div>
-
-      {data.activity.length > 0 ? (
-        <div className="mt-4 lg:mt-5">
-          <RecentActivityCard activity={data.activity} />
-        </div>
-      ) : null}
     </div>
   )
 }

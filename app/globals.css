@@ -3,30 +3,45 @@
 @tailwind utilities;
 
 /* ============================================================
-   ABC CARD — DARK PREMIUM DESIGN SYSTEM
-   Values transcribed from the approved dashboard / card mockups.
-   Legacy variable names below are remapped onto this palette so
-   every existing screen keeps working while the accent moves to gold.
+   ABC CARD — CHAMPAGNE PREMIUM DESIGN SYSTEM
+
+   One system for the whole product: the landing, the auth screens
+   and the authenticated app share this palette, so crossing from
+   the marketing site into the product is not a change of lighting.
+
+   Warm champagne ground, ivory surfaces, charcoal type, and gold
+   as a signature rather than a fill — lines, selected states and
+   micro-detail.
+
+   Everything below is a token. Screens read these names and almost
+   never a literal colour, which is what made moving the product
+   from near-black to champagne a change to this block rather than
+   to two hundred components.
+
+   Gold is darkened from the dark theme's #e9a62f: on ivory that
+   value fails contrast for text, so the readable accent is
+   --abc-gold-accent (#a97d1c) and the decorative one is
+   --abc-gold (#c99628).
    ============================================================ */
 :root {
   /* Surfaces */
-  --abc-bg: #0a0a0b;
-  --abc-card: #121214;
-  --abc-raised: #18181b;
-  --abc-border: #232326;
-  --abc-border-strong: #2e2e33;
+  --abc-bg: #f7f1e6;
+  --abc-card: #fffdf8;
+  --abc-raised: #f4ecde;
+  --abc-border: #e7ddcb;
+  --abc-border-strong: #d8cbb3;
 
   /* Text */
-  --abc-text: #ffffff;
-  --abc-text-secondary: #a1a1aa;
-  --abc-text-muted: #71717a;
+  --abc-text: #141414;
+  --abc-text-secondary: #625e57;
+  --abc-text-muted: #8a8178;
 
   /* Gold */
-  --abc-gold: #e9a62f;
-  --abc-gold-accent: #d9a441;
-  --abc-gold-soft: rgba(233, 166, 47, 0.12);
-  --abc-gold-border: rgba(217, 164, 65, 0.35);
-  --abc-gold-glow: radial-gradient(circle, rgba(233, 166, 47, 0.18), transparent 70%);
+  --abc-gold: #c99628;
+  --abc-gold-accent: #a97d1c;
+  --abc-gold-soft: rgba(201, 150, 40, 0.10);
+  --abc-gold-border: rgba(201, 150, 40, 0.32);
+  --abc-gold-glow: radial-gradient(circle, rgba(201, 150, 40, 0.14), transparent 70%);
 
   /* Dashboard section accents.
      Gold is the brand accent, so a section heading that wants an accent gets
@@ -34,23 +49,25 @@
      purple left in the app's own chrome. Green and orange stay: they are
      semantic, not decorative. */
   --abc-accent: var(--abc-gold-accent);
-  --abc-green: #4ade80;
-  --abc-orange: #fb923c;
+  /* Darkened for ivory: the dark theme's #4ade80 and #fb923c are legible on
+     near-black and nearly invisible on #fffdf8. */
+  --abc-green: #2f8f57;
+  --abc-orange: #c2600f;
   /* Links inside app chrome read as gold, not as web-blue. */
   --abc-link: var(--abc-gold-accent);
 
   /* Follow-up status */
-  --abc-today: #f97316;
-  --abc-upcoming: #facc15;
-  --abc-overdue: #ef4444;
+  --abc-today: #c2600f;
+  --abc-upcoming: #8a6d08;
+  --abc-overdue: #c0271f;
 
   /* Event chip.
      Event names are ABC's own label for a meeting, so they are chrome and take
      the chrome palette: a dark neutral ground with a restrained gold accent.
      They were indigo, which read as a status colour the app does not have. */
-  --abc-chip-bg: rgba(217, 164, 65, 0.10);
-  --abc-chip-text: #d9a441;
-  --abc-chip-border: rgba(217, 164, 65, 0.22);
+  --abc-chip-bg: rgba(201, 150, 40, 0.12);
+  --abc-chip-text: #8a6410;
+  --abc-chip-border: rgba(201, 150, 40, 0.30);
 
   /* Geometry */
   --abc-radius-card: 22px;
@@ -58,8 +75,8 @@
   --abc-radius-btn: 13px;
 
   /* Elevation + motion */
-  --abc-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --abc-shadow-raised: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --abc-shadow: 0 1px 2px rgba(20, 20, 20, 0.06);
+  --abc-shadow-raised: 0 14px 34px rgba(20, 20, 20, 0.10);
   --abc-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   /* ---- Legacy token names, remapped to the approved palette ---- */
@@ -72,9 +89,9 @@
   --text-muted: var(--abc-text-muted);
   --accent-pink: var(--abc-gold);
   --accent-turquoise: var(--abc-gold-accent);
-  --accent-gradient: linear-gradient(135deg, #e9a62f, #d9a441);
+  --accent-gradient: linear-gradient(135deg, #c99628, #a97d1c);
   --border: var(--abc-border);
-  --border-subtle: #1b1b1e;
+  --border-subtle: #efe6d6;
 
   --bg: var(--bg-primary);
   --surface: var(--bg-surface);
@@ -87,8 +104,8 @@
   --gradient-analyze: var(--accent-gradient);
   --gradient-text: var(--accent-gradient);
   --gradient-logo: var(--accent-gradient);
-  --glow: 0 4px 20px rgba(233, 166, 47, 0.18);
-  --glow-strong: 0 6px 26px rgba(233, 166, 47, 0.28);
+  --glow: 0 4px 20px rgba(201, 150, 40, 0.16);
+  --glow-strong: 0 6px 26px rgba(201, 150, 40, 0.24);
 }
 
 * { box-sizing: border-box; }
@@ -364,7 +381,68 @@ a,
     inset: 0;
     pointer-events: none;
     background:
-      radial-gradient(ellipse 70% 50% at 50% 0%, rgba(255, 255, 255, 0.03), transparent 60%);
+      radial-gradient(ellipse 72% 52% at 50% 0%, #fffdf8, transparent 62%),
+      radial-gradient(ellipse 50% 40% at 85% 100%, rgba(201, 150, 40, 0.07), transparent 70%);
+  }
+  /* One gold hairline across the top of the auth ground: the same
+     signature the landing closes with, at the moment of signing in. */
+  .auth-bg::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(201, 150, 40, 0.5) 30%, rgba(201, 150, 40, 0.5) 70%, transparent);
+  }
+
+  /*
+    The auth card.
+
+    Styling only, and deliberately applied from here rather than by editing the
+    four auth pages: those files carry the Supabase calls, the redirects and the
+    error handling, and a theme pass has no business inside them. The hook is
+    the content column `.auth-bg` already wraps.
+
+    One ivory panel on the champagne ground, one hairline, one soft shadow —
+    the same material as a dashboard card, so signing in looks like the product
+    rather than a separate page.
+  */
+  .auth-bg > div {
+    width: 100%;
+    max-width: 408px;
+    margin-inline: auto;
+    padding: 28px 24px 26px;
+    border-radius: var(--abc-radius-card);
+    background: var(--abc-card);
+    border: 1px solid var(--abc-border);
+    box-shadow: 0 18px 44px rgba(20, 20, 20, 0.08), 0 2px 6px rgba(20, 20, 20, 0.04);
+  }
+
+  @media (max-width: 420px) {
+    .auth-bg > div {
+      padding: 22px 18px 20px;
+      border-radius: var(--abc-radius-inner);
+    }
+  }
+
+  /* The wordmark is the one piece of gold on the screen; it needs the
+     readable end of the ramp, not the decorative one. */
+  .auth-bg .gradient-text {
+    background-image: linear-gradient(135deg, #a97d1c, #c99628);
+  }
+
+  /*
+    Sign-in is done one-handed, often badly lit, often standing up. The fields
+    and the submit were 33px tall, which is under the 44px every other control
+    in the product is held to; the auth screens were simply never revisited
+    after that rule was set. Raising them here keeps the four pages' markup
+    untouched.
+  */
+  .auth-bg input,
+  .auth-bg button[type='submit'] {
+    min-height: 44px;
   }
 
   .scan-frame {
@@ -621,9 +699,9 @@ a,
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.04) 45%,
-    rgba(255, 255, 255, 0.08) 50%,
-    rgba(255, 255, 255, 0.04) 55%,
+    rgba(20, 20, 20, 0.03) 45%,
+    rgba(20, 20, 20, 0.06) 50%,
+    rgba(20, 20, 20, 0.03) 55%,
     transparent 100%
   );
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
@@ -665,20 +743,24 @@ a,
   --pub-gutter: 20px;
   --pub-rhythm: 76px;
 
-  /* Ground and material */
+  /* Ground and material.
+     Champagne, like the rest of the product: /pricing, /privacy,
+     /terms and the checkout returns share the app's palette rather
+     than keeping a near-black island behind the marketing site.
+     The landing redefines these same names inside .lp-page. */
   --pub-ground: var(--abc-bg);
-  --pub-ground-raised: #0e0e10;
-  --pub-panel: #121214;
-  --pub-panel-2: #18181b;
+  --pub-ground-raised: #fbf7ef;
+  --pub-panel: var(--abc-card);
+  --pub-panel-2: #f4ecde;
   --pub-line: var(--abc-border);
   --pub-line-strong: var(--abc-border-strong);
 
   /* Ink */
-  --pub-ink: #ffffff;
-  --pub-ink-2: #a1a1aa;
-  /* One step brighter than --abc-text-muted: at 13px on near-black
-     that token lands under 4.5:1, and this is body copy. */
-  --pub-ink-3: #8b8b93;
+  --pub-ink: var(--abc-text);
+  --pub-ink-2: var(--abc-text-secondary);
+  /* One step darker than --abc-text-muted: at 13px on ivory that
+     token lands under 4.5:1, and this is body copy. */
+  --pub-ink-3: #756d63;
 
   /* Accent */
   --pub-gold: var(--abc-gold-accent);

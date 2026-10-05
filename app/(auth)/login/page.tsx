@@ -155,8 +155,8 @@ function LoginContent() {
                 }`}
                 style={{
                   background: 'transparent',
-                  border: '1px solid #2a2a2a',
-                  color: '#999999',
+                  border: '1px solid var(--abc-border-strong)',
+                  color: 'var(--abc-text-secondary)',
                 }}
               >
                 {loading ? 'Signing in…' : 'Sign in with email'}

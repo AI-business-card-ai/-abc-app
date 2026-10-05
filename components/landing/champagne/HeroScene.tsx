@@ -33,10 +33,19 @@ export default function HeroScene() {
           </Reveal>
 
           <Reveal delay={60}>
-            <h1 className="lp-h1">From handshake to CRM in seconds.</h1>
+            <h1 className="lp-h1">
+              From handshake to <span className="lp-shine">CRM in seconds.</span>
+            </h1>
           </Reveal>
 
-          <Reveal delay={110}>
+          <Reveal delay={95}>
+            <p className="lp-kicker">
+              You met them. ABC keeps <strong>who they are</strong>, <strong>what you discussed</strong>{' '}
+              and <strong>what happens next</strong> — and hands it to your CRM.
+            </p>
+          </Reveal>
+
+          <Reveal delay={130}>
             <ul className="lp-promise">
               {PROMISE.map((line) => (
                 <li key={line}>{line}</li>

@@ -21,8 +21,8 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#0a0a0b',
-          color: '#f5f5f4',
+          background: '#f7f1e6',
+          color: '#141414',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           textAlign: 'center',
           padding: 'max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom))',
@@ -30,11 +30,11 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       >
         <main>
           <p style={{ fontSize: 17, fontWeight: 600, margin: '0 0 8px' }}>ABC could not be opened</p>
-          <p style={{ fontSize: 14, color: '#a8a29e', margin: '0 0 20px' }}>Something went wrong. Try again.</p>
+          <p style={{ fontSize: 14, color: '#625e57', margin: '0 0 20px' }}>Something went wrong. Try again.</p>
           <button
             type="button"
             onClick={reset}
-            style={{ height: 48, padding: '0 20px', borderRadius: 12, border: 0, background: '#d9a441', color: '#1a1205', fontSize: 15, fontWeight: 600 }}
+            style={{ height: 48, padding: '0 20px', borderRadius: 12, border: 0, background: '#141414', color: '#fdf8ee', fontSize: 15, fontWeight: 600 }}
           >
             Try again
           </button>

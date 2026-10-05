@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 /**
  * The base card geometry of the approved design system:
- * #121214 surface, 1px #232326 border, 22px radius, near-flat shadow.
+ * Ivory surface, one hairline border, 22px radius, near-flat shadow.
  */
 export default function Surface({
   children,

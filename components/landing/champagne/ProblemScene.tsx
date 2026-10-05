@@ -27,8 +27,9 @@ export default function ProblemScene() {
           <h2 className="lp-h2" id="problem-title">
             The meeting happened.
             <br />
-            Your CRM still knows nothing.
+            <span className="lp-shine">Your CRM still knows nothing.</span>
           </h2>
+          <div className="lp-rule" aria-hidden="true" />
         </Reveal>
 
         <Reveal delay={100}>

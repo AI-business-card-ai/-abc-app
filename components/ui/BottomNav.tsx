@@ -39,7 +39,7 @@ export default function BottomNav() {
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 w-full z-[100] pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
-      style={{ background: 'rgba(15, 15, 15, 0.92)', borderTop: '1px solid #2a2a2a' }}
+      style={{ background: 'rgba(251, 247, 239, 0.94)', borderTop: '1px solid var(--abc-border)' }}
     >
       <div className="flex items-end justify-around px-1" style={{ minHeight: 64 }}>
         <NavItem

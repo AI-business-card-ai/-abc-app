@@ -9,41 +9,49 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        /* ABC Card — approved dark premium palette */
+        /*
+          ABC Card — champagne premium palette.
+
+          These literals mirror the :root tokens in app/globals.css one for
+          one. The duplication is pre-existing — components reach the palette
+          through both Tailwind utilities (text-abc-text) and CSS variables
+          (var(--abc-text)) — so both have to carry the same values or a screen
+          ends up half lit. Change one, change the other.
+        */
         abc: {
-          bg: "#0a0a0b",
-          card: "#121214",
-          raised: "#18181b",
-          border: "#232326",
-          "border-strong": "#2e2e33",
-          text: "#ffffff",
-          secondary: "#a1a1aa",
-          muted: "#71717a",
-          gold: "#e9a62f",
-          "gold-accent": "#d9a441",
-          violet: "#8b7cf6",
-          green: "#4ade80",
-          orange: "#fb923c",
-          link: "#818cf8",
-          today: "#f97316",
-          upcoming: "#facc15",
-          overdue: "#ef4444",
+          bg: "#f7f1e6",
+          card: "#fffdf8",
+          raised: "#f4ecde",
+          border: "#e7ddcb",
+          "border-strong": "#d8cbb3",
+          text: "#141414",
+          secondary: "#625e57",
+          muted: "#8a8178",
+          gold: "#c99628",
+          "gold-accent": "#a97d1c",
+          violet: "#6d5bd0",
+          green: "#2f8f57",
+          orange: "#c2600f",
+          link: "#a97d1c",
+          today: "#c2600f",
+          upcoming: "#8a6d08",
+          overdue: "#c0271f",
         },
 
         /* Legacy names kept so existing screens compile — remapped to gold */
-        primary: "#e9a62f",
-        secondary: "#d9a441",
-        bg: "#0a0a0b",
-        surface: "#121214",
-        "surface-2": "#18181b",
-        "surface-3": "#2e2e33",
-        "abc-border": "#232326",
-        "border-subtle": "#1b1b1e",
-        muted: "#71717a",
-        "text-primary": "#ffffff",
-        "text-secondary": "#a1a1aa",
-        cyan: "#d9a441",
-        pink: "#e9a62f",
+        primary: "#c99628",
+        secondary: "#a97d1c",
+        bg: "#f7f1e6",
+        surface: "#fffdf8",
+        "surface-2": "#f4ecde",
+        "surface-3": "#d8cbb3",
+        "abc-border": "#e7ddcb",
+        "border-subtle": "#efe6d6",
+        muted: "#8a8178",
+        "text-primary": "#141414",
+        "text-secondary": "#625e57",
+        cyan: "#a97d1c",
+        pink: "#c99628",
       },
       borderRadius: {
         card: "22px",
@@ -51,17 +59,17 @@ const config: Config = {
         btn: "13px",
       },
       boxShadow: {
-        glow: "0 4px 20px rgba(233, 166, 47, 0.18)",
-        "glow-strong": "0 6px 26px rgba(233, 166, 47, 0.28)",
-        abc: "0 1px 2px rgba(0, 0, 0, 0.4)",
-        "abc-raised": "0 12px 32px rgba(0, 0, 0, 0.5)",
+        glow: "0 4px 20px rgba(201, 150, 40, 0.16)",
+        "glow-strong": "0 6px 26px rgba(201, 150, 40, 0.24)",
+        abc: "0 1px 2px rgba(20, 20, 20, 0.06)",
+        "abc-raised": "0 14px 34px rgba(20, 20, 20, 0.10)",
       },
       backgroundImage: {
-        "gradient-primary": "linear-gradient(135deg, #e9a62f, #d9a441)",
-        "gradient-secondary": "linear-gradient(135deg, #e9a62f, #d9a441)",
-        "gradient-scan": "linear-gradient(135deg, #e9a62f, #d9a441)",
-        "gradient-text": "linear-gradient(135deg, #e9a62f, #d9a441)",
-        "gradient-logo": "linear-gradient(135deg, #e9a62f, #d9a441)",
+        "gradient-primary": "linear-gradient(135deg, #c99628, #a97d1c)",
+        "gradient-secondary": "linear-gradient(135deg, #c99628, #a97d1c)",
+        "gradient-scan": "linear-gradient(135deg, #c99628, #a97d1c)",
+        "gradient-text": "linear-gradient(135deg, #c99628, #a97d1c)",
+        "gradient-logo": "linear-gradient(135deg, #c99628, #a97d1c)",
         "abc-gold-glow":
           "radial-gradient(circle, rgba(233, 166, 47, 0.18), transparent 70%)",
       },
