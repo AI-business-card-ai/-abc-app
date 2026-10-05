@@ -121,7 +121,7 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
         type="button"
         onClick={handleDeleteClick}
         className="absolute inset-y-0 right-0 z-0 flex items-center justify-center font-bold text-sm min-w-[88px]"
-        style={{ background: '#ef4444', color: '#fff' }}
+        style={{ background: '#ef4444', color: 'var(--abc-text)' }}
         aria-label="Delete contact"
       >
         Delete
@@ -133,8 +133,8 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
       onTouchEnd={onTouchEnd}
       className="interactive relative z-10 rounded-2xl p-4 flex flex-col gap-3 touch-pan-y transition-transform"
       style={{
-        background: '#1a1a1a',
-        border: '1px solid #2a2a2a',
+        background: 'var(--abc-raised)',
+        border: '1px solid var(--abc-border)',
         transform: `translateX(${cardOffset}px)`,
         transition: deleteRevealed ? 'transform 0.2s ease-out' : swiping ? 'none' : 'transform 0.2s ease-out',
       }}
@@ -154,7 +154,7 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
           className="absolute inset-0 flex items-center justify-center rounded-2xl text-sm font-bold pointer-events-none"
           style={{
             background: offsetX > 0 ? 'rgba(34,197,94,0.15)' : 'rgba(240,25,125,0.12)',
-            color: offsetX > 0 ? '#22c55e' : '#f0197d',
+            color: offsetX > 0 ? '#22c55e' : 'var(--abc-gold)',
           }}
         >
           {swipeHint}
@@ -165,9 +165,9 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
         <div
           className="shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
           style={{
-            background: 'linear-gradient(135deg, #1a1a1a, #1a1a1a) padding-box, linear-gradient(135deg, #00d4d4, #8b5cf6) border-box',
+            background: 'linear-gradient(135deg, var(--abc-raised), var(--abc-raised)) padding-box, linear-gradient(135deg, var(--abc-gold-accent), #8b5cf6) border-box',
             border: '2px solid transparent',
-            color: '#ffffff',
+            color: 'var(--abc-text)',
           }}
         >
           {contact.photo_url ? (
@@ -179,7 +179,7 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className="font-bold text-base truncate" style={{ color: '#ffffff' }}>
+            <p className="font-bold text-base truncate" style={{ color: 'var(--abc-text)' }}>
               {contact.name || 'Unknown'}
             </p>
             {enriching ? (
@@ -194,15 +194,15 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
               </span>
             )}
           </div>
-          <p className="text-[13px] truncate" style={{ color: '#999999' }}>
+          <p className="text-[13px] truncate" style={{ color: 'var(--abc-text-secondary)' }}>
             {[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}
           </p>
         </div>
       </div>
 
-      <div className="h-px" style={{ background: '#2a2a2a' }} />
+      <div className="h-px" style={{ background: 'var(--abc-border)' }} />
 
-      <p className="text-[13px] italic" style={{ color: '#999999' }}>
+      <p className="text-[13px] italic" style={{ color: 'var(--abc-text-secondary)' }}>
         ⚡ {step.text}
       </p>
 
@@ -219,7 +219,7 @@ export default function ContactMobileCard({ contact, onContacted, onFollowUp, on
               type="button"
               onClick={() => openChannel(c.key)}
               className="interactive flex-1 rounded-full py-2.5 text-xs font-semibold min-h-[44px]"
-              style={{ background: 'rgba(0, 212, 212, 0.1)', border: '1px solid rgba(0, 212, 212, 0.25)', color: '#00d4d4' }}
+              style={{ background: 'rgba(0, 212, 212, 0.1)', border: '1px solid rgba(0, 212, 212, 0.25)', color: 'var(--abc-gold-accent)' }}
             >
               {c.label}
             </button>

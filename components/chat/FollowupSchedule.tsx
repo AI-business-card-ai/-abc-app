@@ -48,7 +48,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
   if (scheduled.length === 0 && sent.length === 0) return null
 
   return (
-    <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px' }}>
+    <div style={{ background: 'var(--abc-raised)', borderRadius: '12px', border: '1px solid var(--abc-border)', padding: '20px' }}>
       <div style={{ fontSize: '11px', color: 'var(--abc-gold-accent)', letterSpacing: '0.08em', marginBottom: '12px' }}>
         SCHEDULED FOLLOW-UPS
       </div>
@@ -62,7 +62,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
               key={s.id}
               style={{
                 background: '#242424',
-                border: '1px solid #2a2a2a',
+                border: '1px solid var(--abc-border)',
                 borderLeft: `3px solid ${meta.color}`,
                 borderRadius: '8px',
                 padding: '12px',
@@ -79,7 +79,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
                     flexShrink: 0,
                   }}
                 />
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#ffffff', flex: 1 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--abc-text)', flex: 1 }}>
                   {meta.label} · Step {s.step}
                 </span>
                 <span style={{ fontSize: '11px', color: '#555555', flexShrink: 0 }}>
@@ -96,7 +96,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
                     borderRadius: '999px',
                     border: 'none',
                     background: 'var(--accent-gradient)',
-                    color: '#ffffff',
+                    color: 'var(--abc-text)',
                     fontSize: '11px',
                     fontWeight: 700,
                     cursor: isSending ? 'wait' : 'pointer',
@@ -111,7 +111,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
                   style={{
                     margin: 0,
                     fontSize: '12px',
-                    color: '#999999',
+                    color: 'var(--abc-text-secondary)',
                     lineHeight: 1.5,
                     display: '-webkit-box',
                     WebkitLineClamp: 2,
@@ -136,14 +136,14 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
                 alignItems: 'center',
                 gap: '8px',
                 background: '#242424',
-                border: '1px solid #2a2a2a',
+                border: '1px solid var(--abc-border)',
                 borderRadius: '8px',
                 padding: '10px 12px',
                 opacity: 0.6,
               }}
             >
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, flexShrink: 0 }} />
-              <span style={{ fontSize: '12px', color: '#999999', flex: 1 }}>
+              <span style={{ fontSize: '12px', color: 'var(--abc-text-secondary)', flex: 1 }}>
                 {meta.label} · Step {s.step}
               </span>
               <span style={{ fontSize: '11px', color: '#22c55e', flexShrink: 0 }}>Sent ✓</span>

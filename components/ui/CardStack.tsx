@@ -69,7 +69,7 @@ function BusinessCardFace({
           ) : (
             <span
               className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-              style={{ background: 'rgba(255,255,255,0.08)', border: `1.5px solid ${theme.accent}`, color: '#fff' }}
+              style={{ background: 'rgba(255,255,255,0.08)', border: `1.5px solid ${theme.accent}`, color: 'var(--abc-text)' }}
             >
               {contact.name?.split(' ').map((n) => n[0]).join('').substring(0, 2) || '✦'}
             </span>
@@ -87,7 +87,7 @@ function BusinessCardFace({
         </div>
 
         <div className="mt-3 flex-1">
-          <p className="font-bold truncate" style={{ fontSize: 18, color: '#fff' }}>
+          <p className="font-bold truncate" style={{ fontSize: 18, color: 'var(--abc-text)' }}>
             {contact.name ?? 'Unknown'}
           </p>
           <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
@@ -122,7 +122,7 @@ function BusinessCardFace({
             <span
               className="rounded-full px-3 py-1 text-xs font-bold tabular-nums"
               style={{
-                background: 'rgba(0,0,0,0.4)',
+                background: 'rgba(20, 20, 20, 0.12)',
                 color: theme.score,
                 border: '0.5px solid rgba(255,255,255,0.08)',
               }}
@@ -147,7 +147,7 @@ function BusinessCardFace({
       {isTop && (
         <div
           className="absolute inset-0 rounded-2xl pointer-events-none"
-          style={{ boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}
+          style={{ boxShadow: '0 16px 48px rgba(20, 20, 20, 0.12)' }}
         />
       )}
     </>
@@ -219,7 +219,7 @@ export default function CardStack({ contacts, cur, onCurChange, onSelect }: Prop
           borderRadius: 16,
           background: theme.bg,
           border: '0.5px solid rgba(255,255,255,0.08)',
-          boxShadow: isTop ? '0 16px 48px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.4)',
+          boxShadow: isTop ? '0 16px 48px rgba(20, 20, 20, 0.12)' : '0 8px 32px rgba(20, 20, 20, 0.12)',
           transformOrigin: 'top center',
           zIndex: layer.zIndex,
         }

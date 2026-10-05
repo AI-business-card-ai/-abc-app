@@ -54,7 +54,7 @@ export default function MobilePipelineCard({ contact, onAction, onUpdate }: Prop
           onAction(contact)
         }}
         className="rounded-lg py-2.5 text-xs font-semibold text-white min-h-[44px]"
-        style={{ background: 'linear-gradient(135deg, #00d4d4, #8b5cf6)' }}
+        style={{ background: 'linear-gradient(135deg, var(--abc-gold-accent), #8b5cf6)' }}
       >
         {step.action}
       </button>

@@ -18,9 +18,9 @@ export default function SendConfirmDialog({ pending, onConfirm, onDismiss }: Pro
     >
       <div
         className="w-full max-w-sm rounded-2xl p-5"
-        style={{ background: '#1a1a1a', border: '1px solid #2a2a2a' }}
+        style={{ background: 'var(--abc-raised)', border: '1px solid var(--abc-border)' }}
       >
-        <p className="text-sm font-semibold mb-1" style={{ color: '#ffffff' }}>
+        <p className="text-sm font-semibold mb-1" style={{ color: 'var(--abc-text)' }}>
           Did you send the message to {pending.contactName}?
         </p>
         <p className="text-xs mb-4" style={{ color: '#666666' }}>
@@ -39,7 +39,7 @@ export default function SendConfirmDialog({ pending, onConfirm, onDismiss }: Pro
             type="button"
             onClick={onDismiss}
             className="w-full rounded-xl py-3 text-sm font-semibold"
-            style={{ background: '#242424', border: '1px solid #2a2a2a', color: '#999999' }}
+            style={{ background: '#242424', border: '1px solid var(--abc-border)', color: 'var(--abc-text-secondary)' }}
           >
             ✗ Not sent
           </button>

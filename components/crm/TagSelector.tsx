@@ -37,7 +37,7 @@ export default function TagSelector({ selected, onSave, onClose }: Props) {
               className="rounded-full px-3 py-1 text-xs font-semibold transition-colors"
               style={
                 active
-                  ? { background: tag.color, color: '#fff', border: `1px solid ${tag.color}` }
+                  ? { background: tag.color, color: 'var(--abc-text)', border: `1px solid ${tag.color}` }
                   : { background: 'transparent', color: tag.color, border: `1px solid ${tag.color}66` }
               }
             >
@@ -59,7 +59,7 @@ export default function TagSelector({ selected, onSave, onClose }: Props) {
           type="button"
           onClick={() => onSave(draft)}
           className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white"
-          style={{ background: 'linear-gradient(135deg, #00d4d4, #8b5cf6)' }}
+          style={{ background: 'linear-gradient(135deg, var(--abc-gold-accent), #8b5cf6)' }}
         >
           Save tags
         </button>

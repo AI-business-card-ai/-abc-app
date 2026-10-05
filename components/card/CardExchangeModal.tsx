@@ -26,11 +26,11 @@ type Props = {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   minHeight: 48,
-  background: '#18181b',
+  background: 'var(--abc-raised)',
   border: '1px solid #232326',
   borderRadius: 13,
   padding: '12px 14px',
-  color: '#ffffff',
+  color: 'var(--abc-text)',
   fontSize: 16,
   outline: 'none',
   boxSizing: 'border-box',
@@ -118,7 +118,7 @@ export default function CardExchangeModal({ ownerName, cardSlug, open, onClose }
           maxWidth: 440,
           maxHeight: '90vh',
           overflowY: 'auto',
-          background: '#121214',
+          background: 'var(--abc-card)',
           border: '1px solid #232326',
           borderRadius: 22,
           padding: 20,
@@ -129,7 +129,7 @@ export default function CardExchangeModal({ ownerName, cardSlug, open, onClose }
       >
         {success ? (
           <div style={{ textAlign: 'center', padding: '12px 0' }}>
-            <p style={{ color: '#ffffff', fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>
+            <p style={{ color: 'var(--abc-text)', fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>
               Sent — {firstName} has your details.
             </p>
             <a
@@ -162,7 +162,7 @@ export default function CardExchangeModal({ ownerName, cardSlug, open, onClose }
                 borderRadius: 13,
                 border: '1px solid #232326',
                 background: 'transparent',
-                color: '#a1a1aa',
+                color: 'var(--abc-text-secondary)',
                 fontSize: 14,
                 cursor: 'pointer',
               }}
@@ -173,7 +173,7 @@ export default function CardExchangeModal({ ownerName, cardSlug, open, onClose }
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--abc-text)' }}>
                 Send your details
               </h2>
               <button
@@ -183,7 +183,7 @@ export default function CardExchangeModal({ ownerName, cardSlug, open, onClose }
                 style={{
                   border: 'none',
                   background: 'transparent',
-                  color: '#a1a1aa',
+                  color: 'var(--abc-text-secondary)',
                   fontSize: 22,
                   cursor: 'pointer',
                   minWidth: 44,
@@ -193,7 +193,7 @@ export default function CardExchangeModal({ ownerName, cardSlug, open, onClose }
                 ×
               </button>
             </div>
-            <p style={{ margin: '0 0 16px', fontSize: 13.5, lineHeight: 1.5, color: '#a1a1aa' }}>
+            <p style={{ margin: '0 0 16px', fontSize: 13.5, lineHeight: 1.5, color: 'var(--abc-text-secondary)' }}>
               {firstName} gets these straight away, so you both leave with a contact.
             </p>
 
@@ -253,7 +253,7 @@ export default function CardExchangeModal({ ownerName, cardSlug, open, onClose }
                   gap: 10,
                   alignItems: 'flex-start',
                   fontSize: 12.5,
-                  color: '#a1a1aa',
+                  color: 'var(--abc-text-secondary)',
                   lineHeight: 1.45,
                   padding: '4px 0',
                 }}

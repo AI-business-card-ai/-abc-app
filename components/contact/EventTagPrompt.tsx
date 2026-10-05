@@ -93,7 +93,7 @@ export default function EventTagPrompt({ contact, onContactUpdated }: Props) {
             boxShadow: '0 0 32px rgba(0, 212, 212, 0.12)',
           }}
         >
-          <p className="text-sm font-bold mb-1" style={{ color: '#ffffff' }}>
+          <p className="text-sm font-bold mb-1" style={{ color: 'var(--abc-text)' }}>
             📍 Where did you meet? Improves match score
           </p>
           <p className="text-xs mb-3" style={{ color: '#b8c5d6' }}>
@@ -116,7 +116,7 @@ export default function EventTagPrompt({ contact, onContactUpdated }: Props) {
             autoComplete="off"
           />
           <div className="flex items-center justify-between mt-2 gap-2">
-            <span className="text-[11px]" style={{ color: rescoring ? '#00d4d4' : '#8892b0' }}>
+            <span className="text-[11px]" style={{ color: rescoring ? 'var(--abc-gold-accent)' : '#8892b0' }}>
               {rescoring ? 'Recalculating match score…' : saving ? 'Saving…' : 'Enter or 0.7s after typing'}
             </span>
           </div>

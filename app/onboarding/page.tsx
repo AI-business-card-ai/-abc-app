@@ -320,10 +320,10 @@ export default function OnboardingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center overflow-x-hidden" style={{ background: '#0f0f0f' }}>
+      <div className="min-h-[100dvh] flex items-center justify-center overflow-x-hidden" style={{ background: 'var(--abc-card)' }}>
         <div
           className="w-8 h-8 rounded-full border-2 border-transparent animate-spin"
-          style={{ borderTopColor: '#00d4d4', borderRightColor: '#f0197d' }}
+          style={{ borderTopColor: 'var(--abc-gold-accent)', borderRightColor: 'var(--abc-gold)' }}
         />
       </div>
     )
@@ -335,8 +335,8 @@ export default function OnboardingPage() {
     <div
       className="min-h-[100dvh] flex flex-col overflow-x-hidden"
       style={{
-        background: '#0f0f0f',
-        color: '#ffffff',
+        background: 'var(--abc-card)',
+        color: 'var(--abc-text)',
         paddingLeft: 'max(20px, env(safe-area-inset-left))',
         paddingRight: 'max(20px, env(safe-area-inset-right))',
         paddingTop: 'max(24px, env(safe-area-inset-top))',
@@ -377,8 +377,8 @@ export default function OnboardingPage() {
                 width: progress.index === n ? 24 : 8,
                 height: 8,
                 background: n <= progress.index
-                  ? 'linear-gradient(135deg, #f0197d, #00d4d4)'
-                  : '#2a2a2a',
+                  ? 'linear-gradient(135deg, #c99628, #a97d1c)'
+                  : 'var(--abc-border)',
               }}
             />
           ))}
@@ -404,7 +404,7 @@ export default function OnboardingPage() {
                   <h1 className="mt-6 font-bold" style={headlineStyle}>
                     {isEditing ? 'Update your AI profile' : 'Create your ABC Card'}
                   </h1>
-                  <p className="mt-3 text-base leading-relaxed" style={{ color: '#999999' }}>
+                  <p className="mt-3 text-base leading-relaxed" style={{ color: 'var(--abc-text-secondary)' }}>
                     {isEditing
                       ? 'Update your answers so ABC keeps writing the right follow-up for every contact.'
                       : 'Two quick steps and your card is live, with a public link and a QR code you can show to anyone.'}
@@ -423,7 +423,7 @@ export default function OnboardingPage() {
             {step === 1 && (
               <>
                 <h2 className="font-bold" style={headlineStyle}>What&apos;s your name and what do you do?</h2>
-                <p className="text-sm" style={{ color: '#999999' }}>This is what people see on your card.</p>
+                <p className="text-sm" style={{ color: 'var(--abc-text-secondary)' }}>This is what people see on your card.</p>
                 <div className="flex flex-col gap-3 w-full">
                   <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="onboarding-input" />
                   <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Your company" className="onboarding-input" />
@@ -436,7 +436,7 @@ export default function OnboardingPage() {
             {step === 2 && (
               <>
                 <h2 className="font-bold" style={headlineStyle}>Your ABC Card</h2>
-                <p className="text-sm" style={{ color: '#999999' }}>
+                <p className="text-sm" style={{ color: 'var(--abc-text-secondary)' }}>
                   Publishing gives you a public card, a link you can send, and a QR code to show.
                   A photo and LinkedIn are optional.
                 </p>
@@ -444,9 +444,9 @@ export default function OnboardingPage() {
                   <div
                     className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
                     style={{
-                      background: 'linear-gradient(135deg,#f0197d,#00d4d4)',
-                      border: '3px solid #00d4d4',
-                      color: '#fff',
+                      background: 'linear-gradient(135deg, #c99628, #a97d1c)',
+                      border: '3px solid var(--abc-gold-accent)',
+                      color: 'var(--abc-text)',
                     }}
                   >
                     {cardPhotoUrl ? (
@@ -486,7 +486,7 @@ export default function OnboardingPage() {
                     />
                   </div>
                   {effectiveSlug ? (
-                    <p className="text-xs mt-2" style={{ color: '#00d4d4' }}>
+                    <p className="text-xs mt-2" style={{ color: 'var(--abc-gold-accent)' }}>
                       {CARD_PUBLIC_BASE}/{effectiveSlug}
                     </p>
                   ) : null}
@@ -516,12 +516,12 @@ export default function OnboardingPage() {
                   <h2 className="font-bold" style={headlineStyle}>
                     Your ABC Card is live
                   </h2>
-                  <p className="text-base leading-relaxed max-w-sm" style={{ color: '#999999' }}>
+                  <p className="text-base leading-relaxed max-w-sm" style={{ color: 'var(--abc-text-secondary)' }}>
                     Anyone who opens this link or scans your QR gets your details — and can send you
                     theirs back.
                   </p>
                   {publicUrl ? (
-                    <p className="text-sm font-semibold break-all" style={{ color: '#00d4d4' }}>
+                    <p className="text-sm font-semibold break-all" style={{ color: 'var(--abc-gold-accent)' }}>
                       {publicUrl}
                     </p>
                   ) : null}
@@ -551,12 +551,12 @@ export default function OnboardingPage() {
 
                 <div
                   className="w-full rounded-xl p-4 flex flex-col gap-3"
-                  style={{ background: '#1a1a1a', border: '1px solid #2a2a2a' }}
+                  style={{ background: 'var(--abc-raised)', border: '1px solid var(--abc-border)' }}
                 >
                   <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#555555' }}>
                     Optional
                   </p>
-                  <p className="text-sm leading-snug" style={{ color: '#999999' }}>
+                  <p className="text-sm leading-snug" style={{ color: 'var(--abc-text-secondary)' }}>
                     Personalize Smart Follow-up — teach ABC how you like to follow up after meetings.
                     You can do this any time.
                   </p>
@@ -604,7 +604,7 @@ export default function OnboardingPage() {
             {step === 6 && (
               <>
                 <h2 className="font-bold" style={headlineStyle}>Tone &amp; language</h2>
-                <p className="text-sm" style={{ color: '#999999' }}>How should ABC sound when reaching out?</p>
+                <p className="text-sm" style={{ color: 'var(--abc-text-secondary)' }}>How should ABC sound when reaching out?</p>
                 <SelectCards label="Tone" options={TONE_OPTIONS} value={tone} onChange={setTone} columns={2} />
                 <SelectCards
                   label="Message language"
@@ -620,7 +620,7 @@ export default function OnboardingPage() {
             {step === 7 && (
               <>
                 <h2 className="font-bold" style={headlineStyle}>Length &amp; goal</h2>
-                <p className="text-sm" style={{ color: '#999999' }}>What should each message achieve?</p>
+                <p className="text-sm" style={{ color: 'var(--abc-text-secondary)' }}>What should each message achieve?</p>
                 <SelectCards label="Message length" options={LENGTH_OPTIONS} value={messageLength} onChange={setMessageLength} columns={2} />
                 <SelectCards label="Primary goal" options={GOAL_OPTIONS} value={goal} onChange={setGoal} columns={2} />
                 <NavButtons
@@ -642,7 +642,7 @@ export default function OnboardingPage() {
           max-width: 100%;
           box-sizing: border-box;
           background: #242424;
-          border: 1px solid #2a2a2a;
+          border: 1px solid var(--abc-border);
           border-radius: 12px;
           color: #ffffff;
           padding: 0 16px;
@@ -652,7 +652,7 @@ export default function OnboardingPage() {
           transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
         .onboarding-input:focus {
-          border-color: #00d4d4;
+          border-color: var(--abc-gold-accent);
           box-shadow: 0 0 0 3px rgba(0, 212, 212, 0.12);
         }
         .onboarding-input::placeholder {
@@ -663,22 +663,22 @@ export default function OnboardingPage() {
           border-radius: 9999px;
           font-size: 13px;
           font-weight: 600;
-          border: 1px solid #2a2a2a;
-          color: #999999;
-          background: #1a1a1a;
+          border: 1px solid var(--abc-border);
+          color: var(--abc-text-secondary);
+          background: var(--abc-raised);
           transition: all 0.2s ease;
         }
         .onboarding-chip-active {
           background: rgba(0, 212, 212, 0.1);
-          border-color: #00d4d4;
+          border-color: var(--abc-gold-accent);
           color: #ffffff;
         }
         .onboarding-card {
           padding: 14px 12px;
           border-radius: 12px;
-          border: 1px solid #2a2a2a;
-          background: #1a1a1a;
-          color: #999999;
+          border: 1px solid var(--abc-border);
+          background: var(--abc-raised);
+          color: var(--abc-text-secondary);
           text-align: center;
           font-size: 15px;
           font-weight: 600;
@@ -687,7 +687,7 @@ export default function OnboardingPage() {
           width: 100%;
         }
         .onboarding-card-active {
-          border-color: #00d4d4;
+          border-color: var(--abc-gold-accent);
           background: rgba(0, 212, 212, 0.08);
           color: #ffffff;
           box-shadow: 0 0 0 1px rgba(0, 212, 212, 0.2);

@@ -108,7 +108,7 @@ export default function ChatDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f0f' }}>
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--abc-card)' }}>
         <div className="w-8 h-8 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: 'var(--abc-gold)', borderRightColor: 'var(--abc-gold-accent)' }} />
       </div>
     )
@@ -116,7 +116,7 @@ export default function ChatDetailPage() {
 
   if (notFound || !contact) {
     return (
-      <div style={{ padding: '40px', textAlign: 'center', color: '#999999', background: '#0f0f0f', minHeight: '100vh' }}>
+      <div style={{ padding: '40px', textAlign: 'center', color: 'var(--abc-text-secondary)', background: 'var(--abc-card)', minHeight: '100vh' }}>
         <p style={{ marginBottom: '16px' }}>Conversation not found</p>
         <button
           type="button"
@@ -132,7 +132,7 @@ export default function ChatDetailPage() {
   return (
     <div
       style={{
-        background: '#0f0f0f',
+        background: 'var(--abc-card)',
         minHeight: '100vh',
         // No top inset of its own: the app header above already clears the notch.
         padding: '16px 16px 0',
@@ -150,20 +150,20 @@ export default function ChatDetailPage() {
 
       <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {/* CONTACT HEADER */}
-        <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{ background: 'var(--abc-raised)', borderRadius: '12px', border: '1px solid var(--abc-border)', padding: '20px', display: 'flex', alignItems: 'center', gap: '14px' }}>
           {contact.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={contact.photo_url} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(0,212,212,0.3)', flexShrink: 0 }} />
           ) : (
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, color: 'var(--abc-text)', flexShrink: 0 }}>
               {initials}
             </div>
           )}
           <div style={{ minWidth: 0 }}>
-            <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--abc-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {contact.name || 'Unknown contact'}
             </h1>
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#999999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--abc-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {[contact.role, contact.company].filter(Boolean).join(' · ') || '—'}
             </p>
           </div>
@@ -174,8 +174,8 @@ export default function ChatDetailPage() {
 
         {/* SENT MESSAGE HISTORY */}
         {history.length > 0 && (
-          <div style={{ background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px' }}>
-            <div style={{ fontSize: '11px', color: '#999999', letterSpacing: '0.08em', marginBottom: '12px' }}>SENT MESSAGES</div>
+          <div style={{ background: 'var(--abc-raised)', borderRadius: '12px', border: '1px solid var(--abc-border)', padding: '20px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--abc-text-secondary)', letterSpacing: '0.08em', marginBottom: '12px' }}>SENT MESSAGES</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {history.map((m) => {
                 const meta = CHANNEL_META[m.channel]
@@ -184,7 +184,7 @@ export default function ChatDetailPage() {
                     key={m.id}
                     style={{
                       background: '#242424',
-                      border: '1px solid #2a2a2a',
+                      border: '1px solid var(--abc-border)',
                       borderLeft: `3px solid ${meta.color}`,
                       borderRadius: '8px',
                       padding: '12px',
@@ -198,7 +198,7 @@ export default function ChatDetailPage() {
                         {new Date(m.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                       </span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#ffffff', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{m.body}</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--abc-text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{m.body}</p>
                   </div>
                 )
               })}

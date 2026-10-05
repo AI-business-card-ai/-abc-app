@@ -60,7 +60,7 @@ export default function ReminderSidebar({ variant = 'sidebar' }: Props) {
 
   const inner = (
     <>
-      <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#00d4d4' }}>
+      <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--abc-gold-accent)' }}>
         ⚡ Action needed ({contacts.length})
       </p>
       <div className="flex flex-col gap-3">
@@ -89,7 +89,7 @@ export default function ReminderSidebar({ variant = 'sidebar' }: Props) {
                 type="button"
                 onClick={() => router.push('/contacts/' + c.id)}
                 className="text-xs font-semibold text-left min-h-[44px] rounded-lg px-3 py-2"
-                style={{ background: 'rgba(0,212,212,0.1)', color: '#00d4d4', border: '1px solid rgba(0,212,212,0.25)' }}
+                style={{ background: 'rgba(0,212,212,0.1)', color: 'var(--abc-gold-accent)', border: '1px solid rgba(0,212,212,0.25)' }}
               >
                 Send now →
               </button>

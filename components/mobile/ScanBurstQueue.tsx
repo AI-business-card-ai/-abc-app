@@ -73,7 +73,7 @@ export default function ScanBurstQueue({ items }: Props) {
                   className="absolute inset-0 flex items-center justify-center"
                   style={{ background: 'rgba(34,197,94,0.35)' }}
                 >
-                  <span className="text-xl font-bold" style={{ color: '#ffffff' }}>✓</span>
+                  <span className="text-xl font-bold" style={{ color: 'var(--abc-text)' }}>✓</span>
                 </motion.div>
               )}
 
@@ -87,7 +87,7 @@ export default function ScanBurstQueue({ items }: Props) {
                     style={{
                       width: 10,
                       height: 10,
-                      background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
+                      background: 'linear-gradient(135deg, #c99628, #a97d1c)',
                     }}
                   />
                 </div>
@@ -99,7 +99,7 @@ export default function ScanBurstQueue({ items }: Props) {
                   style={{ background: 'rgba(34,197,94,0.25)' }}
                 >
                   {scoreLabel ? (
-                    <span className="text-sm font-extrabold tabular-nums" style={{ color: '#ffffff' }}>
+                    <span className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--abc-text)' }}>
                       {scoreLabel}
                     </span>
                   ) : (
@@ -111,7 +111,7 @@ export default function ScanBurstQueue({ items }: Props) {
               {item.status === 'error' && (
                 <div
                   className="absolute inset-0 flex items-center justify-center text-lg font-bold"
-                  style={{ background: 'rgba(239,68,68,0.35)', color: '#ffffff' }}
+                  style={{ background: 'rgba(239,68,68,0.35)', color: 'var(--abc-text)' }}
                 >
                   !
                 </div>

@@ -9,9 +9,9 @@ interface Props {
 }
 
 export function scoreColors(score: number): { from: string; to: string; text: string } {
-  if (score <= 40) return { from: '#6b7280', to: '#4a5168', text: '#8892b0' }
+  if (score <= 40) return { from: 'var(--abc-text-muted)', to: '#4a5168', text: '#8892b0' }
   if (score <= 70) return { from: '#fbbf24', to: '#d97706', text: '#fcd34d' }
-  return { from: '#f0197d', to: '#ef4444', text: '#fda4af' }
+  return { from: 'var(--abc-gold)', to: '#ef4444', text: '#fda4af' }
 }
 
 export default function MatchScore({ score, size = 88 }: Props) {

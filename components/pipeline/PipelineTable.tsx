@@ -44,8 +44,8 @@ function ContactAvatar({ contact, size = 32 }: { contact: ScannedContact; size?:
         width: size,
         height: size,
         fontSize: size * 0.35,
-        background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
-        color: '#ffffff',
+        background: 'linear-gradient(135deg, #c99628, #a97d1c)',
+        color: 'var(--abc-text)',
       }}
     >
       {initials}
@@ -153,7 +153,7 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
     <>
       <div
         className="grid grid-cols-[1.4fr_1fr_0.7fr_0.8fr_0.7fr_1.4fr_1fr] gap-3 items-start px-4 py-3 transition-colors relative cursor-pointer"
-        style={{ borderBottom: '1px solid #2a2a2a', background: '#1a1a1a' }}
+        style={{ borderBottom: '1px solid var(--abc-border)', background: 'var(--abc-raised)' }}
         onClick={() => router.push(`/contacts/${contact.id}`)}
         role="button"
         tabIndex={0}
@@ -163,7 +163,7 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
           <ContactAvatar contact={contact} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold truncate" style={{ color: '#ffffff' }}>
+              <span className="text-sm font-semibold truncate" style={{ color: 'var(--abc-text)' }}>
                 {contact.name?.trim() || 'Unknown'}
               </span>
               {showWonBadge && (
@@ -174,13 +174,13 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
             </div>
             <TagPills tags={contact.tags || []} compact />
             {showWonBadge && contact.expected_close_date && (
-              <p className="text-[10px] mt-1" style={{ color: '#999999' }}>
+              <p className="text-[10px] mt-1" style={{ color: 'var(--abc-text-secondary)' }}>
                 Closed {new Date(contact.expected_close_date).toLocaleDateString()}
               </p>
             )}
           </div>
         </div>
-        <span className="text-xs truncate pt-1" style={{ color: '#999999' }}>
+        <span className="text-xs truncate pt-1" style={{ color: 'var(--abc-text-secondary)' }}>
           {[contact.company, contact.role].filter(Boolean).join(' · ') || '—'}
         </span>
         <span
@@ -198,7 +198,7 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
         <span className="text-xs pt-1" style={{ color: '#4a5168' }}>
           {days === 0 ? 'Today' : `${days}d`}
         </span>
-        <span className="text-xs truncate italic pt-1" style={{ color: '#999999' }}>
+        <span className="text-xs truncate italic pt-1" style={{ color: 'var(--abc-text-secondary)' }}>
           ⚡ {step.text}
         </span>
         <div className="flex flex-col gap-1.5 items-start" onClick={(e) => e.stopPropagation()}>
@@ -236,7 +236,7 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
                   saveDeal()
                 }}
                 className="text-[10px] font-semibold"
-                style={{ color: '#00d4d4' }}
+                style={{ color: 'var(--abc-gold-accent)' }}
               >
                 Save
               </button>
@@ -251,7 +251,7 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
                 setEditingDeal(true)
               }}
               className="text-[10px] hover:opacity-80"
-              style={{ color: dealNum > 0 ? '#f59e0b' : '#999999' }}
+              style={{ color: dealNum > 0 ? '#f59e0b' : 'var(--abc-text-secondary)' }}
             >
               {dealNum > 0 ? `💰 ${formatDealValue(dealNum, currency)}` : '💰 Add deal value'}
             </button>
@@ -283,9 +283,9 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
             </div>
           )}
           <div className="flex flex-wrap gap-1">
-              <button type="button" onClick={(e) => { e.stopPropagation(); setShowNote(true) }} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#242424', color: '#999999' }}>📝 Note</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); setShowNote(true) }} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#242424', color: 'var(--abc-text-secondary)' }}>📝 Note</button>
               <button type="button" onClick={(e) => { e.stopPropagation(); setShowDealPanel(true) }} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>💰 Deal</button>
-              <button type="button" onClick={(e) => { e.stopPropagation(); setShowTags(true) }} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,212,212,0.12)', color: '#00d4d4' }}>🏷 Tag</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); setShowTags(true) }} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,212,212,0.12)', color: 'var(--abc-gold-accent)' }}>🏷 Tag</button>
               <button type="button" disabled={saving} onClick={(e) => { e.stopPropagation(); toggleResponse() }} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>✓ Response</button>
             </div>
         </div>
@@ -293,8 +293,8 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
 
       {showNote && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 frosted-overlay">
-          <div className="w-full max-w-md rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a1a', border: '1px solid #2a2a2a' }}>
-            <p className="text-sm font-semibold" style={{ color: '#ffffff' }}>Add Note — {contact.name}</p>
+          <div className="w-full max-w-md rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'var(--abc-raised)', border: '1px solid var(--abc-border)' }}>
+            <p className="text-sm font-semibold" style={{ color: 'var(--abc-text)' }}>Add Note — {contact.name}</p>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -302,15 +302,15 @@ function PipelineRow({ contact, onAction, onUpdate, showWonBadge, onDealOutcome 
               placeholder="Pipeline note…"
             />
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowNote(false)} className="text-xs px-3 py-1.5" style={{ color: '#999999' }}>Cancel</button>
-              <button type="button" disabled={saving} onClick={saveNote} className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white" style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)' }}>Save</button>
+              <button type="button" onClick={() => setShowNote(false)} className="text-xs px-3 py-1.5" style={{ color: 'var(--abc-text-secondary)' }}>Cancel</button>
+              <button type="button" disabled={saving} onClick={saveNote} className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white" style={{ background: 'linear-gradient(135deg, #c99628, #a97d1c)' }}>Save</button>
             </div>
           </div>
         </div>
       )}
 
       {showTags && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(20, 20, 20, 0.12)' }}>
           <div className="w-full max-w-md">
             <TagSelector
               selected={contact.tags || []}
@@ -342,10 +342,10 @@ export default function PipelineTable({
 
   return (
     <>
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #2a2a2a' }}>
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--abc-border)' }}>
       <div
         className="grid grid-cols-[1.4fr_1fr_0.7fr_0.8fr_0.7fr_1.4fr_1fr] gap-3 px-4 py-3 text-[10px] font-bold uppercase tracking-wider"
-        style={{ background: '#1a1a1a', color: '#999999', borderBottom: '1px solid #2a2a2a' }}
+        style={{ background: 'var(--abc-raised)', color: 'var(--abc-text-secondary)', borderBottom: '1px solid var(--abc-border)' }}
       >
         <span>Contact</span>
         <span>Company</span>

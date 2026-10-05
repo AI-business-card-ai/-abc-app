@@ -16,7 +16,7 @@ import {
 import type { ScannedContact } from '@/lib/types'
 import { userFacingRequestError } from '@/lib/network-error'
 
-const CARD = { background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a', padding: '20px' } as const
+const CARD = { background: 'var(--abc-raised)', borderRadius: '12px', border: '1px solid var(--abc-border)', padding: '20px' } as const
 
 const VARIANT_STYLES = ['Direct', 'Professional', 'Casual'] as const
 export type Platform = 'linkedin' | 'email' | 'whatsapp'
@@ -73,12 +73,12 @@ function Toast({ message }: { message: string }) {
         right: '24px',
         padding: '14px 20px',
         borderRadius: '10px',
-        background: '#1a1a1a',
-        border: '1px solid #2a2a2a',
-        color: '#ffffff',
+        background: 'var(--abc-raised)',
+        border: '1px solid var(--abc-border)',
+        color: 'var(--abc-text)',
         fontSize: '13px',
         zIndex: 100,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+        boxShadow: '0 8px 32px rgba(20, 20, 20, 0.12)',
         maxWidth: '360px',
         lineHeight: 1.5,
       }}
@@ -398,9 +398,9 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
             style={{
               padding: '6px 12px',
               borderRadius: '8px',
-              border: '1px solid #2a2a2a',
+              border: '1px solid var(--abc-border)',
               background: '#242424',
-              color: '#ffffff',
+              color: 'var(--abc-text)',
               fontSize: '12px',
               fontWeight: 600,
               cursor: regenerating ? 'wait' : 'pointer',
@@ -442,11 +442,11 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
             placeholder="Following up"
             style={{
               width: '100%',
-              background: '#0f0f0f',
-              border: '1px solid #2a2a2a',
+              background: 'var(--abc-card)',
+              border: '1px solid var(--abc-border)',
               borderRadius: '8px',
               padding: '10px 12px',
-              color: '#ffffff',
+              color: 'var(--abc-text)',
               fontSize: '13px',
               outline: 'none',
               boxSizing: 'border-box',
@@ -470,9 +470,9 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                 key={variant.id}
                 className="interactive"
                 style={{
-                  background: '#1a1a1a',
+                  background: 'var(--abc-raised)',
                   borderRadius: '12px',
-                  border: `1px solid ${anyChecked ? 'var(--abc-gold-accent)' : '#2a2a2a'}`,
+                  border: `1px solid ${anyChecked ? 'var(--abc-gold-accent)' : 'var(--abc-border)'}`,
                   padding: '16px',
                   width: '100%',
                 }}
@@ -496,11 +496,11 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                     minHeight: '88px',
                     resize: 'none',
                     overflow: 'hidden',
-                    background: '#0f0f0f',
-                    border: '1px solid #2a2a2a',
+                    background: 'var(--abc-card)',
+                    border: '1px solid var(--abc-border)',
                     borderRadius: '8px',
                     padding: '12px',
-                    color: '#ffffff',
+                    color: 'var(--abc-text)',
                     fontSize: '14px',
                     lineHeight: 1.5,
                     fontFamily: 'inherit',
@@ -539,9 +539,9 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                           minWidth: '120px',
                           padding: '8px 14px',
                           borderRadius: '8px',
-                          border: `1px solid ${checked ? color : '#2a2a2a'}`,
+                          border: `1px solid ${checked ? color : 'var(--abc-border)'}`,
                           background: checked ? `${color}18` : 'transparent',
-                          color: checked ? color : '#999999',
+                          color: checked ? color : 'var(--abc-text-secondary)',
                           fontSize: '14px',
                           fontWeight: 600,
                           cursor: 'pointer',
@@ -580,7 +580,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                             borderRadius: '10px',
                             border: 'none',
                             background: 'var(--accent-gradient)',
-                            color: '#0f0f0f',
+                            color: 'var(--abc-card)',
                             fontWeight: 700,
                             fontSize: '14px',
                             cursor: sendingGmail ? 'wait' : 'pointer',
@@ -597,7 +597,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                             alignSelf: 'flex-start',
                             padding: '6px 10px',
                             borderRadius: '6px',
-                            border: '1px solid #2a2a2a',
+                            border: '1px solid var(--abc-border)',
                             background: 'transparent',
                             color: '#777777',
                             fontSize: '12px',
@@ -646,9 +646,9 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                             alignSelf: 'flex-start',
                             padding: '10px 14px',
                             borderRadius: '8px',
-                            border: '1px solid #2a2a2a',
+                            border: '1px solid var(--abc-border)',
                             background: '#242424',
-                            color: '#ffffff',
+                            color: 'var(--abc-text)',
                             fontSize: '13px',
                             fontWeight: 600,
                             cursor: 'pointer',
@@ -695,7 +695,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
               height: '100%',
               border: 'none',
               background: 'transparent',
-              color: '#0f0f0f',
+              color: 'var(--abc-card)',
               fontSize: '13px',
               fontWeight: 800,
               cursor: sendingGmail ? 'wait' : 'pointer',
@@ -718,7 +718,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
               borderRadius: '50%',
               border: 'none',
               background: 'rgba(15, 15, 15, 0.25)',
-              color: '#0f0f0f',
+              color: 'var(--abc-card)',
               fontSize: '16px',
               fontWeight: 700,
               lineHeight: 1,

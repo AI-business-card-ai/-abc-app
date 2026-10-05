@@ -9,7 +9,7 @@ export default function EnrichingPulse({ compact, className = '' }: Props) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 ${compact ? 'text-[10px]' : 'text-xs'} ${className}`}
-      style={{ color: '#999999' }}
+      style={{ color: 'var(--abc-text-secondary)' }}
     >
       <span
         className="shrink-0 rounded-full enriching-pulse-dot"

@@ -188,7 +188,7 @@ export default function PipelineClient({ initialContacts = [], userId }: Props) 
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
           <h1 className="gradient-text page-heading font-black tracking-wide">PIPELINE</h1>
-          <p className="text-xs mt-1" style={{ color: '#999999' }}>
+          <p className="text-xs mt-1" style={{ color: 'var(--abc-text-secondary)' }}>
             Sales board — drag deals through your funnel
           </p>
         </div>
@@ -200,8 +200,8 @@ export default function PipelineClient({ initialContacts = [], userId }: Props) 
               className="interactive rounded-xl px-3 py-2 text-xs font-semibold min-h-[40px] flex items-center gap-2"
               style={{
                 background: 'transparent',
-                border: '1px solid #2a2a2a',
-                color: '#999999',
+                border: '1px solid var(--abc-border)',
+                color: 'var(--abc-text-secondary)',
               }}
             >
               Export
@@ -215,7 +215,7 @@ export default function PipelineClient({ initialContacts = [], userId }: Props) 
                 />
                 <div
                   className="absolute right-0 top-full mt-1 z-20 rounded-xl overflow-hidden"
-                  style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', minWidth: 180 }}
+                  style={{ background: 'var(--abc-raised)', border: '1px solid var(--abc-border)', minWidth: 180 }}
                 >
                   {[
                     { key: 'general', label: '📋 General CSV', sub: 'All fields' },
@@ -227,9 +227,9 @@ export default function PipelineClient({ initialContacts = [], userId }: Props) 
                       type="button"
                       onClick={() => handleExportFormat(opt.key as 'general' | 'salesforce' | 'hubspot')}
                       className="interactive w-full text-left px-4 py-3 flex flex-col gap-0.5 transition-colors"
-                      style={{ borderBottom: '1px solid #2a2a2a' }}
+                      style={{ borderBottom: '1px solid var(--abc-border)' }}
                     >
-                      <span className="text-xs font-semibold" style={{ color: '#ffffff' }}>{opt.label}</span>
+                      <span className="text-xs font-semibold" style={{ color: 'var(--abc-text)' }}>{opt.label}</span>
                       <span className="text-[10px]" style={{ color: '#666' }}>{opt.sub}</span>
                     </button>
                   ))}
@@ -247,12 +247,12 @@ export default function PipelineClient({ initialContacts = [], userId }: Props) 
           <div
             key={card.label}
             className="rounded-xl px-4 py-3"
-            style={{ background: '#1a1a1a', border: '1px solid #2a2a2a' }}
+            style={{ background: 'var(--abc-raised)', border: '1px solid var(--abc-border)' }}
           >
-            <p className="text-xl lg:text-2xl font-black tabular-nums" style={{ color: '#ffffff' }}>
+            <p className="text-xl lg:text-2xl font-black tabular-nums" style={{ color: 'var(--abc-text)' }}>
               {card.value}
             </p>
-            <p className="text-[10px] mt-1 uppercase tracking-wide" style={{ color: '#999999' }}>
+            <p className="text-[10px] mt-1 uppercase tracking-wide" style={{ color: 'var(--abc-text-secondary)' }}>
               {card.label}
             </p>
           </div>
@@ -267,7 +267,7 @@ export default function PipelineClient({ initialContacts = [], userId }: Props) 
         </div>
       ) : contacts.length === 0 ? (
         <div className="py-16 text-center">
-          <p className="text-sm mb-4" style={{ color: '#999999' }}>No deals in your pipeline yet</p>
+          <p className="text-sm mb-4" style={{ color: 'var(--abc-text-secondary)' }}>No deals in your pipeline yet</p>
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => router.push('/scan')}

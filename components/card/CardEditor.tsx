@@ -61,16 +61,16 @@ import { PROFILE_SAFE_COLUMNS } from '@/lib/profile-defaults'
 
 /* ─── Design tokens ─── */
 const T = {
-  bg: '#0f0f0f',
-  surface: '#1a1a1a',
-  surface2: '#242424',
-  border: '#2a2a2a',
-  text: '#fff',
-  secondary: '#999',
-  muted: '#555',
-  pink: '#f0197d',
-  turquoise: '#00d4d4',
-  gradient: 'linear-gradient(135deg,#f0197d,#00d4d4)',
+  bg: 'var(--abc-card)',
+  surface: 'var(--abc-raised)',
+  surface2: 'var(--abc-border)',
+  border: 'var(--abc-border)',
+  text: 'var(--abc-text)',
+  secondary: 'var(--abc-text-secondary)',
+  muted: 'var(--abc-text-muted)',
+  pink: 'var(--abc-gold)',
+  turquoise: 'var(--abc-gold-accent)',
+  gradient: 'linear-gradient(135deg, #c99628, #a97d1c)',
   font: 'system-ui, -apple-system, sans-serif',
   radius: 12,
 } as const
@@ -1239,7 +1239,7 @@ export default function CardEditor() {
           border: `1px solid ${T.border}`,
           overflow: 'hidden',
           background: T.bg,
-          boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
+          boxShadow: '0 12px 40px rgba(20, 20, 20, 0.12)',
         }}
       >
         <div style={{ maxHeight: 640, overflowY: 'auto', overflowX: 'hidden' }}>
@@ -2042,7 +2042,7 @@ export default function CardEditor() {
               borderRadius: 10,
               border: 'none',
               background: T.gradient,
-              color: '#fff',
+              color: 'var(--abc-text)',
               fontWeight: 800,
               fontSize: 14,
               fontFamily: T.font,

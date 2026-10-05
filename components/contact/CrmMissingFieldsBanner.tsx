@@ -40,7 +40,7 @@ export default function CrmMissingFieldsBanner({ contact }: Props) {
           <Link
             href={`/scan?contextContact=${contact.id}`}
             className="inline-flex rounded-lg px-3 py-2 text-xs font-semibold"
-            style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)', color: '#ffffff' }}
+            style={{ background: 'linear-gradient(135deg, #c99628, #a97d1c)', color: 'var(--abc-text)' }}
           >
             Edit in scan context →
           </Link>

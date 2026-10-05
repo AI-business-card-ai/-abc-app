@@ -69,7 +69,7 @@ function ContactAvatar({ contact, size = 28 }: { contact: ScannedContact; size?:
         height: size,
         fontSize: size * 0.38,
         background: 'var(--accent-gradient)',
-        color: '#ffffff',
+        color: 'var(--abc-text)',
       }}
     >
       {initials}
@@ -114,7 +114,7 @@ function PipelineKanbanCard({
     >
       <div className="flex items-center gap-2 mb-2 min-w-0">
         <ContactAvatar contact={contact} />
-        <p className="text-[13px] font-semibold truncate flex-1 min-w-0" style={{ color: '#ffffff' }}>
+        <p className="text-[13px] font-semibold truncate flex-1 min-w-0" style={{ color: 'var(--abc-text)' }}>
           {nameLine}
         </p>
       </div>
@@ -209,7 +209,7 @@ export default function PipelineKanban({ contacts, onMoveStage }: Props) {
                 {col.count}
               </span>
             </div>
-            <p className="text-[10px] mt-1 tabular-nums" style={{ color: '#999999' }}>
+            <p className="text-[10px] mt-1 tabular-nums" style={{ color: 'var(--abc-text-secondary)' }}>
               {col.totalValue > 0 ? formatDealValue(col.totalValue, 'USD') : '$0'} total
             </p>
           </div>
@@ -217,7 +217,7 @@ export default function PipelineKanban({ contacts, onMoveStage }: Props) {
           <div
             className="flex-1 flex flex-col gap-2 overflow-y-auto rounded-b-xl p-2 min-h-[120px]"
             style={{
-              background: '#1a1a1a',
+              background: 'var(--abc-raised)',
               border: `1px solid ${col.border}`,
               borderTop: 'none',
             }}

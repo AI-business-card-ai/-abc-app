@@ -8,7 +8,7 @@ type Action = { href: string; label: string; variant?: 'gold' | 'surface' }
  * A single centred message with somewhere to go next.
  *
  * Used by the two pages Stripe returns to. They were the last stretch of the
- * paid flow still wearing the old brand: pink-to-cyan buttons, `#0f0f0f`
+ * paid flow still wearing the old brand: pink-to-cyan buttons, `var(--abc-card)`
  * instead of the app's near-black, and `font-family: system-ui` overriding
  * Inter — so the moment a customer finished paying, the product changed
  * appearance underneath them.

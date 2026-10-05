@@ -86,10 +86,10 @@ export default function SalesforceFields({ contact, onUpdated }: Props) {
     const colors: Record<LeadRating, string> = {
       Hot: '#ef4444',
       Warm: '#f59e0b',
-      Cold: '#6b7280',
+      Cold: 'var(--abc-text-muted)',
     }
     return active
-      ? { background: colors[r], color: '#fff', border: `1px solid ${colors[r]}` }
+      ? { background: colors[r], color: 'var(--abc-text)', border: `1px solid ${colors[r]}` }
       : { background: 'transparent', color: colors[r], border: `1px solid ${colors[r]}66` }
   }
 
@@ -174,7 +174,7 @@ export default function SalesforceFields({ contact, onUpdated }: Props) {
             disabled={saving}
             onClick={saveCloseProb}
             className="text-xs px-3 py-2 rounded-lg font-semibold"
-            style={{ border: '1px solid rgba(0,212,212,0.4)', color: '#00d4d4' }}
+            style={{ border: '1px solid rgba(0,212,212,0.4)', color: 'var(--abc-gold-accent)' }}
           >
             Save
           </button>

@@ -66,13 +66,13 @@ export default function CrmExportEventModal({ open, target, contact, onClose, on
     >
       <div
         className="w-full max-w-md rounded-2xl p-5"
-        style={{ background: '#1a1a1a', border: '2px solid rgba(0, 212, 212, 0.35)' }}
+        style={{ background: 'var(--abc-raised)', border: '2px solid rgba(0, 212, 212, 0.35)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-lg font-bold mb-2" style={{ color: '#ffffff' }}>
+        <p className="text-lg font-bold mb-2" style={{ color: 'var(--abc-text)' }}>
           Add where you met before CRM export
         </p>
-        <p className="text-sm mb-4" style={{ color: '#999999' }}>
+        <p className="text-sm mb-4" style={{ color: 'var(--abc-text-secondary)' }}>
           {targetLabel} export requires meeting context. Fill it in below and export will start right after.
         </p>
         <input
@@ -95,7 +95,7 @@ export default function CrmExportEventModal({ open, target, contact, onClose, on
             disabled={saving}
             onClick={() => void handleConfirm()}
             className="flex-1 rounded-xl py-3 font-bold text-white disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #f0197d, #00d4d4)' }}
+            style={{ background: 'linear-gradient(135deg, #c99628, #a97d1c)' }}
           >
             {saving ? 'Saving…' : `Save & export → ${targetLabel}`}
           </button>
@@ -103,7 +103,7 @@ export default function CrmExportEventModal({ open, target, contact, onClose, on
             type="button"
             onClick={onClose}
             className="rounded-xl px-4 py-3 text-sm"
-            style={{ border: '1px solid #2a2a2a', color: '#999999' }}
+            style={{ border: '1px solid var(--abc-border)', color: 'var(--abc-text-secondary)' }}
           >
             Cancel
           </button>

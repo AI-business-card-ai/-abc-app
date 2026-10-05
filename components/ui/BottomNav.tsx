@@ -67,13 +67,13 @@ export default function BottomNav() {
           <span
             className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
             style={{
-              background: 'linear-gradient(135deg, #f0197d, #00d4d4)',
-              boxShadow: '0 4px 20px rgba(0, 212, 212, 0.35)',
+              background: 'linear-gradient(135deg, #c99628, #a97d1c)',
+              boxShadow: '0 4px 20px rgba(201, 150, 40, 0.30)',
             }}
           >
-            <IconCamera size={26} style={{ color: '#fff' }} />
+            <IconCamera size={26} style={{ color: 'var(--abc-text)' }} />
           </span>
-          <span className="text-[10px] font-semibold mt-1" style={{ color: isScan ? '#00d4d4' : '#999999' }}>
+          <span className="text-[10px] font-semibold mt-1" style={{ color: isScan ? 'var(--abc-gold-accent)' : 'var(--abc-text-secondary)' }}>
             Scan
           </span>
         </button>
@@ -119,7 +119,7 @@ function NavItem({
       {active && (
         <span
           className="absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full"
-          style={{ background: '#00d4d4', boxShadow: '0 0 6px rgba(0, 212, 212, 0.8)' }}
+          style={{ background: 'var(--abc-gold-accent)', boxShadow: '0 0 6px rgba(201, 150, 40, 0.55)' }}
         />
       )}
       <span className="relative">
@@ -127,20 +127,20 @@ function NavItem({
           size={22}
           style={
             active
-              ? { color: '#00d4d4', filter: 'drop-shadow(0 0 4px rgba(0, 212, 212, 0.5))' }
-              : { color: '#555555' }
+              ? { color: 'var(--abc-gold-accent)', filter: 'drop-shadow(0 0 4px rgba(201, 150, 40, 0.40))' }
+              : { color: 'var(--abc-text-muted)' }
           }
         />
         {badge != null && badge > 0 && (
           <span
             className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
-            style={{ background: '#f0197d' }}
+            style={{ background: 'var(--abc-gold)' }}
           >
             {badge > 99 ? '99+' : badge}
           </span>
         )}
       </span>
-      <span className="text-[10px] font-medium" style={{ color: active ? '#00d4d4' : '#555555' }}>
+      <span className="text-[10px] font-medium" style={{ color: active ? 'var(--abc-gold-accent)' : 'var(--abc-text-muted)' }}>
         {label}
       </span>
     </motion.button>

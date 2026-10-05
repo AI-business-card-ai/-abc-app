@@ -5,7 +5,7 @@ import { CARD_ACCENTS, type CardTheme } from '@/lib/card/types'
 import type { EditorForm } from '@/lib/card/editor-form'
 
 const THEMES: { id: CardTheme; label: string; description: string; swatch: string }[] = [
-  { id: 'graphite', label: 'Graphite', description: 'Dark card', swatch: '#0a0a0b' },
+  { id: 'graphite', label: 'Graphite', description: 'Dark card', swatch: 'var(--abc-bg)' },
   { id: 'light', label: 'Light', description: 'Light card', swatch: '#ffffff' },
 ]
 

@@ -99,8 +99,8 @@ export default function MobileContactsList({ contacts, onRefresh, toast, onConta
             className="interactive shrink-0 snap-start rounded-full px-4 py-2 text-xs font-semibold min-h-[44px]"
             style={
               filter === chip.id
-                ? { background: 'linear-gradient(135deg, rgba(0,212,212,0.15), rgba(240,25,125,0.1))', color: '#00d4d4', border: '1px solid rgba(0,212,212,0.35)' }
-                : { background: '#1a1a1a', color: '#999999', border: '1px solid #2a2a2a' }
+                ? { background: 'linear-gradient(135deg, rgba(0,212,212,0.15), rgba(240,25,125,0.1))', color: 'var(--abc-gold-accent)', border: '1px solid rgba(0,212,212,0.35)' }
+                : { background: 'var(--abc-raised)', color: 'var(--abc-text-secondary)', border: '1px solid var(--abc-border)' }
             }
           >
             {chip.label}

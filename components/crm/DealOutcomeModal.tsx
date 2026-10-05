@@ -62,7 +62,7 @@ export default function DealOutcomeModal({ contact, mode, onClose, onUpdated }: 
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 24 }}
           className="w-full max-w-md rounded-2xl p-5 flex flex-col gap-4"
-          style={{ background: '#1a1a1a', border: '1px solid #2a2a2a' }}
+          style={{ background: 'var(--abc-raised)', border: '1px solid var(--abc-border)' }}
           onClick={(e) => e.stopPropagation()}
         >
           {celebrate ? (
@@ -115,7 +115,7 @@ export default function DealOutcomeModal({ contact, mode, onClose, onUpdated }: 
                     className="rounded-full px-3 py-2 text-xs font-semibold min-h-[44px]"
                     style={
                       reason === r
-                        ? { background: 'rgba(240,25,125,0.2)', color: '#f0197d', border: '1px solid rgba(240,25,125,0.4)' }
+                        ? { background: 'rgba(240,25,125,0.2)', color: 'var(--abc-gold)', border: '1px solid rgba(240,25,125,0.4)' }
                         : { background: '#1c1f35', color: '#8892b0', border: '1px solid rgba(139,92,246,0.12)' }
                     }
                   >

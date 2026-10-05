@@ -95,7 +95,7 @@ export default function ChatListClient({ initialContacts = [] }: Props) {
               No active conversations yet
             </div>
 
-            <div style={{ fontSize: '14px', color: '#6b7280', maxWidth: '320px', lineHeight: '1.6' }}>
+            <div style={{ fontSize: '14px', color: 'var(--abc-text-muted)', maxWidth: '320px', lineHeight: '1.6' }}>
               Once you scan a business card and send a message, your conversations will appear here.
             </div>
 
@@ -108,7 +108,7 @@ export default function ChatListClient({ initialContacts = [] }: Props) {
                   background: 'var(--accent-gradient)',
                   border: 'none',
                   borderRadius: '10px',
-                  color: '#fff',
+                  color: 'var(--abc-text)',
                   fontSize: '14px',
                   fontWeight: 700,
                   textDecoration: 'none',
@@ -125,7 +125,7 @@ export default function ChatListClient({ initialContacts = [] }: Props) {
                   background: 'transparent',
                   border: '1px solid #2a2d3e',
                   borderRadius: '10px',
-                  color: '#6b7280',
+                  color: 'var(--abc-text-muted)',
                   fontSize: '14px',
                   textDecoration: 'none',
                   cursor: 'pointer',

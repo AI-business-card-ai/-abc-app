@@ -57,7 +57,7 @@ export default function PipelineStageBadge({
             style={{
               background: '#0D0A18',
               border: '0.5px solid #1A0E30',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              boxShadow: '0 8px 32px rgba(20, 20, 20, 0.12)',
             }}
           >
             {PIPELINE_STAGES.map((s) => (

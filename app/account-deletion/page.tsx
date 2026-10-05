@@ -68,25 +68,25 @@ export default function AccountDeletionPage({
   const justDeleted = searchParams?.deleted === '1'
 
   return (
-    <div style={{ background: '#0f0f0f', minHeight: '100vh', padding: '0 0 60px' }}>
+    <div style={{ background: 'var(--abc-card)', minHeight: '100vh', padding: '0 0 60px' }}>
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '32px 24px' }}>
-        <a href="/" style={{ display: 'inline-block', marginBottom: 32, fontSize: 20, fontWeight: 900, background: 'linear-gradient(90deg,#f0197d,#00d4d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ABC</a>
-        <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 900, marginBottom: 8 }}>Delete your ABC account</h1>
-        <p style={{ color: '#9ca3af', fontSize: 14, lineHeight: 1.7, marginBottom: 32 }}>
+        <a href="/" style={{ display: 'inline-block', marginBottom: 32, fontSize: 20, fontWeight: 900, background: 'linear-gradient(90deg, #c99628, #a97d1c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ABC</a>
+        <h1 style={{ color: 'var(--abc-text)', fontSize: 28, fontWeight: 900, marginBottom: 8 }}>Delete your ABC account</h1>
+        <p style={{ color: 'var(--abc-text-secondary)', fontSize: 14, lineHeight: 1.7, marginBottom: 32 }}>
           You can delete your ABC account and the data that belongs to it at any time, from inside ABC.
         </p>
 
         {justDeleted ? (
-          <div role="status" style={{ border: '1px solid #2a2a2a', borderRadius: 12, padding: '16px 18px', marginBottom: 32 }}>
-            <p style={{ color: '#ffffff', fontSize: 15, fontWeight: 700 }}>Your ABC account has been deleted.</p>
-            <p style={{ color: '#9ca3af', fontSize: 14, lineHeight: 1.7, marginTop: 4 }}>You have been signed out.</p>
+          <div role="status" style={{ border: '1px solid var(--abc-border)', borderRadius: 12, padding: '16px 18px', marginBottom: 32 }}>
+            <p style={{ color: 'var(--abc-text)', fontSize: 15, fontWeight: 700 }}>Your ABC account has been deleted.</p>
+            <p style={{ color: 'var(--abc-text-secondary)', fontSize: 14, lineHeight: 1.7, marginTop: 4 }}>You have been signed out.</p>
           </div>
         ) : null}
 
         {SECTIONS.map(({ h, items }) => (
           <div key={h} style={{ marginBottom: 32 }}>
-            <h2 style={{ color: '#ffffff', fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{h}</h2>
-            <ul style={{ color: '#9ca3af', fontSize: 14, lineHeight: 1.7, paddingLeft: 20, listStyle: 'disc' }}>
+            <h2 style={{ color: 'var(--abc-text)', fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{h}</h2>
+            <ul style={{ color: 'var(--abc-text-secondary)', fontSize: 14, lineHeight: 1.7, paddingLeft: 20, listStyle: 'disc' }}>
               {items.map((item) => (
                 <li key={item} style={{ marginBottom: 6 }}>{item}</li>
               ))}
@@ -95,13 +95,13 @@ export default function AccountDeletionPage({
         ))}
 
         <div style={{ marginBottom: 32 }}>
-          <h2 style={{ color: '#ffffff', fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Questions</h2>
-          <p style={{ color: '#9ca3af', fontSize: 14, lineHeight: 1.7 }}>
-            Contact <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: '#ffffff' }}>{SUPPORT_EMAIL}</a>.
+          <h2 style={{ color: 'var(--abc-text)', fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Questions</h2>
+          <p style={{ color: 'var(--abc-text-secondary)', fontSize: 14, lineHeight: 1.7 }}>
+            Contact <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: 'var(--abc-text)' }}>{SUPPORT_EMAIL}</a>.
           </p>
         </div>
 
-        <div style={{ borderTop: '1px solid #2a2a2a', paddingTop: 24, marginTop: 40, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        <div style={{ borderTop: '1px solid var(--abc-border)', paddingTop: 24, marginTop: 40, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
           <a href="/settings/account/delete" style={{ color: '#666', fontSize: 13 }}>Delete my account →</a>
           <a href="/forgot-password" style={{ color: '#666', fontSize: 13 }}>Reset password →</a>
           <a href="/privacy" style={{ color: '#666', fontSize: 13 }}>Privacy Policy →</a>
