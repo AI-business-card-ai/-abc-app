@@ -445,6 +445,65 @@ a,
     min-height: 44px;
   }
 
+  /*
+    The live ABC card on Home.
+
+    A physical card lying on the champagne surface: a hairline gold edge, a
+    soft shadow that suggests a millimetre of lift, and a highlight along the
+    top edge where the light catches it. The artwork inside is the owner's own
+    card theme, so this frame never tints it — it only holds it.
+
+    The lift is 1px of travel and a slightly deeper shadow. Anything more and a
+    dashboard tile starts behaving like a toy.
+  */
+  .abc-card-live {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--abc-gold-border);
+    box-shadow: 0 10px 28px rgba(20, 20, 20, 0.10), 0 1px 2px rgba(20, 20, 20, 0.06);
+    transition: transform 240ms var(--abc-ease), box-shadow 240ms var(--abc-ease),
+      border-color 240ms var(--abc-ease);
+  }
+  .abc-card-live::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(226, 182, 78, 0.55), transparent);
+  }
+  @media (hover: hover) {
+    .abc-card-live:hover {
+      transform: translateY(-1px);
+      border-color: var(--abc-gold);
+      box-shadow: 0 16px 36px rgba(20, 20, 20, 0.14), 0 1px 2px rgba(20, 20, 20, 0.06);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .abc-card-live {
+      transition: none;
+    }
+    .abc-card-live:hover {
+      transform: none;
+    }
+  }
+
+  /* The same silhouette before there is a card to put in it. */
+  .abc-card-empty {
+    display: grid;
+    place-items: center;
+    gap: 10px;
+    min-height: 168px;
+    padding: 20px;
+    text-align: center;
+    border: 1px dashed var(--abc-gold-border);
+    border-radius: var(--abc-radius-inner);
+    background: linear-gradient(170deg, #fffdf8, var(--abc-raised));
+  }
+
   .scan-frame {
     position: relative;
     border-radius: 16px;

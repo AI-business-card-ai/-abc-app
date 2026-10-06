@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import {
-  IconChevronRight,
   IconMail,
   IconMapPin,
   IconPencil,
@@ -14,10 +13,11 @@ import {
   IconWallet,
   IconWorld,
 } from '@tabler/icons-react'
+import CardQrImage from '@/components/card/CardQrImage'
 import CardQrModal from '@/components/card/CardQrModal'
 import Avatar from '@/components/ui/abc/Avatar'
 import { IconTile } from '@/components/ui/abc/Bits'
-import Button from '@/components/ui/abc/Button'
+import { getCardThemeTokens } from '@/lib/card/theme'
 import { CARD_PUBLIC_BASE } from '@/lib/card/types'
 import type { DashboardCard } from '@/lib/dashboard-data'
 
@@ -64,31 +64,63 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
     card.website ? { icon: IconWorld, value: card.website } : null,
   ].filter(Boolean) as { icon: typeof IconPhone; value: string }[]
 
+  const t = getCardThemeTokens(card.theme)
+
+  // 'abccard.io/d/slug' — the address printed on the card, without the scheme.
+  const cardAddress = card.slug ? `${CARD_PUBLIC_BASE.split('//').pop()}/${card.slug}` : null
+
   return (
     <section className="abc-surface abc-surface-interactive flex flex-col p-5">
-      <header className="flex items-start justify-between">
-        <IconUser size={30} stroke={1.5} style={{ color: 'var(--abc-green)' }} />
-        <Link
-          href="/my-card"
-          aria-label="Open your card"
-          className="flex h-8 w-8 items-center justify-center rounded-full text-abc-muted transition-colors hover:text-abc-text abc-focus-ring"
-        >
-          <IconChevronRight size={20} stroke={1.75} />
-        </Link>
+      <header className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-abc-muted">
+          My ABC
+        </p>
+        {/*
+          No chevron here any more. It pointed at /my-card, which is exactly
+          where the card underneath now goes, so it was a second link to the
+          same place — and at 32px it was the only control on this tile under
+          the 44px the rest of the product holds to. The card is the affordance.
+        */}
+        {/* "Not published yet" already has its line under the card. */}
       </header>
 
-      <h2 className="mt-3.5 text-[19px] font-bold tracking-tight text-abc-text">MY CARD</h2>
-      <p className="mt-1 text-[13.5px] leading-[1.5] text-abc-secondary">
-        Your digital business card, always ready to share.
-      </p>
+      {/*
+        The card itself, as the owner built it.
 
-      {/* Mini preview of the user's own card — their branding, not ABC's */}
-      <div
-        className="mt-4 flex-1 rounded-inner border p-4"
-        style={{
-          background: 'linear-gradient(160deg, #16161a, #0f0f11)',
-          borderColor: 'rgba(217, 164, 65, 0.28)',
-        }}
+        This used to be an icon, a heading and a sentence, with a small dark
+        rectangle underneath that was the same near-black whatever the owner's
+        card actually looked like. Home now shows the card: their theme, their
+        accent, their portrait, their QR. Opening Home should answer "what does
+        my ABC look like right now" without a tap.
+
+        The frame is ABC's champagne; the artwork inside is theirs, which is
+        why the inner surface reads from getCardThemeTokens rather than from
+        the app palette. A graphite card stays graphite here — it is not a dark
+        island, it is what the owner made.
+
+        With no card yet there is nothing honest to draw, so the silhouette
+        takes its place rather than a mock-up filled with "Your name" — a
+        dashboard that shows somebody a card they have not made is a dashboard
+        they stop believing.
+      */}
+      {!card.slug ? (
+        <Link
+          href="/settings/card"
+          className="abc-card-empty mt-3.5 flex-1 abc-focus-ring"
+          aria-label="Create your ABC card"
+        >
+          <IconUser size={26} stroke={1.4} style={{ color: 'var(--abc-gold-accent)' }} />
+          <span className="text-[15px] font-semibold text-abc-text">Create your ABC</span>
+          <span className="text-[12.5px] leading-[1.5] text-abc-secondary">
+            Your name, your photo and a QR people can scan.
+          </span>
+        </Link>
+      ) : (
+      <Link
+        href="/my-card"
+        aria-label="Open your ABC card"
+        className="abc-card-live mt-3.5 flex-1 rounded-inner p-4 abc-focus-ring"
+        style={{ background: t.bg, borderColor: 'var(--abc-gold-border)', color: t.text }}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -108,7 +140,7 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
               </p>
             ) : null}
 
-            <p className="truncate text-[19px] font-bold leading-tight text-abc-text">
+            <p className="truncate text-[19px] font-bold leading-tight" style={{ color: t.text }}>
               {card.fullName}
             </p>
             {card.jobTitle ? (
@@ -117,24 +149,49 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
               </p>
             ) : null}
             {card.companyName ? (
-              <p className="mt-0.5 truncate text-[13px] text-abc-secondary">{card.companyName}</p>
+              <p className="mt-0.5 truncate text-[13px]" style={{ color: t.secondary }}>
+                {card.companyName}
+              </p>
             ) : null}
           </div>
 
           <Avatar src={card.photoUrl} name={card.fullName} size={54} ring />
         </div>
 
+        {/*
+          The same QR the fullscreen modal shows, from the same server route —
+          one generator, two sizes. It keeps its white plate and quiet zone
+          whatever the card theme is doing, because scanning is the whole job.
+        */}
+        {card.slug ? (
+          <div className="mt-3.5 flex items-end justify-between gap-3">
+            <p className="text-[11px] leading-[1.4]" style={{ color: t.muted }}>
+              Scan to open
+              <br />
+              <span style={{ color: t.secondary }}>{cardAddress}</span>
+            </p>
+            {/* The hairline keeps the white plate visible on a light-themed card. */}
+            <CardQrImage
+              slug={card.slug}
+              width="104px"
+              size={320}
+              className="!rounded-[10px] border border-black/10 !p-2"
+            />
+          </div>
+        ) : null}
+
         {details.length > 0 ? (
           <ul className="mt-3.5 hidden space-y-1.5 lg:block">
             {details.map((detail) => (
-              <li key={detail.value} className="flex items-center gap-2 text-[12px] text-abc-secondary">
+              <li key={detail.value} className="flex items-center gap-2 text-[12px]" style={{ color: t.secondary }}>
                 <detail.icon size={14} stroke={1.75} style={{ color: card.accent }} />
                 <span className="truncate">{detail.value}</span>
               </li>
             ))}
           </ul>
         ) : null}
-      </div>
+      </Link>
+      )}
 
       {card.slug ? (
         <div className="mt-3 flex gap-2">
@@ -166,13 +223,7 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
             labelClassName={LABEL}
           />
         </div>
-      ) : (
-        <div className="mt-3">
-          <Button href="/settings/card" variant="surface" size="md" fullWidth>
-            Create your digital card
-          </Button>
-        </div>
-      )}
+      ) : null}
 
       {shareNote ? (
         <p className="mt-2 text-center text-[12px] text-abc-gold-accent" role="status">

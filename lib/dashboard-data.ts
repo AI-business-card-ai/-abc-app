@@ -1,4 +1,5 @@
 import { createServerComponentClient } from '@/lib/supabase-server'
+import type { CardTheme } from '@/lib/card/types'
 import { bucketFollowUps, type FollowUpBuckets } from '@/lib/followups'
 import { groupEncountersIntoEvents, type EventSummary } from '@/lib/events/workspace'
 
@@ -34,6 +35,8 @@ export type DashboardCard = {
   website: string | null
   location: string | null
   accent: string
+  /** The card's own theme, so Home can show it as the owner actually built it. */
+  theme: CardTheme
   slug: string | null
   published: boolean
 }
@@ -72,7 +75,7 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     supabase
       .from('abc_profiles')
       .select(
-        'full_name, email, public_email, phone, website, location, avatar_url, card_photo_url, company_logo_url, job_title, role, company_name, company, card_slug, card_published, card_accent'
+        'full_name, email, public_email, phone, website, location, avatar_url, card_photo_url, company_logo_url, job_title, role, company_name, company, card_slug, card_published, card_accent, card_theme'
       )
       .eq('id', user.id)
       .maybeSingle(),
@@ -206,6 +209,8 @@ export async function getDashboardData(): Promise<DashboardData | null> {
       website: profile?.website || null,
       location: profile?.location || null,
       accent: profile?.card_accent || '#d9a441',
+      // Same rule the public card uses: anything that is not 'light' is graphite.
+      theme: profile?.card_theme === 'light' ? 'light' : 'graphite',
       slug: profile?.card_slug || null,
       published: Boolean(profile?.card_published),
     },
