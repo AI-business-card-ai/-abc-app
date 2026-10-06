@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { IconAddressBook, IconScan, IconSend, IconUsers } from '@tabler/icons-react'
+import { IconId, IconScan, IconSend, IconUsers } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
 import { SAFE_LEFT, SAFE_RIGHT } from '@/lib/ui/layout'
 
@@ -12,7 +12,7 @@ type Tab = { icon: TablerIcon; label: string; path: string }
 const TABS: Tab[] = [
   { icon: IconScan, label: 'Scan', path: '/scan' },
   { icon: IconUsers, label: 'Contacts', path: '/contacts' },
-  { icon: IconAddressBook, label: 'My Card', path: '/my-card' },
+  { icon: IconId, label: 'My Card', path: '/my-card' },
   { icon: IconSend, label: 'Follow-ups', path: '/follow-ups' },
 ]
 
@@ -23,7 +23,7 @@ export default function MobileNav() {
     <nav
       className="fixed bottom-0 left-0 right-0 z-[100] border-t border-abc-border backdrop-blur-xl lg:hidden"
       style={{
-        background: 'rgba(10, 10, 11, 0.92)',
+        background: 'rgba(251, 247, 239, 0.92)',
         paddingBottom: 'env(safe-area-inset-bottom)',
         paddingLeft: SAFE_LEFT,
         paddingRight: SAFE_RIGHT,

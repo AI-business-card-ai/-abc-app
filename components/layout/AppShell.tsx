@@ -63,7 +63,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-abc-bg">
-      <div className="hidden w-[260px] shrink-0 lg:block" aria-hidden="true">
+      {/*
+        The sidebar is fixed, so this empty column is what holds its width in
+        the flow. Only the spacer is aria-hidden: the sidebar used to sit inside
+        it, which hid the whole desktop navigation from screen readers.
+      */}
+      <div className="hidden w-[284px] shrink-0 lg:block" aria-hidden="true" />
+      <div className="hidden lg:block">
         <DesktopSidebar />
       </div>
 

@@ -6,18 +6,17 @@ import Button from '@/components/ui/abc/Button'
 import ExpoMissionInfo from '@/components/expo-mission/ExpoMissionInfo'
 
 /**
- * Event & Expo Intelligence, on the dashboard, as a promise rather than a
- * feature.
+ * Expo Mission, on the dashboard, as a promise rather than a feature.
  *
- * The family is named here, not the feature inside it: Expo Mission is one
- * thing this will do, and putting that name at the top of a card made it read
- * as a second product to buy. One top-level area, honestly labelled coming
- * soon until it is not.
+ * It lives inside the Event & Expo Intelligence panel, which carries the
+ * family name. This card names the one feature in that family that is not
+ * built yet, so it reads as part of the area rather than as a second product
+ * to buy — and it says coming soon, in the badge, in the button and in the
+ * sheet it opens.
  *
  * ABC today is the handshake onwards: scan, remember, follow up, CRM. Expo
  * Mission is the layer before the handshake, and it is not built for anybody
- * yet — so this is a teaser and says so, in the badge, in the button and in
- * the sheet it opens.
+ * yet — so this is a teaser and says so.
  *
  * ## What this deliberately is not
  *
@@ -51,58 +50,53 @@ export default function ExpoMissionPreview() {
     <>
       <section
         aria-labelledby="expo-mission-preview-title"
-        className="abc-surface p-5 sm:p-6"
-        style={{ borderColor: 'var(--abc-gold-border)' }}
+        className="abc-eei-glass rounded-[18px] p-4 sm:p-5 lg:px-4 lg:py-3.5"
       >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-8">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
           <span
             aria-hidden="true"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
-            style={{ background: 'var(--abc-gold-soft)' }}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+            style={{ background: 'var(--abc-gold-soft)', boxShadow: 'inset 0 0 0 1px var(--abc-gold-border)' }}
           >
-            <IconRoute size={22} stroke={1.7} style={{ color: 'var(--abc-gold-accent)' }} />
+            <IconRoute size={20} stroke={1.7} style={{ color: 'var(--abc-gold-accent)' }} />
           </span>
 
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-              <h2
-                id="expo-mission-preview-title"
-                className="text-[17px] font-bold tracking-tight text-abc-text lg:text-[19px]"
-              >
-                Event &amp; Expo Intelligence
-              </h2>
-              {/* Text, not a colour: it reads as "Coming soon" to a screen reader too. */}
-              <span
-                className="rounded-full border px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
-                style={{
-                  borderColor: 'var(--abc-gold-border)',
-                  background: 'var(--abc-gold-soft)',
-                  color: 'var(--abc-gold-accent)',
-                }}
-              >
-                Coming soon
-              </span>
-            </div>
-
-            <p className="mt-2 text-[13.5px] leading-[1.6] text-abc-secondary lg:text-[14px]">
-              Tell ABC where you are going, what you sell and who you are looking for.
-            </p>
-            <p className="mt-1.5 text-[13.5px] leading-[1.6] text-abc-secondary lg:text-[14px]">
-              ABC will help you find the companies worth your time — and guide you from the right
-              target to the next business step.
-            </p>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
+            <h2
+              id="expo-mission-preview-title"
+              className="text-[17px] font-bold tracking-tight text-[#161412]"
+            >
+              Expo Mission
+            </h2>
+            {/* Text, not a colour: it reads as "Coming soon" to a screen reader too. */}
+            <span
+              className="rounded-full border px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
+              style={{
+                borderColor: 'var(--abc-gold-border)',
+                background: 'var(--abc-gold-soft)',
+                color: '#7a5810',
+              }}
+            >
+              Coming soon
+            </span>
           </div>
 
-          <div ref={ctaRef} className="lg:shrink-0">
+          <div ref={ctaRef} className="w-full sm:w-auto">
             <Button
               onClick={() => setShowInfo(true)}
               variant="surface"
-              className="w-full lg:w-auto"
+              className="w-full !rounded-full !border-[rgba(169,125,28,0.5)] !bg-[rgba(255,253,248,0.85)] !font-semibold !text-[#8f6812] sm:w-auto"
             >
               See how it will work
             </Button>
           </div>
         </div>
+
+        <p className="mt-2.5 text-[13px] leading-[1.55] text-[#5d574f] lg:mt-2 lg:text-[12.5px] lg:leading-[1.42]">
+          Tell ABC where you are going, what you sell and who you are looking for.{' '}
+          ABC will help you find the companies worth your time — and guide you from the right
+          target to the next business step.
+        </p>
       </section>
 
       {showInfo ? <ExpoMissionInfo onClose={close} /> : null}

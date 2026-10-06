@@ -5721,3 +5721,524 @@ a,
     gap: 14px 24px;
   }
 }
+
+/* ============================================================
+   HOME DASHBOARD — the approved champagne reference
+
+   Ivory cards on the champagne ground, a hairline champagne edge,
+   and one signature: a thin gold light travelling round each card
+   (GoldTrace). Gold is carried by lines, light and small glows —
+   never by filling surfaces.
+
+   Gold steps used here:
+     #a97d1c  readable gold (text on ivory)
+     #c99628  primary gold (lines, icons)
+     #e2b64e  highlight gold (the moving light, glints)
+   ============================================================ */
+
+/* Text-safe golds for small type on ivory. #a97d1c is ~3.6:1 there — fine
+   for icons, lines and large type, short of AA for a 14px link. */
+:root {
+  --abc-gold-ink: #8f6812;
+  --abc-ink-muted: #756d63;
+}
+
+/* Two warm lights on the canvas behind Home. */
+.abc-home {
+  position: relative;
+  isolation: isolate;
+}
+.abc-home-light {
+  position: absolute;
+  inset: -48px 0 auto -32px;
+  height: 720px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 60% at 72% 0%, rgba(255, 253, 247, 0.95), rgba(255, 253, 247, 0) 70%),
+    radial-gradient(38% 46% at 6% 8%, rgba(255, 250, 238, 0.85), rgba(255, 250, 238, 0) 72%),
+    radial-gradient(40% 40% at 96% 92%, rgba(240, 220, 170, 0.28), rgba(240, 220, 170, 0) 70%);
+}
+/* Both layers stop at the container's right edge (right: 0 is the outer
+   edge of its padding), so the decoration never makes the page wider than
+   the screen. */
+.abc-home-lines {
+  position: absolute;
+  top: -48px;
+  right: 0;
+  width: min(1100px, 78%);
+  height: 300px;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* The owner's name in the greeting: metallic, but dark enough to read —
+   large type, so the 3:1 large-text bar applies and every stop clears it. */
+.abc-gold-name {
+  background: linear-gradient(180deg, #c99628 0%, #a97d1c 52%, #8a6410 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* The card every Home module sits on. */
+.abc-dash-card {
+  position: relative;
+  border-radius: 24px;
+  border: 1px solid rgba(201, 150, 40, 0.2);
+  background: linear-gradient(180deg, rgba(255, 254, 251, 0.97) 0%, rgba(255, 251, 243, 0.92) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 2px rgba(74, 52, 12, 0.04),
+    0 20px 44px -26px rgba(120, 86, 22, 0.28);
+  transition:
+    border-color 260ms var(--abc-ease),
+    box-shadow 260ms var(--abc-ease);
+}
+@media (hover: hover) {
+  .abc-dash-card:hover {
+    border-color: rgba(201, 150, 40, 0.34);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      0 1px 2px rgba(74, 52, 12, 0.05),
+      0 26px 52px -26px rgba(120, 86, 22, 0.36);
+  }
+}
+/* Decoration inside a card is clipped here, so the card itself can stay
+   unclipped and the travelling light can glow past its edge. */
+.abc-dash-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ---- The travelling gold light (components/dashboard/GoldTrace.tsx) ---- */
+.abc-trace {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  overflow: visible;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.82;
+  transition: opacity 320ms var(--abc-ease);
+}
+.abc-dash-card:hover > .abc-trace,
+.abc-dash-card:focus-within > .abc-trace {
+  opacity: 1;
+}
+.abc-trace-seg {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dashoffset: var(--abc-trace-from);
+  animation: abc-trace-run var(--abc-trace-dur, 10s) linear infinite;
+  animation-delay: var(--abc-trace-delay, 0s);
+}
+.abc-trace[data-paused] .abc-trace-seg {
+  animation-play-state: paused;
+}
+@keyframes abc-trace-run {
+  from {
+    stroke-dashoffset: var(--abc-trace-from);
+  }
+  to {
+    stroke-dashoffset: calc(var(--abc-trace-from) - var(--abc-trace-p));
+  }
+}
+
+/* ---- Card typography shared by the Home modules ---- */
+.abc-dash-title {
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  color: #161412;
+}
+.abc-dash-sub {
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: #6a645b;
+}
+@media (min-width: 1360px) {
+  .abc-dash-title {
+    font-size: 22px;
+  }
+  .abc-dash-sub {
+    font-size: 15px;
+  }
+}
+.abc-dash-chevron {
+  display: inline-flex;
+  height: 44px;
+  width: 44px;
+  margin: -10px -12px 0 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #3d3830;
+  transition: background-color 200ms var(--abc-ease), color 200ms var(--abc-ease);
+}
+.abc-dash-chevron:hover {
+  background: rgba(201, 150, 40, 0.1);
+  color: var(--abc-gold-accent);
+}
+.abc-dash-link {
+  /* display is set in the markup, so Tailwind's hidden/sm:hidden still win. */
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--abc-gold-ink);
+  border-radius: 8px;
+  transition: opacity 200ms var(--abc-ease);
+}
+.abc-dash-link:hover {
+  opacity: 0.8;
+}
+
+/* A light inset well — follow-up rows, metric tiles, action tiles. */
+.abc-dash-well {
+  border: 1px solid rgba(201, 150, 40, 0.16);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.92), rgba(251, 245, 233, 0.78));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(74, 52, 12, 0.04);
+  transition: border-color 200ms var(--abc-ease), box-shadow 200ms var(--abc-ease);
+}
+a.abc-dash-well:hover,
+button.abc-dash-well:hover {
+  border-color: rgba(201, 150, 40, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 18px -12px rgba(120, 86, 22, 0.35);
+}
+.abc-dash-search {
+  border: 1px solid rgba(201, 150, 40, 0.18);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: inset 0 1px 2px rgba(74, 52, 12, 0.04);
+  transition: border-color 200ms var(--abc-ease), box-shadow 200ms var(--abc-ease);
+}
+.abc-dash-search:focus-within {
+  border-color: rgba(169, 125, 28, 0.6);
+  box-shadow: 0 0 0 3px rgba(201, 150, 40, 0.14);
+}
+.abc-dash-search input {
+  background: transparent;
+  outline: none;
+}
+.abc-dash-search input::placeholder {
+  color: #8a8178;
+}
+.abc-dash-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+/* The one gold call to action on Home. */
+.abc-gold-cta {
+  border: 1px solid rgba(169, 125, 28, 0.55);
+  background: linear-gradient(180deg, #edcb78 0%, #dcae4b 44%, #c69430 100%);
+  color: #1a1205;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 0 rgba(120, 80, 10, 0.22),
+    0 12px 24px -12px rgba(169, 125, 28, 0.75),
+    0 2px 4px rgba(120, 86, 22, 0.14);
+  transition: filter 200ms var(--abc-ease), transform 200ms var(--abc-ease);
+}
+.abc-gold-cta:hover {
+  filter: brightness(1.04) saturate(1.04);
+}
+.abc-gold-cta:active {
+  transform: scale(0.99);
+}
+
+/* ---- Scan motif ---- */
+.abc-scan-orbit {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: abc-orbit 14s linear infinite;
+}
+@keyframes abc-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- My ABC: the card, shown whole, on a glass showcase ---- */
+.abc-showcase {
+  /* A container, so the card can cap its height against the showcase width
+     (.abc-hcard max-height) and never stretch into a portrait slab when the
+     row around it runs tall. Extra height becomes glass around the card. */
+  container-type: inline-size;
+  justify-content: center;
+  position: relative;
+  border-radius: 22px;
+  padding: 8px;
+  border: 1px solid rgba(201, 150, 40, 0.34);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.88), rgba(246, 234, 208, 0.5) 55%, rgba(255, 251, 242, 0.85));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 0 0 4px rgba(226, 182, 78, 0.07),
+    0 24px 44px -24px rgba(70, 48, 10, 0.5);
+}
+/* Light caught on the glass rim, top and bottom. */
+.abc-showcase::before,
+.abc-showcase::after {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(226, 182, 78, 0.95), transparent);
+  box-shadow: 0 0 10px 1px rgba(226, 182, 78, 0.45);
+}
+.abc-showcase::before {
+  top: -1px;
+}
+.abc-showcase::after {
+  bottom: -1px;
+  left: 30%;
+  right: 8%;
+}
+
+/*
+  The owner's card. Every size inside it is a share of the card's own width
+  (cqw), so it scales like a printed card rather than reflowing like a web
+  page: at 300px on a phone and at 420px on a wide desktop it is the same
+  composition. The px value before each cqw rule is the fallback for a
+  browser without container units.
+*/
+.abc-hcard {
+  container-type: inline-size;
+  position: relative;
+  /* A column, so the card can fill a taller showcase the way a printed card
+     would: identity at the top, contact lines and QR settled at the foot. */
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  max-height: 104cqw;
+  overflow: hidden;
+  border-radius: 15px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 12px 26px -12px rgba(0, 0, 0, 0.55);
+  transition: transform 260ms var(--abc-ease);
+}
+@media (hover: hover) {
+  .abc-hcard:hover {
+    transform: translateY(-1px);
+  }
+}
+.abc-hcard[data-theme='light'] {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 12px 26px -14px rgba(60, 40, 10, 0.4);
+}
+.abc-hcard-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 16px;
+  gap: 4.2cqw;
+  padding: 20px;
+  padding: 5.6cqw 5.6cqw 5.2cqw;
+}
+.abc-hcard-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+}
+.abc-hcard-map {
+  position: absolute;
+  top: 6%;
+  right: -4%;
+  width: 82%;
+  aspect-ratio: 360 / 150;
+  pointer-events: none;
+  background: currentColor;
+  -webkit-mask: url('/hero/home-world-dots.svg') center / contain no-repeat;
+  mask: url('/hero/home-world-dots.svg') center / contain no-repeat;
+}
+.abc-hcard-logo {
+  display: block;
+  height: 30px;
+  height: 8.4cqw;
+  width: auto;
+  max-width: 62%;
+  object-fit: contain;
+  object-position: left center;
+  margin-bottom: 14px;
+  margin-bottom: 4cqw;
+}
+.abc-hcard-name {
+  font-size: 22px;
+  font-size: max(17px, 6.8cqw);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+.abc-hcard-role {
+  margin-top: 6px;
+  margin-top: 1.7cqw;
+  font-size: 14.5px;
+  font-size: max(12.5px, 4.3cqw);
+  line-height: 1.25;
+  font-weight: 500;
+}
+.abc-hcard-company {
+  margin-top: 4px;
+  margin-top: 1.4cqw;
+  font-size: 14.5px;
+  font-size: max(12.5px, 4.3cqw);
+  line-height: 1.25;
+}
+.abc-hcard-details {
+  margin-top: auto;
+  padding-top: 20px;
+  padding-top: 6.2cqw;
+  display: grid;
+  gap: 9px;
+  gap: 2.7cqw;
+}
+.abc-hcard-detail {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  gap: 2.8cqw;
+  font-size: 12.5px;
+  font-size: max(11px, 3.7cqw);
+  line-height: 1.2;
+  min-width: 0;
+}
+.abc-hcard-detail svg {
+  width: 16px;
+  width: 4.6cqw;
+  height: 16px;
+  height: 4.6cqw;
+  flex-shrink: 0;
+}
+.abc-hcard-side {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  gap: 4cqw;
+  width: 116px;
+  width: 33.5cqw;
+}
+.abc-hcard-portrait {
+  width: 84px;
+  width: 24cqw;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.abc-hcard-qr {
+  width: 100%;
+  border-radius: 10px;
+  border-radius: 2.8cqw;
+  background: #fff;
+  padding: 7px 7px 6px;
+  padding: 2cqw 2cqw 1.7cqw;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.45);
+}
+.abc-hcard-qr-label {
+  display: block;
+  margin-top: 3px;
+  margin-top: 0.8cqw;
+  text-align: center;
+  font-size: 9px;
+  font-size: max(8px, 2.65cqw);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #141414;
+  white-space: nowrap;
+}
+
+/* Edit / Share / QR Code / Wallet under the card. */
+.abc-myabc-action {
+  display: flex;
+  min-height: 64px;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 13px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #2b2722;
+}
+.abc-myabc-action svg {
+  color: var(--abc-gold-accent);
+}
+
+/* ---- Event & Expo Intelligence ---- */
+.abc-eei-globe {
+  position: absolute;
+  right: 0;
+  bottom: -22%;
+  height: 156%;
+  width: auto;
+  max-width: 78%;
+  pointer-events: none;
+}
+.abc-eei-glass {
+  border: 1px solid rgba(201, 150, 40, 0.2);
+  background: rgba(255, 253, 248, 0.5);
+  -webkit-backdrop-filter: blur(3px) saturate(1.1);
+  backdrop-filter: blur(3px) saturate(1.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 24px -18px rgba(120, 86, 22, 0.4);
+}
+.abc-outline-pill {
+  /* display is set in the markup, so Tailwind's hidden/sm:hidden still win. */
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(169, 125, 28, 0.55);
+  background: rgba(255, 253, 248, 0.75);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--abc-gold-ink);
+  white-space: nowrap;
+  transition: background-color 200ms var(--abc-ease), border-color 200ms var(--abc-ease);
+}
+.abc-outline-pill:hover {
+  background: rgba(255, 248, 232, 0.95);
+  border-color: var(--abc-gold-accent);
+}
+
+/* ---- Sidebar ---- */
+.abc-sidebar {
+  border: 1px solid rgba(201, 150, 40, 0.14);
+  background:
+    radial-gradient(120% 40% at 0% 0%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, #fdfaf3 0%, #f9f3e7 100%);
+  box-shadow: 0 1px 2px rgba(74, 52, 12, 0.04), 14px 0 40px -28px rgba(120, 86, 22, 0.28);
+}
+.abc-nav-active {
+  background: linear-gradient(90deg, rgba(232, 196, 112, 0.42) 0%, rgba(240, 214, 152, 0.3) 55%, rgba(248, 232, 196, 0.16) 100%);
+  box-shadow: inset 0 0 0 1px rgba(201, 150, 40, 0.16), 0 6px 16px -10px rgba(169, 125, 28, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .abc-trace-seg,
+  .abc-scan-orbit {
+    animation: none !important;
+  }
+  .abc-hcard:hover {
+    transform: none;
+  }
+}

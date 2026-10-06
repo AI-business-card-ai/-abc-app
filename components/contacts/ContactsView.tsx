@@ -25,17 +25,20 @@ export default function ContactsView({
   userId,
   initialContacts,
   initialError,
+  initialQuery = '',
 }: {
   userId: string
   initialContacts: ContactListRow[]
   initialError: boolean
+  /** A search to start with — Home's search fields arrive here as `?q=`. */
+  initialQuery?: string
 }) {
   const supabase = useMemo(() => createClientComponent(), [])
 
   const [rows, setRows] = useState<ContactListRow[]>(initialContacts)
   const [failed, setFailed] = useState(initialError)
   const [retrying, setRetrying] = useState(false)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery)
   const [filter, setFilter] = useState<ContactFilter>('all')
   const [eventFilter, setEventFilter] = useState<string>(ALL_EVENTS)
   const [deletingId, setDeletingId] = useState<string | null>(null)

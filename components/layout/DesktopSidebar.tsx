@@ -3,12 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  IconAddressBook,
-  IconCalendarEvent,
+  IconCalendarCheck,
+  IconChartBar,
   IconChevronRight,
   IconHome,
-  IconLayoutKanban,
-  IconPlugConnected,
+  IconId,
   IconScan,
   IconSend,
   IconSettings,
@@ -26,16 +25,24 @@ const PRIMARY: NavItem[] = [
   { icon: IconHome, label: 'Home', path: '/home' },
   { icon: IconScan, label: 'Scan', path: '/scan' },
   { icon: IconUsers, label: 'Contacts', path: '/contacts' },
-  { icon: IconAddressBook, label: 'My Card', path: '/my-card' },
+  { icon: IconId, label: 'My Card', path: '/my-card' },
   { icon: IconSend, label: 'Follow-ups', path: '/follow-ups' },
 ]
 
-// Integrations is not listed here. It is a settings subsection now, at
-// /settings/integrations, reached through the Settings hub — the nav lists
-// destinations, not the categories inside one. Pipeline is preserved but demoted.
+/*
+  Events is not a destination of its own any more. The event workspaces are
+  what Event & Expo Intelligence does today, so the item carries the family
+  name and opens them. The features still to come live inside that family on
+  Home, not as items of their own here.
+
+  Integrations is not listed here either. It is a settings subsection, at
+  /settings/integrations, reached through the Settings hub — the nav lists
+  destinations, not the categories inside one. Pipeline is preserved but
+  demoted.
+*/
 const SECONDARY: NavItem[] = [
-  { icon: IconCalendarEvent, label: 'Events', path: '/events' },
-  { icon: IconLayoutKanban, label: 'Pipeline', path: '/pipeline' },
+  { icon: IconCalendarCheck, label: 'Event & Expo Intelligence', path: '/events' },
+  { icon: IconChartBar, label: 'Pipeline', path: '/pipeline' },
   { icon: IconSettings, label: 'Settings', path: '/settings' },
 ]
 
@@ -54,29 +61,34 @@ function isActive(pathname: string, item: NavItem) {
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   const ItemIcon = item.icon
+  // The family name is the one long label; it steps down a size to stay on one line.
+  const long = item.label.length > 16
   return (
     <Link
       href={item.path}
       aria-current={active ? 'page' : undefined}
-      className={`relative flex items-center gap-3 rounded-inner px-3 py-2.5 text-[14px] transition-colors duration-200 ease-abc abc-focus-ring ${
+      className={`relative flex min-h-[50px] items-center gap-3 rounded-[14px] px-4 transition-colors duration-200 ease-abc abc-focus-ring ${
+        long ? 'text-[14px]' : 'text-[16px]'
+      } ${
         active
-          ? 'bg-abc-raised font-semibold text-abc-gold-accent'
-          : 'font-medium text-abc-secondary hover:bg-abc-raised hover:text-abc-text'
+          ? 'abc-nav-active font-semibold text-[#7a5810]'
+          : 'font-medium text-[#2b2722] hover:bg-[rgba(201,150,40,0.08)] hover:text-abc-text'
       }`}
     >
       {active ? (
         <span
-          className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full"
-          style={{ background: 'var(--abc-gold-accent)' }}
+          className="absolute -left-[3px] top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-full"
+          style={{ background: 'linear-gradient(180deg, #e2b64e, #a97d1c)' }}
           aria-hidden="true"
         />
       ) : null}
       <ItemIcon
-        size={20}
-        stroke={1.75}
-        style={{ color: active ? 'var(--abc-gold-accent)' : 'currentColor' }}
+        size={23}
+        stroke={1.6}
+        className="shrink-0"
+        style={{ color: active ? 'var(--abc-gold-accent)' : '#3a352d' }}
       />
-      {item.label}
+      <span className="truncate">{item.label}</span>
     </Link>
   )
 }
@@ -86,39 +98,40 @@ export default function DesktopSidebar() {
   const { profile, loading } = useAppProfile()
 
   return (
-    <aside
-      className="fixed left-0 top-0 z-40 flex h-screen w-[260px] flex-col border-r border-abc-border"
-      style={{ background: '#0c0c0e' }}
-    >
-      <div className="px-5 pb-7 pt-6">
+    <aside className="abc-sidebar fixed bottom-2 left-2 top-2 z-40 flex w-[268px] flex-col overflow-hidden rounded-[26px]">
+      <SidebarWaves />
+
+      <div className="relative px-6 pb-7 pt-7">
         <Link href="/home" className="inline-flex abc-focus-ring rounded-inner" aria-label="ABC Card — home">
-          <AbcLogo size={34} />
+          <AbcLogo size={52} />
         </Link>
       </div>
 
-      <nav className="flex flex-col gap-1 px-3" aria-label="Primary">
-        {PRIMARY.map((item) => (
-          <NavLink key={item.path} item={item} active={isActive(pathname, item)} />
-        ))}
-      </nav>
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+        <nav className="flex flex-col gap-[7px]" aria-label="Primary">
+          {PRIMARY.map((item) => (
+            <NavLink key={item.path} item={item} active={isActive(pathname, item)} />
+          ))}
+        </nav>
 
-      <div className="mx-5 my-4 border-t border-abc-border" />
+        <div className="mx-5 my-5 h-px" style={{ background: 'rgba(201, 150, 40, 0.22)' }} />
 
-      <nav className="flex flex-col gap-1 px-3" aria-label="Secondary">
-        {SECONDARY.map((item) => (
-          <NavLink key={item.path} item={item} active={isActive(pathname, item)} />
-        ))}
-      </nav>
+        <nav className="flex flex-col gap-[7px]" aria-label="Secondary">
+          {SECONDARY.map((item) => (
+            <NavLink key={item.path} item={item} active={isActive(pathname, item)} />
+          ))}
+        </nav>
+      </div>
 
-      <div className="mt-auto border-t border-abc-border p-3">
+      <div className="relative p-2.5">
         <Link
           href="/settings"
-          className="flex items-center gap-3 rounded-inner p-2 transition-colors duration-200 ease-abc hover:bg-abc-raised abc-focus-ring"
+          className="abc-dash-well flex items-center gap-3 rounded-[18px] p-3 abc-focus-ring"
         >
           {loading ? (
-            <Skeleton className="h-10 w-10" radius={999} />
+            <Skeleton className="h-12 w-12" radius={999} />
           ) : (
-            <Avatar src={profile?.avatarUrl} name={profile?.fullName} size={40} ring />
+            <Avatar src={profile?.avatarUrl} name={profile?.fullName} size={48} ring />
           )}
           <span className="min-w-0 flex-1">
             {loading ? (
@@ -128,25 +141,52 @@ export default function DesktopSidebar() {
               </>
             ) : (
               <>
-                <span className="block truncate text-[13.5px] font-semibold text-abc-text">
+                <span className="block truncate text-[14px] font-bold text-abc-text">
                   {profile?.fullName || 'ABC'}
                 </span>
                 {profile?.jobTitle ? (
-                  <span className="block truncate text-[12px] text-abc-gold-accent">
+                  <span className="mt-0.5 block truncate text-[12.5px] font-medium text-[#8f6812]">
                     {profile.jobTitle}
                   </span>
                 ) : null}
                 {profile?.companyName ? (
-                  <span className="block truncate text-[12px] text-abc-secondary">
+                  <span className="mt-0.5 block truncate text-[12px] text-abc-secondary">
                     {profile.companyName}
                   </span>
                 ) : null}
               </>
             )}
           </span>
-          <IconChevronRight size={16} stroke={1.75} className="shrink-0 text-abc-muted" />
+          <IconChevronRight size={18} stroke={1.75} className="shrink-0 text-[#3a352d]" />
         </Link>
       </div>
     </aside>
+  )
+}
+
+/** The gold threads that run across the foot of the sidebar in the reference. */
+function SidebarWaves() {
+  return (
+    <svg
+      className="pointer-events-none absolute bottom-[96px] left-0 h-[230px] w-full"
+      viewBox="0 0 268 230"
+      preserveAspectRatio="none"
+      fill="none"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="abc-side-wave" x1="0" y1="0" x2="264" y2="0" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#c99628" stopOpacity="0.55" />
+          <stop offset="0.6" stopColor="#e2b64e" stopOpacity="0.28" />
+          <stop offset="1" stopColor="#e2b64e" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <g stroke="url(#abc-side-wave)" strokeWidth="1">
+        <path d="M-10 214C50 196 92 150 150 128S238 92 280 60" />
+        <path d="M-10 224C58 206 104 166 160 146S242 112 280 86" opacity="0.8" />
+        <path d="M-10 200C40 186 82 136 138 112S226 70 280 34" opacity="0.6" />
+        <path d="M-10 230C66 218 118 184 172 166S248 136 280 116" opacity="0.5" />
+      </g>
+    </svg>
   )
 }

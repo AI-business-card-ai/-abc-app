@@ -35,7 +35,8 @@ export default function EventsListView({ events }: { events: EventSummary[] }) {
   return (
     <div className="mx-auto w-full max-w-[900px] abc-page-top px-4 pb-10 sm:px-6 lg:px-8">
       <header>
-        <SectionLabel>Events</SectionLabel>
+        {/* The family this page belongs to — the sidebar item that opens it carries the same name. */}
+        <SectionLabel>Event &amp; Expo Intelligence</SectionLabel>
         <h1 className="mt-2 text-[28px] font-bold leading-tight tracking-tight text-abc-text lg:text-[36px]">
           Events
         </h1>

@@ -2,6 +2,7 @@ import { createServerComponentClient } from '@/lib/supabase-server'
 import type { CardTheme } from '@/lib/card/types'
 import { bucketFollowUps, type FollowUpBuckets } from '@/lib/followups'
 import { groupEncountersIntoEvents, type EventSummary } from '@/lib/events/workspace'
+import type { PipelineStageId } from '@/lib/pipeline'
 
 export type DashboardContact = {
   id: string
@@ -50,7 +51,18 @@ export type DashboardData = {
   card: DashboardCard
   /** The most recent events, for the way in to the event workspaces. */
   events: EventSummary[]
+  /** Every event workspace the owner has, not just the three above. */
+  eventsTotal: number
+  /**
+   * Contacts moving through the pipeline: past "new" and not yet won or lost.
+   * Null when the count could not be read, so Home leaves the figure out
+   * rather than printing a zero it does not know.
+   */
+  opportunities: number | null
 }
+
+/** The pipeline stages that count as an opportunity still in play. */
+const OPEN_PIPELINE_STAGES: PipelineStageId[] = ['follow-up', 'meeting', 'deal']
 
 function firstNameOf(fullName: string | null, email: string | null): string {
   const name = (fullName || '').trim()
@@ -71,7 +83,7 @@ export async function getDashboardData(): Promise<DashboardData | null> {
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const [profileRes, contactsRes, dueRes, countRes, activityRes, encounterRes] = await Promise.all([
+  const [profileRes, contactsRes, dueRes, countRes, activityRes, encounterRes, pipelineRes] = await Promise.all([
     supabase
       .from('abc_profiles')
       .select(
@@ -115,6 +127,13 @@ export async function getDashboardData(): Promise<DashboardData | null> {
       .eq('user_id', user.id)
       .order('met_at', { ascending: false })
       .limit(1000),
+
+    // A count only — the pipeline board is where the deals themselves are read.
+    supabase
+      .from('scanned_contacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .in('pipeline_stage', OPEN_PIPELINE_STAGES),
   ])
 
   const profile = profileRes.data
@@ -194,6 +213,8 @@ export async function getDashboardData(): Promise<DashboardData | null> {
   return {
     firstName: firstNameOf(profile?.full_name ?? null, profile?.email ?? user.email ?? null),
     events: events.slice(0, 3),
+    eventsTotal: events.length,
+    opportunities: pipelineRes.error ? null : pipelineRes.count ?? 0,
     contacts,
     contactsTotal: countRes.count ?? contacts.length,
     followUps: bucketFollowUps(dueRes.data ?? []),

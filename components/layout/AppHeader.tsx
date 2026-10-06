@@ -23,7 +23,7 @@ export default function AppHeader() {
     <header
       className="sticky top-0 z-50 border-b border-abc-border backdrop-blur-xl lg:hidden"
       style={{
-        background: 'rgba(10, 10, 11, 0.88)',
+        background: 'rgba(251, 247, 239, 0.86)',
         paddingTop: SAFE_TOP,
         paddingLeft: SAFE_LEFT,
         paddingRight: SAFE_RIGHT,

@@ -5,7 +5,15 @@ import { createServerComponentClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ContactsPage() {
+export default async function ContactsPage({
+  searchParams,
+}: {
+  /** `?q=` — the search Home's search fields hand over. */
+  searchParams?: { q?: string | string[] }
+}) {
+  const q = searchParams?.q
+  const initialQuery = (Array.isArray(q) ? q[0] : q)?.slice(0, 200) ?? ''
+
   const supabase = createServerComponentClient()
   const {
     data: { user },
@@ -29,6 +37,7 @@ export default async function ContactsPage() {
       userId={user.id}
       initialContacts={(data as unknown as ContactListRow[]) ?? []}
       initialError={Boolean(error)}
+      initialQuery={initialQuery}
     />
   )
 }
