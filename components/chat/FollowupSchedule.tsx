@@ -61,7 +61,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
             <div
               key={s.id}
               style={{
-                background: '#242424',
+                background: 'var(--abc-raised)',
                 border: '1px solid var(--abc-border)',
                 borderLeft: `3px solid ${meta.color}`,
                 borderRadius: '8px',
@@ -135,7 +135,7 @@ export default function FollowupSchedule({ sequences, onSequenceUpdated }: Props
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                background: '#242424',
+                background: 'var(--abc-raised)',
                 border: '1px solid var(--abc-border)',
                 borderRadius: '8px',
                 padding: '10px 12px',

@@ -30,14 +30,14 @@ export default function AppHeader() {
       }}
     >
       <div className="flex h-14 items-center justify-between px-4">
-        <Link href="/home" className="rounded-inner abc-focus-ring" aria-label="ABC Card — home">
+        <Link href="/home" className="flex min-h-[44px] items-center rounded-inner abc-focus-ring" aria-label="ABC Card — home">
           <AbcLogo size={30} />
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
           <Link
             href="/follow-ups"
-            className="relative flex h-10 w-10 items-center justify-center rounded-full abc-focus-ring"
+            className="relative flex h-[44px] w-[44px] items-center justify-center rounded-full abc-focus-ring"
             aria-label={
               dueCount > 0 ? `Follow-ups — ${dueCount} need attention` : 'Follow-ups'
             }
@@ -53,7 +53,7 @@ export default function AppHeader() {
             ) : null}
           </Link>
 
-          <Link href="/settings" className="rounded-full abc-focus-ring" aria-label="Your profile">
+          <Link href="/settings" className="flex h-[44px] w-[44px] items-center justify-center rounded-full abc-focus-ring" aria-label="Your profile">
             <Avatar src={profile?.avatarUrl} name={profile?.fullName} size={34} ring />
           </Link>
         </div>

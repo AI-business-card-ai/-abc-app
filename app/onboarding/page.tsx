@@ -641,10 +641,10 @@ export default function OnboardingPage() {
           width: 100%;
           max-width: 100%;
           box-sizing: border-box;
-          background: #242424;
+          background: var(--abc-card);
           border: 1px solid var(--abc-border);
           border-radius: 12px;
-          color: #ffffff;
+          color: var(--abc-text);
           padding: 0 16px;
           min-height: 56px;
           font-size: 16px;
@@ -653,10 +653,10 @@ export default function OnboardingPage() {
         }
         .onboarding-input:focus {
           border-color: var(--abc-gold-accent);
-          box-shadow: 0 0 0 3px rgba(0, 212, 212, 0.12);
+          box-shadow: 0 0 0 3px rgba(201, 150, 40, 0.16);
         }
         .onboarding-input::placeholder {
-          color: #555555;
+          color: var(--abc-text-muted);
         }
         .onboarding-chip {
           padding: 8px 12px;
@@ -669,9 +669,9 @@ export default function OnboardingPage() {
           transition: all 0.2s ease;
         }
         .onboarding-chip-active {
-          background: rgba(0, 212, 212, 0.1);
+          background: var(--abc-gold-soft);
           border-color: var(--abc-gold-accent);
-          color: #ffffff;
+          color: var(--abc-text);
         }
         .onboarding-card {
           padding: 14px 12px;
@@ -688,9 +688,9 @@ export default function OnboardingPage() {
         }
         .onboarding-card-active {
           border-color: var(--abc-gold-accent);
-          background: rgba(0, 212, 212, 0.08);
-          color: #ffffff;
-          box-shadow: 0 0 0 1px rgba(0, 212, 212, 0.2);
+          background: var(--abc-gold-soft);
+          color: var(--abc-text);
+          box-shadow: 0 0 0 1px var(--abc-gold-border);
         }
       `}</style>
     </div>

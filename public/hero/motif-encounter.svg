@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 460" fill="none">
+  <!-- Contact detail: two people and the line of meetings between them.
+       Each dot on the curve is an encounter. -->
+  <defs>
+    <linearGradient id="f" x1="420" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a97d1c" stop-opacity="0"/>
+      <stop offset="0.4" stop-color="#a97d1c" stop-opacity="0.65"/>
+      <stop offset="1" stop-color="#a97d1c"/>
+    </linearGradient>
+  </defs>
+  <g opacity="0.17" stroke="url(#f)" stroke-width="1.1">
+    <path d="M640 330C760 330 820 150 1010 120"/>
+    <path d="M600 372C760 372 860 200 1060 168" stroke-dasharray="3 7"/>
+    <path d="M560 410C760 410 880 250 1120 212" stroke-dasharray="2 9" opacity="0.7"/>
+    <circle cx="1010" cy="120" r="18"/>
+    <circle cx="640" cy="330" r="13"/>
+  </g>
+  <g opacity="0.22" fill="url(#f)">
+    <circle cx="1010" cy="120" r="7"/>
+    <circle cx="640" cy="330" r="5.5"/>
+    <circle cx="742" cy="314" r="3"/>
+    <circle cx="822" cy="252" r="3"/>
+    <circle cx="896" cy="174" r="3"/>
+  </g>
+</svg>

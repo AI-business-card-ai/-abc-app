@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 460" fill="none">
+  <!-- Contacts: people as nodes, the lines between them as the network a
+       person builds. Faint by design; it sits behind real content. -->
+  <defs>
+    <linearGradient id="f" x1="460" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a97d1c" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="#a97d1c" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#a97d1c"/>
+    </linearGradient>
+  </defs>
+  <g opacity="0.16" stroke="url(#f)" stroke-width="1">
+    <path d="M1120 60L1010 120M1010 120L880 150M1010 120L1060 250M960 40L1010 120M960 40L800 90M880 150L800 90M880 150L760 210M880 150L1060 250M1060 250L940 260M940 260L760 210M1060 250L1180 320M1060 250L990 360M990 360L860 330M860 330L760 210M760 210L700 140M700 140L640 60M700 140L540 170M760 210L620 250M620 250L540 170M1150 190L1060 250M1120 60L1150 190M990 360L1100 400M860 330L760 400M1180 320L1100 400"/>
+    <circle cx="1060" cy="250" r="16"/>
+    <circle cx="880" cy="150" r="11"/>
+  </g>
+  <g opacity="0.2" fill="url(#f)">
+    <circle cx="1120" cy="60" r="5"/><circle cx="1010" cy="120" r="3.5"/><circle cx="1150" cy="190" r="3"/>
+    <circle cx="960" cy="40" r="3"/><circle cx="880" cy="150" r="4"/><circle cx="1060" cy="250" r="6"/>
+    <circle cx="940" cy="260" r="3"/><circle cx="800" cy="90" r="3"/><circle cx="760" cy="210" r="4.5"/>
+    <circle cx="1180" cy="320" r="3.5"/><circle cx="990" cy="360" r="3"/><circle cx="860" cy="330" r="4"/>
+    <circle cx="700" cy="140" r="3"/><circle cx="640" cy="60" r="2.5"/><circle cx="620" cy="250" r="3"/>
+    <circle cx="1100" cy="400" r="2.5"/><circle cx="760" cy="400" r="2.5"/><circle cx="540" cy="170" r="2.5"/>
+  </g>
+</svg>

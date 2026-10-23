@@ -255,7 +255,7 @@ export default function MyCardView({
               </Button>
               <a
                 href={`/api/card/vcard/${encodeURIComponent(slug)}`}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium text-abc-text transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring"
+                className="inline-flex h-11 min-h-[44px] w-full items-center justify-center gap-2 rounded-btn border border-abc-border bg-abc-raised px-4 text-[14px] font-medium text-abc-text transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring"
               >
                 <IconDownload size={17} stroke={1.8} />
                 My vCard

@@ -16,7 +16,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
  *
  * The perimeter is measured, not assumed, so the dash pattern has exactly one
  * period per lap whatever size the card is. Speed is held roughly constant
- * across cards and clamped to 7–12 s a lap; `phase` staggers cards so they
+ * across cards and clamped to 8–12 s a lap; `phase` staggers cards so they
  * never move in step.
  *
  * Reduced motion: the animation is removed in CSS and the same segments stay
@@ -75,7 +75,7 @@ export default function GoldTrace({
     const r = Math.max(0, Math.min(radius - inset, w / 2, h / 2))
     geometry = { x: inset, y: inset, w, h, r }
     perimeter = 2 * (w + h) - (8 - 2 * Math.PI) * r
-    duration = Math.min(12, Math.max(7, perimeter / 190))
+    duration = Math.min(12, Math.max(8, perimeter / 190))
 
     const tail = Math.min(260, perimeter * 0.16)
     segments = [

@@ -96,8 +96,8 @@ export default function ForgotPasswordPage() {
         <div
           className="rounded-xl p-4 flex flex-col gap-3"
           style={{
-            background: 'rgba(15, 15, 15, 0.6)',
-            border: '1px solid rgba(42, 42, 42, 0.7)',
+            background: 'var(--abc-raised)',
+            border: '1px solid var(--abc-border)',
           }}
         >
           {sent ? (
@@ -106,7 +106,7 @@ export default function ForgotPasswordPage() {
               style={{
                 background: 'rgba(34, 197, 94, 0.1)',
                 border: '1px solid rgba(34, 197, 94, 0.35)',
-                color: '#86efac',
+                color: 'var(--abc-green)',
               }}
               role="status"
             >

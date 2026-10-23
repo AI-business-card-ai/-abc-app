@@ -802,11 +802,8 @@ a,
   --pub-gutter: 20px;
   --pub-rhythm: 76px;
 
-  /* Ground and material.
-     Champagne, like the rest of the product: /pricing, /privacy,
-     /terms and the checkout returns share the app's palette rather
-     than keeping a near-black island behind the marketing site.
-     The landing redefines these same names inside .lp-page. */
+  /* Ground and material, for anything outside a public page. The public
+     site itself redefines all of these, dark, inside .pub-root below. */
   --pub-ground: var(--abc-bg);
   --pub-ground-raised: #fbf7ef;
   --pub-panel: var(--abc-card);
@@ -842,6 +839,118 @@ a,
   :root {
     --pub-gutter: 72px;
   }
+}
+
+/*
+  The public site is dark. The product is not.
+
+  Marketing (`/`, /pricing, /privacy, /terms) is the dark premium surface:
+  near-black ground, white type, restrained gold. The signed-in workspace is
+  champagne. Both read the same token names, so the split is made here, by
+  scope: every public page renders inside `.pub-root`, and inside it the app
+  tokens take the values they had before the workspace went champagne
+  (origin/main, e590c39).
+
+  Every name is re-declared rather than only the `--abc-*` sources. A custom
+  property that references another is resolved where it is declared and
+  inherited resolved, so `--pub-ground: var(--abc-bg)` on :root would carry
+  champagne into this scope however dark `--abc-bg` is made here.
+
+  `.abc-dark-context` is the same palette for the few places inside the app
+  that are dark on purpose because of what they do: the Multi-Card camera
+  stage and the full-screen QR. They paint a black ground of their own, and
+  without this their labels inherited the workspace's charcoal ink — dark on
+  black. The single-card viewfinder is reached structurally instead (the
+  element holding the <video>, on /scan only): CameraStage and ScanClient are
+  pinned byte-for-byte by the Multi-Card release tests and are not edited.
+*/
+.pub-root,
+.abc-dark-context,
+.abc-scan-route :has(> video) {
+  --abc-bg: #0a0a0b;
+  --abc-card: #121214;
+  --abc-raised: #18181b;
+  --abc-border: #232326;
+  --abc-border-strong: #2e2e33;
+  --abc-text: #ffffff;
+  --abc-text-secondary: #a1a1aa;
+  --abc-text-muted: #71717a;
+  --abc-gold: #e9a62f;
+  --abc-gold-accent: #d9a441;
+  --abc-gold-soft: rgba(233, 166, 47, 0.12);
+  --abc-gold-border: rgba(217, 164, 65, 0.35);
+  --abc-gold-glow: radial-gradient(circle, rgba(233, 166, 47, 0.18), transparent 70%);
+  --abc-accent: var(--abc-gold-accent);
+  --abc-green: #4ade80;
+  --abc-orange: #fb923c;
+  --abc-link: var(--abc-gold-accent);
+  --abc-chip-bg: rgba(217, 164, 65, 0.1);
+  --abc-chip-text: #d9a441;
+  --abc-chip-border: rgba(217, 164, 65, 0.22);
+  --abc-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --abc-shadow-raised: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  --pub-ground: var(--abc-bg);
+  --pub-ground-raised: #0e0e10;
+  --pub-panel: #121214;
+  --pub-panel-2: #18181b;
+  --pub-line: var(--abc-border);
+  --pub-line-strong: var(--abc-border-strong);
+  --pub-ink: #ffffff;
+  --pub-ink-2: #a1a1aa;
+  /* One step brighter than --abc-text-muted: at 13px on near-black
+     that token lands under 4.5:1, and this is body copy. */
+  --pub-ink-3: #8b8b93;
+  --pub-gold: var(--abc-gold-accent);
+  --pub-gold-bright: var(--abc-gold);
+}
+
+/* The page behind a public page is dark too, so an overscroll or a
+   short page never shows a strip of champagne under the marketing site. */
+body:has(.pub-root) {
+  background-color: #0a0a0b;
+}
+
+/*
+  Tailwind's abc-* colour utilities are literals compiled from
+  tailwind.config.ts, which holds the champagne workspace palette, and no CSS
+  variable can re-scope a literal. Inside the dark scopes these are mapped back
+  onto the dark tokens above: on the landing that is the hero's two calls to
+  action (the app's shared Button); in the app it is the camera's and the QR's
+  labels and buttons. Everywhere else the utilities are untouched.
+*/
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) .bg-abc-gold {
+  background-color: var(--abc-gold);
+}
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) .bg-abc-bg {
+  background-color: var(--abc-bg);
+}
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) :is(.bg-abc-card, .hover\:bg-abc-card:hover) {
+  background-color: var(--abc-card);
+}
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) :is(.bg-abc-raised, .hover\:bg-abc-raised:hover) {
+  background-color: var(--abc-raised);
+}
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) :is(.text-abc-text, .hover\:text-abc-text:hover) {
+  color: var(--abc-text);
+}
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) .text-abc-secondary {
+  color: var(--abc-text-secondary);
+}
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) .text-abc-muted {
+  color: var(--abc-text-muted);
+}
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) .text-abc-gold-accent {
+  color: var(--abc-gold-accent);
+}
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) .border-abc-border {
+  border-color: var(--abc-border);
+}
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) .border-abc-gold-accent {
+  border-color: var(--abc-gold-accent);
+}
+:is(.pub-root, .abc-dark-context, .abc-scan-route :has(> video)) .hover\:border-abc-border-strong:hover {
+  border-color: var(--abc-border-strong);
 }
 
 /* ---------- Structure ---------- */
@@ -1428,6 +1537,9 @@ a,
   height: 66px;
 }
 .pub-wordmark {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -1468,6 +1580,8 @@ a,
   font-weight: 500;
   color: var(--pub-ink-2);
   text-decoration: none;
+  align-items: center;
+  min-height: 44px;
   padding: 8px 12px;
 }
 .pub-signin:hover {
@@ -5743,34 +5857,60 @@ a,
   --abc-ink-muted: #756d63;
 }
 
-/* Two warm lights on the canvas behind Home. */
+/*
+  The canvas behind Home and behind the main work pages.
+
+  Drawn as backgrounds, never as positioned layers. A positioned layer has to
+  be lifted out of the content's way with z-index, and the only safe way to do
+  that — `isolation: isolate` on the page — also traps every full-screen sheet
+  the page opens (the QR modal, the Expo Mission sheet) inside the page, under
+  the sidebar and the mobile bars. A background sits under its own element's
+  content by definition and creates no stacking context at all. It also stops
+  at the element's edge, so it can never widen the page.
+*/
 .abc-home {
-  position: relative;
-  isolation: isolate;
-}
-.abc-home-light {
-  position: absolute;
-  inset: -48px 0 auto -32px;
-  height: 720px;
-  z-index: -1;
-  pointer-events: none;
-  background:
+  background-image:
+    url('/hero/home-threads.svg'),
     radial-gradient(55% 60% at 72% 0%, rgba(255, 253, 247, 0.95), rgba(255, 253, 247, 0) 70%),
     radial-gradient(38% 46% at 6% 8%, rgba(255, 250, 238, 0.85), rgba(255, 250, 238, 0) 72%),
     radial-gradient(40% 40% at 96% 92%, rgba(240, 220, 170, 0.28), rgba(240, 220, 170, 0) 70%);
+  background-repeat: no-repeat;
+  background-position: right 0 top -48px, 0 0, 0 0, 0 0;
+  background-size: min(1100px, 78%) 300px, 100% 720px, 100% 720px, 100% 720px;
 }
-/* Both layers stop at the container's right edge (right: 0 is the outer
-   edge of its padding), so the decoration never makes the page wider than
-   the screen. */
-.abc-home-lines {
-  position: absolute;
-  top: -48px;
-  right: 0;
-  width: min(1100px, 78%);
-  height: 300px;
-  z-index: -1;
-  pointer-events: none;
-  overflow: hidden;
+
+/*
+  One quiet motif per work page, chosen by route in AppShell and painted as
+  <main>'s background: Contacts a network, a contact the line of meetings
+  between two people, Follow-ups a path, Pipeline a progression, Event & Expo
+  Intelligence the arcs of a globe. Each is a few percent of gold at most, and
+  sits behind the page's real content.
+*/
+.abc-motif {
+  background-repeat: no-repeat;
+  background-position: right top;
+  background-size: min(1200px, 100%) auto;
+}
+.abc-motif-network {
+  background-image: url('/hero/motif-network.svg');
+}
+.abc-motif-encounter {
+  background-image: url('/hero/motif-encounter.svg');
+}
+.abc-motif-path {
+  background-image: url('/hero/motif-path.svg');
+}
+.abc-motif-progression {
+  background-image: url('/hero/motif-progression.svg');
+}
+.abc-motif-arcs {
+  background-image: url('/hero/motif-arcs.svg');
+}
+@media (max-width: 1023px) {
+  /* Narrow screens show the dense right-hand part, larger. */
+  .abc-motif {
+    background-size: 150% auto;
+  }
 }
 
 /* The owner's name in the greeting: metallic, but dark enough to read —
@@ -5967,12 +6107,10 @@ button.abc-dash-well:hover {
   }
 }
 
-/* ---- My ABC: the card, shown whole, on a glass showcase ---- */
+/* ---- My ABC: the owner's real card, on a glass showcase ---- */
 .abc-showcase {
-  /* A container, so the card can cap its height against the showcase width
-     (.abc-hcard max-height) and never stretch into a portrait slab when the
-     row around it runs tall. Extra height becomes glass around the card. */
-  container-type: inline-size;
+  /* When the row around it runs taller than the card, the extra height
+     becomes glass above and below the card rather than stretching it. */
   justify-content: center;
   position: relative;
   border-radius: 22px;
@@ -6003,165 +6141,6 @@ button.abc-dash-well:hover {
   bottom: -1px;
   left: 30%;
   right: 8%;
-}
-
-/*
-  The owner's card. Every size inside it is a share of the card's own width
-  (cqw), so it scales like a printed card rather than reflowing like a web
-  page: at 300px on a phone and at 420px on a wide desktop it is the same
-  composition. The px value before each cqw rule is the fallback for a
-  browser without container units.
-*/
-.abc-hcard {
-  container-type: inline-size;
-  position: relative;
-  /* A column, so the card can fill a taller showcase the way a printed card
-     would: identity at the top, contact lines and QR settled at the foot. */
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  max-height: 104cqw;
-  overflow: hidden;
-  border-radius: 15px;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 12px 26px -12px rgba(0, 0, 0, 0.55);
-  transition: transform 260ms var(--abc-ease);
-}
-@media (hover: hover) {
-  .abc-hcard:hover {
-    transform: translateY(-1px);
-  }
-}
-.abc-hcard[data-theme='light'] {
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
-    0 12px 26px -14px rgba(60, 40, 10, 0.4);
-}
-.abc-hcard-body {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex: 1 1 auto;
-  gap: 16px;
-  gap: 4.2cqw;
-  padding: 20px;
-  padding: 5.6cqw 5.6cqw 5.2cqw;
-}
-.abc-hcard-main {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 0;
-  flex-direction: column;
-}
-.abc-hcard-map {
-  position: absolute;
-  top: 6%;
-  right: -4%;
-  width: 82%;
-  aspect-ratio: 360 / 150;
-  pointer-events: none;
-  background: currentColor;
-  -webkit-mask: url('/hero/home-world-dots.svg') center / contain no-repeat;
-  mask: url('/hero/home-world-dots.svg') center / contain no-repeat;
-}
-.abc-hcard-logo {
-  display: block;
-  height: 30px;
-  height: 8.4cqw;
-  width: auto;
-  max-width: 62%;
-  object-fit: contain;
-  object-position: left center;
-  margin-bottom: 14px;
-  margin-bottom: 4cqw;
-}
-.abc-hcard-name {
-  font-size: 22px;
-  font-size: max(17px, 6.8cqw);
-  font-weight: 700;
-  line-height: 1.12;
-  letter-spacing: -0.01em;
-}
-.abc-hcard-role {
-  margin-top: 6px;
-  margin-top: 1.7cqw;
-  font-size: 14.5px;
-  font-size: max(12.5px, 4.3cqw);
-  line-height: 1.25;
-  font-weight: 500;
-}
-.abc-hcard-company {
-  margin-top: 4px;
-  margin-top: 1.4cqw;
-  font-size: 14.5px;
-  font-size: max(12.5px, 4.3cqw);
-  line-height: 1.25;
-}
-.abc-hcard-details {
-  margin-top: auto;
-  padding-top: 20px;
-  padding-top: 6.2cqw;
-  display: grid;
-  gap: 9px;
-  gap: 2.7cqw;
-}
-.abc-hcard-detail {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  gap: 2.8cqw;
-  font-size: 12.5px;
-  font-size: max(11px, 3.7cqw);
-  line-height: 1.2;
-  min-width: 0;
-}
-.abc-hcard-detail svg {
-  width: 16px;
-  width: 4.6cqw;
-  height: 16px;
-  height: 4.6cqw;
-  flex-shrink: 0;
-}
-.abc-hcard-side {
-  display: flex;
-  flex-shrink: 0;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
-  gap: 4cqw;
-  width: 116px;
-  width: 33.5cqw;
-}
-.abc-hcard-portrait {
-  width: 84px;
-  width: 24cqw;
-  aspect-ratio: 1;
-  border-radius: 999px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-.abc-hcard-qr {
-  width: 100%;
-  border-radius: 10px;
-  border-radius: 2.8cqw;
-  background: #fff;
-  padding: 7px 7px 6px;
-  padding: 2cqw 2cqw 1.7cqw;
-  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.45);
-}
-.abc-hcard-qr-label {
-  display: block;
-  margin-top: 3px;
-  margin-top: 0.8cqw;
-  text-align: center;
-  font-size: 9px;
-  font-size: max(8px, 2.65cqw);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #141414;
-  white-space: nowrap;
 }
 
 /* Edit / Share / QR Code / Wallet under the card. */
@@ -6237,8 +6216,5 @@ button.abc-dash-well:hover {
   .abc-trace-seg,
   .abc-scan-orbit {
     animation: none !important;
-  }
-  .abc-hcard:hover {
-    transform: none;
   }
 }

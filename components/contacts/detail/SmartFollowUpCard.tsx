@@ -13,6 +13,7 @@ import {
   IconSparkles,
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
+import GoldTrace from '@/components/dashboard/GoldTrace'
 import Button from '@/components/ui/abc/Button'
 import { CardTitle, ErrorNote, FIELD_LABEL_CLASS, INPUT_CLASS } from '@/components/contacts/detail/parts'
 import { dueDateLabel } from '@/lib/format-date'
@@ -181,7 +182,9 @@ export default function SmartFollowUpCard({ contact }: { contact: ContactDetail 
   }
 
   return (
-    <section className="abc-surface p-5">
+    <section className="abc-surface relative p-5">
+      {/* The one moving light on this screen: drafting the follow-up is the thing to do next here. */}
+      <GoldTrace radius={22} phase={0.3} />
       <div className="flex items-center gap-2">
         <IconSparkles size={17} stroke={1.8} style={{ color: 'var(--abc-gold-accent)' }} />
         <CardTitle>Smart follow-up</CardTitle>
@@ -213,7 +216,7 @@ export default function SmartFollowUpCard({ contact }: { contact: ContactDetail 
                 disabled={!usable}
                 aria-pressed={isActive}
                 title={usable ? item.label : `No ${item.label.toLowerCase()} details saved`}
-                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc disabled:opacity-35 abc-focus-ring ${
+                className={`flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc disabled:opacity-35 abc-focus-ring ${
                   isActive
                     ? 'border-transparent text-[#1a1205]'
                     : 'border-abc-border bg-abc-raised text-abc-secondary hover:border-abc-border-strong hover:text-abc-text'

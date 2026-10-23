@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import LandingPage from '@/components/landing/LandingPage'
 
 /*
@@ -44,6 +44,15 @@ export const metadata: Metadata = {
     title: TITLE,
     description: DESCRIPTION,
   },
+}
+
+/*
+  The landing is the dark public surface; the root layout's theme colour is
+  the champagne workspace's. Overriding it here keeps a phone's browser bar
+  near-black over a near-black page instead of a champagne strip above it.
+*/
+export const viewport: Viewport = {
+  themeColor: '#0a0a0b',
 }
 
 export default function HomePage() {

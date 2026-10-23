@@ -1,14 +1,10 @@
 /**
- * Draws the two static pictures the Home dashboard uses, into public/hero.
+ * Draws the dotted globe behind Event & Expo Intelligence on Home, into
+ * public/hero/home-globe.svg.
  *
- *   home-world-dots.svg  A dotted world map, flat. Used as a CSS mask on the ABC
- *                   card, so the card's own theme decides its colour.
- *   home-globe.svg       The dotted globe with connection arcs behind Event & Expo
- *                   Intelligence.
- *
- * Both are decoration. They are generated rather than drawn by hand so the
- * coastline is one definition, and they are files rather than components so
- * a few thousand dots never enter the JavaScript bundle.
+ * Decoration. It is generated rather than drawn by hand so the coastline is
+ * one definition, and it is a file rather than a component so a few thousand
+ * dots never enter the JavaScript bundle.
  *
  * The coastline is deliberately coarse: at the size and opacity these render,
  * a continent only has to read as a continent.
@@ -64,20 +60,6 @@ function inRing(lon, lat, ring) {
 const isLand = (lon, lat) => LAND.some((ring) => inRing(lon, lat, ring))
 const r1 = (n) => Math.round(n * 10) / 10
 const rad = (d) => (d * Math.PI) / 180
-
-// ── home-world-dots.svg ──────────────────────────────────────────────────────────
-function worldDots() {
-  const STEP = 2.6
-  const W = 360
-  const H = 150 // lat 80 → -70
-  let d = ''
-  for (let lat = 80; lat >= -70; lat -= STEP) {
-    for (let lon = -180; lon < 180; lon += STEP) {
-      if (isLand(lon + STEP / 2, lat - STEP / 2)) d += `M${r1(lon + 180 + STEP / 2)} ${r1(80 - lat + STEP / 2)}h0`
-    }
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"><path d="${d}" stroke="#000" stroke-width="1.35" stroke-linecap="round" fill="none"/></svg>\n`
-}
 
 // ── globe.svg ───────────────────────────────────────────────────────────────
 function globe() {
@@ -229,8 +211,5 @@ ${nodes.map((pt) => `<circle cx="${r1(pt.x)}" cy="${r1(pt.y)}" r="9" fill="#f0cf
 }
 
 fs.mkdirSync(OUT, { recursive: true })
-fs.writeFileSync(path.join(OUT, 'home-world-dots.svg'), worldDots())
 fs.writeFileSync(path.join(OUT, 'home-globe.svg'), globe())
-for (const name of ['home-world-dots.svg', 'home-globe.svg']) {
-  console.log(`${name}  ${(fs.statSync(path.join(OUT, name)).size / 1024).toFixed(1)} KB`)
-}
+console.log(`home-globe.svg  ${(fs.statSync(path.join(OUT, 'home-globe.svg')).size / 1024).toFixed(1)} KB`)

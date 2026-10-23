@@ -115,8 +115,8 @@ export default function ResetPasswordPage() {
         <div
           className="rounded-xl p-4 flex flex-col gap-3"
           style={{
-            background: 'rgba(15, 15, 15, 0.6)',
-            border: '1px solid rgba(42, 42, 42, 0.7)',
+            background: 'var(--abc-raised)',
+            border: '1px solid var(--abc-border)',
           }}
         >
           {sessionState === 'checking' ? (

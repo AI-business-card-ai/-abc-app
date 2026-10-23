@@ -81,7 +81,7 @@ export default function ChatListClient({ initialContacts = [] }: Props) {
                 width: '64px',
                 height: '64px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, rgba(240,25,125,0.2), rgba(0,212,212,0.2))',
+                background: 'linear-gradient(135deg, rgba(233,196,106,0.25), rgba(201,150,40,0.2))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

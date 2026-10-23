@@ -197,7 +197,7 @@ export default function PipelineClient({ initialContacts = [], userId }: Props) 
             <button
               type="button"
               onClick={() => setExportOpen((v) => !v)}
-              className="interactive rounded-xl px-3 py-2 text-xs font-semibold min-h-[40px] flex items-center gap-2"
+              className="interactive rounded-xl px-3 py-2 text-xs font-semibold min-h-[44px] flex items-center gap-2"
               style={{
                 background: 'transparent',
                 border: '1px solid var(--abc-border)',

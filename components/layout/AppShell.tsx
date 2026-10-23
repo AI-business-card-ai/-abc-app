@@ -37,6 +37,22 @@ const BARE_PATHS = [
   '/offline',
 ]
 
+/**
+ * The quiet background motif for a work page, or none.
+ *
+ * Home draws its own canvas, Settings and My Card stay plain, and Scan is a
+ * camera. Painted as <main>'s background (see `.abc-motif` in globals.css),
+ * so it can never cover content or trap a page's full-screen sheets.
+ */
+function motifFor(pathname: string): string | null {
+  if (pathname === '/contacts') return 'network'
+  if (pathname.startsWith('/contacts/')) return 'encounter'
+  if (pathname === '/follow-ups') return 'path'
+  if (pathname === '/pipeline') return 'progression'
+  if (pathname === '/events' || pathname.startsWith('/events/')) return 'arcs'
+  return null
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
@@ -61,6 +77,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
+  const motif = motifFor(pathname)
+  // The camera's viewfinder takes the dark palette on this route (globals.css).
+  const routeClass = pathname === '/scan' ? ' abc-scan-route' : ''
+
   return (
     <div className="flex min-h-screen bg-abc-bg">
       {/*
@@ -76,7 +96,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <AppHeader />
         <main
-          className="min-w-0 flex-1 lg:!pb-0"
+          className={`min-w-0 flex-1 lg:!pb-0${motif ? ` abc-motif abc-motif-${motif}` : ''}${routeClass}`}
           style={{ paddingBottom: CLEARS_MOBILE_NAV, paddingLeft: SAFE_LEFT, paddingRight: SAFE_RIGHT }}
         >
           {children}

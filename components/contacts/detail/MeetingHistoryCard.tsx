@@ -43,7 +43,7 @@ export default function MeetingHistoryCard({ contact }: { contact: ContactDetail
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="flex shrink-0 items-center gap-1.5 rounded-inner px-2.5 py-1.5 text-[13px] font-semibold text-abc-gold-accent transition-colors hover:bg-abc-raised abc-focus-ring"
+            className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-inner px-2.5 py-1.5 text-[13px] font-semibold text-abc-gold-accent transition-colors hover:bg-abc-raised abc-focus-ring"
           >
             <IconPlus size={15} stroke={1.9} />
             Add meeting

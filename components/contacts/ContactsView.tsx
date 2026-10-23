@@ -225,7 +225,7 @@ export default function ContactsView({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search contacts..."
                 aria-label="Search contacts"
-                className="h-12 w-full rounded-inner border border-abc-border bg-abc-card pl-11 pr-10 text-[16px] text-abc-text outline-none transition-colors duration-200 ease-abc placeholder:text-abc-muted focus:border-abc-gold-accent sm:text-[15px]"
+                className="h-12 min-h-[44px] w-full rounded-inner border border-abc-border bg-abc-card pl-11 pr-10 text-[16px] text-abc-text outline-none transition-colors duration-200 ease-abc placeholder:text-abc-muted focus:border-abc-gold-accent sm:text-[15px]"
               />
               {query ? (
                 <button
@@ -256,7 +256,7 @@ export default function ContactsView({
                         type="button"
                         onClick={() => setFilter(item.id)}
                         aria-pressed={active}
-                        className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring ${
+                        className={`min-h-[44px] min-w-[44px] shrink-0 whitespace-nowrap rounded-full border px-3.5 py-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc abc-focus-ring ${
                           active
                             ? 'border-transparent text-[#1a1205]'
                             : 'border-abc-border bg-abc-raised text-abc-secondary hover:border-abc-border-strong hover:text-abc-text'
@@ -275,7 +275,7 @@ export default function ContactsView({
                   value={eventFilter}
                   onChange={(e) => setEventFilter(e.target.value)}
                   aria-label="Filter by event"
-                  className="h-10 w-full shrink-0 rounded-full border border-abc-border bg-abc-raised px-3 text-[12.5px] text-abc-secondary outline-none transition-colors duration-200 ease-abc focus:border-abc-gold-accent sm:w-auto sm:max-w-[220px]"
+                  className="h-[44px] w-full shrink-0 rounded-full border border-abc-border bg-abc-raised px-3 text-[12.5px] text-abc-secondary outline-none transition-colors duration-200 ease-abc focus:border-abc-gold-accent sm:w-auto sm:max-w-[220px]"
                 >
                   <option value={ALL_EVENTS}>All events</option>
                   {events.map((event) => (

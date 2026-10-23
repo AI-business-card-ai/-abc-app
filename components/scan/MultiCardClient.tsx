@@ -745,11 +745,16 @@ function CaptureStage({
         aria-modal={immersive ? true : undefined}
         aria-label={immersive ? 'Multi-Card camera' : undefined}
         onKeyDown={immersive ? onSurfaceKey : undefined}
-        className={
+        /*
+          The camera stage is dark on purpose, in both modes, and its labels
+          read the dark palette with it (`abc-dark-context`) rather than the
+          workspace's charcoal ink.
+        */
+        className={`abc-dark-context ${
           immersive
             ? 'fixed inset-0 z-[200] h-[100dvh] w-full touch-none overflow-hidden overscroll-none'
             : 'relative min-h-0 flex-1 overflow-hidden rounded-card border border-abc-border'
-        }
+        }`}
         style={immersive ? IMMERSIVE_SURFACE_STYLE : { background: '#050506' }}
       >
         <div className="absolute inset-0">

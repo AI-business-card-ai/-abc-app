@@ -39,7 +39,7 @@ export default function SendConfirmDialog({ pending, onConfirm, onDismiss }: Pro
             type="button"
             onClick={onDismiss}
             className="w-full rounded-xl py-3 text-sm font-semibold"
-            style={{ background: '#242424', border: '1px solid var(--abc-border)', color: 'var(--abc-text-secondary)' }}
+            style={{ background: 'var(--abc-raised)', border: '1px solid var(--abc-border)', color: 'var(--abc-text-secondary)' }}
           >
             ✗ Not sent
           </button>

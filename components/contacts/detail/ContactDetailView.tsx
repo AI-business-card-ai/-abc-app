@@ -83,7 +83,7 @@ export default function ContactDetailView({
     <div className="mx-auto w-full max-w-[1100px] abc-page-top px-4 pb-10 sm:px-6 lg:px-8">
       <Link
         href="/contacts"
-        className="inline-flex items-center gap-1.5 rounded-inner py-1.5 text-[13.5px] font-medium text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
+        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-inner py-1.5 text-[13.5px] font-medium text-abc-secondary transition-colors hover:text-abc-text abc-focus-ring"
       >
         <IconChevronLeft size={17} stroke={2} />
         Contacts
@@ -259,7 +259,7 @@ export default function ContactDetailView({
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(true)}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-btn border border-abc-border text-[14px] font-medium transition-colors hover:border-abc-border-strong abc-focus-ring"
+                  className="inline-flex h-11 min-h-[44px] w-full items-center justify-center gap-2 rounded-btn border border-abc-border text-[14px] font-medium transition-colors hover:border-abc-border-strong abc-focus-ring"
                   style={{ color: 'var(--abc-overdue)' }}
                 >
                   <IconTrash size={16} stroke={1.8} />

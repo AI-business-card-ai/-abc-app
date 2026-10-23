@@ -14,6 +14,7 @@ import Avatar from '@/components/ui/abc/Avatar'
 import { useAppProfile } from '@/lib/hooks/useAppProfile'
 import { useFollowUpBadge } from '@/lib/hooks/useFollowUpBadge'
 import type { DashboardData } from '@/lib/dashboard-data'
+import type { MyCardData } from '@/lib/my-card-data'
 
 function greeting(now: Date): string {
   const hour = now.getHours()
@@ -48,7 +49,7 @@ function dateLine(now: Date): string {
  * Intelligence does today, so they live in that panel, with Expo Mission
  * inside it as the feature that is coming.
  */
-export default function Dashboard({ data }: { data: DashboardData }) {
+export default function Dashboard({ data, myCard = null }: { data: DashboardData; myCard?: MyCardData | null }) {
   const { profile } = useAppProfile()
   const dueCount = useFollowUpBadge()
 
@@ -61,9 +62,6 @@ export default function Dashboard({ data }: { data: DashboardData }) {
 
   return (
     <div className="abc-home mx-auto w-full max-w-[1520px] abc-page-top px-4 pb-10 sm:px-6 lg:!pt-5 lg:pb-4 lg:pl-5 lg:pr-6">
-      <div className="abc-home-light" aria-hidden="true" />
-      <HeaderThreads />
-
       {/* Desktop-only bar — mobile uses the global app header. */}
       <div className="hidden items-center justify-between gap-6 lg:flex">
         <HomeSearch />
@@ -134,7 +132,7 @@ export default function Dashboard({ data }: { data: DashboardData }) {
         </div>
 
         <div className="order-first min-w-0 min-[1360px]:order-none">
-          <MyCardCard card={data.card} />
+          <MyCardCard card={data.card} myCard={myCard} />
         </div>
 
         <div className="min-w-0">
@@ -194,29 +192,5 @@ function HomeSearch() {
         className="h-full min-w-0 flex-1 text-[15px] text-abc-text"
       />
     </form>
-  )
-}
-
-/** Fine gold threads sweeping across the top of Home, behind the header. */
-function HeaderThreads() {
-  return (
-    <svg className="abc-home-lines" viewBox="0 0 1100 300" preserveAspectRatio="none" fill="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="abc-home-thread" x1="0" y1="0" x2="1100" y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#c99628" stopOpacity="0" />
-          <stop offset="0.35" stopColor="#c99628" stopOpacity="0.55" />
-          <stop offset="0.75" stopColor="#e2b64e" stopOpacity="0.78" />
-          <stop offset="1" stopColor="#e2b64e" stopOpacity="0.2" />
-        </linearGradient>
-      </defs>
-      <g stroke="url(#abc-home-thread)" strokeWidth="1">
-        <path d="M0 22C300 12 520 122 760 112S1000 42 1120 72" vectorEffect="non-scaling-stroke" />
-        <path d="M80 2C360 32 560 152 800 142S1020 82 1120 112" vectorEffect="non-scaling-stroke" opacity="0.8" />
-        <path d="M200 -8C420 42 620 182 860 172S1040 122 1120 152" vectorEffect="non-scaling-stroke" opacity="0.65" />
-        <path d="M420 2C600 62 760 212 960 202S1080 172 1120 192" vectorEffect="non-scaling-stroke" opacity="0.5" />
-        <path d="M0 72C260 62 480 162 720 162S980 102 1120 132" vectorEffect="non-scaling-stroke" opacity="0.4" />
-        <path d="M560 -6C700 30 860 120 1000 108S1090 70 1120 52" vectorEffect="non-scaling-stroke" opacity="0.55" />
-      </g>
-    </svg>
   )
 }

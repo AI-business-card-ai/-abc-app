@@ -28,7 +28,7 @@ export default function ScanActionCard() {
           </Link>
         </header>
 
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col sm:justify-center">
           <div className="flex items-center gap-4 sm:mt-2 sm:flex-col sm:gap-0 sm:text-center">
             <ScanMotif />
             <div className="min-w-0 sm:mt-6">

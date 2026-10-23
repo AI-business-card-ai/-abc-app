@@ -94,7 +94,7 @@ export default function CardQrModal({ slug, open, onClose, name, company }: Prop
       role="dialog"
       aria-modal="true"
       aria-label="Your card QR code"
-      className="fixed inset-0 z-[210] flex flex-col"
+      className="abc-dark-context fixed inset-0 z-[210] flex flex-col"
       // Sideways, the notch sits over one edge: keep the close button and the
       // code clear of it. Zero upright.
       style={{ background: '#000000', paddingLeft: SAFE_LEFT, paddingRight: SAFE_RIGHT }}

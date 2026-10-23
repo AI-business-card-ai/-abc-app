@@ -140,7 +140,7 @@ export default function ActivityNotesCard({ contactId }: { contactId: string }) 
               type="button"
               onClick={() => setTab(id)}
               aria-pressed={isActive}
-              className={`-mb-px border-b-2 px-3 py-2.5 text-[13.5px] font-medium capitalize transition-colors duration-200 ease-abc abc-focus-ring ${
+              className={`-mb-px min-h-[44px] border-b-2 px-3 py-2.5 text-[13.5px] font-medium capitalize transition-colors duration-200 ease-abc abc-focus-ring ${
                 isActive
                   ? 'border-abc-gold-accent text-abc-text'
                   : 'border-transparent text-abc-secondary hover:text-abc-text'

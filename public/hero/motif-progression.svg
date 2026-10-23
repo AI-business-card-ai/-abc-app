@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 460" fill="none">
+  <!-- Pipeline: one line, left to right, five stages growing as they go —
+       New, Follow-up, Meeting, Deal, Won. -->
+  <defs>
+    <linearGradient id="f" x1="360" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a97d1c" stop-opacity="0"/>
+      <stop offset="0.35" stop-color="#a97d1c" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#a97d1c"/>
+    </linearGradient>
+  </defs>
+  <g opacity="0.17" stroke="url(#f)" stroke-width="1.1" stroke-linecap="round">
+    <path d="M380 330C560 330 760 300 900 250S1080 150 1160 128"/>
+    <path d="M560 326V392M720 306V392M860 262V392M990 202V392M1140 134V392" stroke-dasharray="2 6" opacity="0.7"/>
+    <circle cx="1140" cy="134" r="20"/>
+  </g>
+  <g opacity="0.22" fill="url(#f)">
+    <circle cx="560" cy="326" r="3.5"/>
+    <circle cx="720" cy="306" r="4.5"/>
+    <circle cx="860" cy="262" r="5.5"/>
+    <circle cx="990" cy="202" r="6.5"/>
+    <circle cx="1140" cy="134" r="8.5"/>
+  </g>
+</svg>

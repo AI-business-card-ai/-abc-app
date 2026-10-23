@@ -58,7 +58,7 @@ export function FieldRow({
         href={href}
         target={href.startsWith('http') ? '_blank' : undefined}
         rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
-        className="flex items-center gap-2.5 px-4 py-3 transition-colors duration-200 ease-abc hover:bg-abc-raised/60 abc-focus-ring"
+        className="flex min-h-[44px] items-center gap-2.5 px-4 py-3 transition-colors duration-200 ease-abc hover:bg-abc-raised/60 abc-focus-ring"
       >
         {body}
       </a>

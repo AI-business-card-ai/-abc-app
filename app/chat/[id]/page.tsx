@@ -183,7 +183,7 @@ export default function ChatDetailPage() {
                   <div
                     key={m.id}
                     style={{
-                      background: '#242424',
+                      background: 'var(--abc-raised)',
                       border: '1px solid var(--abc-border)',
                       borderLeft: `3px solid ${meta.color}`,
                       borderRadius: '8px',

@@ -5,42 +5,37 @@ import Link from 'next/link'
 import {
   IconChevronRight,
   IconId,
-  IconMail,
-  IconMapPin,
   IconPencil,
-  IconPhone,
   IconQrcode,
   IconShare,
   IconUser,
   IconWallet,
-  IconWorld,
 } from '@tabler/icons-react'
+import CardHero from '@/components/card/CardHero'
 import CardQrImage from '@/components/card/CardQrImage'
 import CardQrModal from '@/components/card/CardQrModal'
 import GoldTrace from '@/components/dashboard/GoldTrace'
-import { getCardThemeTokens, initialsFromName } from '@/lib/card/theme'
+import { getCardThemeTokens } from '@/lib/card/theme'
 import { CARD_PUBLIC_BASE } from '@/lib/card/types'
 import type { DashboardCard } from '@/lib/dashboard-data'
+import type { MyCardData } from '@/lib/my-card-data'
 
 /**
- * MY ABC — the owner's card, whole, with a QR someone can scan off the screen.
+ * MY ABC — the owner's real card, with a QR someone can scan off the screen.
  *
- * Not a preview tile. Home is presentation mode in miniature: the card is laid
- * on a glass showcase at the largest size the column allows, in the owner's
- * own theme and accent, with their portrait, their details and the real QR on
- * its white plate. Someone standing beside the laptop or phone can point a
- * camera at it without a tap.
+ * The card is drawn by CardHero, the same renderer /my-card, the card editor
+ * and the public card use, from the same getMyCard() data: the owner's own
+ * hero or portrait, cover, framing, logo, theme and accent. There is no second
+ * card design on Home to drift away from the real one. The frame around it is
+ * ABC's champagne; the card inside is theirs, so a graphite card stays
+ * graphite on the light workspace.
  *
- * Everything on the card comes from DashboardCard — the same profile row the
- * public card reads — and the QR is CardQrImage, from the one server route
- * that draws QRs. The frame is ABC's champagne; the card inside is theirs, so
- * a graphite card stays graphite on the light dashboard.
- *
- * The QR is only drawn for a published card. The QR route answers 404 for an
+ * The QR is CardQrImage, from the one server route that draws QRs, and it is
+ * only drawn for a published card. The QR route answers 404 for an
  * unpublished one, and a broken image where the QR should be is worse than an
  * honest line saying what to do.
  */
-export default function MyCardCard({ card }: { card: DashboardCard }) {
+export default function MyCardCard({ card, myCard }: { card: DashboardCard; myCard: MyCardData | null }) {
   const [qrOpen, setQrOpen] = useState(false)
   const [shareNote, setShareNote] = useState<string | null>(null)
 
@@ -104,7 +99,19 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
           </div>
         ) : (
           <div className="abc-showcase mt-3.5 flex flex-1 flex-col">
-            <HomeCard card={card} live={live} />
+            {myCard ? (
+              <OwnerCard myCard={myCard} slug={card.slug} live={live} />
+            ) : (
+              /* The card's data did not load. Say so and point at the page that
+                 shows it, rather than drawing an approximation of it here. */
+              <Link
+                href="/my-card"
+                className="flex min-h-[220px] flex-1 flex-col items-center justify-center gap-2 rounded-[15px] p-6 text-center abc-focus-ring"
+              >
+                <span className="text-[15px] font-semibold text-abc-text">Your card is on My Card</span>
+                <span className="text-[13px] text-abc-secondary">It could not be shown here just now.</span>
+              </Link>
+            )}
           </div>
         )}
 
@@ -173,118 +180,50 @@ export default function MyCardCard({ card }: { card: DashboardCard }) {
 }
 
 /**
- * The card itself, as the owner built it: their theme, accent, logo, portrait,
- * details and QR. Sizes inside are shares of the card's width (see .abc-hcard
- * in globals.css), so it keeps one composition from a phone to a wide desktop.
+ * The owner's card, drawn by the real renderer, with its QR underneath the
+ * identity — the place the card itself puts its own actions.
+ *
+ * The wrapper is the one CompactCardPreview gives CardHero (theme ground and
+ * border), so the card sits on Home exactly as it sits on /my-card. Only the
+ * recipient-facing parts of that preview — "Save contact" and the contact
+ * chips — are replaced, by the thing the owner needs here: the QR.
  */
-function HomeCard({ card, live }: { card: DashboardCard; live: boolean }) {
-  const t = getCardThemeTokens(card.theme)
-  const light = card.theme === 'light'
-
-  const details = [
-    card.phone ? { icon: IconPhone, value: card.phone, label: 'Phone' } : null,
-    card.email ? { icon: IconMail, value: card.email, label: 'Email' } : null,
-    card.location ? { icon: IconMapPin, value: card.location, label: 'Location' } : null,
-    card.website ? { icon: IconWorld, value: card.website, label: 'Website' } : null,
-  ].filter(Boolean) as { icon: typeof IconPhone; value: string; label: string }[]
+function OwnerCard({ myCard, slug, live }: { myCard: MyCardData; slug: string; live: boolean }) {
+  const t = getCardThemeTokens(myCard.card.theme)
 
   return (
     <Link
       href="/my-card"
-      aria-label={`Your ABC card, ${card.fullName}. Open My Card`}
-      className="abc-hcard abc-focus-ring"
-      data-theme={light ? 'light' : 'graphite'}
-      style={{ background: t.bg, color: t.text }}
+      aria-label={`Your ABC card, ${myCard.card.fullName}. Open My Card`}
+      className="block overflow-hidden rounded-[15px] border abc-focus-ring"
+      style={{ background: t.bg, borderColor: t.border }}
     >
-      {/* Card stock: a dotted world and two threads in the owner's accent. */}
-      <span
-        className="abc-hcard-map"
-        style={{ color: light ? '#000' : '#fff', opacity: light ? 0.07 : 0.13 }}
-        aria-hidden="true"
-      />
-      <svg
-        className="pointer-events-none absolute bottom-0 right-0 h-[46%] w-[78%]"
-        viewBox="0 0 280 140"
-        preserveAspectRatio="none"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path d="M0 132C70 128 150 106 200 70S262 14 290 0" stroke={card.accent} strokeOpacity="0.55" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-        <path d="M30 142C100 134 170 112 218 80S270 30 292 14" stroke={card.accent} strokeOpacity="0.3" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-        <path d="M80 146C140 138 196 122 236 96S278 56 296 40" stroke={card.accent} strokeOpacity="0.18" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-      </svg>
-
-      <div className="abc-hcard-body">
-        <div className="abc-hcard-main">
-          {card.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={card.logoUrl} alt={card.companyName || ''} className="abc-hcard-logo" />
-          ) : null}
-
-          <div className="abc-hcard-name truncate" style={{ color: t.text }}>
-            {card.fullName}
-          </div>
-          {card.jobTitle ? (
-            <div className="abc-hcard-role truncate" style={{ color: card.accent }}>
-              {card.jobTitle}
-            </div>
-          ) : null}
-          {card.companyName ? (
-            <div className="abc-hcard-company truncate" style={{ color: light ? t.secondary : t.text }}>
-              {card.companyName}
-            </div>
-          ) : null}
-
-          {details.length > 0 ? (
-            <div className="abc-hcard-details">
-              {details.map((detail) => (
-                <div key={detail.label} className="abc-hcard-detail" style={{ color: light ? t.secondary : '#e7e4de' }}>
-                  <detail.icon stroke={1.6} style={{ color: card.accent }} aria-hidden="true" />
-                  <span className="truncate">{detail.value}</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="abc-hcard-side">
-          <span
-            className="abc-hcard-portrait flex items-center justify-center"
-            style={{
-              background: t.surface2,
-              boxShadow: `0 0 0 2px ${card.accent}, 0 0 18px ${card.accent}55`,
-            }}
-          >
-            {card.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={card.photoUrl} alt="" className="h-full w-full object-cover" />
+      <CardHero card={myCard.card} size="compact">
+        <div className="mt-3 flex items-end justify-between gap-3">
+          {/* The address itself is on /my-card; here the QR is the point. */}
+          <p className="min-w-0 text-[12px] leading-[1.45]" style={{ color: t.secondary }}>
+            {live ? (
+              <>
+                Scan to save
+                <br />
+                this contact
+              </>
             ) : (
-              <span className="font-semibold" style={{ color: t.secondary, fontSize: 'max(14px, 7cqw)' }}>
-                {initialsFromName(card.fullName)}
-              </span>
+              'Publish your card to get its QR'
             )}
-          </span>
+          </p>
 
-          {/*
-            The same QR the fullscreen modal shows, from the same server route —
-            one generator, two sizes. It keeps its white plate whatever the card
-            theme is doing, because scanning is the whole job.
-          */}
-          {live && card.slug ? (
-            <div className="abc-hcard-qr">
-              <CardQrImage slug={card.slug} width="100%" size={512} className="!rounded-none !p-0" />
-              <span className="abc-hcard-qr-label">SCAN TO SAVE</span>
+          {live ? (
+            <div className="w-[42%] min-w-[112px] max-w-[150px] shrink-0 rounded-[12px] bg-white px-2 pb-1.5 pt-2 shadow-[0_8px_18px_-8px_rgba(0,0,0,0.45)]">
+              <CardQrImage slug={slug} width="100%" size={512} className="!rounded-none !p-0" />
+              <span className="mt-1 block text-center text-[9.5px] font-bold tracking-[0.06em] text-[#141414]">
+                SCAN TO SAVE
+              </span>
             </div>
-          ) : (
-            <span
-              className="block w-full rounded-[10px] border border-dashed p-2 text-center text-[11px] leading-[1.35]"
-              style={{ borderColor: t.border, color: t.secondary }}
-            >
-              Publish your card to show its QR here.
-            </span>
-          )}
+          ) : null}
         </div>
-      </div>
+        <div style={{ height: 16 }} aria-hidden="true" />
+      </CardHero>
     </Link>
   )
 }

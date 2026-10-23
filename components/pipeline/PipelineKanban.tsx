@@ -108,7 +108,7 @@ function PipelineKanbanCard({
       onKeyDown={(e) => e.key === 'Enter' && router.push(`/contacts/${contact.id}`)}
       className="interactive rounded-xl p-3 cursor-pointer"
       style={{
-        background: '#242424',
+        background: 'var(--abc-raised)',
         border: `1px solid ${stageColor}33`,
       }}
     >
@@ -140,7 +140,7 @@ function PipelineKanbanCard({
               e.stopPropagation()
               onMoveNext(contact, nextStage)
             }}
-            className="interactive text-[10px] font-semibold px-2 py-1 rounded-md shrink-0"
+            className="interactive flex min-h-[44px] items-center text-[10px] font-semibold px-2 py-1 rounded-md shrink-0"
             style={{
               background: `${stageColor}18`,
               color: stageColor,

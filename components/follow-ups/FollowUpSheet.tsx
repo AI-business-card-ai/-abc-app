@@ -261,7 +261,7 @@ export default function FollowUpSheet({
                     disabled={!usable}
                     aria-pressed={isActive}
                     title={usable ? item2.label : `No ${item2.label.toLowerCase()} details saved`}
-                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc disabled:opacity-35 abc-focus-ring ${
+                    className={`flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-[12.5px] font-medium transition-colors duration-200 ease-abc disabled:opacity-35 abc-focus-ring ${
                       isActive
                         ? 'border-transparent text-[#1a1205]'
                         : 'border-abc-border bg-abc-raised text-abc-secondary hover:border-abc-border-strong hover:text-abc-text'

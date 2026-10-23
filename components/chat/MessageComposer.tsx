@@ -399,7 +399,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
               padding: '6px 12px',
               borderRadius: '8px',
               border: '1px solid var(--abc-border)',
-              background: '#242424',
+              background: 'var(--abc-raised)',
               color: 'var(--abc-text)',
               fontSize: '12px',
               fontWeight: 600,
@@ -647,7 +647,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
                             padding: '10px 14px',
                             borderRadius: '8px',
                             border: '1px solid var(--abc-border)',
-                            background: '#242424',
+                            background: 'var(--abc-raised)',
                             color: 'var(--abc-text)',
                             fontSize: '13px',
                             fontWeight: 600,
@@ -680,7 +680,7 @@ export default function MessageComposer({ contact, googleConnected: googleConnec
             height: 44,
             borderRadius: 999,
             background: 'var(--accent-gradient)',
-            boxShadow: '0 4px 20px rgba(240, 25, 125, 0.35)',
+            boxShadow: '0 4px 20px rgba(201, 150, 40, 0.35)',
             overflow: 'hidden',
           }}
         >
