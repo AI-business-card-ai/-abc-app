@@ -744,9 +744,18 @@ a,
   }
 }
 
-/* Skeleton shimmer — perceived speed on route transitions */
+/*
+  Skeleton shimmer — perceived speed on route transitions.
+
+  Every loading.tsx draws these, and Next prefetches those loading states, so a
+  skeleton is what fills the screen for the whole time a page renders on the
+  server. It takes the workspace token rather than a colour of its own: the old
+  #1a1a1a outlived the dark app and turned every navigation into a run of black
+  rectangles on the champagne page. Inside a contextual dark scope the token is
+  dark again, which is right there.
+*/
 .skeleton-block {
-  background: #1a1a1a;
+  background: var(--abc-raised);
   position: relative;
   overflow: hidden;
 }
@@ -758,9 +767,9 @@ a,
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(20, 20, 20, 0.03) 45%,
-    rgba(20, 20, 20, 0.06) 50%,
-    rgba(20, 20, 20, 0.03) 55%,
+    rgba(255, 252, 244, 0.45) 40%,
+    rgba(255, 252, 244, 0.85) 50%,
+    rgba(255, 252, 244, 0.45) 60%,
     transparent 100%
   );
   animation: skeleton-shimmer 1.4s ease-in-out infinite;

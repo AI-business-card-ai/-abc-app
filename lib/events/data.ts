@@ -73,7 +73,13 @@ async function fetchAllEncounters(
   return rows
 }
 
-/** `.in()` on thousands of ids is one enormous URL; ask in chunks instead. */
+/**
+ * `.in()` on thousands of ids is one enormous URL; ask in chunks instead.
+ *
+ * The chunks are independent reads, so they go out together and are folded in
+ * chunk order afterwards — same result as one after another, without a full
+ * database round trip per 200 meetings on a large account.
+ */
 function chunk<T>(values: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < values.length; i += size) out.push(values.slice(i, i + size))
@@ -87,13 +93,17 @@ async function fetchPeople(
 ): Promise<Map<string, WorkspacePerson>> {
   const people = new Map<string, WorkspacePerson>()
 
-  for (const ids of chunk(contactIds, 200)) {
-    const { data, error } = await supabase
-      .from('scanned_contacts')
-      .select('id, name, company, role')
-      .eq('user_id', ownerId)
-      .in('id', ids)
+  const results = await Promise.all(
+    chunk(contactIds, 200).map((ids) =>
+      supabase
+        .from('scanned_contacts')
+        .select('id, name, company, role')
+        .eq('user_id', ownerId)
+        .in('id', ids)
+    )
+  )
 
+  for (const { data, error } of results) {
     if (error) {
       console.error('[events] contact query failed:', error.code ?? 'unknown')
       continue
@@ -126,14 +136,18 @@ async function fetchCrmByEncounter(
 ): Promise<Map<string, string[]>> {
   const byEncounter = new Map<string, string[]>()
 
-  for (const ids of chunk(encounterIds, 200)) {
-    const { data, error } = await supabase
-      .from('crm_object_mappings')
-      .select('local_object_id, provider')
-      .eq('user_id', ownerId)
-      .eq('local_object_type', 'encounter')
-      .in('local_object_id', ids)
+  const results = await Promise.all(
+    chunk(encounterIds, 200).map((ids) =>
+      supabase
+        .from('crm_object_mappings')
+        .select('local_object_id, provider')
+        .eq('user_id', ownerId)
+        .eq('local_object_type', 'encounter')
+        .in('local_object_id', ids)
+    )
+  )
 
+  for (const { data, error } of results) {
     if (error) {
       console.error('[events] crm mapping query failed:', error.code ?? 'unknown')
       continue

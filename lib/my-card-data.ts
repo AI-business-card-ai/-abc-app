@@ -36,23 +36,19 @@ export async function getMyCard(): Promise<MyCardData | null> {
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: profileRow, error } = await supabase
-    .from('abc_profiles')
-    .select(PROFILE_SAFE_COLUMNS)
-    .eq('id', user.id)
-    .maybeSingle()
-
-  // Cast once, here: the column list is a runtime constant, so supabase-js cannot
-  // infer the row shape from it the way it does for a literal select string.
-  const profile = profileRow as unknown as Record<string, unknown> | null
-
-  if (error) {
-    console.error('[my-card] profile load failed:', error)
-    return null
-  }
-  if (!profile) return null
-
-  const [{ data: links }, { data: events }, showcase] = await Promise.all([
+  /*
+    One round trip, not two. Every read below is keyed by the user id alone, so
+    none of them waits on the profile. They used to start only once the profile
+    had arrived, which put a second full database round trip on My Card and on
+    Home (which loads this card beside its dashboard) for every navigation.
+    The profile is still checked first, before anything is built from the rest.
+  */
+  const [{ data: profileRow, error }, { data: links }, { data: events }, showcase] = await Promise.all([
+    supabase
+      .from('abc_profiles')
+      .select(PROFILE_SAFE_COLUMNS)
+      .eq('id', user.id)
+      .maybeSingle(),
     supabase
       .from('card_links')
       .select('*')
@@ -68,6 +64,16 @@ export async function getMyCard(): Promise<MyCardData | null> {
     // owner their card page.
     loadShowcaseItems(supabase, user.id),
   ])
+
+  // Cast once, here: the column list is a runtime constant, so supabase-js cannot
+  // infer the row shape from it the way it does for a literal select string.
+  const profile = profileRow as unknown as Record<string, unknown> | null
+
+  if (error) {
+    console.error('[my-card] profile load failed:', error)
+    return null
+  }
+  if (!profile) return null
 
   const card = mapProfileToCardData(
     // Cast through unknown: the column list is a runtime constant, so supabase-js
