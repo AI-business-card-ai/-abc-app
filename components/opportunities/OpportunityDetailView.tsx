@@ -19,7 +19,7 @@ import {
 import CrmPushCard from '@/components/contacts/detail/CrmPushCard'
 import { CardTitle, FIELD_LABEL_CLASS, INPUT_CLASS } from '@/components/contacts/detail/parts'
 import NextActionFields, { EMPTY_DRAFT, type NextActionDraft } from '@/components/opportunities/NextActionFields'
-import { ACTION_ICON, DueLabel, InlineError, InteractionLine, Notice, StageChip } from '@/components/opportunities/parts'
+import { ACTION_ICON, CURRENCY_SELECT_CLASS, DueLabel, InlineError, InteractionLine, Notice, StageChip } from '@/components/opportunities/parts'
 import Avatar from '@/components/ui/abc/Avatar'
 import Button from '@/components/ui/abc/Button'
 import { relativeDay } from '@/lib/format-date'
@@ -506,7 +506,7 @@ export default function OpportunityDetailView({
                       placeholder="e.g. 12000"
                       className={`${INPUT_CLASS} h-11 min-h-[44px] min-w-0 flex-1`}
                     />
-                    <select aria-label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value as Currency)} className={`${INPUT_CLASS} h-11 min-h-[44px] w-[96px] shrink-0`}>
+                    <select aria-label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value as Currency)} className={CURRENCY_SELECT_CLASS}>
                       {CURRENCIES.map((c) => (
                         <option key={c} value={c}>
                           {c}

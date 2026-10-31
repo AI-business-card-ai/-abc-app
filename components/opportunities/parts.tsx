@@ -13,6 +13,7 @@ import {
   IconUsers,
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
+import { INPUT_CLASS } from '@/components/contacts/detail/parts'
 import { bucketFor } from '@/lib/followups'
 import { dueDateLabel, relativeDay } from '@/lib/format-date'
 import {
@@ -39,6 +40,13 @@ export const INTERACTION_ICON: Record<Interaction['kind'], TablerIcon> = {
 }
 
 export const MISSING_ICON = IconTargetArrow
+
+/**
+ * The currency picker beside an amount. The shared field style is full width,
+ * which beside a flexible amount field squeezed the amount to a sliver on a
+ * phone; this keeps the look and drops the width.
+ */
+export const CURRENCY_SELECT_CLASS = `${INPUT_CLASS.replace('w-full ', '')} h-11 min-h-[44px] w-[96px] shrink-0`
 
 export function StageChip({ stage, className = '' }: { stage: OpportunityStage; className?: string }) {
   const tone = STAGE_TONE[stage]

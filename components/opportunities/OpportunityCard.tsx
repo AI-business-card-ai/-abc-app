@@ -83,10 +83,13 @@ export default function OpportunityCard({
         )}
       </Link>
 
-      <div className="flex items-center justify-end border-t border-abc-border px-2.5 py-1.5">
+      <div className="flex items-center justify-between border-t border-abc-border py-1.5 pl-3.5 pr-2.5">
+        <span className="text-[11.5px] font-medium uppercase tracking-[0.06em] text-abc-muted" aria-hidden="true">
+          Stage
+        </span>
         <label className="relative inline-flex items-center">
-          <span className="sr-only">Move {person.name} to another stage</span>
           <select
+            aria-label={`Stage of ${person.name}'s opportunity — move it`}
             value={opportunity.stage}
             disabled={moving}
             onChange={(e) => onMove(opportunity.id, e.target.value as OpportunityStage)}

@@ -175,7 +175,10 @@ function PersonRow({ row }: { row: PeopleRow }) {
             </span>
           ) : null}
         </span>
-        <IconChevronRight size={17} stroke={1.8} className="mt-3 shrink-0 text-abc-muted sm:hidden" aria-hidden="true" />
+        {/* Only where nothing sits beside it — next to a stage chip it read as a stray mark. */}
+        {opportunity ? null : (
+          <IconChevronRight size={17} stroke={1.8} className="mt-3 shrink-0 text-abc-muted sm:hidden" aria-hidden="true" />
+        )}
       </Link>
       {opportunity ? (
         <Link

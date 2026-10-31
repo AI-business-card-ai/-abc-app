@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { IconMapPin, IconMessage2, IconX } from '@tabler/icons-react'
 import { FIELD_LABEL_CLASS, INPUT_CLASS } from '@/components/contacts/detail/parts'
 import NextActionFields, { EMPTY_DRAFT, type NextActionDraft } from '@/components/opportunities/NextActionFields'
-import { InlineError } from '@/components/opportunities/parts'
+import { CURRENCY_SELECT_CLASS, InlineError } from '@/components/opportunities/parts'
 import Avatar from '@/components/ui/abc/Avatar'
 import Button from '@/components/ui/abc/Button'
 import { relativeDay } from '@/lib/format-date'
@@ -149,7 +149,7 @@ export default function CreateOpportunitySheet({
                 aria-label="Currency"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value as Currency)}
-                className={`${INPUT_CLASS} h-11 min-h-[44px] w-[96px] shrink-0`}
+                className={CURRENCY_SELECT_CLASS}
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>

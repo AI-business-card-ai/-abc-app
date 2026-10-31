@@ -224,9 +224,9 @@ export default function PipelineBoard({
               </div>
             </div>
 
-            <div className="mt-3 flex flex-col gap-3" role="tabpanel" aria-label={STAGE_LABEL[active]}>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2" role="tabpanel" aria-label={STAGE_LABEL[active]}>
               {byStage[active].length === 0 ? (
-                <p className="rounded-inner border border-dashed border-abc-border px-4 py-8 text-center text-[13px] text-abc-muted">
+                <p className="md:col-span-2 rounded-inner border border-dashed border-abc-border px-4 py-8 text-center text-[13px] text-abc-muted">
                   Nothing in {STAGE_LABEL[active]}.
                 </p>
               ) : (
