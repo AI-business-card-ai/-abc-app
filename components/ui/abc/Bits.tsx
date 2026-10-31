@@ -73,6 +73,24 @@ export function IconTile({
   const cls =
     'flex min-h-[62px] min-w-0 flex-1 flex-col items-center justify-center rounded-inner border border-abc-border bg-abc-raised px-0.5 py-2.5 transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring disabled:opacity-40 disabled:pointer-events-none'
 
+  /*
+    An /api/ route is an action, not a page, so it gets a plain anchor.
+
+    Next's <Link> prefetches what it points at as soon as it is on screen, and
+    a click on it first fetches the URL as a page payload before falling back
+    to a real navigation. For the Contact Detail "Save contact" tile that meant
+    the vCard route ran — and logged "Saved to phone" — whenever the page was
+    merely opened, and twice when it was tapped. A plain anchor requests it
+    once, only when tapped; My Card's own vCard button already works this way.
+  */
+  if (href && !disabled && href.startsWith('/api/')) {
+    return (
+      <a href={href} className={cls} title={title || label} aria-label={label}>
+        {inner}
+      </a>
+    )
+  }
+
   // aria-label keeps the action named even when the visible label is hidden.
   if (href && !disabled) {
     return (

@@ -80,6 +80,7 @@ const code = (rel: string) =>
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
     .replace(/^\s*\/\/.*$/gm, '')
+const flatCode = (rel: string) => code(rel).replace(/\s+/g, ' ')
 function files(dir: string, out: string[] = []): string[] {
   if (!exists(dir)) return out
   for (const entry of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
@@ -635,6 +636,30 @@ async function run() {
     [true, false]
   )
   check('G14 meeting follow-ups are completed through the follow-up route, not rewritten', [code('components/opportunities/NextView.tsx').includes("fetch('/api/follow-ups'"), shipped.filter((f) => f.startsWith('app/api/crm/opportunities') && /contact_encounters/.test(code(f)))], [true, []])
+
+  /*
+    Relationship history must only record what happened. The vCard route logs
+    "Saved to phone" on every GET, so it may only be reached by a tap: a
+    prefetching <Link> to it logged the activity whenever Contact Detail opened.
+  */
+  const bits = flatCode('components/ui/abc/Bits.tsx')
+  check(
+    'G15 IconTile sends /api/ routes through a plain anchor, before the prefetching <Link>',
+    [
+      /if \(href && !disabled && href\.startsWith\('\/api\/'\)\) \{ return \( <a href=\{href\}/.test(bits),
+      bits.indexOf("href.startsWith('/api/')") > -1 && bits.indexOf("href.startsWith('/api/')") < bits.indexOf('<Link href={href}'),
+    ],
+    [true, true]
+  )
+  check(
+    'G16 the Save contact tile is that IconTile, and no <Link> anywhere points at an /api/ route',
+    [
+      /<IconTile[^>]*?href=\{`\/api\/contact\/vcard\/\$\{contact\.id\}`\}/.test(flatCode('components/contacts/detail/ContactDetailView.tsx')),
+      shipped.filter((f) => /<Link[^>]*?\bhref=\{?\s*[`'"]\/api\//.test(flatCode(f))),
+    ],
+    [true, []]
+  )
+  check('G17 the vCard route still records the save it serves', code('app/api/contact/vcard/[id]/route.ts').includes('onVCardSaved(contact.id, user.id)'), true)
 
   const total = passed + failures.length
   if (failures.length) {
