@@ -3,6 +3,7 @@ import { capturePhrase } from '@/lib/contacts-view'
 import { createServerComponentClient } from '@/lib/supabase-server'
 import { getCrmConnectionStatus, type CrmProvider } from '@/lib/crm/connections'
 import { CRM_PROVIDERS } from '@/lib/crm/providers'
+import { toOpportunity, type Opportunity } from '@/lib/opportunities/model'
 
 /**
  * Everything the rebuilt contact detail renders.
@@ -121,6 +122,14 @@ export type CrmConnections = Record<CrmProvider, CrmConnectionSummary>
 export type ContactDetailData = {
   contact: ContactDetail
   crm: CrmConnections
+  /** This person's opportunity in ABC CRM, if the owner opened one. */
+  opportunity: Opportunity | null
+  /**
+   * False when opportunities could not be read — the table missing on a
+   * database that has not received its migration, or a failed read. The
+   * screen then offers nothing rather than a Create button that cannot work.
+   */
+  opportunityAvailable: boolean
 }
 
 function clean(value: unknown): string | null {
@@ -144,7 +153,7 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const [contactRes, encounterRes, connectionStatuses] = await Promise.all([
+  const [contactRes, encounterRes, connectionStatuses, opportunityRes] = await Promise.all([
     supabase
       .from('scanned_contacts')
       .select(CONTACT_COLUMNS)
@@ -181,6 +190,14 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
       forgotten here the way the third one was.
     */
     Promise.all(CRM_PROVIDERS.map((p) => getCrmConnectionStatus(user.id, p.id))),
+    // Beside the reads above, not after them: Create / View opportunity costs no extra wave.
+    supabase
+      .from('crm_opportunities')
+      .select('*')
+      .eq('contact_id', id)
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(1),
   ])
 
   const row = contactRes.data as Record<string, unknown> | null
@@ -232,6 +249,10 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
         followUpAt: clean(e.follow_up_at),
       })),
     },
+    opportunity: opportunityRes.error
+      ? null
+      : (((opportunityRes.data as Record<string, unknown>[] | null) ?? []).map(toOpportunity)[0] ?? null),
+    opportunityAvailable: !opportunityRes.error,
     crm: Object.fromEntries(
       connectionStatuses.map((s) => [
         s.provider,

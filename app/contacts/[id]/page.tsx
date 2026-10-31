@@ -39,5 +39,12 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
     )
   }
 
-  return <ContactDetailView contact={data.contact} crm={data.crm} />
+  return (
+    <ContactDetailView
+      contact={data.contact}
+      crm={data.crm}
+      opportunity={data.opportunity}
+      opportunityAvailable={data.opportunityAvailable}
+    />
+  )
 }

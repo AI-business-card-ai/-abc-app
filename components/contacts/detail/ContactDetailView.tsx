@@ -24,12 +24,14 @@ import MeetingHistoryCard from '@/components/contacts/detail/MeetingHistoryCard'
 import CrmPushCard from '@/components/contacts/detail/CrmPushCard'
 import SmartFollowUpCard from '@/components/contacts/detail/SmartFollowUpCard'
 import { CardTitle, ErrorNote, FieldRow } from '@/components/contacts/detail/parts'
+import ContactOpportunityCard from '@/components/opportunities/ContactOpportunityCard'
 import Avatar from '@/components/ui/abc/Avatar'
 import Button from '@/components/ui/abc/Button'
 import { IconTile } from '@/components/ui/abc/Bits'
 import { formatWhatsAppPhone } from '@/lib/outreach-composers'
 import { CRM_PROVIDERS, crmStatusLabel } from '@/lib/crm/providers'
 import type { ContactDetail, CrmConnections } from '@/lib/contact-detail'
+import type { Opportunity } from '@/lib/opportunities/model'
 
 function scannedLine(contact: ContactDetail): string | null {
   const parts: string[] = []
@@ -46,9 +48,13 @@ function scannedLine(contact: ContactDetail): string | null {
 export default function ContactDetailView({
   contact: initial,
   crm,
+  opportunity = null,
+  opportunityAvailable = false,
 }: {
   contact: ContactDetail
   crm: CrmConnections
+  opportunity?: Opportunity | null
+  opportunityAvailable?: boolean
 }) {
   const router = useRouter()
   const [contact, setContact] = useState(initial)
@@ -132,6 +138,11 @@ export default function ContactDetailView({
           label="Save contact"
           href={`/api/contact/vcard/${contact.id}`}
         />
+      </div>
+
+      {/* A person is not a deal until the owner says so — create one, or open the one there is. */}
+      <div className="mt-4">
+        <ContactOpportunityCard contact={contact} opportunity={opportunity} available={opportunityAvailable} />
       </div>
 
       {error ? <div className="mt-4"><ErrorNote>{error}</ErrorNote></div> : null}
