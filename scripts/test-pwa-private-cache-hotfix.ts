@@ -138,6 +138,9 @@ const PRIVATE_SCREENS = [
   '/settings/billing',
   '/chat/7f1c',
   '/pipeline',
+  '/crm',
+  '/crm/people',
+  '/crm/opportunities/7f1c',
   '/onboarding',
   '/pricing/success?session_id=cs_test',
 ]
