@@ -26,9 +26,9 @@ type Metric = { icon: TablerIcon; label: string; value: number; href: string }
  *
  * Every figure here is counted, never estimated:
  *   Events                event workspaces grouped from your encounters
- *   Active opportunities  contacts in the pipeline past "new", not won or lost
+ *   Open opportunities    deals you opened in ABC CRM, not won or lost
  *   Total connections     your contacts
- * When the pipeline count cannot be read the tile is left out rather than
+ * When the opportunity count cannot be read the tile is left out rather than
  * shown as zero. Nothing here forecasts, scores or predicts — that would be
  * the intelligence that is not built yet.
  */
@@ -51,7 +51,7 @@ export default function EventsCard({
     { icon: IconUsersGroup, label: 'Events', value: eventsTotal, href: '/events' },
     ...(opportunities === null
       ? []
-      : [{ icon: IconChartBar, label: 'Active opportunities', value: opportunities, href: '/pipeline' }]),
+      : [{ icon: IconChartBar, label: 'Open opportunities', value: opportunities, href: '/crm' }]),
     { icon: IconTrendingUp, label: 'Total connections', value: contactsTotal, href: '/contacts' },
   ]
 

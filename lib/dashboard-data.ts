@@ -2,7 +2,6 @@ import { createServerComponentClient } from '@/lib/supabase-server'
 import type { CardTheme } from '@/lib/card/types'
 import { bucketFollowUps, type FollowUpBuckets } from '@/lib/followups'
 import { groupEncountersIntoEvents, type EventSummary } from '@/lib/events/workspace'
-import type { PipelineStageId } from '@/lib/pipeline'
 
 export type DashboardContact = {
   id: string
@@ -54,15 +53,12 @@ export type DashboardData = {
   /** Every event workspace the owner has, not just the three above. */
   eventsTotal: number
   /**
-   * Contacts moving through the pipeline: past "new" and not yet won or lost.
-   * Null when the count could not be read, so Home leaves the figure out
+   * Open opportunities in ABC CRM: deals the owner created, not yet won or
+   * lost. Null when the count could not be read, so Home leaves the figure out
    * rather than printing a zero it does not know.
    */
   opportunities: number | null
 }
-
-/** The pipeline stages that count as an opportunity still in play. */
-const OPEN_PIPELINE_STAGES: PipelineStageId[] = ['follow-up', 'meeting', 'deal']
 
 function firstNameOf(fullName: string | null, email: string | null): string {
   const name = (fullName || '').trim()
@@ -128,12 +124,17 @@ export async function getDashboardData(): Promise<DashboardData | null> {
       .order('met_at', { ascending: false })
       .limit(1000),
 
-    // A count only — the pipeline board is where the deals themselves are read.
+    /*
+      A count only — the CRM is where the deals themselves are read. It counts
+      opportunities the owner opened, not contacts: the old figure read the
+      contact-level pipeline stage, which the CRM engine advances on its own
+      when a message is sent.
+    */
     supabase
-      .from('scanned_contacts')
+      .from('crm_opportunities')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .in('pipeline_stage', OPEN_PIPELINE_STAGES),
+      .not('stage', 'in', '(won,lost)'),
   ])
 
   const profile = profileRes.data

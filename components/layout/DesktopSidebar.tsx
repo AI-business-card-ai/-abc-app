@@ -4,10 +4,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   IconCalendarCheck,
-  IconChartBar,
   IconChevronRight,
   IconHome,
   IconId,
+  IconLayoutKanban,
   IconScan,
   IconSend,
   IconSettings,
@@ -37,12 +37,12 @@ const PRIMARY: NavItem[] = [
 
   Integrations is not listed here either. It is a settings subsection, at
   /settings/integrations, reached through the Settings hub — the nav lists
-  destinations, not the categories inside one. Pipeline is preserved but
-  demoted.
+  destinations, not the categories inside one. CRM took Pipeline's place:
+  the board is its default tab, and /pipeline redirects there.
 */
 const SECONDARY: NavItem[] = [
   { icon: IconCalendarCheck, label: 'Event & Expo Intelligence', path: '/events' },
-  { icon: IconChartBar, label: 'Pipeline', path: '/pipeline' },
+  { icon: IconLayoutKanban, label: 'CRM', path: '/crm' },
   { icon: IconSettings, label: 'Settings', path: '/settings' },
 ]
 

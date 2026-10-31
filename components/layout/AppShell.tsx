@@ -48,7 +48,7 @@ function motifFor(pathname: string): string | null {
   if (pathname === '/contacts') return 'network'
   if (pathname.startsWith('/contacts/')) return 'encounter'
   if (pathname === '/follow-ups') return 'path'
-  if (pathname === '/pipeline') return 'progression'
+  if (pathname === '/crm' || pathname.startsWith('/crm/')) return 'progression'
   if (pathname === '/events' || pathname.startsWith('/events/')) return 'arcs'
   return null
 }

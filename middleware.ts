@@ -86,6 +86,7 @@ export async function middleware(req: NextRequest) {
     '/settings',
     '/profile',
     '/pipeline',
+    '/crm',
     '/onboarding',
     '/dashboard',
   ]
