@@ -27,6 +27,7 @@ const ACTIVITY_ICONS: Record<ActivityType, string> = {
   DEAL_WON: '🏆',
   FOLLOWUP_COMPLETED: '✅',
   FOLLOWUP_SNOOZED: '⏰',
+  NEXT_ACTION_DONE: '✅',
 }
 
 function formatWhen(iso: string) {

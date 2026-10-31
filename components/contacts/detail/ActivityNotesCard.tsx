@@ -40,6 +40,7 @@ const ICONS: Record<string, { icon: TablerIcon; label: string }> = {
   EXPORTED_CSV: { icon: IconDatabaseExport, label: 'Exported' },
   FOLLOWUP_COMPLETED: { icon: IconCheck, label: 'Follow-up completed' },
   FOLLOWUP_SNOOZED: { icon: IconClockPause, label: 'Follow-up moved' },
+  NEXT_ACTION_DONE: { icon: IconCheck, label: 'Next step done' },
 }
 
 function describe(item: Activity) {

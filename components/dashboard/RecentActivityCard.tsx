@@ -29,6 +29,7 @@ const ACTIVITY: Record<string, { icon: TablerIcon; label: string }> = {
   VCARD_SAVED: { icon: IconDeviceFloppy, label: 'Saved to phone' },
   EXPORTED_CSV: { icon: IconDatabaseExport, label: 'Exported' },
   DEAL_WON: { icon: IconSparkles, label: 'Deal won' },
+  NEXT_ACTION_DONE: { icon: IconArrowsExchange, label: 'Next step done' },
 }
 
 function describe(item: DashboardActivity) {

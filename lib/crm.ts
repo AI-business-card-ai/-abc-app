@@ -21,6 +21,8 @@ export type ActivityType =
   | 'FOLLOWUP_SNOOZED'
   // Explicit CRM push. Written only after the provider confirms, never before.
   | 'CRM_EXPORT'
+  // ABC CRM: an opportunity's own next step marked done. Not a status transition.
+  | 'NEXT_ACTION_DONE'
 
 export type CrmStatus =
   | 'NEW'
