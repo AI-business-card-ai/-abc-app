@@ -19,9 +19,14 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
  * across cards and clamped to 8–12 s a lap; `phase` staggers cards so they
  * never move in step.
  *
+ * At rest the light is still. It only runs on a card under the pointer or
+ * holding keyboard focus (see globals.css): a dash animation repaints the whole
+ * card on the main thread every frame, and five running all the time kept Home's
+ * main thread busy with nobody touching it and made scrolling stutter. Phones
+ * have no hover, so there it stays a still gold highlight.
+ *
  * Reduced motion: the animation is removed in CSS and the same segments stay
  * parked across the top-left corner — a still gold highlight, not a gap.
- * Off-screen cards pause, so a long page is not repainting what nobody sees.
  */
 export default function GoldTrace({
   radius = 24,
@@ -36,7 +41,6 @@ export default function GoldTrace({
 }) {
   const ref = useRef<SVGSVGElement>(null)
   const [box, setBox] = useState<{ w: number; h: number } | null>(null)
-  const [visible, setVisible] = useState(true)
   const gid = useId().replace(/:/g, '')
 
   useEffect(() => {
@@ -53,12 +57,7 @@ export default function GoldTrace({
       })
     })
     resize.observe(el)
-    const seen = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting))
-    seen.observe(el)
-    return () => {
-      resize.disconnect()
-      seen.disconnect()
-    }
+    return () => resize.disconnect()
   }, [])
 
   const stroke = 1.5
@@ -101,7 +100,6 @@ export default function GoldTrace({
       aria-hidden="true"
       focusable="false"
       className={`abc-trace ${className}`}
-      data-paused={visible ? undefined : ''}
       style={
         {
           '--abc-trace-dur': `${duration.toFixed(2)}s`,

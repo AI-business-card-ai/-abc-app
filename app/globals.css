@@ -5942,17 +5942,10 @@ body:has(.pub-root) {
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
     0 1px 2px rgba(74, 52, 12, 0.04),
     0 20px 44px -26px rgba(120, 86, 22, 0.28);
-  transition:
-    border-color 260ms var(--abc-ease),
-    box-shadow 260ms var(--abc-ease);
 }
 @media (hover: hover) {
   .abc-dash-card:hover {
     border-color: rgba(201, 150, 40, 0.34);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.95),
-      0 1px 2px rgba(74, 52, 12, 0.05),
-      0 26px 52px -26px rgba(120, 86, 22, 0.36);
   }
 }
 /* Decoration inside a card is clipped here, so the card itself can stay
@@ -5988,9 +5981,15 @@ body:has(.pub-root) {
   stroke-dashoffset: var(--abc-trace-from);
   animation: abc-trace-run var(--abc-trace-dur, 10s) linear infinite;
   animation-delay: var(--abc-trace-delay, 0s);
-}
-.abc-trace[data-paused] .abc-trace-seg {
+  /* Still until a pointer or keyboard focus is on the card: this repaints the
+     whole card every frame, so it cannot run while the page is being scrolled. */
   animation-play-state: paused;
+}
+@media (hover: hover) {
+  .abc-dash-card:hover > .abc-trace .abc-trace-seg,
+  .abc-dash-card:focus-within > .abc-trace .abc-trace-seg {
+    animation-play-state: running;
+  }
 }
 @keyframes abc-trace-run {
   from {
@@ -6057,12 +6056,10 @@ body:has(.pub-root) {
   border: 1px solid rgba(201, 150, 40, 0.16);
   background: linear-gradient(180deg, rgba(255, 253, 248, 0.92), rgba(251, 245, 233, 0.78));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(74, 52, 12, 0.04);
-  transition: border-color 200ms var(--abc-ease), box-shadow 200ms var(--abc-ease);
 }
 a.abc-dash-well:hover,
 button.abc-dash-well:hover {
   border-color: rgba(201, 150, 40, 0.34);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 18px -12px rgba(120, 86, 22, 0.35);
 }
 .abc-dash-search {
   border: 1px solid rgba(201, 150, 40, 0.18);
@@ -6106,9 +6103,17 @@ button.abc-dash-well:hover {
 
 /* ---- Scan motif ---- */
 .abc-scan-orbit {
-  transform-box: fill-box;
   transform-origin: center;
   animation: abc-orbit 14s linear infinite;
+  /* Still at rest, like the gold trace: even on the compositor, a running
+     animation updates style on every frame the page scrolls. */
+  animation-play-state: paused;
+}
+@media (hover: hover) {
+  .abc-dash-card:hover .abc-scan-orbit,
+  .abc-dash-card:focus-within .abc-scan-orbit {
+    animation-play-state: running;
+  }
 }
 @keyframes abc-orbit {
   to {
@@ -6221,9 +6226,87 @@ button.abc-dash-well:hover {
   box-shadow: inset 0 0 0 1px rgba(201, 150, 40, 0.16), 0 6px 16px -10px rgba(169, 125, 28, 0.45);
 }
 
+/*
+  A clickable panel comes forward under the pointer or keyboard focus, and gives
+  a little when pressed. Only transform and opacity move: the stronger shadow and
+  gold edge are already painted on ::after and only fade in, because a box-shadow
+  that grows repaints the whole panel every frame. Navigation does not wait for
+  any of this.
+*/
+.abc-lift {
+  --abc-lift-y: -3px;
+  --abc-lift-scale: 1.01;
+  position: relative;
+  transition:
+    transform 170ms var(--abc-ease),
+    border-color 170ms var(--abc-ease);
+}
+.abc-lift::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    0 0 0 1px rgba(201, 150, 40, 0.34),
+    0 16px 30px -16px rgba(120, 86, 22, 0.42);
+  transition: opacity 170ms var(--abc-ease);
+}
+@media (hover: hover) {
+  .abc-lift:hover {
+    z-index: 2;
+    transform: translateY(var(--abc-lift-y)) scale(var(--abc-lift-scale));
+  }
+  .abc-lift:hover::after {
+    opacity: 1;
+  }
+}
+.abc-lift:focus-visible,
+.abc-lift:has(:focus-visible) {
+  z-index: 2;
+  transform: translateY(var(--abc-lift-y)) scale(var(--abc-lift-scale));
+}
+.abc-lift:focus-visible::after,
+.abc-lift:has(:focus-visible)::after {
+  opacity: 1;
+}
+.abc-lift:not(.abc-dash-card):active {
+  transform: scale(0.99);
+  transition-duration: 80ms;
+}
+
+/* A Home module is wide: the same lift, with less growth. */
+.abc-dash-card.abc-lift {
+  --abc-lift-scale: 1.004;
+}
+/*
+  It is also one destination. Its own link (the chevron, or "Explore events")
+  stretches across the card, so the card that comes forward really is clickable,
+  and every other control in it stays above that. Pressing one of those controls
+  does not press the card.
+*/
+.abc-card-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.abc-dash-card :where(a, button, input, select, form, .abc-eei-glass):where(:not(.abc-card-link)) {
+  position: relative;
+  z-index: 1;
+}
+.abc-dash-card:has(.abc-card-link:active) {
+  transform: scale(0.994);
+  transition-duration: 80ms;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .abc-trace-seg,
   .abc-scan-orbit {
     animation: none !important;
+  }
+  .abc-lift,
+  .abc-dash-card:has(.abc-card-link:active) {
+    transform: none !important;
   }
 }

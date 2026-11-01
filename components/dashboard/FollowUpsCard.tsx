@@ -35,13 +35,13 @@ const ROWS = [
 
 export default function FollowUpsCard({ counts }: { counts: FollowUpBuckets }) {
   return (
-    <section className="abc-dash-card flex h-full flex-col" aria-labelledby="home-followups-title">
+    <section className="abc-dash-card abc-lift flex h-full flex-col" aria-labelledby="home-followups-title">
       <GoldTrace phase={0.84} />
 
       <div className="relative flex h-full flex-col p-5 sm:px-6 sm:pb-4 sm:pt-6">
         <header className="flex items-start justify-between">
           <IconSend size={32} stroke={1.5} style={{ color: 'var(--abc-gold)' }} aria-hidden="true" />
-          <Link href="/follow-ups" aria-label="Open follow-ups" className="abc-dash-chevron abc-focus-ring">
+          <Link href="/follow-ups" aria-label="Open follow-ups" className="abc-dash-chevron abc-card-link abc-focus-ring">
             <IconChevronRight size={22} stroke={1.75} />
           </Link>
         </header>
@@ -56,7 +56,7 @@ export default function FollowUpsCard({ counts }: { counts: FollowUpBuckets }) {
             <li key={row.key}>
               <Link
                 href={`/follow-ups#${row.key}`}
-                className="abc-dash-well flex min-h-[76px] items-center gap-2.5 rounded-[15px] py-3 pl-3 pr-2 abc-focus-ring min-[1360px]:min-h-[84px]"
+                className="abc-dash-well abc-lift flex min-h-[76px] items-center gap-2.5 rounded-[15px] py-3 pl-3 pr-2 abc-focus-ring min-[1360px]:min-h-[84px]"
               >
                 <span
                   className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-[19px] font-bold tabular-nums text-white"

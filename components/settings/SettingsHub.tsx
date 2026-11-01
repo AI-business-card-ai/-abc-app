@@ -98,7 +98,7 @@ export default function SettingsHub({ summary }: { summary: SettingsSummary }) {
             <Link
               key={section.id}
               href={section.href}
-              className="flex items-center gap-3.5 rounded-card border border-abc-border bg-abc-card p-4 transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring"
+              className="abc-lift flex items-center gap-3.5 rounded-card border border-abc-border bg-abc-card p-4 hover:border-abc-border-strong abc-focus-ring"
             >
               <Icon size={20} stroke={1.7} style={{ color: 'var(--abc-gold-accent)' }} className="shrink-0" />
               <span className="min-w-0 flex-1">

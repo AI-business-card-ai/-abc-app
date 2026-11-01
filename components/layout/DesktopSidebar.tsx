@@ -126,7 +126,7 @@ export default function DesktopSidebar() {
       <div className="relative p-2.5">
         <Link
           href="/settings"
-          className="abc-dash-well flex items-center gap-3 rounded-[18px] p-3 abc-focus-ring"
+          className="abc-dash-well abc-lift flex items-center gap-3 rounded-[18px] p-3 abc-focus-ring"
         >
           {loading ? (
             <Skeleton className="h-12 w-12" radius={999} />

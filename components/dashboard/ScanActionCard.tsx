@@ -14,7 +14,7 @@ import GoldTrace from '@/components/dashboard/GoldTrace'
  */
 export default function ScanActionCard() {
   return (
-    <section className="abc-dash-card flex h-full flex-col" aria-labelledby="home-scan-title">
+    <section className="abc-dash-card abc-lift flex h-full flex-col" aria-labelledby="home-scan-title">
       <GoldTrace phase={0.08} />
       <div className="abc-dash-clip">
         <ScanThreads />
@@ -23,7 +23,7 @@ export default function ScanActionCard() {
       <div className="relative flex h-full flex-col p-5 sm:p-6">
         <header className="flex items-start justify-between">
           <IconScan size={32} stroke={1.5} style={{ color: 'var(--abc-gold)' }} aria-hidden="true" />
-          <Link href="/scan" aria-label="Open the scanner" className="abc-dash-chevron abc-focus-ring">
+          <Link href="/scan" aria-label="Open the scanner" className="abc-dash-chevron abc-card-link abc-focus-ring">
             <IconChevronRight size={22} stroke={1.75} />
           </Link>
         </header>
@@ -58,14 +58,42 @@ export default function ScanActionCard() {
   )
 }
 
-/** Concentric gold rings around a dark lens with the scan glyph. */
+/**
+ * Concentric gold rings around a dark lens with the scan glyph.
+ *
+ * The glint is its own <svg> over the rings, and only circles under the
+ * pointer (see globals.css). Turning a group inside an SVG repaints that SVG
+ * every frame; turning a whole element is the compositor's job.
+ */
 function ScanMotif() {
   return (
-    <svg
-      viewBox="0 0 220 220"
-      className="h-[112px] w-[112px] shrink-0 sm:h-[184px] sm:w-[184px] min-[1360px]:h-[196px] min-[1360px]:w-[196px]"
+    <span
+      className="pointer-events-none relative h-[112px] w-[112px] shrink-0 sm:h-[184px] sm:w-[184px] min-[1360px]:h-[196px] min-[1360px]:w-[196px]"
       aria-hidden="true"
     >
+      <svg viewBox="0 0 220 220" className="absolute inset-0 h-full w-full">
+        <ScanRings />
+      </svg>
+      <svg viewBox="0 0 220 220" className="abc-scan-orbit absolute inset-0 h-full w-full">
+        <circle
+          cx="110"
+          cy="110"
+          r="90"
+          fill="none"
+          stroke="#fff4d2"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeDasharray="42 524"
+          strokeOpacity="0.95"
+        />
+      </svg>
+    </span>
+  )
+}
+
+function ScanRings() {
+  return (
+    <>
       <defs>
         <radialGradient id="abc-scan-halo" cx="110" cy="110" r="110" gradientUnits="userSpaceOnUse">
           <stop offset="0.45" stopColor="#e2b64e" stopOpacity="0.34" />
@@ -92,20 +120,6 @@ function ScanMotif() {
       <circle cx="110" cy="110" r="101" fill="none" stroke="#c99628" strokeOpacity="0.24" strokeWidth="1" />
       <circle cx="110" cy="110" r="90" fill="none" stroke="#e2b64e" strokeOpacity="0.55" strokeWidth="5" filter="url(#abc-scan-soft)" />
       <circle cx="110" cy="110" r="90" fill="none" stroke="url(#abc-scan-ring)" strokeWidth="2.2" />
-      {/* A glint that circles the ring. */}
-      <g className="abc-scan-orbit">
-        <circle
-          cx="110"
-          cy="110"
-          r="90"
-          fill="none"
-          stroke="#fff4d2"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeDasharray="42 524"
-          strokeOpacity="0.95"
-        />
-      </g>
       <circle cx="110" cy="110" r="78" fill="none" stroke="#c99628" strokeOpacity="0.42" strokeWidth="1" />
       <circle cx="110" cy="110" r="65" fill="url(#abc-scan-lens)" stroke="#e2b64e" strokeOpacity="0.55" strokeWidth="1.2" />
 
@@ -116,7 +130,7 @@ function ScanMotif() {
         <path d="M136 122v6a8 8 0 0 1-8 8h-6" />
         <path d="M98 136h-6a8 8 0 0 1-8-8v-6" />
       </g>
-    </svg>
+    </>
   )
 }
 

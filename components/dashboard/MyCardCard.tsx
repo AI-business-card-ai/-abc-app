@@ -66,7 +66,7 @@ export default function MyCardCard({ card, myCard }: { card: DashboardCard; myCa
   }
 
   return (
-    <section className="abc-dash-card flex h-full flex-col" aria-labelledby="home-myabc-title">
+    <section className="abc-dash-card abc-lift flex h-full flex-col" aria-labelledby="home-myabc-title">
       <GoldTrace phase={0.62} />
 
       <div className="relative flex h-full flex-col p-4 sm:p-5 min-[1360px]:px-[18px] min-[1360px]:pb-[18px] min-[1360px]:pt-5">
@@ -77,7 +77,7 @@ export default function MyCardCard({ card, myCard }: { card: DashboardCard; myCa
               My ABC
             </span>
           </h2>
-          <Link href="/my-card" aria-label="Open My Card" className="abc-dash-chevron abc-focus-ring">
+          <Link href="/my-card" aria-label="Open My Card" className="abc-dash-chevron abc-card-link abc-focus-ring">
             <IconChevronRight size={22} stroke={1.75} />
           </Link>
         </header>
@@ -117,11 +117,11 @@ export default function MyCardCard({ card, myCard }: { card: DashboardCard; myCa
 
         {card.slug ? (
           <div className="mt-3 flex gap-2.5 min-[1360px]:mt-3.5">
-            <Link href="/settings/card" className="abc-myabc-action abc-dash-well abc-focus-ring" aria-label="Edit">
+            <Link href="/settings/card" className="abc-myabc-action abc-dash-well abc-lift abc-focus-ring" aria-label="Edit">
               <IconPencil size={21} stroke={1.7} aria-hidden="true" />
               Edit
             </Link>
-            <button type="button" onClick={share} className="abc-myabc-action abc-dash-well abc-focus-ring" aria-label="Share">
+            <button type="button" onClick={share} className="abc-myabc-action abc-dash-well abc-lift abc-focus-ring" aria-label="Share">
               <IconShare size={21} stroke={1.7} aria-hidden="true" />
               Share
             </button>
@@ -129,7 +129,7 @@ export default function MyCardCard({ card, myCard }: { card: DashboardCard; myCa
               type="button"
               onClick={() => setQrOpen(true)}
               disabled={!live}
-              className="abc-myabc-action abc-dash-well abc-focus-ring disabled:pointer-events-none disabled:opacity-45"
+              className="abc-myabc-action abc-dash-well abc-lift abc-focus-ring disabled:pointer-events-none disabled:opacity-45"
               aria-label="QR Code"
             >
               <IconQrcode size={21} stroke={1.7} aria-hidden="true" />
@@ -143,7 +143,7 @@ export default function MyCardCard({ card, myCard }: { card: DashboardCard; myCa
             */}
             <Link
               href="/my-card#wallet"
-              className="abc-myabc-action abc-dash-well abc-focus-ring"
+              className="abc-myabc-action abc-dash-well abc-lift abc-focus-ring"
               title="Add your card to Apple Wallet or Google Wallet"
               aria-label="Wallet"
             >
@@ -192,38 +192,41 @@ function OwnerCard({ myCard, slug, live }: { myCard: MyCardData; slug: string; l
   const t = getCardThemeTokens(myCard.card.theme)
 
   return (
-    <Link
-      href="/my-card"
-      aria-label={`Your ABC card, ${myCard.card.fullName}. Open My Card`}
-      className="block overflow-hidden rounded-[15px] border abc-focus-ring"
-      style={{ background: t.bg, borderColor: t.border }}
-    >
-      <CardHero card={myCard.card} size="compact">
-        <div className="mt-3 flex items-end justify-between gap-3">
-          {/* The address itself is on /my-card; here the QR is the point. */}
-          <p className="min-w-0 text-[12px] leading-[1.45]" style={{ color: t.secondary }}>
-            {live ? (
-              <>
-                Scan to save
-                <br />
-                this contact
-              </>
-            ) : (
-              'Publish your card to get its QR'
-            )}
-          </p>
+    // The lift sits on a wrapper: the link clips the card to its corners, which would clip the lift's shadow too.
+    <div className="abc-lift rounded-[15px]">
+      <Link
+        href="/my-card"
+        aria-label={`Your ABC card, ${myCard.card.fullName}. Open My Card`}
+        className="block overflow-hidden rounded-[15px] border abc-focus-ring"
+        style={{ background: t.bg, borderColor: t.border }}
+      >
+        <CardHero card={myCard.card} size="compact">
+          <div className="mt-3 flex items-end justify-between gap-3">
+            {/* The address itself is on /my-card; here the QR is the point. */}
+            <p className="min-w-0 text-[12px] leading-[1.45]" style={{ color: t.secondary }}>
+              {live ? (
+                <>
+                  Scan to save
+                  <br />
+                  this contact
+                </>
+              ) : (
+                'Publish your card to get its QR'
+              )}
+            </p>
 
-          {live ? (
-            <div className="w-[42%] min-w-[112px] max-w-[150px] shrink-0 rounded-[12px] bg-white px-2 pb-1.5 pt-2 shadow-[0_8px_18px_-8px_rgba(0,0,0,0.45)]">
-              <CardQrImage slug={slug} width="100%" size={512} className="!rounded-none !p-0" />
-              <span className="mt-1 block text-center text-[9.5px] font-bold tracking-[0.06em] text-[#141414]">
-                SCAN TO SAVE
-              </span>
-            </div>
-          ) : null}
-        </div>
-        <div style={{ height: 16 }} aria-hidden="true" />
-      </CardHero>
-    </Link>
+            {live ? (
+              <div className="w-[42%] min-w-[112px] max-w-[150px] shrink-0 rounded-[12px] bg-white px-2 pb-1.5 pt-2 shadow-[0_8px_18px_-8px_rgba(0,0,0,0.45)]">
+                <CardQrImage slug={slug} width="100%" size={512} className="!rounded-none !p-0" />
+                <span className="mt-1 block text-center text-[9.5px] font-bold tracking-[0.06em] text-[#141414]">
+                  SCAN TO SAVE
+                </span>
+              </div>
+            ) : null}
+          </div>
+          <div style={{ height: 16 }} aria-hidden="true" />
+        </CardHero>
+      </Link>
+    </div>
   )
 }

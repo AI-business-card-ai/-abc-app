@@ -57,7 +57,7 @@ export default function ProfileSettingsView({
       {/* Identity is read-only here — the card editor is the single source of truth */}
       <Link
         href={CARD_EDITOR_PATH}
-        className="mt-6 flex items-center gap-3.5 rounded-card border border-abc-border bg-abc-card p-4 transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring"
+        className="abc-lift mt-6 flex items-center gap-3.5 rounded-card border border-abc-border bg-abc-card p-4 hover:border-abc-border-strong abc-focus-ring"
       >
         <Avatar
           src={String(profile.card_photo_url || profile.avatar_url || '') || null}

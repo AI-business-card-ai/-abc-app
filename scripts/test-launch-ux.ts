@@ -173,6 +173,55 @@ check(
   [true, true, true]
 )
 
+// ═══════════════════ HOME SCROLL AND CARD LIFT ═══════════════════
+
+const homeCss = read('app/globals.css').replace(/\r\n/g, '\n')
+const liftRule = homeCss.slice(homeCss.indexOf('.abc-lift {'), homeCss.indexOf('.abc-lift::after {'))
+check(
+  'H1 the gold trace is still at rest and only runs under a pointer or keyboard focus',
+  [
+    /\.abc-trace-seg \{[^}]*animation-play-state: paused;/.test(homeCss),
+    /@media \(hover: hover\) \{\n  \.abc-dash-card:hover > \.abc-trace \.abc-trace-seg,\n  \.abc-dash-card:focus-within > \.abc-trace \.abc-trace-seg \{\n    animation-play-state: running;/.test(homeCss),
+    code('components/dashboard/GoldTrace.tsx').includes('IntersectionObserver'),
+  ],
+  [true, true, false]
+)
+check(
+  'H2 the scan glint rotates its own <svg>, and is still at rest like the gold trace',
+  [
+    code('components/dashboard/ScanActionCard.tsx').includes('className="abc-scan-orbit absolute'),
+    code('components/dashboard/ScanActionCard.tsx').includes('<g className="abc-scan-orbit"'),
+    /\.abc-scan-orbit \{[^}]*animation-play-state: paused;/.test(homeCss),
+  ],
+  [true, false, true]
+)
+check(
+  'H3 the card lift moves transform and fades opacity; it never animates shadow or layout',
+  [liftRule.includes('transform 170ms'), /box-shadow|height|width|margin|top:/.test(liftRule), /\.abc-lift:hover \{[^}]*box-shadow/.test(homeCss)],
+  [true, false, false]
+)
+check(
+  'H4 reduced motion keeps the panels still',
+  /@media \(prefers-reduced-motion: reduce\) \{[^@]*\.abc-lift,\n  \.abc-dash-card:has\(\.abc-card-link:active\) \{\n    transform: none !important;/.test(homeCss),
+  true
+)
+check(
+  'H5 sheets opened from a Home card render on <body>, so a lifted card cannot trap them',
+  ['components/card/CardQrModal.tsx', 'components/expo-mission/ExpoMissionInfo.tsx'].map((file) => /createPortal\(/.test(code(file)) && code(file).includes('document.body')),
+  [true, true]
+)
+check(
+  'H6 every lifted Home module really is clickable, and the static Expo Mission panel is not lifted',
+  [
+    ...['ScanActionCard', 'ContactsCard', 'FollowUpsCard', 'MyCardCard', 'EventsCard'].map((name) => {
+      const src = code(`components/dashboard/${name}.tsx`)
+      return src.includes('abc-dash-card abc-lift') && src.includes('abc-card-link')
+    }),
+    code('components/expo-mission/ExpoMissionPreview.tsx').includes('abc-lift'),
+  ],
+  [true, true, true, true, true, false]
+)
+
 const total = passed + failures.length
 if (failures.length) {
   console.log(`\nLaunch UX: ${passed}/${total} PASS, ${failures.length} FAILED\n`)

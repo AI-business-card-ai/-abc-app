@@ -35,13 +35,13 @@ export default function ContactsCard({
   }
 
   return (
-    <section className="abc-dash-card flex h-full flex-col" aria-labelledby="home-contacts-title">
+    <section className="abc-dash-card abc-lift flex h-full flex-col" aria-labelledby="home-contacts-title">
       <GoldTrace phase={0.36} />
 
       <div className="relative flex h-full flex-col p-5 sm:px-6 sm:pb-4 sm:pt-6">
         <header className="flex items-start justify-between">
           <IconUsers size={32} stroke={1.5} style={{ color: 'var(--abc-gold)' }} aria-hidden="true" />
-          <Link href="/contacts" aria-label="View all contacts" className="abc-dash-chevron abc-focus-ring">
+          <Link href="/contacts" aria-label="View all contacts" className="abc-dash-chevron abc-card-link abc-focus-ring">
             <IconChevronRight size={22} stroke={1.75} />
           </Link>
         </header>

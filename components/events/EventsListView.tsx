@@ -60,7 +60,7 @@ export default function EventsListView({ events }: { events: EventSummary[] }) {
             <li key={event.key}>
               <Link
                 href={`/events/${event.key}`}
-                className="abc-surface flex items-center gap-3 p-4 transition-colors duration-200 ease-abc hover:border-abc-border-strong abc-focus-ring sm:p-5"
+                className="abc-surface abc-lift flex items-center gap-3 p-4 hover:border-abc-border-strong abc-focus-ring sm:p-5"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[16px] font-semibold text-abc-text">

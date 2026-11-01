@@ -56,7 +56,7 @@ export default function EventsCard({
   ]
 
   return (
-    <section className="abc-dash-card" aria-labelledby="home-eei-title">
+    <section className="abc-dash-card abc-lift" aria-labelledby="home-eei-title">
       <GoldTrace phase={0.5} />
       <div className="abc-dash-clip">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -81,7 +81,7 @@ export default function EventsCard({
                 Your events, your meetings, and the opportunities they opened.
               </p>
             </div>
-            <Link href="/events" className="abc-outline-pill abc-focus-ring hidden shrink-0 sm:inline-flex">
+            <Link href="/events" className="abc-outline-pill abc-card-link abc-focus-ring hidden shrink-0 sm:inline-flex">
               Explore events
               <IconChevronRight size={16} stroke={2} />
             </Link>
@@ -92,7 +92,7 @@ export default function EventsCard({
               <li key={metric.label}>
                 <Link
                   href={metric.href}
-                  className="abc-eei-glass flex min-h-[62px] items-center gap-2.5 rounded-[14px] px-3 py-2.5 transition-colors duration-200 ease-abc hover:border-[rgba(201,150,40,0.38)] abc-focus-ring"
+                  className="abc-eei-glass abc-lift flex min-h-[62px] items-center gap-2.5 rounded-[14px] px-3 py-2.5 hover:border-[rgba(201,150,40,0.38)] abc-focus-ring"
                 >
                   <metric.icon size={24} stroke={1.5} className="shrink-0" style={{ color: 'var(--abc-gold)' }} aria-hidden="true" />
                   <span className="min-w-0 flex-1">
@@ -127,7 +127,7 @@ export default function EventsCard({
             </p>
           )}
 
-          <Link href="/events" className="abc-dash-link abc-focus-ring mt-1 inline-flex sm:hidden">
+          <Link href="/events" className="abc-dash-link abc-card-link abc-focus-ring mt-1 inline-flex sm:hidden">
             Explore events
             <IconChevronRight size={16} stroke={2} />
           </Link>

@@ -34,7 +34,7 @@ export default function OpportunityCard({
   const closed = opportunity.stage === 'won' || opportunity.stage === 'lost'
 
   return (
-    <article className="abc-surface overflow-hidden transition-colors duration-200 ease-abc hover:border-abc-border-strong">
+    <article className="abc-surface abc-lift hover:border-abc-border-strong">
       <Link
         href={`/crm/opportunities/${opportunity.id}`}
         className="block px-3.5 pb-2.5 pt-3.5 abc-focus-ring"
