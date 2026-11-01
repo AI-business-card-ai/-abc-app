@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { IconX } from '@tabler/icons-react'
 import Button from '@/components/ui/abc/Button'
 import { useNativeBackHandler } from '@/lib/native/back-handlers'
@@ -71,7 +72,9 @@ export default function ExpoMissionInfo({ onClose }: { onClose: () => void }) {
     }
   }, [onClose])
 
-  return (
+  // On <body>: a card that comes forward has a transform, and a fixed element
+  // inside a transform is sized to that card instead of the screen.
+  return createPortal(
     <div
       className="fixed inset-0 z-[120] flex items-end justify-center sm:items-center sm:p-6"
       style={{ background: 'rgba(4,4,5,0.72)' }}
@@ -156,6 +159,7 @@ export default function ExpoMissionInfo({ onClose }: { onClose: () => void }) {
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

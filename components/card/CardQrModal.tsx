@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { IconCheck, IconCopy, IconDownload, IconX } from '@tabler/icons-react'
 import CardQrImage, { cardPublicUrl, cardQrSrc } from '@/components/card/CardQrImage'
 import { useNativeBackHandler } from '@/lib/native/back-handlers'
@@ -89,7 +90,9 @@ export default function CardQrModal({ slug, open, onClose, name, company }: Prop
 
   if (!open || !slug) return null
 
-  return (
+  // On <body>: a card that comes forward has a transform, and a fixed element
+  // inside a transform is sized to that card instead of the screen.
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -159,6 +162,7 @@ export default function CardQrModal({ slug, open, onClose, name, company }: Prop
           </a>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
