@@ -46,7 +46,9 @@ export async function GET(
 
   const filename = (contact.name || 'contact').replace(/[^\w\s-]/g, '').trim() || 'contact'
 
-  onVCardSaved(contact.id, user.id).catch(console.error)
+  // Awaited: Vercel can freeze the function once it has responded, which would
+  // lose the save. A failed log still never blocks the download.
+  await onVCardSaved(contact.id, user.id).catch(console.error)
 
   return new Response(vcard, {
     headers: {

@@ -659,7 +659,13 @@ async function run() {
     ],
     [true, []]
   )
-  check('G17 the vCard route still records the save it serves', code('app/api/contact/vcard/[id]/route.ts').includes('onVCardSaved(contact.id, user.id)'), true)
+  const vcardRoute = code('app/api/contact/vcard/[id]/route.ts')
+  check(
+    'G17 the vCard route finishes recording the save before it responds',
+    vcardRoute.includes('await onVCardSaved(contact.id, user.id)') &&
+      vcardRoute.indexOf('await onVCardSaved') < vcardRoute.indexOf('return new Response(vcard'),
+    true
+  )
 
   const total = passed + failures.length
   if (failures.length) {
