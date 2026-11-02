@@ -1234,9 +1234,14 @@ async function run() {
   const readyToShoot = { capturing: true, live: true, canCapture: true, exited: false }
   const immersiveFrameSrc = multiClient.slice(multiClient.indexOf('function ImmersiveFrame()'), multiClient.indexOf('function LandscapeHint'))
 
-  // 19. Upright, the rotation tip still shows and the page stays a page.
+  // 19. Upright, the rotation tip still shows, on the full-screen camera.
   check('I19a portrait Multi-Card still recommends turning sideways', shouldSuggestLandscape(uprightPhone, { live: true, dismissed: false }), true)
-  check('I19b and stays the ordinary screen', shouldEnterImmersive(uprightPhone, readyToShoot), false)
+  check('I19b and choosing Multi-Card opens the full-screen camera straight away', shouldEnterImmersive(uprightPhone, readyToShoot), true)
+  check('I19c never by rotating anything by hand or by an API iPhone Safari lacks', /rotate\(|rotate-90|orientation\.lock|requestFullscreen/.test(multiClient), false)
+  check('I19d upright and sideways differ only in CSS', ['portrait:flex', 'portrait:hidden', 'portrait:!top-auto', 'portrait:left-1/2'].every((cls) => multiClient.includes(cls)), true)
+  check('I19e upright it shows the wide guide and the tip', /portrait:flex"[\s\S]{0,420}\{suggestLandscape \? <LandscapeHint onDismiss=\{onDismissHint\} \/> : null\}[\s\S]{0,220}<WideFrame \/>/.test(multiClient), true)
+  check('I19f the tip says what to do when the screen will not turn', multiClient.includes('switch off Rotation Lock'), true)
+  check('I19g upright the photo library stays one tap away', /aria-label="Upload a photo"[\s\S]{0,200}portrait:flex/.test(multiClient), true)
 
   // 20. Sideways with the camera live, the camera takes over.
   check('I20a sideways and live: full-screen camera', shouldEnterImmersive(sidewaysPhone, readyToShoot), true)
@@ -1257,7 +1262,7 @@ async function run() {
   check('I22b and the page behind is withheld from assistive tech', multiClient.includes("role={immersive ? 'dialog' : undefined}") && multiClient.includes('aria-modal={immersive ? true : undefined}'), true)
 
   // 23. No instructions over the full-screen camera.
-  check('I23a the tip, the ghost-card frame and the caption are not rendered full screen', /\{!immersive \? \(\s*<div className="pointer-events-none absolute inset-0 flex flex-col">\s*\{suggestLandscape \? <LandscapeHint/.test(multiClient), true)
+  check('I23a sideways, the tip, the ghost-card frame and the caption are not rendered full screen', /\{!immersive \? \(\s*<div className="pointer-events-none absolute inset-0 flex flex-col">\s*\{suggestLandscape \? <LandscapeHint/.test(multiClient), true)
   check('I23b nor the camera status text', multiClient.includes('{!live && !immersive ? ('), true)
 
   // 24. One large frame, using the full height.
@@ -1269,7 +1274,7 @@ async function run() {
   check('I24f no ghost cards in the full-screen frame', immersiveFrameSrc.includes('border-dashed'), false)
 
   // 25. One gold circular shutter.
-  check('I25a a single gold circular shutter named Capture photo', /aria-label="Capture photo"\s*className="absolute top-1\/2 flex h-\[68px\] w-\[68px\][\s\S]{0,400}border: '3px solid var\(--abc-gold\)'/.test(multiClient), true)
+  check('I25a a single gold circular shutter named Capture photo', /aria-label="Capture photo"\s*className="absolute top-1\/2 flex h-\[68px\] w-\[68px\][\s\S]{0,620}border: '3px solid var\(--abc-gold\)'/.test(multiClient), true)
   check('I25b over the picture, not in a column beside it', !multiClient.includes('w-[92px]') && /aria-label="Capture photo"\s*className="absolute top-1\/2/.test(multiClient), true)
   check('I25c no text Capture button full screen', /\{!immersive \? \(\s*<div className="mt-3 flex shrink-0 flex-col gap-2[\s\S]{0,300}Capture more cards/.test(multiClient), true)
 
@@ -1279,7 +1284,7 @@ async function run() {
   check('I26c Escape does the same', multiClient.includes("if (e.key === 'Escape') {"), true)
 
   // 27. Upload is hidden only inside the full-screen camera.
-  check('I27a Upload is not on the full-screen camera', /\{!immersive \? \(\s*<div className="mt-3 flex shrink-0 flex-col gap-2[\s\S]{0,900}Upload a photo/.test(multiClient), true)
+  check('I27a Upload stays on the ordinary screen too', /\{!immersive \? \(\s*<div className="mt-3 flex shrink-0 flex-col gap-2[\s\S]{0,900}Upload a photo/.test(multiClient), true)
   check('I27b and is on the ordinary screen, ungated by orientation', multiClient.includes('onClick={onPickFile} disabled={blocked || remaining <= 0}'), true)
 
   // 28. Back restores the ordinary Multi-Card screen and keeps everything.
@@ -1287,9 +1292,9 @@ async function run() {
   check('I28b Back neither saves nor discards the batch', /onExitImmersive=\{\(\) => setImmersiveExited\(true\)\}/.test(multiClient) && !/setImmersiveExited\(true\)[^}]*(restart|setBatch|save\()/.test(multiClient), true)
   check('I28c and a new capture offers the full-screen camera again', multiClient.includes("if (stage !== 'capture') setImmersiveExited(false)"), true)
 
-  // 29. Turning upright leaves the full-screen camera.
-  check('I29a upright ends the full-screen camera', shouldEnterImmersive(uprightPhone, readyToShoot), false)
-  check('I29b and clears Back for the next turn', multiClient.includes('if (orientation.portrait) setImmersiveExited(false)'), true)
+  // 29. Turning the phone keeps the full-screen camera, and clears Back.
+  check('I29a turning upright keeps the full-screen camera', shouldEnterImmersive(uprightPhone, readyToShoot), true)
+  check('I29b any turn clears Back for the next chance', /useEffect\(\(\) => \{\s*setImmersiveExited\(false\)\s*\}, \[orientation\.portrait\]\)/.test(multiClient), true)
   check('I29c orientation is followed live', orientationLib.includes("addEventListener?.('change', read)"), true)
 
   // 30 & 31. Single Card never sees any of it, and is byte-for-byte what it was.

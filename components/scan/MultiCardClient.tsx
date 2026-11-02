@@ -153,9 +153,9 @@ export default function MultiCardClient() {
   const remaining = remainingInBatch(items)
 
   /*
-    Full-screen camera: a phone held sideways, capturing, camera live. Nothing
-    is stored about it — it is a way of looking at the capture stage, so
-    turning the phone upright or taking the photo simply ends it.
+    Full-screen camera: a phone, capturing, camera live. Nothing is stored about
+    it — it is a way of looking at the capture stage, so taking the photo simply
+    ends it, and turning the phone only changes the shape it fills.
   */
   const immersive = shouldEnterImmersive(orientation, {
     capturing: stage === 'capture',
@@ -169,7 +169,7 @@ export default function MultiCardClient() {
 
   // Back opts out of the full-screen camera only until the next chance to use it.
   useEffect(() => {
-    if (orientation.portrait) setImmersiveExited(false)
+    setImmersiveExited(false)
   }, [orientation.portrait])
   useEffect(() => {
     if (stage !== 'capture') setImmersiveExited(false)
@@ -666,7 +666,7 @@ function CaptureStage({
   sideways: boolean
   suggestLandscape: boolean
   onDismissHint: () => void
-  /** The camera is the whole screen: a phone held sideways, capturing, camera live. */
+  /** The camera is the whole screen: a phone, capturing, camera live. */
   immersive: boolean
   immersiveError: string | null
   onExitImmersive: () => void
@@ -677,15 +677,17 @@ function CaptureStage({
   const stageRef = useRef<HTMLDivElement>(null)
   const backRef = useRef<HTMLButtonElement>(null)
   const shutterRef = useRef<HTMLButtonElement>(null)
+  const uploadRef = useRef<HTMLButtonElement>(null)
 
   /*
     Turning the phone sideways leaves room for the viewfinder and little else,
     so the stage is brought fully into view — the owner is looking at the
-    cards, not scrolling for the shutter.
+    cards, not scrolling for the shutter. The full-screen camera needs no help,
+    and scrolling under it would leave the page moved when it closes.
   */
   useEffect(() => {
-    if (sideways) stageRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
-  }, [sideways])
+    if (sideways && !immersive) stageRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [sideways, immersive])
 
   // The shutter is what the full-screen camera is for.
   useEffect(() => {
@@ -694,7 +696,7 @@ function CaptureStage({
 
   /*
     A camera surface, not a page: Escape is Back, and Tab moves between the
-    only two controls on it rather than into the page hidden behind.
+    few controls on it rather than into the page hidden behind.
   */
   function onSurfaceKey(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'Escape') {
@@ -703,8 +705,8 @@ function CaptureStage({
       return
     }
     if (e.key !== 'Tab') return
-    const stops = [backRef.current, shutterRef.current].filter(
-      (el): el is HTMLButtonElement => Boolean(el && !el.disabled)
+    const stops = [backRef.current, uploadRef.current, shutterRef.current].filter(
+      (el): el is HTMLButtonElement => Boolean(el && !el.disabled && el.offsetParent !== null)
     )
     if (stops.length === 0) return
     e.preventDefault()
@@ -719,9 +721,9 @@ function CaptureStage({
 
   return (
     /*
-      Upright: viewfinder above, controls below. Sideways on a phone: the
-      camera becomes the whole screen (below); after Back, the viewfinder takes
-      the width and the controls move beside it.
+      On a phone the camera becomes the whole screen (below). After Back:
+      upright, viewfinder above and controls below; sideways, the viewfinder
+      takes the width and the controls move beside it.
     */
     <div
       ref={stageRef}
@@ -738,7 +740,8 @@ function CaptureStage({
         The picture fills the whole app viewport, edge to edge, cropped rather
         than stretched (object-cover). Nothing is laid out beside it: the
         shutter and Back float over the picture, so no column of the screen
-        is spent on controls.
+        is spent on controls. Upright and sideways differ only in CSS, so
+        turning the phone re-renders nothing and nothing is ever rotated by hand.
       */}
       <div
         role={immersive ? 'dialog' : undefined}
@@ -815,6 +818,32 @@ function CaptureStage({
           </div>
         ) : null}
 
+        {/*
+          Upright, full screen: the same wide guide as the ordinary screen, and
+          the request to turn the phone, because only the owner can do that.
+        */}
+        {immersive ? (
+          <div
+            className="pointer-events-none absolute inset-0 hidden flex-col portrait:flex"
+            style={{
+              paddingTop: 'calc(var(--mc-frame-top) + 60px)',
+              paddingBottom: 'calc(env(safe-area-inset-bottom) + 112px)',
+            }}
+          >
+            {suggestLandscape ? <LandscapeHint onDismiss={onDismissHint} /> : null}
+
+            <div className="flex min-h-0 flex-1 items-center justify-center px-3">
+              <WideFrame />
+            </div>
+
+            <p className="shrink-0 px-4 text-center text-[13.5px] font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.65)]">
+              {capturedCount > 0
+                ? `${capturedCount} card${capturedCount === 1 ? '' : 's'} so far · ${remaining} left`
+                : `Scan up to ${MAX_BATCH_CARDS} cards at once`}
+            </p>
+          </div>
+        ) : null}
+
         {!live && !immersive ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
             <p className="text-[14px] text-abc-secondary">
@@ -829,7 +858,8 @@ function CaptureStage({
           the safe area. It takes no width from the camera or the frame: it sits
           over the frame's right edge, and the photo is taken of everything
           underneath it. A dark wash behind the ring keeps it readable over a
-          bright table.
+          bright table. Upright, the thumb is at the bottom, so that is where it
+          goes, with the photo library beside it.
         */}
         {immersive ? (
           <button
@@ -838,7 +868,7 @@ function CaptureStage({
             onClick={onCapture}
             disabled={!live}
             aria-label="Capture photo"
-            className="absolute top-1/2 flex h-[68px] w-[68px] -translate-y-1/2 items-center justify-center rounded-full transition-transform duration-200 ease-abc active:scale-95 disabled:opacity-40 abc-focus-ring"
+            className="absolute top-1/2 flex h-[68px] w-[68px] -translate-y-1/2 items-center justify-center rounded-full transition-transform duration-200 ease-abc active:scale-95 disabled:opacity-40 abc-focus-ring portrait:!right-auto portrait:!top-auto portrait:bottom-[calc(env(safe-area-inset-bottom)+24px)] portrait:left-1/2 portrait:-translate-x-1/2 portrait:translate-y-0"
             style={{
               right: 'max(calc(var(--mc-frame-right) + 10px), env(safe-area-inset-right))',
               border: '3px solid var(--abc-gold)',
@@ -850,11 +880,28 @@ function CaptureStage({
           </button>
         ) : null}
 
+        {immersive ? (
+          <button
+            ref={uploadRef}
+            type="button"
+            onClick={onPickFile}
+            aria-label="Upload a photo"
+            className="absolute hidden h-[48px] w-[48px] items-center justify-center rounded-full text-white abc-focus-ring portrait:flex"
+            style={{
+              left: 'max(24px, env(safe-area-inset-left))',
+              bottom: 'calc(env(safe-area-inset-bottom) + 34px)',
+              background: 'rgba(10, 10, 11, 0.55)',
+            }}
+          >
+            <IconPhoto size={21} stroke={1.8} aria-hidden="true" />
+          </button>
+        ) : null}
+
         {immersive && immersiveError ? (
           <p
             role="alert"
-            className="absolute left-1/2 top-3 max-w-[70%] -translate-x-1/2 rounded-full px-3.5 py-2 text-center text-[12.5px] backdrop-blur-md"
-            style={{ background: 'rgba(10, 10, 11, 0.8)', color: '#fca5a5' }}
+            className="absolute left-1/2 max-w-[64%] -translate-x-1/2 rounded-full px-3.5 py-2 text-center text-[12.5px] backdrop-blur-md"
+            style={{ top: 'var(--mc-frame-top)', background: 'rgba(10, 10, 11, 0.8)', color: '#fca5a5' }}
           >
             {immersiveError}
           </p>
@@ -900,7 +947,7 @@ function ImmersiveFrame() {
   const corner = 'absolute h-9 w-9 border-abc-gold-accent'
   return (
     <div
-      className="pointer-events-none absolute rounded-[10px] border border-white/25"
+      className="pointer-events-none absolute rounded-[10px] border border-white/25 portrait:hidden"
       style={{
         top: 'var(--mc-frame-top)',
         bottom: 'var(--mc-frame-bottom)',
@@ -948,7 +995,8 @@ function LandscapeHint({ onDismiss }: { onDismiss: () => void }) {
       <span className="min-w-0 flex-1 py-1">
         <span className="block text-[14px] font-semibold text-abc-text">Turn your phone sideways</span>
         <span className="mt-0.5 block text-[12.5px] leading-[1.45] text-abc-secondary">
-          Fit all cards in the frame and leave a little space between them.
+          Fit all cards in the frame and leave a little space between them. If the
+          screen does not turn, switch off Rotation Lock.
         </span>
       </span>
       <button

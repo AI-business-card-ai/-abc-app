@@ -213,7 +213,7 @@ async function main() {
   check('P17a immersive camera still covers the whole dynamic viewport', multi.includes("'fixed inset-0 z-[200] h-[100dvh] w-full touch-none overflow-hidden overscroll-none'"), true)
   check('P17b above the header (z-50) and nav (z-[100])', multi.includes('z-[200]') && header.includes('sticky top-0 z-50') && nav.includes('fixed bottom-0 left-0 right-0 z-[100]'), true)
   check('P17c frame insets unchanged — thin margins, reaching into the side safe area', orientation.includes("left: 'max(12px, calc(env(safe-area-inset-left) - 16px))'") && orientation.includes("right: 'max(12px, calc(env(safe-area-inset-right) - 16px))'"), true)
-  check('P17d immersive still means touch phone + landscape + live capture', orientation.includes('return orientation.mobile && !orientation.portrait && capturing && live && canCapture && !exited'), true)
+  check('P17d immersive means touch phone + live capture, upright or sideways', orientation.includes('return orientation.mobile && capturing && live && canCapture && !exited'), true)
   check('P17e Back and shutter still float over the picture', multi.includes('aria-label="Back"') && multi.includes('aria-label="Capture photo"') && multi.includes('absolute top-1/2 flex h-[68px] w-[68px]'), true)
   check('P17f landscape page stage still sized with svh', multi.includes('calc(100svh - 3.5rem - ${SAFE_TOP}'), true)
   check('P18 no side shutter column in immersive — the control column renders only outside it', multi.includes('{!immersive ? (\n        <div className="mt-3 flex shrink-0 flex-col gap-2 max-lg:landscape:mt-0 max-lg:landscape:w-[196px]'), true)

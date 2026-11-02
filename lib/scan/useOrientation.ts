@@ -36,12 +36,14 @@ export function shouldSuggestLandscape(
 /**
  * Whether the multi-card camera should take over the whole screen.
  *
- * A phone held sideways with the camera live is the one moment the owner is
- * framing a table of cards, and every pixel of height the app keeps for its
- * own chrome is a pixel the cards do not get. So exactly then — a touch phone,
- * landscape, the multi-card capture stage, a live camera and room to capture —
- * the camera becomes the screen. Back opts out until the phone goes upright
- * again or a new capture begins; anything else keeps the ordinary page.
+ * Choosing Multi-Card on a phone means framing a table of cards, and every pixel
+ * the app keeps for its own chrome is a pixel the cards do not get. So on a touch
+ * phone, in the multi-card capture stage, with a live camera and room to capture,
+ * the camera becomes the screen — upright or sideways. A web page cannot turn an
+ * iPhone for the owner (Safari has no orientation lock), so upright it shows the
+ * wide guide and asks, and turning the phone gives the same surface the full
+ * landscape viewport. Back opts out until the phone is turned or a new capture
+ * begins; anything else keeps the ordinary page.
  */
 export function shouldEnterImmersive(
   orientation: OrientationState,
@@ -52,7 +54,7 @@ export function shouldEnterImmersive(
     exited,
   }: { capturing: boolean; live: boolean; canCapture: boolean; exited: boolean }
 ): boolean {
-  return orientation.mobile && !orientation.portrait && capturing && live && canCapture && !exited
+  return orientation.mobile && capturing && live && canCapture && !exited
 }
 
 /**
