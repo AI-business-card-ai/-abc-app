@@ -40,15 +40,18 @@ const BARE_PATHS = [
 /**
  * The quiet background motif for a work page, or none.
  *
- * Home draws its own canvas, Settings and My Card stay plain, and Scan is a
- * camera. Painted as <main>'s background (see `.abc-motif` in globals.css),
- * so it can never cover content or trap a page's full-screen sheets.
+ * The global network is strongest on Home and fades from there; Scan is a
+ * camera, and gets nothing. Painted as <main>'s background (see `.abc-motif` in
+ * globals.css), so it can never cover content or trap a page's full-screen sheets.
  */
 function motifFor(pathname: string): string | null {
+  if (pathname === '/home') return 'global abc-net-home'
+  if (pathname === '/crm' || pathname.startsWith('/crm/')) return 'global abc-net-crm'
+  if (pathname === '/my-card') return 'global abc-net-shell'
+  if (pathname === '/follow-ups') return 'global abc-net-faint'
+  if (pathname === '/settings' || pathname.startsWith('/settings/')) return 'global abc-net-min'
   if (pathname === '/contacts') return 'network'
   if (pathname.startsWith('/contacts/')) return 'encounter'
-  if (pathname === '/follow-ups') return 'path'
-  if (pathname === '/crm' || pathname.startsWith('/crm/')) return 'progression'
   if (pathname === '/events' || pathname.startsWith('/events/')) return 'arcs'
   return null
 }

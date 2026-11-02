@@ -5879,21 +5879,18 @@ body:has(.pub-root) {
 */
 .abc-home {
   background-image:
-    url('/hero/home-threads.svg'),
-    radial-gradient(55% 60% at 72% 0%, rgba(255, 253, 247, 0.95), rgba(255, 253, 247, 0) 70%),
     radial-gradient(38% 46% at 6% 8%, rgba(255, 250, 238, 0.85), rgba(255, 250, 238, 0) 72%),
     radial-gradient(40% 40% at 96% 92%, rgba(240, 220, 170, 0.28), rgba(240, 220, 170, 0) 70%);
   background-repeat: no-repeat;
-  background-position: right 0 top -48px, 0 0, 0 0, 0 0;
-  background-size: min(1100px, 78%) 300px, 100% 720px, 100% 720px, 100% 720px;
+  background-size: 100% 720px, 100% 720px;
 }
 
 /*
   One quiet motif per work page, chosen by route in AppShell and painted as
   <main>'s background: Contacts a network, a contact the line of meetings
-  between two people, Follow-ups a path, Pipeline a progression, Event & Expo
-  Intelligence the arcs of a globe. Each is a few percent of gold at most, and
-  sits behind the page's real content.
+  between two people, Event & Expo Intelligence the arcs of a globe, and the
+  global network on Home, CRM, My Card, Follow-ups and Settings. Each sits behind
+  the page's real content.
 */
 .abc-motif {
   background-repeat: no-repeat;
@@ -5906,12 +5903,6 @@ body:has(.pub-root) {
 .abc-motif-encounter {
   background-image: url('/hero/motif-encounter.svg');
 }
-.abc-motif-path {
-  background-image: url('/hero/motif-path.svg');
-}
-.abc-motif-progression {
-  background-image: url('/hero/motif-progression.svg');
-}
 .abc-motif-arcs {
   background-image: url('/hero/motif-arcs.svg');
 }
@@ -5920,6 +5911,45 @@ body:has(.pub-root) {
   .abc-motif {
     background-size: 150% auto;
   }
+}
+/*
+  The global network. The file has its baked-in logo cropped away and its edges
+  faded to transparent, so the real logo in the header is the only one on screen.
+  A veil in the page's own colour sets how much of it shows on each page: both are
+  plain backgrounds on <main>, painted once and scrolled with the page.
+*/
+.abc-motif-global {
+  --abc-net-veil: 0.6;
+  background-image:
+    linear-gradient(rgba(247, 241, 230, var(--abc-net-veil)), rgba(247, 241, 230, var(--abc-net-veil))),
+    url('/abc/abc-global-network-bg.webp');
+  background-position: 0 0, right top;
+  background-size: 100% 100%, min(1180px, 100%) auto;
+}
+@media (max-width: 1023px) {
+  .abc-motif-global {
+    background-size: 100% 100%, 760px auto;
+  }
+}
+@media (max-width: 639px) {
+  .abc-motif-global {
+    background-size: 100% 100%, 620px auto;
+  }
+}
+.abc-net-home {
+  --abc-net-veil: 0.42;
+}
+.abc-net-crm {
+  --abc-net-veil: 0.74;
+}
+.abc-net-shell {
+  --abc-net-veil: 0.74;
+}
+.abc-net-faint {
+  --abc-net-veil: 0.84;
+}
+.abc-net-min {
+  --abc-net-veil: 0.9;
 }
 
 /* The owner's name in the greeting: metallic, but dark enough to read —

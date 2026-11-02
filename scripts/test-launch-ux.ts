@@ -222,6 +222,18 @@ check(
   [true, true, true, true, true, false]
 )
 
+const appShell = code('components/layout/AppShell.tsx')
+check(
+  'H7 the global network is a small, static page background, never on the camera',
+  [
+    fs.statSync(path.join(ROOT, 'public/abc/abc-global-network-bg.webp')).size < 60 * 1024,
+    /background-attachment/.test(homeCss),
+    homeCss.includes("url('/abc/abc-global-network-bg.webp')"),
+    appShell.slice(appShell.indexOf('function motifFor'), appShell.indexOf('export default')).includes("'/scan'"),
+  ],
+  [true, false, true, false]
+)
+
 const total = passed + failures.length
 if (failures.length) {
   console.log(`\nLaunch UX: ${passed}/${total} PASS, ${failures.length} FAILED\n`)
