@@ -140,6 +140,7 @@ export default function MeetingContextCard({ contact }: { contact: ContactDetail
             discussed: view.discussed ?? '',
             nextStep: view.nextStep ?? '',
             followUpAt: view.followUpAt,
+            plannedEventId: latest?.plannedEventId ?? null,
           }}
           submitLabel="Save context"
           onCancel={() => setEditing(false)}

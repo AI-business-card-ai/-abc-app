@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test:multi-card": "tsx scripts/test-multi-card.ts",
     "test:events": "tsx scripts/test-events.ts",
+    "test:planned-events": "tsx scripts/test-planned-events.ts",
     "test:billing": "tsx scripts/test-billing.ts",
     "test:contact-delete": "tsx scripts/test-contact-delete.ts",
     "test:account-deletion": "tsx scripts/test-account-deletion.ts",

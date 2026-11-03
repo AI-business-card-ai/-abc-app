@@ -30,7 +30,7 @@ type Stage = 'capture' | 'processing' | 'review' | 'duplicate' | 'saved'
 const PROCESSING_STEPS = ['Reading contact…', 'Extracting details…', 'Preparing connection…']
 
 function emptyContext(): MeetingContextValue {
-  return { whereMet: '', discussed: '', nextAction: '', followUpAt: null }
+  return { whereMet: '', discussed: '', nextAction: '', followUpAt: null, plannedEventId: null }
 }
 
 /**
@@ -271,6 +271,7 @@ export default function ScanClient({ topPadding = true }: { topPadding?: boolean
             topic: context.discussed,
             nextAction: context.nextAction,
             followUpAt: context.followUpAt,
+            plannedEventId: context.plannedEventId ?? undefined,
             recalculateScore: false,
             generateMessages: false,
           }),
@@ -341,7 +342,8 @@ export default function ScanClient({ topPadding = true }: { topPadding?: boolean
           context.whereMet.trim() ||
           context.discussed.trim() ||
           context.nextAction.trim() ||
-          context.followUpAt
+          context.followUpAt ||
+          context.plannedEventId
 
         if (hasContext) {
           const contextRes = await fetch('/api/card/context', {
@@ -354,6 +356,7 @@ export default function ScanClient({ topPadding = true }: { topPadding?: boolean
               topic: context.discussed,
               nextAction: context.nextAction,
               followUpAt: context.followUpAt,
+              plannedEventId: context.plannedEventId ?? undefined,
               recalculateScore: false,
               generateMessages: false,
             }),

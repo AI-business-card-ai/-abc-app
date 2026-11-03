@@ -1,5 +1,6 @@
 'use client'
 
+import PlannedEventSelect from '@/components/events/PlannedEventSelect'
 import { SectionLabel } from '@/components/ui/abc/Bits'
 import type { BatchSharedContext } from '@/lib/scan/batch'
 
@@ -42,12 +43,16 @@ export default function BatchSharedContextForm({
   onChange,
   count,
   disabled = false,
+  plannedEventId = null,
+  onPlannedEventChange,
 }: {
   value: BatchSharedContext
   onChange: (next: BatchSharedContext) => void
   /** How many cards this will be applied to — the reason the form is worth filling in. */
   count: number
   disabled?: boolean
+  plannedEventId?: string | null
+  onPlannedEventChange?: (id: string | null) => void
 }) {
   const set = <K extends keyof BatchSharedContext>(key: K, next: BatchSharedContext[K]) =>
     onChange({ ...value, [key]: next })
@@ -68,7 +73,7 @@ export default function BatchSharedContextForm({
       <div className="mt-4 flex flex-col gap-3.5">
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1.5 block text-[12px] text-abc-muted">Event</span>
+            <span className="mb-1.5 block text-[12px] text-abc-muted">Where you met</span>
             <input
               value={value.event}
               onChange={(e) => set('event', e.target.value)}
@@ -89,6 +94,10 @@ export default function BatchSharedContextForm({
             />
           </label>
         </div>
+
+        {onPlannedEventChange ? (
+          <PlannedEventSelect value={plannedEventId} onChange={onPlannedEventChange} disabled={disabled} />
+        ) : null}
 
         <label className="block">
           <span className="mb-1.5 block text-[12px] text-abc-muted">What did you discuss?</span>

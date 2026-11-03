@@ -5,6 +5,7 @@ import { applyPersonalMeetingBonus, aiScoreToDbFields, calculateAiMatchScore } f
 import { ABC_LEAD_SOURCE } from '@/lib/crm-constants'
 import { calculateLeadScore } from '@/lib/crm'
 import { normalizeEventText } from '@/lib/event-normalizer'
+import { ownsPlannedEvent } from '@/lib/events/planned'
 import { sanitizeProvenance } from '@/lib/scan/provenance'
 import { ALL_OUTREACH_CHANNELS, type OutreachChannel } from '@/lib/contact-enrichment-ui'
 import {
@@ -116,6 +117,12 @@ export async function POST(req: NextRequest) {
       nextAction?: string
       /** ISO date the follow-up is due — drives the dashboard counts. */
       followUpAt?: string | null
+      /**
+       * The planned event the owner chose for this meeting, or null to clear it
+       * on a revision. Omitted changes nothing. Nothing here matches an event from
+       * `whereMet`: that text stays a note, and a link only ever comes from a choice.
+       */
+      plannedEventId?: string | null
       /** The rebuilt scanner writes context only; no AI message generation. */
       generateMessages?: boolean
     }
@@ -170,6 +177,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
     }
 
+    // Someone else's event, or none at all, is the same "not found" before anything is written.
+    let plannedEventId: string | null | undefined
+    if (typeof body.plannedEventId === 'string') {
+      if (!(await ownsPlannedEvent(supabase, user.id, body.plannedEventId))) {
+        return NextResponse.json({ error: 'Planned event not found' }, { status: 404 })
+      }
+      plannedEventId = body.plannedEventId
+    } else if (body.plannedEventId === null && body.encounterId) {
+      plannedEventId = null
+    }
+    const linkedMeeting = { ...meeting, plannedEventId }
+
     /*
       A revision has to name a meeting that belongs to this contact, not merely
       one belonging to this owner. Matching on id and user_id alone would let a
@@ -186,12 +205,12 @@ export async function POST(req: NextRequest) {
           encounterId: body.encounterId,
           contactId: body.contactId,
           userId: user.id,
-          meeting,
+          meeting: linkedMeeting,
         })
       : await createEncounter(supabase, {
           contactId: body.contactId,
           userId: user.id,
-          meeting,
+          meeting: linkedMeeting,
           capture: {
             captureOrigin: captureProvenance?.origin ?? null,
             captureKind: captureProvenance?.kind ?? null,

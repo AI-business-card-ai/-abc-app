@@ -12,7 +12,9 @@ import {
 } from '@/lib/events/workspace'
 
 /**
- * One event: who was met there, and what is still open.
+ * One place written on the owner's meetings: who was met there, and what is
+ * still open. It is shown as meeting notes because that is what it is. It was not
+ * planned as an event, and the date is when the meetings were saved.
  *
  * Built for the walk back from the hall — a column of meetings, each saying who,
  * what was discussed, what was promised, and whether it reached the CRM. The
@@ -38,6 +40,11 @@ const PROVIDER_LABELS: Record<string, string> = {
   salesforce: 'Salesforce',
 }
 
+/*
+  Dates follow the visitor's locale, which the server cannot know, so every element
+  showing one here suppresses the hydration warning. Without that, a browser in a
+  different locale from the server fails hydration and re-renders the whole screen.
+*/
 function formatDay(value: string | null): string | null {
   if (!value) return null
   const date = new Date(value)
@@ -45,7 +52,7 @@ function formatDay(value: string | null): string | null {
   return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function Stat({ value, label }: { value: number; label: string }) {
+export function Stat({ value, label }: { value: number; label: string }) {
   return (
     <div className="min-w-0">
       <p className="text-[20px] font-bold leading-none text-abc-text">{value}</p>
@@ -70,17 +77,21 @@ export default function EventDetailView({ workspace }: { workspace: EventWorkspa
       </Link>
 
       <header className="mt-1">
-        <SectionLabel>Event</SectionLabel>
+        <SectionLabel>From your meeting notes</SectionLabel>
         <h1 className="mt-2 text-[26px] font-bold leading-tight tracking-tight text-abc-text lg:text-[34px]">
           {summary.name}
         </h1>
         {formatDay(summary.lastMetAt) ? (
-          <p className="mt-1.5 text-[13.5px] text-abc-secondary">
+          <p className="mt-1.5 text-[13.5px] text-abc-secondary" suppressHydrationWarning>
+            Met{' '}
             {summary.firstMetAt && formatDay(summary.firstMetAt) !== formatDay(summary.lastMetAt)
               ? `${formatDay(summary.firstMetAt)} – ${formatDay(summary.lastMetAt)}`
               : formatDay(summary.lastMetAt)}
           </p>
         ) : null}
+        <p className="mt-1.5 text-[12.5px] leading-[1.55] text-abc-muted">
+          A place you wrote on these meetings, not a planned event.
+        </p>
       </header>
 
       {/*
@@ -138,7 +149,7 @@ export default function EventDetailView({ workspace }: { workspace: EventWorkspa
   )
 }
 
-function EncounterRow({ row }: { row: EventEncounter }) {
+export function EncounterRow({ row }: { row: EventEncounter }) {
   const { person } = row
   const name = person.name || 'Unnamed contact'
   const secondary = [person.role, person.company].filter(Boolean).join(' · ')
@@ -159,7 +170,11 @@ function EncounterRow({ row }: { row: EventEncounter }) {
           {secondary ? (
             <p className="mt-0.5 truncate text-[13px] text-abc-secondary">{secondary}</p>
           ) : null}
-          {day ? <p className="mt-0.5 text-[12px] text-abc-muted">Met {day}</p> : null}
+          {day ? (
+            <p className="mt-0.5 text-[12px] text-abc-muted" suppressHydrationWarning>
+              Met {day}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -202,6 +217,7 @@ function Badge({ tone, children }: { tone: 'due' | 'scheduled' | 'crm'; children
     <span
       className="whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold"
       style={styles[tone]}
+      suppressHydrationWarning
     >
       {children}
     </span>

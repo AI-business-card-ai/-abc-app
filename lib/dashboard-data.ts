@@ -1,7 +1,7 @@
 import { createServerComponentClient } from '@/lib/supabase-server'
 import type { CardTheme } from '@/lib/card/types'
 import { bucketFollowUps, type FollowUpBuckets } from '@/lib/followups'
-import { groupEncountersIntoEvents, type EventSummary } from '@/lib/events/workspace'
+import { sortForPlanning, toPlannedEvent, type PlannedEvent } from '@/lib/events/planned'
 
 export type DashboardContact = {
   id: string
@@ -48,9 +48,9 @@ export type DashboardData = {
   followUps: FollowUpBuckets
   activity: DashboardActivity[]
   card: DashboardCard
-  /** The most recent events, for the way in to the event workspaces. */
-  events: EventSummary[]
-  /** Every event workspace the owner has, not just the three above. */
+  /** The planned events that are happening or next, for the way in to Events. */
+  events: PlannedEvent[]
+  /** Every event the owner has planned, not just the three above. */
   eventsTotal: number
   /**
    * Open opportunities in ABC CRM: deals the owner created, not yet won or
@@ -79,7 +79,7 @@ export async function getDashboardData(): Promise<DashboardData | null> {
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const [profileRes, contactsRes, dueRes, countRes, activityRes, encounterRes, pipelineRes] = await Promise.all([
+  const [profileRes, contactsRes, dueRes, countRes, activityRes, plannedRes, pipelineRes] = await Promise.all([
     supabase
       .from('abc_profiles')
       .select(
@@ -113,16 +113,12 @@ export async function getDashboardData(): Promise<DashboardData | null> {
       .order('created_at', { ascending: false })
       .limit(4),
 
-    /*
-      One query for the event workspaces card. Grouping happens in memory, so
-      the dashboard pays a single round trip for it rather than one per event.
-    */
+    // Events the owner planned. Text written on meetings is not counted as one.
     supabase
-      .from('contact_encounters')
-      .select('id, contact_id, met_at, event, event_normalized, follow_up_at')
+      .from('planned_events')
+      .select('id, name, starts_on, ends_on, location')
       .eq('user_id', user.id)
-      .order('met_at', { ascending: false })
-      .limit(1000),
+      .limit(500),
 
     /*
       A count only — the CRM is where the deals themselves are read. It counts
@@ -191,25 +187,10 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     }
   })
 
-  /*
-    The event workspaces, from the encounters just fetched. No CRM mapping is
-    read here, so the card shows people and follow-ups only — the numbers it
-    can state truthfully from one query.
-  */
-  const events = groupEncountersIntoEvents({
-    encounters: (encounterRes.data ?? []).map((row) => ({
-      id: String(row.id),
-      contactId: String(row.contact_id),
-      metAt: row.met_at ?? null,
-      event: row.event ?? null,
-      eventNormalized: row.event_normalized ?? null,
-      discussed: null,
-      nextAction: null,
-      followUpAt: row.follow_up_at ?? null,
-    })),
-    people: new Map(),
-    crmByEncounter: new Map(),
-  })
+  // Before the planned events migration this query fails, and Home simply has none to show.
+  const events = sortForPlanning(
+    ((plannedRes.error ? [] : plannedRes.data ?? []) as Record<string, unknown>[]).map(toPlannedEvent)
+  )
 
   return {
     firstName: firstNameOf(profile?.full_name ?? null, profile?.email ?? user.email ?? null),

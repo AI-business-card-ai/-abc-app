@@ -1,21 +1,18 @@
 import { startOfDay } from '@/lib/followups'
 
 /**
- * Event workspaces, derived from meetings rather than stored as their own thing.
+ * Meetings, grouped: by the place written on them, or by a planned event.
  *
- * ABC already records where a meeting happened: `contact_encounters.event`, with
- * `event_normalized` holding the sanitised form when one exists. A trade fair is
- * therefore not a new entity here — it is the set of this owner's encounters
- * that name the same event, and everything on the screen is counted from those
- * rows.
+ * ABC records where a meeting happened as free text: `contact_encounters.event`,
+ * with `event_normalized` holding the sanitised form when one exists. Grouping by
+ * that text answers "what did I write down", and it is shown as exactly that:
+ * meeting notes. It never makes an event. Text can be a note, a city or a sentence,
+ * and only the owner's "Plan an event" creates an event (lib/events/planned.ts).
  *
- * That is deliberate for the launch. An events table would have to be filled by
- * somebody, kept in step with the text people actually type at a stand, and
- * migrated before it could show a single number; this shows the truth already in
- * the database on the day it ships. The seam is the shape below: a page is given
- * `EventSummary` and `EventEncounter`, never a query. When a real event entity
- * arrives it produces the same two shapes and nothing above this file changes —
- * and no contact or encounter has to move, because none of this owns them.
+ * A meeting the owner linked to a planned event belongs to that event's view and
+ * leaves the text groups, so it is not reported twice. The seam is the shape below:
+ * a page is given `EventSummary` and `EventEncounter`, never a query, and no
+ * contact or encounter has to move, because none of this owns them.
  *
  * PERSON != ENCOUNTER holds throughout. A person met at two fairs is one contact
  * with two encounters and appears in both workspaces; the workspace groups
@@ -32,6 +29,8 @@ export type WorkspaceEncounter = {
   event: string | null
   /** Sanitised event text, when Phase 6 produced one. */
   eventNormalized: string | null
+  /** The planned event the owner linked this meeting to, if any. */
+  plannedEventId?: string | null
   discussed: string | null
   nextAction: string | null
   followUpAt: string | null
@@ -179,16 +178,33 @@ function toEventEncounter(
 const byMetAtDesc = (a: { metAt: string | null }, b: { metAt: string | null }) =>
   (b.metAt || '').localeCompare(a.metAt || '')
 
+function summarize(key: string, name: string, rows: EventEncounter[]): EventSummary {
+  const dates = rows.map((row) => row.metAt).filter((value): value is string => Boolean(value))
+  return {
+    key,
+    name,
+    encounters: rows.length,
+    people: new Set(rows.map((row) => row.person.id)).size,
+    followUpsDue: rows.filter((row) => row.followUp === 'due').length,
+    followUpsScheduled: rows.filter((row) => row.followUp === 'scheduled').length,
+    crmSynced: rows.filter((row) => row.crm === 'synced').length,
+    firstMetAt: dates.length ? dates[dates.length - 1] : null,
+    lastMetAt: dates.length ? dates[0] : null,
+  }
+}
+
 /**
- * Every event this owner has met somebody at, newest first.
+ * The places this owner wrote on their meetings, newest first.
  *
- * A meeting with no event text belongs to no workspace — it was a meeting, not
- * a fair, and inventing a bucket for it would put words in the owner's mouth.
+ * A meeting with no event text belongs to no group — it was a meeting, not a
+ * fair, and inventing a bucket for it would put words in the owner's mouth. A
+ * meeting linked to a planned event is reported there instead.
  */
 export function groupEncountersIntoEvents(input: GroupingInput): EventSummary[] {
   const groups = new Map<string, { name: string; rows: EventEncounter[] }>()
 
   for (const encounter of input.encounters) {
+    if (encounter.plannedEventId) continue
     const name = eventDisplayName(encounter)
     if (!name) continue
 
@@ -200,30 +216,19 @@ export function groupEncountersIntoEvents(input: GroupingInput): EventSummary[] 
 
   const summaries: EventSummary[] = []
   for (const [key, group] of groups) {
-    const rows = [...group.rows].sort(byMetAtDesc)
-    const dates = rows.map((row) => row.metAt).filter((value): value is string => Boolean(value))
-    summaries.push({
-      key,
-      name: group.name,
-      encounters: rows.length,
-      people: new Set(rows.map((row) => row.person.id)).size,
-      followUpsDue: rows.filter((row) => row.followUp === 'due').length,
-      followUpsScheduled: rows.filter((row) => row.followUp === 'scheduled').length,
-      crmSynced: rows.filter((row) => row.crm === 'synced').length,
-      firstMetAt: dates.length ? dates[dates.length - 1] : null,
-      lastMetAt: dates.length ? dates[0] : null,
-    })
+    summaries.push(summarize(key, group.name, [...group.rows].sort(byMetAtDesc)))
   }
 
   return summaries.sort((a, b) => (b.lastMetAt || '').localeCompare(a.lastMetAt || ''))
 }
 
-/** One event workspace, or null when this owner has no meetings under that key. */
+/** One group of meeting notes, or null when this owner has no meetings under that key. */
 export function buildEventWorkspace(input: GroupingInput, eventKey: string): EventWorkspace | null {
   const rows: EventEncounter[] = []
   let name: string | null = null
 
   for (const encounter of input.encounters) {
+    if (encounter.plannedEventId) continue
     const displayName = eventDisplayName(encounter)
     if (!displayName || eventKeyFromName(displayName) !== eventKey) continue
     name = name ?? displayName
@@ -233,22 +238,21 @@ export function buildEventWorkspace(input: GroupingInput, eventKey: string): Eve
   if (!name) return null
 
   rows.sort(byMetAtDesc)
-  const dates = rows.map((row) => row.metAt).filter((value): value is string => Boolean(value))
 
-  return {
-    summary: {
-      key: eventKey,
-      name,
-      encounters: rows.length,
-      people: new Set(rows.map((row) => row.person.id)).size,
-      followUpsDue: rows.filter((row) => row.followUp === 'due').length,
-      followUpsScheduled: rows.filter((row) => row.followUp === 'scheduled').length,
-      crmSynced: rows.filter((row) => row.crm === 'synced').length,
-      firstMetAt: dates.length ? dates[dates.length - 1] : null,
-      lastMetAt: dates.length ? dates[0] : null,
-    },
-    encounters: rows,
-  }
+  return { summary: summarize(eventKey, name, rows), encounters: rows }
+}
+
+/** A planned event's meetings: only the ones the owner linked to it. Text plays no part. */
+export function buildPlannedEventWorkspace(
+  input: GroupingInput,
+  event: { id: string; name: string }
+): EventWorkspace {
+  const rows = input.encounters
+    .filter((encounter) => encounter.plannedEventId === event.id)
+    .map((encounter) => toEventEncounter(encounter, input))
+    .sort(byMetAtDesc)
+
+  return { summary: summarize(event.id, event.name, rows), encounters: rows }
 }
 
 /** The filters the detail screen offers. Each is a fact already on the row. */

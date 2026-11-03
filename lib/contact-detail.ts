@@ -97,6 +97,8 @@ export type ContactEncounterView = {
   discussed: string | null
   nextAction: string | null
   followUpAt: string | null
+  /** The planned event the owner linked this meeting to, if any. */
+  plannedEventId: string | null
 }
 
 /**
@@ -165,7 +167,9 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
     // the policy to be the only thing standing there.
     supabase
       .from('contact_encounters')
-      .select('id, met_at, event, discussed, next_action, follow_up_at')
+      // Every column: `planned_event_id` arrives with its migration, and naming it
+      // here would empty the meeting history on a database that has not had it yet.
+      .select('*')
       .eq('contact_id', id)
       .eq('user_id', user.id)
       // Same ordering the context route uses to decide which encounter counts
@@ -247,6 +251,7 @@ export async function getContactDetail(id: string): Promise<ContactDetailData | 
         discussed: clean(e.discussed),
         nextAction: clean(e.next_action),
         followUpAt: clean(e.follow_up_at),
+        plannedEventId: clean(e.planned_event_id),
       })),
     },
     opportunity: opportunityRes.error

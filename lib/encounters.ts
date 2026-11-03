@@ -24,6 +24,12 @@ export type MeetingInput = {
   nextAction: string | null
   followUpAt: string | null
   metAt?: string | null
+  /**
+   * The planned event the owner chose for this meeting. Undefined leaves the
+   * column out altogether, so a meeting nobody linked writes exactly what it always
+   * did. Null clears a link when the owner revises a meeting and chooses None.
+   */
+  plannedEventId?: string | null
 }
 
 /** Provenance for a single meeting — how this one entered ABC. */
@@ -104,6 +110,7 @@ export function encounterPayload(input: MeetingInput, capture: EncounterCapture)
     follow_up_at: input.followUpAt,
     capture_origin: capture.captureOrigin ?? null,
     capture_kind: capture.captureKind ?? null,
+    ...(input.plannedEventId !== undefined ? { planned_event_id: input.plannedEventId } : {}),
   }
 }
 

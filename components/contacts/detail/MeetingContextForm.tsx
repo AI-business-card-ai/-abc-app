@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import PlannedEventSelect from '@/components/events/PlannedEventSelect'
 import Button from '@/components/ui/abc/Button'
 import { ErrorNote, FIELD_LABEL_CLASS, INPUT_CLASS } from '@/components/contacts/detail/parts'
 
@@ -25,6 +26,7 @@ export type MeetingValues = {
   discussed: string
   nextStep: string
   followUpAt: string | null
+  plannedEventId?: string | null
 }
 
 function isoInDays(days: number): string {
@@ -61,6 +63,9 @@ export default function MeetingContextForm({
   const [discussed, setDiscussed] = useState(initial?.discussed ?? '')
   const [nextStep, setNextStep] = useState(initial?.nextStep ?? '')
   const [followUpAt, setFollowUpAt] = useState<string | null>(initial?.followUpAt ?? null)
+  const [plannedEventId, setPlannedEventId] = useState<string | null>(initial?.plannedEventId ?? null)
+  // Sent only once the owner has touched it, so editing a note cannot change the link.
+  const [plannedEventTouched, setPlannedEventTouched] = useState(false)
   const [customDate, setCustomDate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -79,6 +84,7 @@ export default function MeetingContextForm({
           topic: discussed,
           nextAction: nextStep,
           followUpAt,
+          ...(plannedEventTouched ? { plannedEventId } : {}),
           recalculateScore: false,
           generateMessages: false,
         }),
@@ -109,6 +115,16 @@ export default function MeetingContextForm({
           className={`h-11 ${INPUT_CLASS}`}
         />
       </label>
+
+      <PlannedEventSelect
+        value={plannedEventId}
+        onChange={(id) => {
+          setPlannedEventId(id)
+          setPlannedEventTouched(true)
+        }}
+        labelClassName={FIELD_LABEL_CLASS}
+        selectClassName={`h-11 ${INPUT_CLASS}`}
+      />
 
       <label className="block">
         <span className={FIELD_LABEL_CLASS}>What did you discuss?</span>

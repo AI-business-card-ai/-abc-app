@@ -114,6 +114,8 @@ export default function MultiCardClient() {
   const [stage, setStage] = useState<Stage>('capture')
   const [batch, setBatch] = useState<ScanBatch | null>(null)
   const [context, setContext] = useState<BatchSharedContext>(emptySharedContext)
+  /** Only ever set by the owner choosing an event in the shared context form. */
+  const [plannedEventId, setPlannedEventId] = useState<string | null>(null)
   const [detectStep, setDetectStep] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -428,6 +430,7 @@ export default function MultiCardClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sharedContext: context,
+          plannedEventId: plannedEventId ?? undefined,
           // Every unsaved row, so a correction and an untick travel together.
           items: batch.items
             .filter((item) => !item.createdContactId)
@@ -459,11 +462,12 @@ export default function MultiCardClient() {
       setError(userFacingRequestError(err, 'Could not save these contacts.'))
       setStage('review')
     }
-  }, [batch, context])
+  }, [batch, context, plannedEventId])
 
   const restart = useCallback(() => {
     setBatch(null)
     setContext(emptySharedContext())
+    setPlannedEventId(null)
     setOutcome(null)
     setError(null)
     setNotice(null)
@@ -518,6 +522,8 @@ export default function MultiCardClient() {
             onChange={setContext}
             count={Math.max(selectedCount, 1)}
             disabled={stage === 'saving'}
+            plannedEventId={plannedEventId}
+            onPlannedEventChange={setPlannedEventId}
           />
 
           {remaining > 0 && !blocked ? (

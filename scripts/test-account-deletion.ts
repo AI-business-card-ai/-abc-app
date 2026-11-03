@@ -99,6 +99,7 @@ const OWNER_TABLES = [
   'crm_opportunities',
   'followup_sequences',
   'native_connector_attempts',
+  'planned_events',
   'scan_batch_items',
   'scan_batches',
   'scan_credit_ledger',
@@ -403,6 +404,11 @@ async function seedAccount(db: PGlite, storage: FakeStorage, owner: string, tag:
   storage.put('card-media', `${owner}/cover-1.jpg`)
   storage.put('card-media', `${owner}/showcase/a.jpg`)
   storage.put('avatars', `${owner}/avatar.png`)
+
+  // A planned event with a meeting linked to it. Nothing in the deletion names this
+  // table: it goes with the profile, after the meetings that point at it.
+  const planned = (await rowsOf<{ id: string }>(db, "insert into public.planned_events (user_id, name) values ($1, 'A planned fair') returning id", [owner]))[0].id
+  await db.query('update public.contact_encounters set planned_event_id = $1 where id = $2', [planned, encounter])
 
   // A native Gmail connection waiting to be claimed: encrypted tokens on the row.
   await db.query(

@@ -52,7 +52,7 @@ function motifFor(pathname: string): string | null {
   if (pathname === '/settings' || pathname.startsWith('/settings/')) return 'global abc-net-min'
   if (pathname === '/contacts') return 'network'
   if (pathname.startsWith('/contacts/')) return 'encounter'
-  if (pathname === '/events' || pathname.startsWith('/events/')) return 'arcs'
+  if (pathname === '/events' || pathname.startsWith('/events/')) return 'global abc-net-events'
   return null
 }
 

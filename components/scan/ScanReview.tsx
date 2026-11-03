@@ -12,6 +12,7 @@ import {
   IconWorld,
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
+import PlannedEventSelect from '@/components/events/PlannedEventSelect'
 import Button from '@/components/ui/abc/Button'
 import { SectionLabel } from '@/components/ui/abc/Bits'
 import type { ContactCandidate } from '@/lib/scan/candidate'
@@ -31,6 +32,8 @@ export type MeetingContextValue = {
   discussed: string
   nextAction: string
   followUpAt: string | null
+  /** Only ever set by the owner choosing an event here. */
+  plannedEventId: string | null
 }
 
 const FIELDS: { key: keyof ReviewFields; label: string; icon: TablerIcon; type?: string }[] = [
@@ -201,6 +204,11 @@ export default function ScanReview({
               className="h-11 w-full rounded-inner border border-abc-border bg-abc-raised px-3 text-[16px] text-abc-text outline-none sm:text-[15px] transition-colors duration-200 ease-abc placeholder:text-abc-muted focus:border-abc-gold-accent"
             />
           </label>
+
+          <PlannedEventSelect
+            value={context.plannedEventId}
+            onChange={(plannedEventId) => onContextChange({ ...context, plannedEventId })}
+          />
 
           <label className="block">
             <span className="mb-1.5 block text-[12px] text-abc-muted">What did you discuss?</span>

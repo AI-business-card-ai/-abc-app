@@ -547,6 +547,7 @@ export async function saveBatchContacts(
     nextAction: context.nextAction.trim() || null,
     followUpAt: context.followUpAt,
     metAt,
+    plannedEventId: options.plannedEventId,
   }
   const capture: EncounterCapture = { captureOrigin: 'camera', captureKind: 'business_card' }
 
@@ -833,6 +834,8 @@ export type SaveBatchOptions = {
    * owners, whose cards go through the same transaction with no ledger row.
    */
   ledger?: { charge: boolean }
+  /** The planned event the owner chose for these cards, already checked to be theirs. */
+  plannedEventId?: string
 }
 
 const NO_CREDITS_REASON = 'No Smart Scan credits left for this card.'

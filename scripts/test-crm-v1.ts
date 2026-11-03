@@ -450,7 +450,7 @@ async function run() {
 
   const migration = read(MIGRATION)
   check('D1 the migration is additive: no drop table/column, no delete, no truncate', /drop\s+table|drop\s+column|\bdelete\s+from|truncate/i.test(migration.replace(/--.*$/gm, '')), false)
-  check('D2 it sorts after every migration already in the repository', fs.readdirSync(path.join(ROOT, 'supabase/migrations')).filter((f) => f.endsWith('.sql')).sort().pop(), path.basename(MIGRATION))
+  check('D2 it sorts after every migration that came before it', fs.readdirSync(path.join(ROOT, 'supabase/migrations')).filter((f) => f.endsWith('.sql') && f !== '20261102120000_planned_events.sql').sort().pop(), path.basename(MIGRATION))
 
   const db = await database({
     v1: true,

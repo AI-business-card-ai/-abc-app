@@ -17,6 +17,7 @@ import {
 } from '@/lib/scan/entitlement'
 import { ledgerEnabled, ledgerKeys } from '@/lib/billing/ledger'
 import { isoOrNull } from '@/lib/encounters'
+import { ownsPlannedEvent } from '@/lib/events/planned'
 
 /**
  * Turn the batch into contacts.
@@ -37,6 +38,8 @@ export const maxDuration = 120
 type Body = {
   sharedContext?: Partial<BatchSharedContext>
   items?: ItemPatch[]
+  /** The planned event the owner chose for these cards. Omitted means none. */
+  plannedEventId?: string
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -53,6 +56,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!existing) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
 
     const body = (await req.json().catch(() => ({}))) as Body
+
+    // Checked on the owner's own client, before a single card is written.
+    const plannedEventId = typeof body.plannedEventId === 'string' ? body.plannedEventId : undefined
+    if (plannedEventId && !(await ownsPlannedEvent(auth, user.id, plannedEventId))) {
+      return NextResponse.json({ error: 'Planned event not found.' }, { status: 404 })
+    }
 
     if (body.sharedContext) {
       const incoming = { ...emptySharedContext(), ...body.sharedContext }
@@ -113,7 +122,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       user.id,
       params.id,
       entitlement.available,
-      ledger ? { ledger: { charge: !entitlement.unmetered } } : {}
+      { ...(ledger ? { ledger: { charge: !entitlement.unmetered } } : {}), plannedEventId }
     )
     if (!result) return NextResponse.json({ error: 'Batch not found.' }, { status: 404 })
 

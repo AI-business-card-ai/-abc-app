@@ -5888,9 +5888,8 @@ body:has(.pub-root) {
 /*
   One quiet motif per work page, chosen by route in AppShell and painted as
   <main>'s background: Contacts a network, a contact the line of meetings
-  between two people, Event & Expo Intelligence the arcs of a globe, and the
-  global network on Home, CRM, My Card, Follow-ups and Settings. Each sits behind
-  the page's real content.
+  between two people, and the global network on Home, Event & Expo Intelligence,
+  CRM, My Card, Follow-ups and Settings. Each sits behind the page's real content.
 */
 .abc-motif {
   background-repeat: no-repeat;
@@ -5902,9 +5901,6 @@ body:has(.pub-root) {
 }
 .abc-motif-encounter {
   background-image: url('/hero/motif-encounter.svg');
-}
-.abc-motif-arcs {
-  background-image: url('/hero/motif-arcs.svg');
 }
 @media (max-width: 1023px) {
   /* Narrow screens show the dense right-hand part, larger. */
@@ -5938,6 +5934,9 @@ body:has(.pub-root) {
 }
 .abc-net-home {
   --abc-net-veil: 0.42;
+}
+.abc-net-events {
+  --abc-net-veil: 0.5;
 }
 .abc-net-crm {
   --abc-net-veil: 0.74;

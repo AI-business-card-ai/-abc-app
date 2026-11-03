@@ -222,6 +222,19 @@ async function run() {
     .map((w) => w.payload as Record<string, unknown>)
   check('8c one meeting per accepted card', encounterWrites.length, 2)
 
+  // A scan with no event chosen: saved as ever, and no event comes of it.
+  check('8d naming a fair in the shared context creates no event', stub.writes.filter((w) => w.table === 'planned_events').length, 0)
+  check('8e and links no meeting to one', encounterWrites.some((row) => 'planned_event_id' in row), false)
+
+  // The owner chose a planned event: every accepted card's meeting carries it.
+  const chosen = stubClient(JSON.parse(JSON.stringify(seed)))
+  await quietly(() => saveBatchContacts(chosen.client, 'owner-1', 'batch-1', 50, { plannedEventId: 'planned-1' }))
+  const chosenWrites = chosen.writes
+    .filter((w) => w.table === 'contact_encounters' && w.op === 'insert')
+    .map((w) => w.payload as Record<string, unknown>)
+  check('8f a chosen event reaches every accepted card', [chosenWrites.length, chosenWrites.every((row) => row.planned_event_id === 'planned-1')], [2, true])
+  check('8g and choosing one still creates nothing', chosen.writes.filter((w) => w.table === 'planned_events').length, 0)
+
   const fromScan: WorkspaceEncounter[] = encounterWrites.map((row, index) => ({
     id: `saved-${index}`,
     contactId: String(row.contact_id),
@@ -255,10 +268,10 @@ async function run() {
 
   // ─────────────────── SCREENS ───────────────────
 
-  check('11a the list links to each event workspace', listView.includes('href={`/events/${event.key}`}'), true)
+  check('11a meeting notes stay reachable, under their own label', listView.includes('href={`/events/${event.key}`}') && listView.includes('From your meeting notes'), true)
   check('11b a person links to the one canonical contact screen', detailView.includes('href={`/contacts/${person.id}`}'), true)
   check('11c there is no event-local contact editor', /<input|<textarea|onFieldsChange/.test(detailView), false)
-  check('11d the empty state says so plainly and offers a scan', listView.includes('No event meetings yet.') && listView.includes('href="/scan"'), true)
+  check('11d the empty state says so plainly and offers to plan an event', listView.includes('No planned events yet.') && listView.includes('href="/events/new"'), true)
   check('11e an event with nothing matching a filter fails gracefully', detailView.includes('No meeting at this event matches that filter.'), true)
   check('11f people and meetings are shown as separate numbers', detailView.includes("label={summary.people === 1 ? 'Person met' : 'People met'}") && detailView.includes("label={summary.encounters === 1 ? 'Meeting' : 'Meetings'}"), true)
   check('11g follow-up state is shown per meeting', detailView.includes('Needs follow-up') && detailView.includes('Scheduled'), true)

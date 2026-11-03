@@ -11,7 +11,7 @@ import {
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
 import GoldTrace from '@/components/dashboard/GoldTrace'
-import type { EventSummary } from '@/lib/events/workspace'
+import { eventDateLabel, eventPhase, type PlannedEvent } from '@/lib/events/planned'
 
 type Metric = { icon: TablerIcon; label: string; value: number; href: string }
 
@@ -19,13 +19,12 @@ type Metric = { icon: TablerIcon; label: string; value: number; href: string }
  * EVENT & EXPO INTELLIGENCE — the wide panel under the working cards.
  *
  * One area for everything that happens around an event. What it does today is
- * the event workspaces: every fair you met people at, grouped from the
- * encounters you saved. What it is being built to do — Expo Mission, before
- * you arrive — sits inside it as `children`, labelled coming soon by that
- * component and not by this one.
+ * planning: the events you chose to prepare for. What it is being built to do —
+ * Expo Mission, before you arrive — sits inside it as `children`, labelled coming
+ * soon by that component and not by this one.
  *
  * Every figure here is counted, never estimated:
- *   Events                event workspaces grouped from your encounters
+ *   Planned events        events you planned; a scan never adds one
  *   Open opportunities    deals you opened in ABC CRM, not won or lost
  *   Total connections     your contacts
  * When the opportunity count cannot be read the tile is left out rather than
@@ -39,16 +38,16 @@ export default function EventsCard({
   contactsTotal,
   children,
 }: {
-  events: EventSummary[]
+  events: PlannedEvent[]
   eventsTotal: number
   opportunities: number | null
   contactsTotal: number
   children?: ReactNode
 }) {
-  const latest = events[0]
+  const next = events[0]
 
   const metrics: Metric[] = [
-    { icon: IconUsersGroup, label: 'Events', value: eventsTotal, href: '/events' },
+    { icon: IconUsersGroup, label: 'Planned events', value: eventsTotal, href: '/events' },
     ...(opportunities === null
       ? []
       : [{ icon: IconChartBar, label: 'Open opportunities', value: opportunities, href: '/crm' }]),
@@ -78,7 +77,7 @@ export default function EventsCard({
                 Event &amp; Expo Intelligence
               </h2>
               <p className="abc-dash-sub mt-1">
-                Your events, your meetings, and the opportunities they opened.
+                Plan the events you are going to, and follow through on who you meet.
               </p>
             </div>
             <Link href="/events" className="abc-outline-pill abc-card-link abc-focus-ring hidden shrink-0 sm:inline-flex">
@@ -107,23 +106,22 @@ export default function EventsCard({
             ))}
           </ul>
 
-          {/* The latest event by name, where the panel stacks; wide screens show the tiles alone, as the reference does. */}
-          {latest ? (
+          {/* The next event by name, where the panel stacks; wide screens show the tiles alone, as the reference does. */}
+          {next ? (
             <Link
-              href={`/events/${latest.key}`}
+              href={`/events/planned/${next.id}`}
               className="mt-2 flex min-h-[44px] items-center gap-1 rounded-[10px] text-[12.5px] text-[#6a645b] abc-focus-ring lg:hidden"
             >
-              <span className="min-w-0 truncate">
-                Latest: <span className="font-semibold text-[#8f6812]">{latest.name}</span>
-                {' · '}
-                {latest.people} {latest.people === 1 ? 'person' : 'people'}
-                {latest.followUpsDue > 0 ? ` · ${latest.followUpsDue} to follow up` : ''}
+              {/* Dates follow the visitor's locale, which the server cannot know. */}
+              <span className="min-w-0 truncate" suppressHydrationWarning>
+                {eventPhase(next) === 'past' ? 'Latest' : 'Next'}: <span className="font-semibold text-[#8f6812]">{next.name}</span>
+                {eventDateLabel(next) ? ` · ${eventDateLabel(next)}` : ''}
               </span>
               <IconChevronRight size={14} stroke={2} className="shrink-0" aria-hidden="true" />
             </Link>
           ) : (
             <p className="mt-3 text-[12.5px] leading-[1.5] text-[#6a645b] lg:hidden">
-              No event meetings yet. Add the event when you scan a card and everyone you met there collects here.
+              No planned events yet. Plan your next fair and arrive prepared.
             </p>
           )}
 

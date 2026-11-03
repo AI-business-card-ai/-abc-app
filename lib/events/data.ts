@@ -1,6 +1,7 @@
 import { createServerComponentClient } from '@/lib/supabase-server'
 import {
   buildEventWorkspace,
+  buildPlannedEventWorkspace,
   groupEncountersIntoEvents,
   type EventSummary,
   type EventWorkspace,
@@ -8,9 +9,10 @@ import {
   type WorkspaceEncounter,
   type WorkspacePerson,
 } from '@/lib/events/workspace'
+import { getPlannedEvent, listPlannedEvents, type PlannedEvent, type PlannedEventRow } from '@/lib/events/planned'
 
 /**
- * Reading the owner's event workspaces.
+ * Reading the owner's planned events, and the meetings around them.
  *
  * Three queries, whatever the size of the account: the meetings, the people they
  * were with, and the CRM mappings for those meetings. Never one query per
@@ -42,7 +44,9 @@ async function fetchAllEncounters(
     const from = page * PAGE
     const { data, error } = await supabase
       .from('contact_encounters')
-      .select('id, contact_id, met_at, event, event_normalized, discussed, next_action, follow_up_at')
+      // Every column: `planned_event_id` arrives with its migration, and naming it
+      // here would fail this whole screen on a database that has not had it yet.
+      .select('*')
       .eq('user_id', ownerId)
       .order('met_at', { ascending: false })
       .order('id', { ascending: true })
@@ -61,6 +65,7 @@ async function fetchAllEncounters(
         metAt: str(row.met_at),
         event: str(row.event),
         eventNormalized: str(row.event_normalized),
+        plannedEventId: str(row.planned_event_id),
         discussed: str(row.discussed),
         nextAction: str(row.next_action),
         followUpAt: str(row.follow_up_at),
@@ -165,7 +170,12 @@ async function fetchCrmByEncounter(
   return byEncounter
 }
 
-async function loadGroupingInput(): Promise<GroupingInput | null> {
+type LoadedInput = GroupingInput & {
+  supabase: ReturnType<typeof createServerComponentClient>
+  ownerId: string
+}
+
+async function loadGroupingInput(): Promise<LoadedInput | null> {
   const supabase = createServerComponentClient()
 
   const {
@@ -175,7 +185,7 @@ async function loadGroupingInput(): Promise<GroupingInput | null> {
 
   const encounters = await fetchAllEncounters(supabase, user.id)
   if (encounters.length === 0) {
-    return { encounters, people: new Map(), crmByEncounter: new Map() }
+    return { supabase, ownerId: user.id, encounters, people: new Map(), crmByEncounter: new Map() }
   }
 
   const contactIds = Array.from(new Set(encounters.map((row) => row.contactId)))
@@ -186,10 +196,47 @@ async function loadGroupingInput(): Promise<GroupingInput | null> {
     fetchCrmByEncounter(supabase, user.id, encounterIds),
   ])
 
-  return { encounters, people, crmByEncounter }
+  return { supabase, ownerId: user.id, encounters, people, crmByEncounter }
 }
 
-/** Every event this owner has met somebody at. `null` means no session. */
+/**
+ * The Events screen: the owner's planned events, each with its linked meetings
+ * counted, and the place names written on meetings that are linked to none.
+ * `null` means no session.
+ */
+export async function loadEventsOverview(): Promise<{
+  available: boolean
+  planned: PlannedEventRow[]
+  notes: EventSummary[]
+} | null> {
+  const input = await loadGroupingInput()
+  if (!input) return null
+
+  const { available, events } = await listPlannedEvents(input.supabase, input.ownerId)
+  const planned = events.map((event) => {
+    const rows = input.encounters.filter((row) => row.plannedEventId === event.id)
+    return { ...event, people: new Set(rows.map((row) => row.contactId)).size, meetings: rows.length }
+  })
+
+  return { available, planned, notes: groupEncountersIntoEvents(input) }
+}
+
+/**
+ * One planned event and its meetings. `null` for no session; `undefined` for an
+ * id this owner has no event under, which is the same answer a stranger's id gets.
+ */
+export async function loadPlannedEventDetail(
+  id: string
+): Promise<{ event: PlannedEvent; workspace: EventWorkspace } | null | undefined> {
+  const input = await loadGroupingInput()
+  if (!input) return null
+
+  const event = await getPlannedEvent(input.supabase, input.ownerId, id)
+  if (!event) return undefined
+  return { event, workspace: buildPlannedEventWorkspace(input, event) }
+}
+
+/** Every place this owner wrote on a meeting. `null` means no session. */
 export async function loadEventWorkspaces(): Promise<EventSummary[] | null> {
   const input = await loadGroupingInput()
   if (!input) return null
