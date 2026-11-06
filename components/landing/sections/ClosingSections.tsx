@@ -30,7 +30,7 @@ export function FinalCtaSection() {
             person. Remember the context. Follow up while it matters. Move the relationship forward.
           </p>
 
-          <p className="cine-final-promise">From handshake to CRM in seconds.</p>
+          <p className="cine-final-promise">From handshake to follow-up in seconds.</p>
 
           <div className="pub-actions pub-actions-center cine-rise">
             <Link href="/register" className="pub-btn cine-btn-graphite">

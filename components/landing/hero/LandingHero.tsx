@@ -10,9 +10,9 @@ import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
  * out, the relationship reaches the CRM. Nothing here explains a feature; the
  * chapters below do that.
  *
- * The four supporting lines are the lifecycle in the imperative, and the strip
- * underneath names its five stages, so the structure of the page is legible
- * before any scrolling happens.
+ * The supporting lines say what ABC does with one meeting, and the strip
+ * underneath names the five stages of the flow, so the structure of the page is
+ * legible before any scrolling happens.
  *
  * MEDIA SLOT — `hero` (see lib/landing/media.ts). A photograph of the moment
  * before this composition belongs behind the stage. Until it exists the product
@@ -26,10 +26,10 @@ import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
  * colour of text that is already painted — the LCP element never waits on it.
  */
 
-/** The lifecycle, named once, in the order the page then follows. */
-const LIFECYCLE = ['Meet', 'Scan', 'Remember', 'Follow up', 'CRM']
+/** The flow, named once: what happens to one meeting, start to finish. */
+const LIFECYCLE = ['Scan', 'Save', 'Context', 'Follow-up', 'CRM']
 
-export default function LandingHero() {
+export default function LandingHero({ crm }: { crm: string[] }) {
   return (
     <section id="hero" className="lh">
       {/*
@@ -43,22 +43,23 @@ export default function LandingHero() {
       <div className="lh-grid">
         <div className="lh-copy">
           <CinematicHeadline as="h1" variant="hero" className="lh-h1">
-            From handshake to CRM in seconds.
+            From handshake to follow-up in seconds.
           </CinematicHeadline>
 
           {/*
-            Four sentences, one per stage of the lifecycle. They replace a
-            paragraph that explained the same thing in one breath and read as
-            product description rather than as a promise.
+            What ABC does with one meeting, in the order it happens, then why it
+            matters. Each verb is a shipping feature: capture is Smart Scan or
+            the exchange, the conversation is the meeting context kept on the
+            contact, the follow-up is Smart Follow-up.
           */}
           <p className="lh-lead">
-            Capture the person. Remember the meeting. Follow up with context. Move the relationship
-            forward.
+            Capture a contact, remember the conversation, and create a meaningful follow-up.
+            Everything you need to turn a meeting into a lasting connection.
           </p>
 
           <div className="lh-actions">
             <Button href="/register" variant="gold" size="lg" className="lh-cta-primary">
-              Get started
+              Get started free
             </Button>
             {/*
               A real anchor, not a scroll handler. It works before hydration,
@@ -87,7 +88,7 @@ export default function LandingHero() {
         </div>
 
         {/* The mechanism that connects the meeting to the CRM. */}
-        <HeroProductStory />
+        <HeroProductStory crm={crm} />
       </div>
     </section>
   )

@@ -1,11 +1,13 @@
 /**
  * The landing's media contract.
  *
- * Five cinematic moments want real photography or animation that does not
- * exist yet. Rather than fill them with stock imagery — or leave grey boxes on
- * a premium page — each slot is declared here with the brief it will be
- * commissioned against, and every slot is `null` until an approved asset
- * lands.
+ * The landing wants assets that do not exist yet: the approved logo,
+ * photography, the real screen recording of the main flow, and real product
+ * screenshots. Rather than fill them with stock imagery, generated UI or grey
+ * boxes on a premium page, each slot is declared here with the brief it will
+ * be commissioned against, and every slot is `null` until an approved asset
+ * lands. components/landing/MediaSlot renders a slot, or the section's current
+ * composition while the slot is empty.
  *
  * A scene asks for its slot and renders its own product-UI composition when the
  * answer is null, so the page is complete today and gains photography later
@@ -18,12 +20,19 @@
  */
 
 export type MediaSlotId =
+  | 'logo'
   | 'hero'
+  | 'hero-recording'
   | 'smart-scan'
   | 'follow-up-crm'
   | 'event-workspace'
   | 'event-intelligence'
   | 'final-cta'
+  | 'screen-smart-scan'
+  | 'screen-follow-up'
+  | 'screen-crm'
+  | 'screen-event'
+  | 'screen-card'
 
 export type MediaAsset = {
   /** Path under /public, or null while the asset is still to be supplied. */
@@ -33,10 +42,15 @@ export type MediaAsset = {
   height?: number
   /** What a screen reader should hear. Required with `src`. */
   alt?: string
+  /**
+   * Video only, and required for one: the still shown before playback and
+   * instead of it under reduced motion.
+   */
+  poster?: string
   /** The brief, kept beside the slot so it cannot drift from the design. */
   brief: {
     purpose: string
-    kind: 'photo' | 'animation' | 'ui'
+    kind: 'photo' | 'animation' | 'ui' | 'logo' | 'video' | 'screenshot'
     aspectDesktop: string
     aspectMobile: string
     textSafeArea: boolean
@@ -44,7 +58,27 @@ export type MediaAsset = {
   }
 }
 
+/** Shared by the five screenshot slots: real screens, demo data only, never mocked. */
+const SCREENSHOT_BRIEF = {
+  kind: 'screenshot',
+  aspectDesktop: 'Phone portrait, about 9:19.5',
+  aspectMobile: 'Phone portrait, about 9:19.5',
+  textSafeArea: false,
+  motion: 'A restrained reveal on first view.',
+} as const
+
 export const MEDIA: Record<MediaSlotId, MediaAsset> = {
+  logo: {
+    src: null,
+    brief: {
+      purpose: 'The approved ABC Card logo for the public header and footer. Until it exists both keep the "ABC." wordmark.',
+      kind: 'logo',
+      aspectDesktop: 'As supplied; SVG, drawn at 24px tall',
+      aspectMobile: 'Same',
+      textSafeArea: false,
+      motion: 'None.',
+    },
+  },
   hero: {
     src: null,
     brief: {
@@ -55,6 +89,18 @@ export const MEDIA: Record<MediaSlotId, MediaAsset> = {
       aspectMobile: '4:5',
       textSafeArea: true,
       motion: 'Handshake → scan → context → follow-up → CRM, one continuous move.',
+    },
+  },
+  'hero-recording': {
+    src: null,
+    brief: {
+      purpose:
+        'A real screen recording of ABC Card on a phone, on a demo account with demo contacts: Scan → Save → Context → Follow-up → CRM in one take. It replaces the drawn card inside the hero phone; the rail beside it stays.',
+      kind: 'video',
+      aspectDesktop: 'Phone portrait, about 9:19.5',
+      aspectMobile: 'Phone portrait, about 9:19.5',
+      textSafeArea: false,
+      motion: 'The page’s one substantial animation. Muted and looping, paused off screen, the poster under reduced motion.',
     },
   },
   'smart-scan': {
@@ -113,10 +159,37 @@ export const MEDIA: Record<MediaSlotId, MediaAsset> = {
       motion: 'Stills are fine; a slow settle at most.',
     },
   },
+  'screen-smart-scan': {
+    src: null,
+    brief: { ...SCREENSHOT_BRIEF, purpose: 'A real Multi-Card review, and the contact it creates with its meeting context.' },
+  },
+  'screen-follow-up': {
+    src: null,
+    brief: { ...SCREENSHOT_BRIEF, purpose: 'The real Smart Follow-up draft with its Email, WhatsApp and LinkedIn options.' },
+  },
+  'screen-crm': {
+    src: null,
+    brief: { ...SCREENSHOT_BRIEF, purpose: 'A real CRM export result, for a provider confirmed live in Production.' },
+  },
+  'screen-event': {
+    src: null,
+    brief: { ...SCREENSHOT_BRIEF, purpose: 'A real planned event: Before, During and After, its meetings and the In CRM filter.' },
+  },
+  'screen-card': {
+    src: null,
+    brief: { ...SCREENSHOT_BRIEF, purpose: 'A real demo public card with its real QR code.' },
+  },
 }
 
 /** True when a slot has a real asset to render. */
 export function hasMedia(id: MediaSlotId): boolean {
   const asset = MEDIA[id]
-  return Boolean(asset.src && asset.width && asset.height && asset.alt)
+  if (!asset.src || !asset.width || !asset.height || !asset.alt) return false
+  // A video without its still would show nothing before it loads, or ever under reduced motion.
+  return !isVideo(asset.src) || Boolean(asset.poster)
+}
+
+/** Recordings are files, not animated images: they get a video element. */
+export function isVideo(src: string): boolean {
+  return /\.(mp4|webm|mov)$/i.test(src)
 }

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import MediaSlot from '@/components/landing/MediaSlot'
 
 /**
  * The bar every public page wears.
@@ -21,7 +22,16 @@ export default function PublicHeader() {
     <header className="pub-header">
       <div className="pub-container pub-header-inner">
         <Link href="/" className="pub-wordmark" aria-label="ABC Card — home">
-          ABC<span>.</span>
+          <MediaSlot
+            id="logo"
+            className="pub-logo"
+            priority
+            fallback={
+              <>
+                ABC<span>.</span>
+              </>
+            }
+          />
         </Link>
 
         <nav className="pub-nav" aria-label="Product">

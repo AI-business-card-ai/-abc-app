@@ -10,6 +10,8 @@ import {
   IconWorld,
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
+import MediaSlot from '@/components/landing/MediaSlot'
+import { hasMedia } from '@/lib/landing/media'
 
 /**
  * The hero's product visual: one meeting, from the card to the CRM.
@@ -33,17 +35,18 @@ import type { TablerIcon } from '@tabler/icons-react'
  *
  * Everything named here is implemented. The field labels are the ones the
  * contact screen uses (Met at / Discussed / Next step / Follow up), the
- * channels are the composers ABC actually opens, and the CRM row is the three
- * providers plus the CSV export that exist in lib/crm. The person is the
- * repository's existing demo identity, not a customer.
+ * channels are the composers ABC actually opens, and the CRM row is the CSV
+ * export plus only the providers this deployment can connect (lib/crm/
+ * availability, read when the page is built). The person is the repository's
+ * existing demo identity, not a customer.
  *
- * MEDIA SLOT — HERO_MEETING_MEDIA (not yet available, deliberately absent).
- * A photograph of the moment before this composition belongs behind the stage,
- * masked to the top-right and held under the ambient light. It is not stubbed
+ * MEDIA SLOTS — `hero` and `hero-recording` (lib/landing/media.ts), both
+ * empty until approved assets exist. The photograph of the moment before this
+ * composition mounts behind the stage, masked to the top-right and held under
+ * the ambient light (.lh-meeting-media). The real screen recording replaces the
+ * drawn card inside the phone; the rail beside it stays. Neither is stubbed
  * with a grey box: an empty frame would dominate a hero this quiet and would
- * read as a bug rather than a placeholder. When the asset exists it mounts as
- * the first child of .lh-stage using the .lh-meeting-media hook already
- * defined in globals.css. Required: a genuine professional exchange — a
+ * read as a bug rather than a placeholder. Required: a genuine professional exchange — a
  * handshake, or a phone held between two people — in a real business or
  * exhibition environment, international cast, natural cinematic light, no
  * legible third-party branding, landscape, minimum 2000px wide, with the right
@@ -63,71 +66,86 @@ const MEETING: Field[] = [
   { Icon: IconTargetArrow, label: 'Next step', value: 'Send proposal next week' },
 ]
 
-/** Where ABC can put the contact and the meeting. Wordmarks, not logos. */
-const CRM = ['HubSpot', 'Pipedrive', 'Salesforce', 'CSV']
+export default function HeroProductStory({ crm }: { crm: string[] }) {
+  /*
+    Where ABC can put the contact and the meeting. Wordmarks, not logos. CSV
+    needs no connection, so it is always there; a CRM is named only when this
+    deployment can connect it.
+  */
+  const destinations = [...crm, 'CSV']
+  const recording = hasMedia('hero-recording')
 
-export default function HeroProductStory() {
   return (
     <div className="lh-story">
       <div className="lh-stage">
+        {hasMedia('hero') ? (
+          <div className="lh-meeting-media" aria-hidden="true">
+            <MediaSlot id="hero" sizes="(min-width: 1024px) 60vw, 100vw" priority />
+          </div>
+        ) : null}
+
         {/* ---------- The card: free, in front ---------- */}
         <div className="lh-device">
           <p className="lh-tag">
             <span className="lh-tag-dot lh-tag-dot-gold" aria-hidden="true" />
-            ABC Card — free
+            {recording ? 'ABC Card — the real app' : 'ABC Card — free'}
           </p>
 
           <div className="lh-phone">
             <div className="lh-phone-screen">
-              <div className="lh-card">
-                <div className="lh-card-top">
+              {recording ? (
+                <MediaSlot id="hero-recording" className="lh-phone-video" />
+              ) : (
+                <div className="lh-card">
+                  <div className="lh-card-top">
+                    {/*
+                      Initials, not a stock portrait. This is the fallback the
+                      card itself renders when no photo is set, so it is a real
+                      state of a real screen — and it stops a person who does not
+                      exist from being presented as though they did.
+                    */}
+                    <span className="lh-card-avatar" aria-hidden="true">
+                      MN
+                    </span>
+                    <p className="lh-card-name">Martin Novák</p>
+                    <p className="lh-card-sub">Head of Sales · MedTech GmbH</p>
+                    <span className="lh-card-loc">
+                      <IconMapPin size={12} stroke={1.9} aria-hidden="true" />
+                      Frankfurt, Germany
+                    </span>
+                  </div>
+
+                  <div className="lh-card-save">
+                    <IconDownload size={15} stroke={1.9} aria-hidden="true" />
+                    Save contact
+                  </div>
+
+                  <div className="lh-card-rows">
+                    <span className="lh-card-row">
+                      <IconMail size={14} stroke={1.7} aria-hidden="true" />
+                      martin@medtech.de
+                    </span>
+                    <span className="lh-card-row">
+                      <IconWorld size={14} stroke={1.7} aria-hidden="true" />
+                      medtech.de
+                    </span>
+                  </div>
+
                   {/*
-                    Initials, not a stock portrait. This is the fallback the
-                    card itself renders when no photo is set, so it is a real
-                    state of a real screen — and it stops a person who does not
-                    exist from being presented as though they did.
+                    "Looking for" is a real field on the card, and the one that
+                    makes a free ABC Card worth scanning rather than merely
+                    worth saving. It also keeps the free product from reading as
+                    a stripped-down tier, which is the whole point of showing it
+                    at full contrast here.
                   */}
-                  <span className="lh-card-avatar" aria-hidden="true">
-                    MN
-                  </span>
-                  <p className="lh-card-name">Martin Novák</p>
-                  <p className="lh-card-sub">Head of Sales · MedTech GmbH</p>
-                  <span className="lh-card-loc">
-                    <IconMapPin size={12} stroke={1.9} aria-hidden="true" />
-                    Frankfurt, Germany
-                  </span>
+                  <section className="lh-card-seeking">
+                    <p className="lh-card-seeking-label">Looking for</p>
+                    <p className="lh-card-seeking-text">Distribution partners across DACH</p>
+                  </section>
+
+                  <p className="lh-card-url">abccard.io/u/martin</p>
                 </div>
-
-                <div className="lh-card-save">
-                  <IconDownload size={15} stroke={1.9} aria-hidden="true" />
-                  Save contact
-                </div>
-
-                <div className="lh-card-rows">
-                  <span className="lh-card-row">
-                    <IconMail size={14} stroke={1.7} aria-hidden="true" />
-                    martin@medtech.de
-                  </span>
-                  <span className="lh-card-row">
-                    <IconWorld size={14} stroke={1.7} aria-hidden="true" />
-                    medtech.de
-                  </span>
-                </div>
-
-                {/*
-                  "Looking for" is a real field on the card, and the one that
-                  makes a free ABC Card worth scanning rather than merely
-                  worth saving. It also keeps the free product from reading as
-                  a stripped-down tier, which is the whole point of showing it
-                  at full contrast here.
-                */}
-                <section className="lh-card-seeking">
-                  <p className="lh-card-seeking-label">Looking for</p>
-                  <p className="lh-card-seeking-text">Distribution partners across DACH</p>
-                </section>
-
-                <p className="lh-card-url">abccard.io/u/martin</p>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -204,7 +222,7 @@ export default function HeroProductStory() {
               <div className="lh-step-body">
                 <p className="lh-step-title">In your CRM</p>
                 <p className="lh-chips">
-                  {CRM.map((name) => (
+                  {destinations.map((name) => (
                     <span className="lh-chip" key={name}>
                       {name}
                     </span>

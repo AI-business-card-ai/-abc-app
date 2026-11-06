@@ -2,7 +2,7 @@
   "id": "/dashboard",
   "name": "ABC Card",
   "short_name": "ABC Card",
-  "description": "From handshake to CRM in seconds. Share your card, scan the cards you collect and follow up while the meeting is still fresh.",
+  "description": "From handshake to follow-up in seconds. Share your card, scan the cards you collect and follow up while the meeting is still fresh.",
   "start_url": "/home",
   "scope": "/",
   "display": "standalone",

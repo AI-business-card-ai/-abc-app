@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import MediaSlot from '@/components/landing/MediaSlot'
 
 /**
  * The public footer, shared by every marketing surface.
@@ -19,11 +20,19 @@ export default function PublicFooter() {
         <div className="pub-footer-top">
           <div>
             <Link href="/" className="pub-wordmark" aria-label="ABC Card — home">
-              ABC<span>.</span>
+              <MediaSlot
+                id="logo"
+                className="pub-logo"
+                fallback={
+                  <>
+                    ABC<span>.</span>
+                  </>
+                }
+              />
             </Link>
-            <p className="pub-footer-pitch">From handshake to CRM in seconds.</p>
+            <p className="pub-footer-pitch">From handshake to follow-up in seconds.</p>
             <p className="pub-footer-flow" aria-hidden="true">
-              Meet <span>→</span> Scan <span>→</span> Remember <span>→</span> Follow up <span>→</span> CRM
+              Scan <span>→</span> Save <span>→</span> Context <span>→</span> Follow-up <span>→</span> CRM
             </p>
           </div>
 

@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from 'next'
 import LandingPage from '@/components/landing/LandingPage'
+import { connectableCrmNames } from '@/lib/crm/availability'
 
 /*
   The landing page's own metadata.
 
-  The root layout's title — "ABC — Scan. Know. Connect." — and its description
-  promising "a sent message in 10 seconds" describe an earlier product and an
-  unmeasured claim. They stay on the root layout, which the authenticated app
-  also inherits; this route overrides them with what ABC is now.
+  The root layout's title — "ABC — Scan. Know. Connect." — is the app's own
+  tagline, which the authenticated app also inherits; this route overrides it
+  with the promise the landing makes.
 
   The page body is a client component (it checks for a session), and a client
   module cannot export metadata, so this file is a thin server wrapper.
@@ -15,9 +15,14 @@ import LandingPage from '@/components/landing/LandingPage'
   No og:image is set: there is no approved share image yet, and pointing at one
   that does not exist renders a broken preview everywhere the link is pasted.
 */
-const TITLE = 'ABC Card — From handshake to CRM in seconds'
+const TITLE = 'ABC Card — From handshake to follow-up in seconds'
+/*
+  No CRM is named here. Metadata is copied into link previews and search
+  results, where it cannot follow which CRMs a deployment can connect; the
+  hero names those, from configuration.
+*/
 const DESCRIPTION =
-  'ABC captures the person and the meeting — what you discussed and what happens next — then turns it into a follow-up and CRM-ready context in HubSpot, Salesforce or Pipedrive. For salespeople, founders and exhibitors. Free to start.'
+  'Capture a contact, remember the conversation, and create a meaningful follow-up. Everything you need to turn a meeting into a lasting connection. For salespeople, founders and exhibitors. Free to start.'
 
 /*
   Same origin rule the release candidate already uses for links in email
@@ -56,5 +61,9 @@ export const viewport: Viewport = {
 }
 
 export default function HomePage() {
-  return <LandingPage />
+  /*
+    Read when the page is built — it is static — so a CRM configured later
+    appears on the landing after the next deployment.
+  */
+  return <LandingPage crm={connectableCrmNames()} />
 }

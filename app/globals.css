@@ -1558,6 +1558,12 @@ body:has(.pub-root) {
 .pub-wordmark span {
   color: var(--pub-gold);
 }
+/* The approved logo, once supplied (the `logo` media slot); the wordmark stands in until then. */
+.pub-wordmark .pub-logo {
+  display: block;
+  width: auto;
+  height: 24px;
+}
 .pub-nav {
   display: none;
   align-items: center;
@@ -3085,6 +3091,18 @@ body:has(.pub-root) {
   pointer-events: none;
   -webkit-mask-image: radial-gradient(78% 70% at 68% 26%, #000 12%, transparent 72%);
   mask-image: radial-gradient(78% 70% at 68% 26%, #000 12%, transparent 72%);
+}
+.lh-meeting-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* The real recording, once supplied, fills the phone screen the drawn card uses today. */
+.lh-phone-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* ---------- Micro-labels ---------- */
@@ -5447,9 +5465,35 @@ body:has(.pub-root) {
   letter-spacing: 0.02em;
   color: #f5d58a;
 }
-/* The unbuilt phase is drawn as a plan, not as a product. */
-.cine .cine-phases .cine-panel:first-child {
-  border-style: dashed;
+/* What is not built yet is drawn as a plan, inside the phase it belongs to. */
+.cine .cine-phase-next {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(245, 213, 138, 0.28);
+}
+.cine .cine-phase-next .cine-phase-product {
+  margin-top: 10px;
+}
+/*
+  Below the expanding row each phase stacks, with its label and availability on
+  one line above the title. The shared panel layout keeps a 58px column for a
+  step number or an icon, and an availability badge does not fit in it: it ran
+  across the title and the text beside it.
+*/
+@media (max-width: 1239px) {
+  .cine .cine-phases .cine-panel {
+    grid-template-columns: minmax(0, 1fr);
+    padding-left: 14px;
+  }
+  .cine .cine-phases .cine-panel-lead {
+    grid-row: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding-left: 0;
+  }
 }
 
 /* ---------- Scene 6b: Event & Expo Intelligence ---------- */

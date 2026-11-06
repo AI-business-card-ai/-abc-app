@@ -14,7 +14,8 @@ const inter = Inter({
 export const metadata: Metadata = {
   applicationName: 'ABC Card',
   title: 'ABC — Scan. Know. Connect.',
-  description: 'AI Business Card — from card scan to a sent message in 10 seconds.',
+  description:
+    'From handshake to follow-up in seconds. Capture a contact, remember the conversation and create a meaningful follow-up.',
   manifest: '/manifest.json',
   verification: {
     google: 'raqoKAz1vCqZjKfOF0xPMPARwyCNpP5bpphPypJGZL8',

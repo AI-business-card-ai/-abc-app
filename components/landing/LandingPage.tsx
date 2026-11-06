@@ -23,7 +23,7 @@ import { FinalCtaSection } from '@/components/landing/sections/ClosingSections'
  *
  * The order is the argument, and it is a funnel rather than a feature list:
  *
- *   1  Hero            the promise: handshake to CRM
+ *   1  Hero            the promise: handshake to follow-up
  *   2  Problem         the meeting happened, the CRM knows nothing
  *   3  Smart Scan      person + meeting context, captured together
  *   4  Follow-up, CRM  the relationship continues, and reaches the CRM
@@ -41,9 +41,10 @@ import { FinalCtaSection } from '@/components/landing/sections/ClosingSections'
  * next wherever it appears, and is never purchasable.
  *
  * A client component only because of the session check below. The metadata for
- * this route lives in app/page.tsx, which renders this.
+ * this route lives in app/page.tsx, which renders this and passes down the one
+ * server fact the hero needs: which CRMs this deployment can connect.
  */
-export default function LandingPage() {
+export default function LandingPage({ crm }: { crm: string[] }) {
   const router = useRouter()
   const supabase = useMemo(() => createClientComponent(), [])
   const [redirecting, setRedirecting] = useState(false)
@@ -81,7 +82,7 @@ export default function LandingPage() {
 
       <main>
         {/* 1 */}
-        <LandingHero />
+        <LandingHero crm={crm} />
         {/* 2 */}
         <ProblemSection />
         {/* 3 */}
