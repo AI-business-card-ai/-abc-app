@@ -33,6 +33,12 @@ const withPWA = require('@ducanh2912/next-pwa').default({
   fallbacks: {
     document: '/offline',
   },
+  /*
+    Public files the worker does not precache. The first entry is the plugin's
+    default. The retired hero visual is referenced nowhere (lib/landing/media.ts
+    says why it must not return), yet every first visit downloaded its 82 KB.
+  */
+  publicExcludes: ['!noprecache/**/*', '!hero/abc-hero-visual.webp'],
   workboxOptions: {
     disableDevLogs: true,
     /*
@@ -54,6 +60,31 @@ const withPWA = require('@ducanh2912/next-pwa').default({
       that passed and the iPhone run that failed.
     */
     exclude: [/ort[.\-].*\.mjs$/, /\.wasm$/],
+    /*
+      The same runtime also arrives bundled into hashed .js chunks — the
+      background-removal library and two onnxruntime-web builds, about 840 KB
+      before compression — that no file-name pattern can describe, so they are
+      recognised by content. Loaded on demand, they still land in the
+      next-static cache like any other chunk.
+
+      A manifest transform, deliberately not a function in `exclude`: Workbox
+      stops at the first function it meets there, and the plugin appends its
+      own — the one that keeps the server manifests out of the precache — after
+      whatever is configured here. A function of ours in front of it switched
+      that off and put /_next/server/* files, which are not served, in the
+      install list.
+    */
+    manifestTransforms: [
+      (entries, compilation) => ({
+        manifest: entries.filter(({ url }) => {
+          const at = url.indexOf('static/chunks/')
+          if (at === -1 || !url.endsWith('.js') || !compilation) return true
+          const asset = compilation.getAsset(url.slice(at))
+          return !asset || !String(asset.source.source()).includes('onnxruntime-web')
+        }),
+        warnings: [],
+      }),
+    ],
     runtimeCaching: [
       /*
         The background-removal runtime must reach the network untouched.
