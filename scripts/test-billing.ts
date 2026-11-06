@@ -810,6 +810,46 @@ async function run() {
   check('26e an unknown product is refused', (await createCheckoutSession({ stripe: notSold.client, customers: profileCustomerStore(client), env: ENV }, identity(USER_A), 'scan_pack_999')).ok, false)
   check('26f and Stripe is never called for any of them', notSold.calls.sessionsCreate.length, 0)
 
+  // B6. A scan pack is never sold while the credit ledger is off.
+  const gate = stripeMock()
+  const lookups: string[] = []
+  // In memory, so the lookup count proves the refusal comes first whatever the database holds.
+  const memoryCustomers = {
+    async readCustomerId(userId: string) {
+      lookups.push(userId)
+      return null
+    },
+    async claimCustomerId(_userId: string, customerId: string) {
+      return customerId
+    },
+  }
+  const buy = (env: Record<string, string>, product: unknown) =>
+    createCheckoutSession({ stripe: gate.client, customers: memoryCustomers, env }, identity(BUYER), product)
+  const ledgerOff = { ...ENV, SMART_SCAN_LEDGER: 'off' }
+  const ledgerUnset = Object.fromEntries(Object.entries(ENV).filter(([name]) => name !== 'SMART_SCAN_LEDGER'))
+  const refused = { ok: false, status: 409, code: 'scan_packs_unavailable' }
+  const outcome = (r: Awaited<ReturnType<typeof buy>>) => (r.ok ? 'sold' : r.code)
+  check('B6a with the ledger off a fully configured pack is refused', await buy(ledgerOff, 'scan_pack_8'), refused)
+  check('B6b with the ledger unset, too', await buy(ledgerUnset, 'scan_pack_8'), refused)
+  const notOn = ['', 'off', 'true', '1', 'yes', 'enabled', 'on-ish']
+  check('B6c only "on" opens it; every other value refuses', (await Promise.all(notOn.map((v) => buy({ ...ENV, SMART_SCAN_LEDGER: v }, 'scan_pack_8')))).map(outcome), notOn.map(() => 'scan_packs_unavailable'))
+  check('B6d every pack is refused, configured or not', (await Promise.all(['scan_pack_8', 'scan_pack_17', 'scan_pack_28'].map((k) => buy(ledgerOff, k)))).map(outcome), ['scan_packs_unavailable', 'scan_packs_unavailable', 'scan_packs_unavailable'])
+  check('B6e a refused pack never reaches Stripe: no customer lookup, no customer, no session', [lookups.length, gate.calls.customersCreate.length, gate.calls.sessionsCreate.length], [0, 0, 0])
+  const disguises: unknown[] = ['SCAN_PACK_8', ' scan_pack_8', 'scan_pack_8 ', ['scan_pack_8'], { productKey: 'scan_pack_8' }, { key: 'scan_pack_8', kind: 'pro_subscription' }]
+  check('B6f nothing in the request can pass a pack off as something else', (await Promise.all(disguises.map((d) => buy(ledgerOff, d)))).map(outcome), disguises.map(() => 'invalid_product'))
+  check('B6g and Stripe was not called for those either', gate.calls.sessionsCreate.length, 0)
+  const proOff = await buy(ledgerOff, 'pro_monthly')
+  const passOff = await buy(ledgerOff, 'pro_event')
+  check('B6h Pro still checks out with the ledger off', [proOff.ok, gate.calls.sessionsCreate[0]?.mode, passOff.ok, gate.calls.sessionsCreate[1]?.mode], [true, 'subscription', true, 'payment'])
+  const opened = stripeMock()
+  const packOn = await createCheckoutSession({ stripe: opened.client, customers: memoryCustomers, env: ENV }, identity(BUYER), 'scan_pack_8')
+  check('B6i with the ledger on, the pack checks out on its configured terms', [packOn.ok, opened.calls.sessionsCreate.length, opened.calls.sessionsCreate[0]?.mode, (opened.calls.sessionsCreate[0]?.metadata as Record<string, string>)?.credits], [true, 1, 'payment', FIXTURE_CREDITS])
+  const checkoutSource = code('lib/billing/checkout.ts')
+  const gateAt = checkoutSource.indexOf('if (scanPackSaleBlocked(requestedProduct, env))')
+  check('B6j the refusal sits before the customer lookup and the session', [gateAt > 0, gateAt < checkoutSource.indexOf('ensureStripeCustomer(stripe'), gateAt < checkoutSource.indexOf('stripe.checkout.sessions.create(')], [true, true, true])
+  const refusedMessage = /scan_packs_unavailable: '([^']+)'/.exec(code('app/api/billing/checkout/route.ts'))?.[1] ?? null
+  check('B6k the browser gets a code and a sentence, never the flag', [refusedMessage, /SMART_SCAN_LEDGER|ledger/i.test(JSON.stringify(refused) + refusedMessage)], ['Smart Scan packs are not available yet.', false])
+
   // 28. Checkout alone grants nothing.
   check('28 starting checkout grants nothing', await getScanCreditBalance(client, USER_A), 5)
   check('28b no route grants from a success redirect', /grantScanCredits|grant_scan_credits/.test(code('app/api/billing/checkout/route.ts') + code('app/api/billing/status/route.ts') + code('lib/billing/checkout.ts')), false)
@@ -918,6 +958,11 @@ async function run() {
   check('36c checkout errors carry a code and a sentence, nothing else', checkoutResponses.some((line) => line.includes('{ error: MESSAGES[result.code], code: result.code }')) && !checkoutResponses.some((line) => /process\.env|config|secret|customer|price/i.test(line)), true)
   check('36d the status route is authenticated and uncached', code('app/api/billing/status/route.ts').includes("if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })") && code('app/api/billing/status/route.ts').includes("'Cache-Control': 'no-store'"), true)
   check('36e unconfigured products report no quantity at all', statusA.products.filter((p) => !p.available).every((p) => p.credits === null), true)
+  // B6, as status reports it: no screen may offer a pack that checkout refuses.
+  const packsOffered = (s: typeof statusA) => s.products.filter((p) => p.kind === 'scan_pack').map((p) => p.available)
+  const statusOff = await readBillingStatus(client, { id: USER_A, plan: 'free', scans_used: 0 }, identity(USER_A), { ...ENV, SMART_SCAN_LEDGER: 'off' }, new Date(1_788_000_300_000))
+  check('B6l with the ledger off status offers no pack, and Pro exactly as before', [packsOffered(statusOff), statusOff.products.filter((p) => p.kind !== 'scan_pack').map((p) => p.available)], [[false, false, false], statusA.products.filter((p) => p.kind !== 'scan_pack').map((p) => p.available)])
+  check('B6m with it on, the configured pack is offered', packsOffered(statusA), [true, false, false])
 
   // 37. The founder does not depend on Stripe.
   const founderStatus = await readBillingStatus(client, founderProfile, founderIdentity, {})

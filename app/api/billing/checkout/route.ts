@@ -31,6 +31,7 @@ const MESSAGES: Record<string, string> = {
   stripe_not_configured: 'Payments are not available yet.',
   app_origin_not_configured: 'Payments are not available yet.',
   product_not_configured: 'This product is not available yet.',
+  scan_packs_unavailable: 'Smart Scan packs are not available yet.',
   checkout_failed: 'Could not start checkout. Try again.',
 }
 

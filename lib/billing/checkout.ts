@@ -1,6 +1,7 @@
 import type Stripe from 'stripe'
-import { isProductKey, resolveProduct, type ProductKey } from '@/lib/billing/catalog'
+import { isProductKey, PRODUCTS, resolveProduct, type ProductKey } from '@/lib/billing/catalog'
 import { ensureStripeCustomer, type CustomerIdentity, type CustomerStore } from '@/lib/billing/customer'
+import { ledgerEnabled } from '@/lib/billing/ledger'
 import { readStripeConfig } from '@/lib/billing/stripe'
 
 /**
@@ -12,7 +13,8 @@ import { readStripeConfig } from '@/lib/billing/stripe'
  *     request body names a product and nothing more — no user id, no customer
  *     id, no price, no quantity is read from it.
  *   - WHETHER it can be sold: a product whose Price ID or credit quantity is not
- *     configured is refused before Stripe is ever called.
+ *     configured is refused before Stripe is ever called, and so is a scan pack
+ *     while the credit ledger is off (scanPackSaleBlocked).
  *   - ON WHAT TERMS: the price and, for a scan pack, the number of credits are
  *     stamped into the Checkout Session's metadata now. Fulfilment grants exactly
  *     what was sold, even if the configured quantity changes before the webhook
@@ -37,6 +39,7 @@ export type CheckoutErrorCode =
   | 'stripe_not_configured'
   | 'app_origin_not_configured'
   | 'product_not_configured'
+  | 'scan_packs_unavailable'
   | 'checkout_failed'
 
 export type CheckoutResult =
@@ -50,6 +53,20 @@ export type AbcCheckoutMetadata = {
   catalog_price_id: string
   credits?: string
   pass_days?: string
+}
+
+/**
+ * Release blocker B6: a Smart Scan pack is sold only while the credit ledger is
+ * authoritative. With SMART_SCAN_LEDGER off — or unset, or anything but "on" —
+ * scans still count against the legacy allowance, so a paid pack would add
+ * credits that no scan ever spends.
+ *
+ * Decided by the catalogue kind of a key the server has already validated;
+ * nothing else in the request takes part. Billing status reports the same
+ * answer, so no screen can offer a pack that checkout refuses.
+ */
+export function scanPackSaleBlocked(key: ProductKey, env: Env = process.env): boolean {
+  return PRODUCTS[key].kind === 'scan_pack' && !ledgerEnabled(env)
 }
 
 export async function createCheckoutSession(
@@ -66,6 +83,12 @@ export async function createCheckoutSession(
   if (!stripeConfig.ok || !deps.stripe) return { ok: false, status: 503, code: 'stripe_not_configured' }
   const stripe = deps.stripe
   if (!stripeConfig.config.appOrigin) return { ok: false, status: 503, code: 'app_origin_not_configured' }
+
+  // Before the customer lookup and the session, both of which reach Stripe.
+  if (scanPackSaleBlocked(requestedProduct, env)) {
+    console.warn('[billing/checkout] scan pack refused: the credit ledger is off', { product: requestedProduct })
+    return { ok: false, status: 409, code: 'scan_packs_unavailable' }
+  }
 
   const product = resolveProduct(requestedProduct, env)
   if (!product.configured) {

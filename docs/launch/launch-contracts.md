@@ -324,11 +324,12 @@ but honour web-bought Pro and credits (`lib/billing/commerce.ts`); Apple guideli
 additional personal address. Not changed; confirm the second entry is intended before launch.
 
 **B6 — Smart Scan Pack purchase control (follow-up, after owner decisions).** Nothing in the
-app can buy a pack yet. `/api/billing/checkout` already sells a pack once its price ID and
-credit count are configured, but it does not check `SMART_SCAN_LEDGER`: with the ledger off,
-purchased credits would not count toward scanning. Build the purchase control together with the
-ledger rollout, after the pack quantities and charge timing are decided; until then do not
-configure pack price IDs in production.
+app offers a pack yet. `/api/billing/checkout` sells a pack only when its price ID and credit
+count are configured and `SMART_SCAN_LEDGER` is `on`. With the ledger off or unset it refuses
+every pack with `scan_packs_unavailable` before Stripe is called, and billing status reports the
+packs as unavailable, because purchased credits would not count toward scanning. Build the
+purchase screen together with the ledger rollout, after the pack quantities and charge timing are
+decided; until then do not configure pack price IDs in production.
 
 Not blockers, but decisions the code is waiting on: canonical origin (§3), final app ID
 (§4), Smart Scan pack quantities and Pro prices/duration (billing env above), whether to

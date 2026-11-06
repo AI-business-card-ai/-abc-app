@@ -42,7 +42,7 @@ Verified present in the combined release candidate:
 
 Open code follow-ups (need a decision, then a development task):
 
-- [ ] **B6** Smart Scan Pack purchase control, gated with the `SMART_SCAN_LEDGER` rollout
+- [ ] **B6** Smart Scan Pack purchase control, gated with the `SMART_SCAN_LEDGER` rollout. The server gate is done: `/api/billing/checkout` refuses every pack unless `SMART_SCAN_LEDGER=on` (`test:billing` B6a–B6m). The purchase screen still waits on pack quantities and charge timing.
 - [ ] Canonical-origin constants, if the owner's choice requires them (launch-contracts §3)
 - [ ] `.well-known` AASA / assetlinks publication (optional for launch)
 - [ ] Native icons and splash (Capacitor defaults today) — FINAL BRAND ASSETS REQUIRED

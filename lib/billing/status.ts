@@ -6,6 +6,7 @@ import {
   type ProKey,
   type ProductKey,
 } from '@/lib/billing/catalog'
+import { scanPackSaleBlocked } from '@/lib/billing/checkout'
 import type { ProSource } from '@/lib/billing/pro-features'
 import { readStripeConfig } from '@/lib/billing/stripe'
 import { resolveProState } from '@/lib/entitlements'
@@ -60,7 +61,7 @@ export type BillingStatus = {
     key: ProductKey
     kind: string
     mode: string
-    /** True only when Stripe and this product are both fully configured. */
+    /** True only when Stripe and this product are both fully configured, and checkout would sell it. */
     available: boolean
     publicPriceEurCents: number | null
     /** Only ever the configured quantity; never a default. */
@@ -99,7 +100,7 @@ export async function readBillingStatus(
       key,
       kind: definition.kind,
       mode: definition.mode,
-      available: stripeConfigured && resolved.configured,
+      available: stripeConfigured && resolved.configured && !scanPackSaleBlocked(key, env),
       publicPriceEurCents: definition.kind === 'scan_pack' ? definition.publicPriceEurCents : null,
       credits: resolved.configured && resolved.credits ? resolved.credits : null,
     }
