@@ -35,7 +35,16 @@ import type { MyCardData } from '@/lib/my-card-data'
  * unpublished one, and a broken image where the QR should be is worse than an
  * honest line saying what to do.
  */
-export default function MyCardCard({ card, myCard }: { card: DashboardCard; myCard: MyCardData | null }) {
+export default function MyCardCard({
+  card,
+  myCard,
+  walletReady = false,
+}: {
+  card: DashboardCard
+  myCard: MyCardData | null
+  /** Whether this deployment can issue a pass at all; the server decides. */
+  walletReady?: boolean
+}) {
   const [qrOpen, setQrOpen] = useState(false)
   const [shareNote, setShareNote] = useState<string | null>(null)
 
@@ -136,20 +145,22 @@ export default function MyCardCard({ card, myCard }: { card: DashboardCard; myCa
               QR Code
             </button>
             {/*
-              A link, not a second copy of the wallet logic. Whether a pass can
-              actually be issued is a server question with two providers behind
-              it, and answering it twice is how the dashboard ends up disagreeing
-              with My Card. This tile knows where the answer lives.
+              A link, not a second copy of the wallet logic. Which pass can be
+              issued is a server question with two providers behind it, and
+              answering it twice is how the dashboard ends up disagreeing with
+              My Card. This tile only knows whether there is anything to link to.
             */}
-            <Link
-              href="/my-card#wallet"
-              className="abc-myabc-action abc-dash-well abc-lift abc-focus-ring"
-              title="Add your card to Apple Wallet or Google Wallet"
-              aria-label="Wallet"
-            >
-              <IconWallet size={21} stroke={1.7} aria-hidden="true" />
-              Wallet
-            </Link>
+            {walletReady ? (
+              <Link
+                href="/my-card#wallet"
+                className="abc-myabc-action abc-dash-well abc-lift abc-focus-ring"
+                title="Add your card to your wallet"
+                aria-label="Wallet"
+              >
+                <IconWallet size={21} stroke={1.7} aria-hidden="true" />
+                Wallet
+              </Link>
+            ) : null}
           </div>
         ) : null}
 

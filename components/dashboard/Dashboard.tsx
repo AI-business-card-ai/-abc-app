@@ -49,7 +49,15 @@ function dateLine(now: Date): string {
  * Intelligence does today, so they live in that panel, with Expo Mission
  * inside it as the feature that is coming.
  */
-export default function Dashboard({ data, myCard = null }: { data: DashboardData; myCard?: MyCardData | null }) {
+export default function Dashboard({
+  data,
+  myCard = null,
+  walletReady = false,
+}: {
+  data: DashboardData
+  myCard?: MyCardData | null
+  walletReady?: boolean
+}) {
   const { profile } = useAppProfile()
   const dueCount = useFollowUpBadge()
 
@@ -132,7 +140,7 @@ export default function Dashboard({ data, myCard = null }: { data: DashboardData
         </div>
 
         <div className="order-first min-w-0 min-[1360px]:order-none">
-          <MyCardCard card={data.card} myCard={myCard} />
+          <MyCardCard card={data.card} myCard={myCard} walletReady={walletReady} />
         </div>
 
         <div className="min-w-0">

@@ -301,48 +301,54 @@ export default function MyCardView({
         </div>
       ) : null}
 
-      <section
-        id="wallet"
-        className="mt-4 scroll-mt-24 rounded-card border border-abc-border bg-abc-card p-5"
-      >
-        <div className="flex gap-3">
-          <IconWallet size={19} stroke={1.7} className="mt-0.5 shrink-0 text-abc-muted" />
-          <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold text-abc-text">Wallet passes</p>
-            <p className="mt-1.5 text-[13px] leading-[1.55] text-abc-secondary">
-              {walletReady
-                ? 'Keep your card in the phone you already hold at the door. The QR on the pass opens your live card, so it keeps working after you edit anything.'
-                : 'Apple Wallet and Google Wallet are not connected yet, so there is nothing to add.'}{' '}
-              {live ? (
-                <>
-                  <span className="text-abc-text">Show QR</span> works either way.
-                </>
-              ) : null}
-            </p>
-
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <WalletAction
-                label="Add to Apple Wallet"
-                href="/api/card/wallet/apple"
-                Icon={IconBrandApple}
-                available={wallet.apple && live}
-              />
-              <WalletAction
-                label="Add to Google Wallet"
-                href="/api/card/wallet/google"
-                Icon={IconBrandGoogle}
-                available={wallet.google && live}
-              />
-            </div>
-
-            {!live ? (
-              <p className="mt-2 text-[12px] leading-[1.5] text-abc-muted">
-                Publish your card first — a pass points at your public card address.
+      {/* Only what this deployment can really issue: no credentials, no section. */}
+      {walletReady ? (
+        <section
+          id="wallet"
+          className="mt-4 scroll-mt-24 rounded-card border border-abc-border bg-abc-card p-5"
+        >
+          <div className="flex gap-3">
+            <IconWallet size={19} stroke={1.7} className="mt-0.5 shrink-0 text-abc-muted" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-semibold text-abc-text">Wallet passes</p>
+              <p className="mt-1.5 text-[13px] leading-[1.55] text-abc-secondary">
+                Keep your card in the phone you already hold at the door. The QR on the pass opens
+                your live card, so it keeps working after you edit anything.{' '}
+                {live ? (
+                  <>
+                    <span className="text-abc-text">Show QR</span> works either way.
+                  </>
+                ) : null}
               </p>
-            ) : null}
+
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                {wallet.apple ? (
+                  <WalletAction
+                    label="Add to Apple Wallet"
+                    href="/api/card/wallet/apple"
+                    Icon={IconBrandApple}
+                    available={live}
+                  />
+                ) : null}
+                {wallet.google ? (
+                  <WalletAction
+                    label="Add to Google Wallet"
+                    href="/api/card/wallet/google"
+                    Icon={IconBrandGoogle}
+                    available={live}
+                  />
+                ) : null}
+              </div>
+
+              {!live ? (
+                <p className="mt-2 text-[12px] leading-[1.5] text-abc-muted">
+                  Publish your card first — a pass points at your public card address.
+                </p>
+              ) : null}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       <p className="mt-6 text-center text-[12.5px] text-abc-muted">
         Scanning someone else?{' '}
@@ -383,9 +389,9 @@ export default function MyCardView({
 /**
  * One wallet action, rendered only as honestly as it can behave.
  *
- * When the deployment has no credentials — or the card is not published — the
- * control is a non-interactive element with `aria-disabled`, not a link that
- * leads to an error. It never says "Added" or "Saved": the pass is handed to
+ * Only a wallet this deployment can issue gets one at all. Until the card is
+ * published the control is a non-interactive element with `aria-disabled`, not
+ * a link that leads to an error. It never says "Added" or "Saved": the pass is handed to
  * the operating system, and whether the owner then confirms the save happens
  * somewhere this app cannot see. Claiming otherwise would be a guess presented
  * as a fact.

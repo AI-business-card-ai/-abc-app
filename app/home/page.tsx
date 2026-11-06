@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Dashboard from '@/components/dashboard/Dashboard'
 import { getDashboardData } from '@/lib/dashboard-data'
+import { walletAvailability } from '@/lib/card/wallet'
 import { getMyCard } from '@/lib/my-card-data'
 
 export const dynamic = 'force-dynamic'
@@ -23,5 +24,8 @@ export default async function HomePage() {
   // Middleware already gates this route; this is the safety net.
   if (!data) redirect('/login')
 
-  return <Dashboard data={data} myCard={myCard} />
+  // One boolean, resolved on the server: the configuration behind it stays here.
+  const wallet = walletAvailability()
+
+  return <Dashboard data={data} myCard={myCard} walletReady={wallet.apple || wallet.google} />
 }
