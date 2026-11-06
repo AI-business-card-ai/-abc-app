@@ -10,7 +10,8 @@ import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
  * hours per event": nobody has measured that, and an invented figure is the
  * fastest way to lose a serious buyer. What is true is the shape of the
  * change — the admin moves from hours after the event to seconds after each
- * meeting — and the price framing the owner approved.
+ * meeting. There is no price comparison: ABC Pro has no price yet, so a line
+ * such as "less than one lunch at the fair" could not be backed up.
  *
  * Written so it reads for three people at once: the salesperson doing the
  * admin, the manager who wants CRM context, and the company paying for the
@@ -78,7 +79,7 @@ export default function RoiSection() {
           ))}
         </ul>
 
-        <p className="cine-statement cine-rise">Hours saved. For less than one lunch at the fair.</p>
+        <p className="cine-statement cine-rise">The follow-up starts while the meeting is still fresh.</p>
         <p className="pub-body cine-rise cine-centered">
           One useful meeting can be worth far more than the cost of keeping it organised.
         </p>

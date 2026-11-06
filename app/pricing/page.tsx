@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import PublicFooter from '@/components/landing/PublicFooter'
 import PublicHeader from '@/components/landing/PublicHeader'
 import PricingSection from '@/components/landing/sections/PricingSection'
+import { landingIntegrations } from '@/lib/landing/integrations'
 
 /**
  * Pricing — what ABC sells today, and nothing it does not.
@@ -27,7 +28,7 @@ import PricingSection from '@/components/landing/sections/PricingSection'
 export const metadata: Metadata = {
   title: 'Pricing — ABC Card',
   description:
-    'Your ABC Card is free. Smart Scan Packs are one-time purchases whose credits never expire. ABC Pro comes as an Event Pass, monthly or annually.',
+    'Your ABC Card is free. Smart Scan Packs are one-time purchases whose credits never expire. ABC Pro is planned as an Event Pass, monthly or annual access, with pricing coming soon.',
 }
 
 export default function PricingPage() {
@@ -44,7 +45,8 @@ export default function PricingPage() {
       <PublicHeader />
 
       <main>
-        <PricingSection />
+        {/* Static, like the landing: what can be connected is read at build time. */}
+        <PricingSection integrations={landingIntegrations()} />
       </main>
 
       <PublicFooter />

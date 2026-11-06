@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react'
 import type { TablerIcon } from '@tabler/icons-react'
 import MediaSlot from '@/components/landing/MediaSlot'
+import type { LandingIntegrations } from '@/lib/landing/integrations'
 import { hasMedia } from '@/lib/landing/media'
 
 /**
@@ -36,9 +37,10 @@ import { hasMedia } from '@/lib/landing/media'
  * Everything named here is implemented. The field labels are the ones the
  * contact screen uses (Met at / Discussed / Next step / Follow up), the
  * channels are the composers ABC actually opens, and the CRM row is the CSV
- * export plus only the providers this deployment can connect (lib/crm/
- * availability, read when the page is built). The person is the repository's
- * existing demo identity, not a customer.
+ * export plus only the providers this deployment can connect, and Gmail is
+ * named only where it can be connected (lib/landing/integrations, read when the
+ * page is built). The person is the repository's existing demo identity, not a
+ * customer.
  *
  * MEDIA SLOTS — `hero` and `hero-recording` (lib/landing/media.ts), both
  * empty until approved assets exist. The photograph of the moment before this
@@ -66,13 +68,13 @@ const MEETING: Field[] = [
   { Icon: IconTargetArrow, label: 'Next step', value: 'Send proposal next week' },
 ]
 
-export default function HeroProductStory({ crm }: { crm: string[] }) {
+export default function HeroProductStory({ integrations }: { integrations: LandingIntegrations }) {
   /*
     Where ABC can put the contact and the meeting. Wordmarks, not logos. CSV
     needs no connection, so it is always there; a CRM is named only when this
     deployment can connect it.
   */
-  const destinations = [...crm, 'CSV']
+  const destinations = [...integrations.crm, 'CSV']
   const recording = hasMedia('hero-recording')
 
   return (
@@ -204,13 +206,15 @@ export default function HeroProductStory({ crm }: { crm: string[] }) {
                   </span>
                 </p>
                 {/*
-                  Nothing is sent until the owner presses Send. With Gmail
-                  connected ABC sends from their own mailbox; otherwise each
-                  channel opens its own composer with the text already in it.
+                  Nothing is sent until the owner presses Send. Each channel
+                  opens its own composer with the text already in it. Gmail is
+                  named only where this deployment can connect it, and sending
+                  from it still takes the owner's own connection (ABC Pro).
                 */}
                 <p className="lh-step-note">
-                  Drafted from what you discussed. Send it from your Gmail, or open WhatsApp or
-                  LinkedIn.
+                  {integrations.gmail
+                    ? 'Drafted from what you discussed. Open it in your email, WhatsApp or LinkedIn — or send it from Gmail once you connect it.'
+                    : 'Drafted from what you discussed. Open it in your email, WhatsApp or LinkedIn.'}
                 </p>
               </div>
             </li>

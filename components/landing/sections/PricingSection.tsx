@@ -3,6 +3,7 @@ import { IconCheck, IconInfinity, IconScan } from '@tabler/icons-react'
 import Reveal from '@/components/landing/Reveal'
 import Chapter from '@/components/landing/cinema/Chapter'
 import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
+import type { LandingIntegrations } from '@/lib/landing/integrations'
 import { PRICE_TBC, PRO_ACCESS, SCAN_PACKS, formatPrice } from '@/lib/landing/pricing'
 
 /**
@@ -43,13 +44,18 @@ const FREE_INCLUDES = [
  * Exactly the features gated behind Pro (lib/billing/pro-features.ts:
  * smart_follow_up, follow_up_sequence, gmail, crm). Meeting context, meeting
  * history and event workspaces are not gated, so they are not listed here.
+ * Gmail and CRM sync are connections, so each is listed only when this
+ * deployment can make it (lib/landing/integrations).
  */
-const PRO_INCLUDES = [
-  'Smart Follow-up drafted from the meeting itself',
-  'Scheduled follow-up sequences',
-  'Send follow-ups from your own Gmail',
-  'Sync to HubSpot, Salesforce and Pipedrive',
-]
+function proIncludes({ crm, gmail }: LandingIntegrations): string[] {
+  const last = crm.length > 1 ? `${crm.slice(0, -1).join(', ')} and ${crm[crm.length - 1]}` : crm.join('')
+  return [
+    'Smart Follow-up drafted from the meeting itself',
+    'Scheduled follow-up sequences',
+    ...(gmail ? ['Send follow-ups from your own Gmail, once connected'] : []),
+    ...(crm.length ? [`Sync to ${last}`] : []),
+  ]
+}
 
 /** Planned, not sold. Mirrors the Event Intelligence chapter above. */
 const INTELLIGENCE_INCLUDES = [
@@ -62,7 +68,7 @@ const INTELLIGENCE_INCLUDES = [
 
 const VALUES = ['Less manual entry.', 'Faster follow-up.', 'Better CRM context.', 'More time for selling.']
 
-export default function PricingSection() {
+export default function PricingSection({ integrations }: { integrations: LandingIntegrations }) {
   return (
     <Chapter
       id="pricing"
@@ -74,7 +80,7 @@ export default function PricingSection() {
         <div className="pub-head-center">
           <p className="pub-eyebrow">Pricing</p>
           <CinematicHeadline id="pricing-title" className="pub-h2">
-            Save hours. Spend less than one lunch at the fair.
+            Start free. Pro pricing is coming soon.
           </CinematicHeadline>
           <ul className="cine-values cine-values--inline">
             {VALUES.map((value) => (
@@ -122,13 +128,13 @@ export default function PricingSection() {
                 For professionals, founders and sales teams who turn meetings into business.
               </p>
               <p className="pub-plan-note">
-                One product. Three ways to buy it, because someone who works two fairs a year should
-                not be paying for twelve months of software.
+                One product, with three ways to buy it planned, because someone who works two fairs a
+                year should not be paying for twelve months of software.
               </p>
             </div>
 
             <ul className="pub-plan-list pub-pro-list">
-              {PRO_INCLUDES.map((item) => (
+              {proIncludes(integrations).map((item) => (
                 <li key={item}>
                   <IconCheck size={16} stroke={2.2} aria-hidden="true" />
                   {item}
@@ -212,7 +218,7 @@ export default function PricingSection() {
           </div>
         </Reveal>
 
-        <p className="cine-statement cine-rise">Your time costs more than ABC.</p>
+        <p className="cine-statement cine-rise">Start with your free ABC Card today.</p>
       </div>
     </Chapter>
   )

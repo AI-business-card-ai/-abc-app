@@ -3,6 +3,8 @@ import { IconLock, IconMailForward, IconTrash, IconUserCheck } from '@tabler/ico
 import Chapter from '@/components/landing/cinema/Chapter'
 import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 import PanelGroup, { type Panel } from '@/components/landing/cinema/PanelGroup'
+import { CRM_PROVIDERS } from '@/lib/crm/providers'
+import type { LandingIntegrations } from '@/lib/landing/integrations'
 
 /**
  * Scene 7b — the systems ABC joins, and what it can touch.
@@ -13,10 +15,13 @@ import PanelGroup, { type Panel } from '@/components/landing/cinema/PanelGroup'
  * connection can understand its purpose from the public homepage, without a
  * separate page built for reviewers.
  *
- * The four integrations are the ones that exist: HubSpot, Salesforce and
- * Pipedrive (lib/crm/providers) and Gmail (gmail.send). Apple and Google
- * Wallet passes are implemented but depend on issuer configuration that is not
- * confirmed live, so they are not shown here — a logo row is a promise.
+ * The integrations are the ones that exist in code — HubSpot, Pipedrive and
+ * Salesforce (lib/crm/providers), the CSV export, and Gmail (gmail.send) — each
+ * with what this deployment can actually do with it (lib/landing/integrations).
+ * A logo row is a promise, so a connection that would be refused here is shown
+ * as not available yet rather than as a working one. Apple and Google Wallet
+ * passes depend on issuer configuration that is not confirmed live, so they are
+ * not shown at all.
  *
  * Every control restates something the release does and the privacy policy
  * already says:
@@ -33,12 +38,24 @@ import PanelGroup, { type Panel } from '@/components/landing/cinema/PanelGroup'
  * retained: the deletion page is explicit that some records may be kept.
  */
 
-const INTEGRATIONS = [
-  { name: 'HubSpot', note: 'CRM sync' },
-  { name: 'Salesforce', note: 'CRM sync' },
-  { name: 'Pipedrive', note: 'CRM sync' },
-  { name: 'Gmail', note: 'Send follow-ups' },
-]
+/*
+  "Not available yet" is said in the row itself rather than by leaving the name
+  out, so a missing name is never read as a missing feature, nor a listed one as
+  a working connection.
+*/
+function integrationRows({ crm, gmail }: LandingIntegrations) {
+  return [
+    ...CRM_PROVIDERS.map(({ name }) =>
+      crm.includes(name)
+        ? { name, note: 'Direct CRM sync', on: true }
+        : { name, note: 'Not available yet', on: false }
+    ),
+    { name: 'CSV', note: 'Export for any CRM', on: true },
+    gmail
+      ? { name: 'Gmail', note: 'Send follow-ups', on: true }
+      : { name: 'Gmail', note: 'Not available yet', on: false },
+  ]
+}
 
 const POINTS = [
   {
@@ -53,7 +70,7 @@ const POINTS = [
   {
     Icon: IconMailForward,
     title: 'Gmail is optional, and send-only',
-    body: 'Connect Gmail separately if you want to send follow-ups from your own address. ABC uses it only to send the message you reviewed. It does not read your inbox or your Google Contacts.',
+    body: 'Gmail is a separate connection, part of ABC Pro. Once connected, ABC uses it only to send the follow-up you reviewed, from your own address. It does not read your inbox or your Google Contacts.',
   },
   {
     Icon: IconLock,
@@ -78,7 +95,7 @@ const PANELS: Panel[] = POINTS.map(({ Icon, title, body }) => ({
   body: <p className="pub-body">{body}</p>,
 }))
 
-export default function TrustSection() {
+export default function TrustSection({ integrations }: { integrations: LandingIntegrations }) {
   return (
     <Chapter
       id="integrations"
@@ -98,9 +115,9 @@ export default function TrustSection() {
           </p>
         </div>
 
-        <ul className="cine-integrations cine-rise" aria-label="Systems ABC works with">
-          {INTEGRATIONS.map(({ name, note }) => (
-            <li key={name}>
+        <ul className="cine-integrations cine-rise" aria-label="Integrations, and what each can do here">
+          {integrationRows(integrations).map(({ name, note, on }) => (
+            <li key={name} className={on ? undefined : 'is-off'}>
               <span className="cine-integration-name">{name}</span>
               <span className="cine-integration-note">{note}</span>
             </li>

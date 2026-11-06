@@ -1,6 +1,7 @@
 import Button from '@/components/ui/abc/Button'
 import HeroProductStory from '@/components/landing/hero/HeroProductStory'
 import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
+import type { LandingIntegrations } from '@/lib/landing/integrations'
 
 /**
  * Scene 1 — the promise.
@@ -29,7 +30,7 @@ import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 /** The flow, named once: what happens to one meeting, start to finish. */
 const LIFECYCLE = ['Scan', 'Save', 'Context', 'Follow-up', 'CRM']
 
-export default function LandingHero({ crm }: { crm: string[] }) {
+export default function LandingHero({ integrations }: { integrations: LandingIntegrations }) {
   return (
     <section id="hero" className="lh">
       {/*
@@ -88,7 +89,7 @@ export default function LandingHero({ crm }: { crm: string[] }) {
         </div>
 
         {/* The mechanism that connects the meeting to the CRM. */}
-        <HeroProductStory crm={crm} />
+        <HeroProductStory integrations={integrations} />
       </div>
     </section>
   )

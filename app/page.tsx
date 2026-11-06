@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import LandingPage from '@/components/landing/LandingPage'
-import { connectableCrmNames } from '@/lib/crm/availability'
+import { landingIntegrations } from '@/lib/landing/integrations'
 
 /*
   The landing page's own metadata.
@@ -62,8 +62,8 @@ export const viewport: Viewport = {
 
 export default function HomePage() {
   /*
-    Read when the page is built — it is static — so a CRM configured later
-    appears on the landing after the next deployment.
+    Read when the page is built — it is static — so a connection configured
+    later appears on the landing after the next deployment.
   */
-  return <LandingPage crm={connectableCrmNames()} />
+  return <LandingPage integrations={landingIntegrations()} />
 }

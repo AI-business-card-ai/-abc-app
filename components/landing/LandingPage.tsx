@@ -17,6 +17,7 @@ import TrustSection from '@/components/landing/sections/TrustSection'
 import PricingSection from '@/components/landing/sections/PricingSection'
 import { CrmSection, FollowUpSection } from '@/components/landing/sections/WorkflowSections'
 import { FinalCtaSection } from '@/components/landing/sections/ClosingSections'
+import type { LandingIntegrations } from '@/lib/landing/integrations'
 
 /**
  * The public landing page — one sales story, in eight scenes.
@@ -41,10 +42,11 @@ import { FinalCtaSection } from '@/components/landing/sections/ClosingSections'
  * next wherever it appears, and is never purchasable.
  *
  * A client component only because of the session check below. The metadata for
- * this route lives in app/page.tsx, which renders this and passes down the one
- * server fact the hero needs: which CRMs this deployment can connect.
+ * this route lives in app/page.tsx, which renders this and passes down what this
+ * deployment can connect — which CRMs, and whether Gmail (lib/landing/
+ * integrations) — so no section names a connection that would be refused.
  */
-export default function LandingPage({ crm }: { crm: string[] }) {
+export default function LandingPage({ integrations }: { integrations: LandingIntegrations }) {
   const router = useRouter()
   const supabase = useMemo(() => createClientComponent(), [])
   const [redirecting, setRedirecting] = useState(false)
@@ -82,14 +84,14 @@ export default function LandingPage({ crm }: { crm: string[] }) {
 
       <main>
         {/* 1 */}
-        <LandingHero crm={crm} />
+        <LandingHero integrations={integrations} />
         {/* 2 */}
         <ProblemSection />
         {/* 3 */}
         <CaptureContextSection />
         {/* 4 */}
-        <FollowUpSection />
-        <CrmSection />
+        <FollowUpSection gmail={integrations.gmail} />
+        <CrmSection crm={integrations.crm} />
         {/* 5 */}
         <RoiSection />
         <EventWorkspaceSection />
@@ -98,9 +100,9 @@ export default function LandingPage({ crm }: { crm: string[] }) {
         <EventIntelligenceSection />
         {/* 7 */}
         <CardSection />
-        <TrustSection />
+        <TrustSection integrations={integrations} />
         {/* 8 */}
-        <PricingSection />
+        <PricingSection integrations={integrations} />
         <FinalCtaSection />
       </main>
 

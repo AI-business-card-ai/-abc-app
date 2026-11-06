@@ -3,11 +3,13 @@ import {
   IconBrandWhatsapp,
   IconCheck,
   IconCloudUpload,
+  IconFileSpreadsheet,
   IconMail,
 } from '@tabler/icons-react'
 import Chapter from '@/components/landing/cinema/Chapter'
 import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
 import Equation from '@/components/landing/cinema/Equation'
+import { CRM_PROVIDERS } from '@/lib/crm/providers'
 
 /**
  * Scene 4 — the follow-up, and where it ends up.
@@ -18,8 +20,11 @@ import Equation from '@/components/landing/cinema/Equation'
  *
  * Channel truth, checked against components/contacts/detail/SmartFollowUpCard:
  *
- *  - Email opens the composer with subject and body. With Gmail connected the
- *    message can be sent from the owner's own address (Pro; gmail.send only).
+ *  - Email opens the composer with subject and body. Sending from the owner's
+ *    own Gmail takes three things: ABC Pro, a Gmail connection the owner makes
+ *    (gmail.send only), and Google's client configuration on this deployment.
+ *    The page offers it only when the configuration exists, and always as
+ *    something to connect, never as something that already works.
  *  - WhatsApp opens WhatsApp with the text ready.
  *  - LinkedIn accepts no pre-filled text, so ABC copies the message and opens
  *    the profile. The page says exactly that rather than implying three equal
@@ -33,21 +38,27 @@ import Equation from '@/components/landing/cinema/Equation'
 
 /* -------------------------------------------------------------- follow up */
 
-const CHANNELS = [
-  {
-    Icon: IconMail,
-    label: 'Email',
-    note: 'Opens your composer — or sends from your own Gmail when you connect it.',
-  },
-  { Icon: IconBrandWhatsapp, label: 'WhatsApp', note: 'Opens WhatsApp with the message ready.' },
-  {
-    Icon: IconBrandLinkedin,
-    label: 'LinkedIn',
-    note: 'Copies the message and opens their profile, because LinkedIn accepts no pre-filled text.',
-  },
-]
+function channels(gmail: boolean) {
+  return [
+    {
+      Icon: IconMail,
+      label: 'Email',
+      note: gmail
+        ? 'Opens your email app with the draft ready — or sends it from your own Gmail once you connect it.'
+        : 'Opens your email app with the draft ready.',
+    },
+    { Icon: IconBrandWhatsapp, label: 'WhatsApp', note: 'Opens WhatsApp with the message ready.' },
+    {
+      Icon: IconBrandLinkedin,
+      label: 'LinkedIn',
+      note: 'Copies the message and opens their profile, because LinkedIn accepts no pre-filled text.',
+    },
+  ]
+}
 
-export function FollowUpSection() {
+export function FollowUpSection({ gmail }: { gmail: boolean }) {
+  const list = channels(gmail)
+
   return (
     <Chapter
       id="follow-up"
@@ -71,7 +82,7 @@ export function FollowUpSection() {
             <p className="cine-callout cine-rise">Not another generic “nice to meet you.”</p>
 
             <ul className="pub-list cine-rise">
-              {CHANNELS.map(({ Icon, label, note }) => (
+              {list.map(({ Icon, label, note }) => (
                 <li className="pub-list-item" key={label}>
                   <span className="pub-list-icon" aria-hidden="true">
                     <Icon size={16} stroke={1.7} />
@@ -85,7 +96,8 @@ export function FollowUpSection() {
             </ul>
 
             <p className="pub-body cine-rise">
-              You review and edit every draft. Nothing goes out until you send it.
+              You review and edit every draft. Nothing goes out until you send it. Smart Follow-up
+              is part of ABC Pro, and Pro pricing is coming soon.
             </p>
           </div>
 
@@ -95,7 +107,7 @@ export function FollowUpSection() {
 
               <div className="pub-draft">
                 <div className="pub-draft-channels" role="list" aria-label="Choose how you want to continue">
-                  {CHANNELS.map(({ Icon, label }, i) => (
+                  {list.map(({ Icon, label }, i) => (
                     <span
                       role="listitem"
                       key={label}
@@ -125,9 +137,11 @@ export function FollowUpSection() {
                 <div className="pub-draft-foot">
                   <span className="pub-draft-open">
                     <IconMail size={14} stroke={1.9} aria-hidden="true" />
-                    Send from Gmail
+                    {gmail ? 'Send from Gmail' : 'Open in email'}
                   </span>
-                  <span className="pub-draft-note">Only when you press Send</span>
+                  <span className="pub-draft-note">
+                    {gmail ? 'Once Gmail is connected · only when you press Send' : 'You send it from your email app'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -144,10 +158,37 @@ export function FollowUpSection() {
 
 /* -------------------------------------------------------------------- CRM */
 
-const PUSH_STEPS = ['Contact', 'Company', 'Association', 'Meeting', 'Follow-up task']
-const DESTINATIONS = ['HubSpot', 'Salesforce', 'Pipedrive']
+/*
+  What a push sends, in ABC's words rather than one CRM's: HubSpot, Pipedrive
+  and Salesforce each name these objects differently, and their own labels
+  belong to the push card (components/contacts/detail/CrmPushCard).
+*/
+const PUSH_STEPS = ['Contact', 'Company', 'Link between them', 'Meeting', 'Follow-up']
+/** What the CSV export carries (app/api/export/csv). */
+const CSV_FIELDS = ['Contact', 'Company', 'Meeting', 'What you discussed', 'Next step and date']
 
-export function CrmSection() {
+/** "A", "A and B", "A, B and C". */
+function names(list: string[]): string {
+  return list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`
+}
+
+/**
+ * The three states, said once: direct connection, CSV export, not available
+ * yet. `crm` holds only what this deployment can connect (lib/landing/
+ * integrations); every other provider ABC has is named as not available yet.
+ */
+function availability(crm: string[]): string {
+  const unavailable = CRM_PROVIDERS.map(({ name }) => name).filter((name) => !crm.includes(name))
+  if (crm.length === 0) {
+    return `CSV export, on every account, ready for any CRM. Direct connections to ${names(unavailable)} are not available yet.`
+  }
+  const rest = unavailable.length ? ` ${names(unavailable)}: not available yet.` : ''
+  return `Direct sync to ${names(crm)} with ABC Pro, and Pro pricing is coming soon. CSV export on every account, for any CRM.${rest}`
+}
+
+export function CrmSection({ crm }: { crm: string[] }) {
+  const direct = crm.length > 0
+
   return (
     <Chapter
       id="crm"
@@ -158,7 +199,7 @@ export function CrmSection() {
       <div className="pub-container">
         <div className="pub-split cine-bleed">
           <div className="pub-split-copy">
-            <p className="pub-eyebrow">CRM sync · ABC Pro</p>
+            <p className="pub-eyebrow">{direct ? 'CRM sync · ABC Pro' : 'CRM export'}</p>
             <CinematicHeadline id="crm-title" className="pub-h2">
               Your CRM should start with the conversation.
             </CinematicHeadline>
@@ -193,6 +234,15 @@ export function CrmSection() {
                   </p>
                 </div>
               </li>
+              <li className="pub-list-item">
+                <span className="pub-list-icon" aria-hidden="true">
+                  <IconFileSpreadsheet size={16} stroke={1.7} />
+                </span>
+                <div>
+                  <h3 className="pub-h3">Where it can go today</h3>
+                  <p className="pub-body">{availability(crm)}</p>
+                </div>
+              </li>
             </ul>
 
             <p className="cine-values cine-rise">
@@ -204,7 +254,7 @@ export function CrmSection() {
 
           <div className="pub-split-media cine-media cine-stage">
             <div className="pub-panel">
-              <p className="pub-panel-tag">ABC record → your CRM</p>
+              <p className="pub-panel-tag">{direct ? 'ABC record → your CRM' : 'ABC record → CSV'}</p>
 
               <div className="pub-crm">
                 <div className="cine-crm-source">
@@ -215,7 +265,7 @@ export function CrmSection() {
                 </div>
 
                 <ul className="pub-crm-steps">
-                  {PUSH_STEPS.map((step) => (
+                  {(direct ? PUSH_STEPS : CSV_FIELDS).map((step) => (
                     <li key={step}>
                       <span className="pub-crm-tick" aria-hidden="true">
                         <IconCheck size={11} stroke={3} />
@@ -226,14 +276,16 @@ export function CrmSection() {
                 </ul>
 
                 <ul className="pub-chips pub-crm-dest">
-                  {DESTINATIONS.map((name, i) => (
+                  {[...crm, 'CSV'].map((name, i) => (
                     <li key={name} className={`pub-chip pub-chip-sm${i === 0 ? ' is-active' : ''}`}>
                       {name}
                     </li>
                   ))}
                 </ul>
 
-                <p className="pub-crm-note">Pushed to HubSpot · 5 records</p>
+                <p className="pub-crm-note">
+                  {direct ? `Pushed to ${crm[0]} · 5 records` : 'Downloaded as CSV · opens in any CRM'}
+                </p>
               </div>
             </div>
           </div>
@@ -241,7 +293,7 @@ export function CrmSection() {
 
         <Equation
           terms={['Person', 'Meeting context', 'What matters next']}
-          result={DESTINATIONS}
+          result={direct ? crm : ['CSV export']}
         />
 
         <p className="cine-statement cine-rise">
