@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import LandingPage from '@/components/landing/LandingPage'
 import { landingIntegrations } from '@/lib/landing/integrations'
+import { SITE_URL } from '@/lib/site'
 
 /*
   The landing page's own metadata.
@@ -25,15 +26,12 @@ const DESCRIPTION =
   'Capture a contact, remember the conversation, and create a meaningful follow-up. Everything you need to turn a meeting into a lasting connection. For salespeople, founders and exhibitors. Free to start.'
 
 /*
-  Same origin rule the release candidate already uses for links in email
-  (lib/email.ts), so canonical and og:url follow the deployment rather than a
-  domain hardcoded here. Without a base, the relative URLs below would resolve
-  against localhost.
+  Canonical and og:url are the canonical origin (lib/site.ts), whatever host
+  serves the build: a preview or a local build still points search engines at
+  the production page.
 */
-const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://abccard.io'
-
 export const metadata: Metadata = {
-  metadataBase: new URL(ORIGIN),
+  metadataBase: new URL(SITE_URL),
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: '/' },

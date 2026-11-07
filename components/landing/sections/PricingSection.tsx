@@ -14,6 +14,11 @@ import { PRICE_TBC, PRO_ACCESS, SCAN_PACKS, formatPrice } from '@/lib/landing/pr
  * apart from all three — the Smart Scan packs, which are usage credits rather
  * than a plan.
  *
+ * Packs are shown as not on sale yet. Their purchase flow is not live — the
+ * app's own billing screen says they cannot be bought — so the chapter shows
+ * the locked prices and terms in the same dashed, labelled form as the tier
+ * that is coming, and nothing that reads as a way to buy.
+ *
  * Also rendered by /pricing, so this component is the single public statement
  * about money and the two surfaces can never disagree.
  *
@@ -60,7 +65,7 @@ function proIncludes({ crm, gmail }: LandingIntegrations): string[] {
 /** Planned, not sold. Mirrors the Event Intelligence chapter above. */
 const INTELLIGENCE_INCLUDES = [
   'Find relevant customers, suppliers and partners',
-  'Your event plan, with hall and stand',
+  'Hall and stand for each company on your event plan',
   'Why each company may matter to you',
   'Meeting invitations and conversation angles',
   'Event-specific product material',
@@ -184,15 +189,17 @@ export default function PricingSection({ integrations }: { integrations: Landing
           </div>
         </Reveal>
 
-        {/* ---------- 4. Smart Scan packs — usage, not a plan ---------- */}
+        {/* ---------- 4. Smart Scan packs — usage, not a plan, and not on sale yet ---------- */}
         <Reveal delay={200}>
-          <div className="pub-packs">
+          <div className="pub-packs cine-tier-future">
             <div className="pub-packs-copy">
               <p className="pub-plan-name">Smart Scan packs</p>
-              <p className="pub-plan-title">Buy capture when you need it.</p>
+              <p className="cine-soon-badge">Not on sale yet</p>
+              <p className="pub-plan-title">Capture, paid by the scan.</p>
               <p className="pub-plan-note">
-                Not a plan — credits. Each Smart Scan turns a card into a contact and a meeting,
-                with or without Pro, so you buy scans for the events you actually work.
+                Credits, not a plan. Each Smart Scan turns a card into a contact and a meeting,
+                with or without Pro. Packs are not on sale yet; these are the prices they are
+                planned at.
               </p>
               <ul className="pub-packs-terms">
                 <li>
@@ -206,7 +213,7 @@ export default function PricingSection({ integrations }: { integrations: Landing
               </ul>
             </div>
 
-            <div className="pub-packs-prices" role="list" aria-label="Smart Scan pack prices">
+            <div className="pub-packs-prices" role="list" aria-label="Planned Smart Scan pack prices, not on sale yet">
               {SCAN_PACKS.map(({ price, scans }) => (
                 <div className="pub-pack" role="listitem" key={price}>
                   <p className="pub-pack-price">{formatPrice(price)}</p>

@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import AppShell from '@/components/layout/AppShell'
 import NativeShellBridge from '@/components/native/NativeShellBridge'
+import { SITE_URL } from '@/lib/site'
 
 // latin-ext keeps diacritics (Novák, Bureš) sharp
 const inter = Inter({
@@ -13,6 +14,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   applicationName: 'ABC Card',
+  // Relative canonical and Open Graph URLs on every route resolve to the canonical origin.
+  metadataBase: new URL(SITE_URL),
   title: 'ABC — Scan. Know. Connect.',
   description:
     'From handshake to follow-up in seconds. Capture a contact, remember the conversation and create a meaningful follow-up.',

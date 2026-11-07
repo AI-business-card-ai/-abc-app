@@ -14,7 +14,8 @@ import { landingIntegrations } from '@/lib/landing/integrations'
  * (app/api/stripe/checkout), and this page is no longer a way to buy them.
  *
  * It now shows the same pricing chapter as the landing page, so the two can
- * never disagree: the free card; Smart Scan Packs at their locked prices, one-time,
+ * never disagree: the free card; Smart Scan Packs at their locked prices, marked
+ * not on sale yet, one-time,
  * credits never expiring, with no scan count until one is decided; ABC Pro as
  * Event Pass, Monthly and Annual, with "Pricing coming soon" until prices are
  * set. Every value comes from lib/landing/pricing.ts. It offers no purchase —
@@ -25,10 +26,17 @@ import { landingIntegrations } from '@/lib/landing/integrations'
  * Billing (lib/billing/commerce.ts).
  */
 
+const TITLE = 'Pricing — ABC Card'
+const DESCRIPTION =
+  'Your ABC Card is free. Smart Scan Packs and ABC Pro are coming soon: packs as one-time purchases whose credits never expire, Pro as an Event Pass, monthly or annual access.'
+
+/* Relative URLs resolve against the root layout's metadataBase, the canonical origin. */
 export const metadata: Metadata = {
-  title: 'Pricing — ABC Card',
-  description:
-    'Your ABC Card is free. Smart Scan Packs are one-time purchases whose credits never expire. ABC Pro is planned as an Event Pass, monthly or annual access, with pricing coming soon.',
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: '/pricing' },
+  openGraph: { type: 'website', siteName: 'ABC Card', title: TITLE, description: DESCRIPTION, url: '/pricing' },
+  twitter: { card: 'summary', title: TITLE, description: DESCRIPTION },
 }
 
 export default function PricingPage() {

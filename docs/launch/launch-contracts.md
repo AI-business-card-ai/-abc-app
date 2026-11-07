@@ -174,6 +174,10 @@ reach them.
 
 ## 3. Canonical origin dependencies
 
+**Decided 2026-11-07:** the owner named `https://www.abccard.io` as the canonical origin. On
+`feature/landing-production` the landing, /pricing, robots.txt and sitemap.xml take it from
+`lib/site.ts`. Every row below that changes by **code** is still open.
+
 The code already treats both `https://www.abccard.io` and `https://abccard.io` as ABC
 (`lib/native/config.ts` `ABC_WEB_ORIGINS`, `lib/scan/qr-parse.ts`). It does **not** agree on
 which one is canonical: the native default is `www`, while the hard-coded links and
@@ -184,7 +188,7 @@ fallbacks listed below use the apex.
 | Place | Today | Changes by |
 | --- | --- | --- |
 | `NEXT_PUBLIC_APP_URL` (Vercel) | unknown | configuration |
-| Landing `metadataBase` / `canonical` / `og:url` | `NEXT_PUBLIC_APP_URL`, fallback apex (`app/page.tsx`) | configuration |
+| Landing `metadataBase` / `canonical` / `og:url` | `https://www.abccard.io` from `lib/site.ts` (feature/landing-production) | done in code |
 | Email links (welcome, exchange notifications) | `NEXT_PUBLIC_APP_URL`, fallback apex (`lib/email.ts`, `lib/email-safety.ts`) | configuration |
 | Stripe success / cancel / portal return | `NEXT_PUBLIC_APP_URL` | configuration |
 | Gmail redirect URI | `NEXT_PUBLIC_APP_URL` + `/api/auth/google-gmail/callback` | configuration + Google Cloud |

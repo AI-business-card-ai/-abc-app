@@ -141,10 +141,6 @@ export default function TrustSection({ integrations }: { integrations: LandingIn
           </a>
         </p>
 
-        <p className="cine-statement cine-rise">
-          ABC doesn’t replace your CRM. It turns real conversations into CRM-ready context in
-          seconds.
-        </p>
       </div>
     </Chapter>
   )

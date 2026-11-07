@@ -5611,30 +5611,6 @@ body:has(.pub-root) {
   color: var(--pub-ink-2);
 }
 
-/* A quiet grid for a capability that does not exist yet: no panels, no boxes. */
-.cine .cine-grid-quiet {
-  list-style: none;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 28px 32px;
-  margin: clamp(36px, 4vw, 56px) 0 0;
-  padding: 0;
-}
-@media (min-width: 640px) {
-  .cine .cine-grid-quiet {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (min-width: 1024px) {
-  .cine .cine-grid-quiet {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-.cine .cine-grid-quiet .pub-card-icon {
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.1);
-  color: var(--pub-ink-2);
-}
 /* The future chapter keeps its ambient light low. */
 .cine .cine-future::before {
   opacity: 0.18;
