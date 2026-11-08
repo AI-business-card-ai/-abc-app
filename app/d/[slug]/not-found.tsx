@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { SITE_URL } from '@/lib/site'
 
 export default function CardNotFound() {
   return (
@@ -36,7 +37,7 @@ export default function CardNotFound() {
         This card does not exist, or its owner has not published it yet.
       </p>
       <Link
-        href="https://abccard.io"
+        href={SITE_URL}
         style={{
           display: 'inline-flex',
           alignItems: 'center',

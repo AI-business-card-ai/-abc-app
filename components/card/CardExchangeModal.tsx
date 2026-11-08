@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { userFacingRequestError } from '@/lib/network-error'
+import { SITE_URL } from '@/lib/site'
 
 type Props = {
   ownerName: string
@@ -133,7 +134,7 @@ export default function CardExchangeModal({ ownerName, cardSlug, open, onClose }
               Sent — {firstName} has your details.
             </p>
             <a
-              href="https://abccard.io?ref=exchange"
+              href={`${SITE_URL}/?ref=exchange`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

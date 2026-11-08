@@ -24,6 +24,7 @@ import {
 import type { TablerIcon } from '@tabler/icons-react'
 import type { DigitalCardData, SocialNetwork } from '@/lib/card/types'
 import { LINK_ICON_OPTIONS, CARD_PUBLIC_BASE, isHeroLayout } from '@/lib/card/types'
+import { SITE_URL } from '@/lib/site'
 import CardHero from '@/components/card/CardHero'
 import ShowcaseGallery from '@/components/card/ShowcaseGallery'
 import { isSocialVisible } from '@/lib/card/public-data'
@@ -769,7 +770,7 @@ export default function DigitalCardView({
         {!card.brandingRemoved ? (
           <footer style={{ marginTop: 34, textAlign: 'center' }}>
             <a
-              href={`https://abccard.io?ref=card_${encodeURIComponent(card.slug)}`}
+              href={`${SITE_URL}/?ref=card_${encodeURIComponent(card.slug)}`}
               style={{ color: t.muted, fontSize: 12, textDecoration: 'none' }}
             >
               Powered by ABC Card

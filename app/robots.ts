@@ -26,17 +26,20 @@ const SIGNED_IN = [
  * robots.txt — served at /robots.txt.
  *
  * Marketing pages are open; signed-in routes, the API and the auth callbacks
- * are not. Public cards (/d/, /u/, /card/) are deliberately neither listed in
- * the sitemap nor disallowed here, which is how they behaved before this file
- * existed: whether a shared card should appear in search results is an owner
- * decision, not something to change in passing.
+ * are not. Public cards (/d/, /u/, /card/) are neither listed in the sitemap
+ * nor disallowed here: each card page says noindex itself, and a crawler has to
+ * be allowed to fetch the page to read that.
+ *
+ * The one API path allowed is the card share image. A link preview fetches it
+ * from /api/card/og/<slug>, and some preview crawlers obey robots.txt. The
+ * route answers only for published cards.
  */
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
+        allow: ['/', '/api/card/og/'],
         disallow: [...SIGNED_IN, '/api/', '/auth/'],
       },
     ],

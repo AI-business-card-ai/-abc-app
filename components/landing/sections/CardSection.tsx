@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react'
 import Chapter from '@/components/landing/cinema/Chapter'
 import CinematicHeadline from '@/components/landing/cinema/CinematicHeadline'
+import { SITE_URL } from '@/lib/site'
 
 const PublicQrCode = dynamic(() => import('@/components/landing/PublicQrCode'), {
   ssr: false,
@@ -38,7 +39,7 @@ const PublicQrCode = dynamic(() => import('@/components/landing/PublicQrCode'), 
  * this release cannot keep.
  */
 
-const DEMO_URL = 'https://abccard.io/u/martin'
+const DEMO_URL = `${SITE_URL}/u/martin`
 
 /** What the composition cannot show for itself. */
 const NOTES = [

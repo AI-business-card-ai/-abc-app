@@ -3,6 +3,7 @@ import { mapProfileToCardData } from '@/lib/card/public-data'
 import { splitName } from '@/lib/data-model'
 import { createServerSupabase } from '@/lib/supabase'
 import { normalizeAbcCardRef, resolveAbcCardProfile } from '@/lib/card/abc-identity'
+import { CARD_PUBLIC_BASE } from '@/lib/card/types'
 
 /**
  * Resolves an ABC card QR into the identity fields the scanner's review step
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
           website: card.showWebsite ? card.website : null,
           linkedin_url: card.linkedinUrl,
           photo_url: card.photoUrl,
-          url: profile.card_slug ? `https://abccard.io/d/${profile.card_slug}` : null,
+          url: profile.card_slug ? `${CARD_PUBLIC_BASE}/${profile.card_slug}` : null,
         },
       },
       { headers: { 'Cache-Control': 'no-store' } }

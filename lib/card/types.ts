@@ -1,4 +1,5 @@
 import type { ShowcaseItem } from '@/lib/card/showcase'
+import { SITE_URL } from '@/lib/site'
 
 export type CardTheme = 'graphite' | 'light'
 
@@ -231,7 +232,13 @@ export const LOOKING_FOR_CHIPS = [
 ] as const
 
 export const MAX_CARD_LINKS = 10
-export const CARD_PUBLIC_BASE = 'https://abccard.io/d'
+/**
+ * Where every newly generated card link points: QR codes, copy and share links,
+ * Wallet passes and the scanner's resolve answer. It is on the canonical www
+ * origin. Links already printed or saved on the apex keep working: the apex
+ * redirects to www, and the QR parser and native deep links accept both hosts.
+ */
+export const CARD_PUBLIC_BASE = `${SITE_URL}/d`
 
 /* ─── Hero image framing ─── */
 

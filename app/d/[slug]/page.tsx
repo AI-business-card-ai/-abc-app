@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation'
 import { createServerSupabase } from '@/lib/supabase'
 import { loadPublishedCardBySlug, recordCardView } from '@/lib/card/public-data'
 import PublicCardClient from '@/components/card/PublicCardClient'
+import { CARD_PUBLIC_BASE } from '@/lib/card/types'
 import { sanitizeCardViewSource } from '@/lib/card/view-source'
+import { SITE_URL } from '@/lib/site'
 
 /** A card must reflect the owner's latest edit the moment a visitor scans it. */
 export const dynamic = 'force-dynamic'
@@ -20,21 +22,31 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const card = await loadPublishedCardBySlug(supabase, slug)
 
   if (!card) {
-    return { title: 'Card not found — ABC' }
+    return { title: 'Card not found — ABC', robots: { index: false, follow: false } }
   }
 
   const title = [card.fullName, card.jobTitle ? `${card.jobTitle} @ ${card.companyName || ''}`.trim() : card.companyName]
     .filter(Boolean)
     .join(' — ')
   const description = card.tagline || card.whatIDo || `Digital business card of ${card.fullName}`
-  const ogImage = `https://abccard.io/api/card/og/${encodeURIComponent(slug)}`
+  const ogImage = `${SITE_URL}/api/card/og/${encodeURIComponent(slug)}`
+  // One address per card, whichever ?src= or host it was opened through.
+  const canonical = `${CARD_PUBLIC_BASE}/${encodeURIComponent(slug)}`
 
   return {
     title,
     description,
+    /*
+      Open to anyone with the link, kept out of search results: a card is shared
+      person to person, not published for search. `follow` keeps the owner's own
+      links crawlable. Per-card opt-in to indexing is a separate, later decision.
+    */
+    robots: { index: false, follow: true },
+    alternates: { canonical },
     openGraph: {
       title,
       description,
+      url: canonical,
       images: [{ url: ogImage, width: 1200, height: 630 }],
       type: 'profile',
     },

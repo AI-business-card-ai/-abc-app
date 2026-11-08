@@ -15,6 +15,8 @@ import path from 'node:path'
 
 import robots from '@/app/robots'
 import sitemap from '@/app/sitemap'
+import { CARD_PUBLIC_BASE } from '@/lib/card/types'
+import { parseQrPayload } from '@/lib/scan/qr-parse'
 import { PUBLIC_PAGES, SITE_URL } from '@/lib/site'
 
 const ROOT = process.cwd()
@@ -65,7 +67,8 @@ const disallow = ([] as string[]).concat(rule.disallow ?? [])
 check('S4 middleware still names its signed-in routes', protectedRoutes.length > 10, true)
 check('S5 robots.txt disallows every signed-in route middleware protects', protectedRoutes.filter((route) => !disallow.includes(route)), [])
 check('S6 and the API and auth callbacks', [disallow.includes('/api/'), disallow.includes('/auth/')], [true, true])
-check('S7 robots.txt allows the site and names the sitemap on the canonical origin', [rule.allow, robots().sitemap], ['/', `${SITE_URL}/sitemap.xml`])
+// Pass 4: the card share image is the one API path a link-preview crawler is allowed to fetch.
+check('S7 robots.txt allows the site and names the sitemap on the canonical origin', [rule.allow, robots().sitemap], [['/', '/api/card/og/'], `${SITE_URL}/sitemap.xml`])
 check('S8 public cards are neither blocked nor listed (an owner decision)', [disallow.some((d) => /^\/(u|d|card)\b/.test(d)), PUBLIC_PAGES.some((p) => /^\/(u|d|card)\b/.test(p))], [false, false])
 
 const urls = sitemap().map((entry) => entry.url)
@@ -120,6 +123,71 @@ check(
   true
 )
 check('C9 the manifest makes no Intelligence claim', /intelligence/i.test(manifest.description), false)
+
+/* ---------------------------------------------------------- public cards (pass 4) */
+
+check('P1 every newly generated card link starts on the canonical origin', CARD_PUBLIC_BASE, `${SITE_URL}/d`)
+/*
+  Apex addresses that stay on purpose: Google Wallet's origin claim (a Wallet
+  contract, pinned by test:wallet), the email origin fallbacks behind
+  NEXT_PUBLIC_APP_URL, and the native shell's list of hosts it accepts.
+*/
+const APEX_ALLOWED = ['lib/card/wallet-google.ts', 'lib/email-safety.ts', 'lib/email.ts', 'lib/native/config.ts']
+const shipped = ['app', 'components', 'lib'].flatMap((dir) => landingFiles(dir))
+check(
+  'P2 no shipped code builds a card, share-image or homepage link on the apex',
+  shipped.filter((file) => !APEX_ALLOWED.includes(file) && /https:\/\/abccard\.io(?![\w.-])/.test(code(file))),
+  []
+)
+const scanned = ['https://abccard.io/d/jane-doe', 'https://www.abccard.io/d/jane-doe?src=qr'].map((raw) => {
+  const result = parseQrPayload(raw) as { kind: string; slug?: string }
+  return [result.kind, result.slug ?? null]
+})
+check('P3 cards already printed on the apex still scan, and so do new www ones', scanned, [['abc_card', 'jane-doe'], ['abc_card', 'jane-doe']])
+const cardPage = code('app/d/[slug]/page.tsx')
+check(
+  'P4 a published card says noindex, follow and names its own www address as canonical',
+  [
+    cardPage.includes('robots: { index: false, follow: true }'),
+    cardPage.includes('alternates: { canonical }'),
+    cardPage.includes('url: canonical'),
+    cardPage.includes('const canonical = `${CARD_PUBLIC_BASE}/${encodeURIComponent(slug)}`'),
+  ],
+  [true, true, true, true]
+)
+check('P5 its share image is on the canonical origin', cardPage.includes('const ogImage = `${SITE_URL}/api/card/og/${encodeURIComponent(slug)}`'), true)
+check('P6 a missing or unpublished card is not indexed either', cardPage.includes("return { title: 'Card not found — ABC', robots: { index: false, follow: false } }"), true)
+check('P7 robots.txt lets crawlers fetch card share images and still keeps the rest of the API out', [([] as string[]).concat(rule.allow ?? []).includes('/api/card/og/'), disallow.includes('/api/')], [true, true])
+check(
+  'P8 the legacy /u/ and /card/ addresses still lead to the card',
+  ['app/u/[username]/page.tsx', 'app/card/[userId]/page.tsx'].map((file) => code(file).includes('redirect(`/d/${profile.card_slug}`)')),
+  [true, true]
+)
+const legacy = ['app/u/[username]/page.tsx', 'app/card/[userId]/page.tsx'].map((file) => code(file))
+check(
+  'P10 the legacy addresses never show an unpublished card: they read the publish state only, and name no one',
+  legacy.map((src) => [
+    src.includes(".select('card_slug, card_published')"),
+    /full_name|email|phone|DigitalCardClient|generateMetadata/.test(src),
+    src.includes('robots: { index: false, follow: false }'),
+    src.includes('return <CardNotFound />'),
+  ]),
+  [
+    [true, false, true, true],
+    [true, false, true, true],
+  ]
+)
+check(
+  'P9 every public-card route still answers for published cards only',
+  [
+    code('app/api/card/og/[slug]/route.tsx').includes('card_published'),
+    code('app/api/card/qr/[slug]/route.ts').includes('card_published'),
+    code('app/api/card/vcard/[slug]/route.ts').includes('loadPublishedCardBySlug'),
+    cardPage.includes('loadPublishedCardBySlug'),
+    code('app/api/card/resolve/[slug]/route.ts').includes('resolveAbcCardProfile'),
+  ],
+  [true, true, true, true, true]
+)
 
 const total = passed + failures.length
 if (failures.length) {
