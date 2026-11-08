@@ -5,7 +5,7 @@ import type { AbcCardRef } from '@/lib/scan/qr-parse'
  * Finding the ABC account behind a scanned card, server-side.
  *
  * Two callers need the same three rules — which column an identifier means,
- * that a `card` reference must be a real UUID, and that a `/d/` card has to be
+ * that a `card` reference must be a real UUID, and that a card has to be
  * published to be readable — and rules like those are exactly what drifts when
  * they are written twice. The public resolve route reads a profile to render
  * identity for the scanner; saving a contact reads one to record who was
@@ -51,9 +51,11 @@ export async function resolveAbcCardProfile(
   const { data, error } = await query.maybeSingle()
   if (error || !data) return null
 
-  // A /d/ card must be published to be readable. The /u/ and /card/ aliases
-  // predate publishing and stay readable, matching what those pages render.
-  if (ref === 'd' && !data.card_published) return null
+  // A card must be published to be readable, whichever address found it. The
+  // /u/ and /card/ aliases used to stay readable unpublished, which made this
+  // public lookup hand out an unpublished owner's identity (the service role
+  // reads past row-level security). Those pages now 404 too.
+  if (!data.card_published) return null
 
   return data as Record<string, unknown>
 }

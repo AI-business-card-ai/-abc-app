@@ -1,66 +1,43 @@
 import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { createServerSupabase } from '@/lib/supabase'
-import CardNotFound from '@/components/public/CardNotFound'
-import DigitalCardClient from '@/components/public/DigitalCardClient'
 
 type Props = { params: { userId: string } }
 
-async function getProfile(userId: string) {
+/** A legacy link must stop working the moment its owner unpublishes; nothing here may be cached. */
+export const dynamic = 'force-dynamic'
+
+/*
+  The publish state and nothing else. This client uses the service role, so no
+  row-level rule stands between this page and the owner's contact details; the
+  page itself is the rule, and it never needs more than these two columns.
+*/
+async function getPublishState(userId: string) {
   const supabase = createServerSupabase()
   const { data: profile, error } = await supabase
     .from('abc_profiles')
-    .select(
-      'id, user_name, card_slug, card_published, full_name, company, role, phone, email, linkedin_url, website, product_description, goals'
-    )
+    .select('card_slug, card_published')
     .eq('id', userId)
     .maybeSingle()
-  if (error) console.error('getProfile error:', error)
+  if (error) console.error('getPublishState error:', error)
   return profile
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const profile = await getProfile(params.userId)
-  const name = profile?.full_name?.trim() || 'ABC User'
-  const company = profile?.company?.trim()
-
-  return {
-    title: `${name} — AI Business Card`,
-    description: company ? `Connect with ${name} from ${company}` : `Connect with ${name}`,
-  }
+/** Names no one: a published card redirects, and its /d/ page carries its own metadata. */
+export const metadata: Metadata = {
+  title: 'Card not found — ABC',
+  robots: { index: false, follow: false },
 }
 
 export default async function PublicCardPage({ params }: Props) {
-  const profile = await getProfile(params.userId)
+  const profile = await getPublishState(params.userId)
 
-  // Old printed QR codes keep working — forward to the canonical card URL,
-  // falling back to the username alias for profiles with no published card.
+  // Old printed QR codes keep working for a published card, which lives at
+  // /d/. Anything else is a 404, the same rule /d/ applies — including the
+  // detour through the user's /u/ alias, which would only name them.
   if (profile?.card_slug && profile.card_published) {
     redirect(`/d/${profile.card_slug}`)
   }
-  if (profile?.user_name) {
-    redirect(`/u/${profile.user_name}`)
-  }
 
-  if (!profile) {
-    return <CardNotFound />
-  }
-
-  return (
-    <div style={{ background: '#0a0a0a', minHeight: '100vh' }}>
-      <DigitalCardClient
-        profile={{
-          userId: profile.id,
-          full_name: profile.full_name,
-          company: profile.company,
-          role: profile.role,
-          email: profile.email,
-          phone: profile.phone,
-          linkedin_url: profile.linkedin_url,
-          website: profile.website,
-          about: profile.product_description || profile.goals || null,
-        }}
-      />
-    </div>
-  )
+  notFound()
 }
