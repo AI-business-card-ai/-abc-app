@@ -165,16 +165,18 @@ check(
 )
 const legacy = ['app/u/[username]/page.tsx', 'app/card/[userId]/page.tsx'].map((file) => code(file))
 check(
-  'P10 the legacy addresses never show an unpublished card: they read the publish state only, and name no one',
+  'P10 the legacy addresses never show an unpublished card: they read the publish state only, name no one, answer a real 404 and are never cached',
   legacy.map((src) => [
     src.includes(".select('card_slug, card_published')"),
     /full_name|email|phone|DigitalCardClient|generateMetadata/.test(src),
     src.includes('robots: { index: false, follow: false }'),
-    src.includes('return <CardNotFound />'),
+    // The 26d0519 security contract: notFound() is a genuine 404. Rendering the not-found page directly would be a 200.
+    /\bnotFound\(\)/.test(src) && !src.includes('<CardNotFound'),
+    src.includes("export const dynamic = 'force-dynamic'"),
   ]),
   [
-    [true, false, true, true],
-    [true, false, true, true],
+    [true, false, true, true, true],
+    [true, false, true, true, true],
   ]
 )
 check(
