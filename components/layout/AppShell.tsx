@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
+import { leavePrivateDocument } from '@/lib/hooks/useAppProfile'
 import AppHeader from '@/components/layout/AppHeader'
 import DesktopSidebar from '@/components/layout/DesktopSidebar'
 import MobileNav from '@/components/layout/MobileNav'
@@ -58,6 +60,10 @@ function motifFor(pathname: string): string | null {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+
+  useEffect(() => {
+    if (pathname === '/login') leavePrivateDocument()
+  }, [pathname])
 
   const isPublicCard =
     pathname.startsWith('/d/') || pathname.startsWith('/u/') || pathname.startsWith('/card/')

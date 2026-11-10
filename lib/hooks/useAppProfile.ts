@@ -49,14 +49,29 @@ function setCached(next: AppProfile | null) {
   listeners.forEach((listener) => listener())
 }
 
+/**
+ * Abandons a document that has shown the previous account's pages.
+ *
+ * Only a full document load removes all of it at once: the server-rendered page
+ * on screen, Next's router cache (which replays visited routes, Back and
+ * Forward without asking the server), and any route payload still on its way.
+ * router.refresh() and a client-side redirect each left some of that behind when
+ * measured. Hidden first, because the old page stays up until the next one lands.
+ */
+function leaveAccount(userId: string | null) {
+  document.documentElement.style.visibility = 'hidden'
+  window.location.replace(userId ? '/home' : '/login')
+}
+
 function watchAuth() {
   if (watchingAuth) return
   watchingAuth = true
 
-  createClientComponent().auth.onAuthStateChange((event, session) => {
-    const userId = session?.user?.id ?? null
+  const supabase = createClientComponent()
+
+  const applySession = (userId: string | null, signedOut = false) => {
     const accountChanged =
-      event === 'SIGNED_OUT' ||
+      signedOut ||
       (cached !== null && cached.id !== userId) ||
       (sessionUserId !== undefined && sessionUserId !== userId)
     sessionUserId = userId
@@ -65,11 +80,32 @@ function watchAuth() {
     accountEpoch += 1
     inFlight = null
     setCached(null)
+    leaveAccount(userId)
+  }
 
-    // Still mounted means the change came from another tab. Deferred because
-    // Supabase must not be called from inside this callback.
-    if (userId && listeners.size > 0) setTimeout(() => void loadProfile(), 0)
+  supabase.auth.onAuthStateChange((event, session) => {
+    // A first report with no session can be a refresh that failed on the
+    // network, and that account may still be signed in.
+    if (event === 'INITIAL_SESSION' && !session) return
+    applySession(session?.user?.id ?? null, event === 'SIGNED_OUT')
   })
+
+  // A suspended tab, or a browser without BroadcastChannel, never hears those
+  // events. The cookie is still the truth when the tab is shown again.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return
+    void supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (!error) applySession(session?.user?.id ?? null)
+    })
+  })
+}
+
+/**
+ * For the login screen. The server can turn a session away without the browser
+ * hearing about it, and the redirect arrives as a client-side navigation.
+ */
+export function leavePrivateDocument() {
+  if (watchingAuth) leaveAccount(null)
 }
 
 function loadProfile(): Promise<AppProfile | null> {
